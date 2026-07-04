@@ -9,6 +9,9 @@ const requiredCoreKeys = [
   'command.saveAs',
   'command.toggleTheme',
   'command.toggleLanguage',
+  'mermaid.editSource',
+  'mermaid.loading',
+  'mermaid.renderFailed',
   'status.ready',
 ] as const;
 

@@ -8,6 +8,7 @@ import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { recordEditorTransactionMetric } from '../metrics/editorMetrics';
 import { markdownWysiwygExtension } from '../wysiwyg/markdownDecorations';
+import { mermaidPreviewExtension } from '../widgets/mermaid/MermaidWidget';
 import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
@@ -77,6 +78,7 @@ export function createEditorState(
     doc,
     extensions: [
       markdownWysiwygExtension(),
+      mermaidPreviewExtension(),
       history(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,

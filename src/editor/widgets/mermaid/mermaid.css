@@ -1,0 +1,53 @@
+.cm-content .lm-mermaid-preview {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: var(--lm-space-3) 0;
+  padding: var(--lm-space-4);
+  overflow: auto;
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-2);
+  background: var(--lm-color-surface);
+}
+
+.cm-content .lm-mermaid-status,
+.cm-content .lm-mermaid-error {
+  color: var(--lm-color-text-muted);
+  font-size: 0.875rem;
+}
+
+.cm-content .lm-mermaid-error {
+  color: #b42318;
+}
+
+.cm-content .lm-mermaid-actions {
+  margin-top: var(--lm-space-2);
+}
+
+.cm-content .lm-mermaid-edit-source {
+  padding: var(--lm-space-1) var(--lm-space-2);
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-1);
+  background: var(--lm-color-surface-muted);
+  color: var(--lm-color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cm-content .lm-mermaid-edit-source:hover {
+  border-color: var(--lm-color-accent);
+}
+
+.cm-content .lm-mermaid-preview-error {
+  border-color: #f2b8b5;
+  background: color-mix(in srgb, var(--lm-color-surface) 88%, #fce8e6);
+}
+
+.cm-content .lm-mermaid-svg:empty {
+  display: none;
+}
+
+.cm-content .lm-mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+}

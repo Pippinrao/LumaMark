@@ -20,6 +20,7 @@ export default defineConfig({
       '**/.worktrees/**',
       '**/src-tauri/target/**',
       '**/target/**',
+      '**/tests/e2e/**',
     ],
     globals: false,
   },

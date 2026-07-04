@@ -9,7 +9,7 @@ export function AppShell() {
   const toggleTheme = useAppStore((state) => state.toggleTheme);
 
   return (
-    <div className="lm-app-shell">
+    <div className="lm-app-shell" data-testid="app-shell">
       <header className="lm-shell-header">
         <div className="lm-title-group">
           <h1>{t('app.name')}</h1>
@@ -36,7 +36,11 @@ export function AppShell() {
           </aside>
         ) : null}
 
-        <main className="lm-editor-surface" aria-label={t('app.editorLabel')}>
+        <main
+          className="lm-editor-surface"
+          data-testid="editor-host"
+          aria-label={t('app.editorLabel')}
+        >
           <section
             className="lm-editor-placeholder"
             aria-labelledby="lm-editor-title"

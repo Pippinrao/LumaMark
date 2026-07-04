@@ -1,0 +1,323 @@
+param(
+  [ValidateSet('Nsis', 'Msi')]
+  [string]$InstallerKind = 'Nsis',
+
+  [string]$InstallerPath = '',
+
+  [string]$InstallDir = '',
+
+  [switch]$PlanOnly,
+
+  [int]$LaunchSeconds = 3,
+
+  [switch]$KeepInstallOnFailure
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Get-FullPath {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  return [System.IO.Path]::GetFullPath($Path)
+}
+
+function Test-PathUnderRoot {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Root
+  )
+
+  $comparison = [System.StringComparison]::OrdinalIgnoreCase
+  $normalizedPath = (Get-FullPath $Path).TrimEnd('\')
+  $normalizedRoot = (Get-FullPath $Root).TrimEnd('\')
+  $rootPrefix = "$normalizedRoot\"
+
+  return $normalizedPath.Equals($normalizedRoot, $comparison) -or
+    $normalizedPath.StartsWith($rootPrefix, $comparison)
+}
+
+function Test-IsAdministrator {
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+
+  return $principal.IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator
+  )
+}
+
+function Join-CommandArguments {
+  param([string[]]$Arguments)
+
+  $escaped = foreach ($argument in $Arguments) {
+    if ($argument -match '[\s"]') {
+      '"' + ($argument -replace '"', '\"') + '"'
+    } else {
+      $argument
+    }
+  }
+
+  return ($escaped -join ' ')
+}
+
+function Invoke-SmokeProcess {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [string[]]$Arguments = @(),
+    [Parameter(Mandatory = $true)][string]$Description
+  )
+
+  $process = Start-Process `
+    -FilePath $FilePath `
+    -ArgumentList (Join-CommandArguments $Arguments) `
+    -Wait `
+    -PassThru `
+    -WindowStyle Hidden
+
+  if ($process.ExitCode -ne 0) {
+    throw "$Description failed with exit code $($process.ExitCode)."
+  }
+}
+
+function Remove-SmokeRegistryEntries {
+  param([Parameter(Mandatory = $true)][string]$InstallDir)
+
+  $productKeyPath = 'HKCU:\Software\lumamark\LumaMark'
+  if (Test-Path -LiteralPath $productKeyPath) {
+    $productKey = Get-Item -LiteralPath $productKeyPath
+    $defaultValue = [string]$productKey.GetValue('')
+    $installDirValue = ''
+    $properties = Get-ItemProperty -LiteralPath $productKeyPath
+
+    if ($properties.PSObject.Properties.Name -contains 'InstallDir') {
+      $installDirValue = [string]$properties.InstallDir
+    }
+
+    if ($defaultValue -eq $InstallDir -or $installDirValue -eq $InstallDir) {
+      Remove-Item -LiteralPath $productKeyPath -Recurse -Force
+    }
+  }
+
+  $manufacturerKeyPath = 'HKCU:\Software\lumamark'
+  if (Test-Path -LiteralPath $manufacturerKeyPath) {
+    $manufacturerKey = Get-Item -LiteralPath $manufacturerKeyPath
+    $remainingChildren = Get-ChildItem -LiteralPath $manufacturerKeyPath
+    $remainingValues = $manufacturerKey.GetValueNames()
+    if ($remainingChildren.Count -eq 0 -and $remainingValues.Count -eq 0) {
+      Remove-Item -LiteralPath $manufacturerKeyPath -Force
+    }
+  }
+}
+
+function Get-ExistingLumaMarkInstallDir {
+  $candidates = @()
+  $productKeyPath = 'HKCU:\Software\lumamark\LumaMark'
+  $uninstallKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\LumaMark'
+
+  if (Test-Path -LiteralPath $productKeyPath) {
+    $productKey = Get-Item -LiteralPath $productKeyPath
+    $defaultValue = [string]$productKey.GetValue('')
+    if ($defaultValue) {
+      $candidates += $defaultValue
+    }
+
+    $properties = Get-ItemProperty -LiteralPath $productKeyPath
+    if ($properties.PSObject.Properties.Name -contains 'InstallDir') {
+      $candidates += [string]$properties.InstallDir
+    }
+  }
+
+  if (Test-Path -LiteralPath $uninstallKeyPath) {
+    $properties = Get-ItemProperty -LiteralPath $uninstallKeyPath
+    if ($properties.PSObject.Properties.Name -contains 'InstallLocation') {
+      $candidates += ([string]$properties.InstallLocation).Trim('"')
+    }
+    if ($properties.PSObject.Properties.Name -contains 'UninstallString') {
+      $uninstallString = ([string]$properties.UninstallString).Trim('"')
+      if ($uninstallString) {
+        $candidates += Split-Path -Parent $uninstallString
+      }
+    }
+  }
+
+  foreach ($candidate in $candidates) {
+    if ($candidate) {
+      return (Get-FullPath $candidate)
+    }
+  }
+
+  return ''
+}
+
+function Stop-SmokeApp {
+  param([System.Diagnostics.Process]$Process)
+
+  if ($null -eq $Process) {
+    return
+  }
+
+  $Process.Refresh()
+  if (-not $Process.HasExited) {
+    Stop-Process -Id $Process.Id -Force
+  }
+}
+
+$repoRoot = Get-FullPath (Join-Path $PSScriptRoot '..\..')
+$smokeRoot = Get-FullPath (Join-Path ([System.IO.Path]::GetTempPath()) 'lumamark-installer-smoke')
+$resolvedInstallDir = if ($InstallDir) {
+  Get-FullPath $InstallDir
+} else {
+  Get-FullPath (Join-Path $smokeRoot $InstallerKind.ToLowerInvariant())
+}
+
+if (-not (Test-PathUnderRoot -Path $resolvedInstallDir -Root $smokeRoot)) {
+  throw "InstallDir must stay under $smokeRoot. Received: $resolvedInstallDir"
+}
+
+$defaultInstallerPath = if ($InstallerKind -eq 'Nsis') {
+  Join-Path $repoRoot 'src-tauri\target\release\bundle\nsis\LumaMark_0.1.0_x64-setup.exe'
+} else {
+  Join-Path $repoRoot 'src-tauri\target\release\bundle\msi\LumaMark_0.1.0_x64_en-US.msi'
+}
+$resolvedInstallerPath = if ($InstallerPath) {
+  Get-FullPath $InstallerPath
+} else {
+  Get-FullPath $defaultInstallerPath
+}
+
+$requiresAdmin = $InstallerKind -eq 'Msi'
+$executablePath = Join-Path $resolvedInstallDir 'lumamark.exe'
+$existingInstallDir = Get-ExistingLumaMarkInstallDir
+$uninstallPath = if ($InstallerKind -eq 'Nsis') {
+  Join-Path $resolvedInstallDir 'uninstall.exe'
+} else {
+  $resolvedInstallerPath
+}
+
+if ($InstallerKind -eq 'Nsis') {
+  $installCommand = $resolvedInstallerPath
+  $installArguments = @('/S', '/NS', "/D=$resolvedInstallDir")
+  $uninstallCommand = $uninstallPath
+  $uninstallArguments = @('/S')
+} else {
+  $installCommand = 'msiexec.exe'
+  $installArguments = @(
+    '/i',
+    $resolvedInstallerPath,
+    '/qn',
+    '/norestart',
+    "INSTALLDIR=$resolvedInstallDir"
+  )
+  $uninstallCommand = 'msiexec.exe'
+  $uninstallArguments = @('/x', $resolvedInstallerPath, '/qn', '/norestart')
+}
+
+$plan = [ordered]@{
+  installerKind = $InstallerKind
+  willExecute = -not $PlanOnly.IsPresent
+  requiresAdmin = $requiresAdmin
+  repoRoot = $repoRoot
+  installerPath = $resolvedInstallerPath
+  installerExists = Test-Path -LiteralPath $resolvedInstallerPath
+  installDir = $resolvedInstallDir
+  existingInstallDir = $existingInstallDir
+  executablePath = $executablePath
+  uninstallPath = $uninstallPath
+  installCommand = $installCommand
+  installArguments = $installArguments
+  uninstallCommand = $uninstallCommand
+  uninstallArguments = $uninstallArguments
+  launchSeconds = $LaunchSeconds
+}
+
+if ($PlanOnly) {
+  $plan | ConvertTo-Json -Depth 4
+  exit 0
+}
+
+if (-not (Test-Path -LiteralPath $resolvedInstallerPath)) {
+  throw "Installer does not exist: $resolvedInstallerPath"
+}
+
+if ($requiresAdmin -and -not (Test-IsAdministrator)) {
+  throw 'MSI smoke requires an elevated PowerShell session.'
+}
+
+if (
+  $existingInstallDir -and
+  -not (Test-PathUnderRoot -Path $existingInstallDir -Root $smokeRoot)
+) {
+  throw "Existing LumaMark install detected at $existingInstallDir. Refusing to mutate a non-smoke installation."
+}
+
+if (Test-Path -LiteralPath $resolvedInstallDir) {
+  Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $resolvedInstallDir -Force | Out-Null
+
+$installed = $false
+$launchedProcess = $null
+
+try {
+  Invoke-SmokeProcess `
+    -FilePath $installCommand `
+    -Arguments $installArguments `
+    -Description "$InstallerKind install"
+  $installed = $true
+
+  if (-not (Test-Path -LiteralPath $executablePath)) {
+    throw "Installed executable not found: $executablePath"
+  }
+
+  $launchedProcess = Start-Process `
+    -FilePath $executablePath `
+    -PassThru `
+    -WindowStyle Hidden
+  Start-Sleep -Seconds $LaunchSeconds
+  $launchedProcess.Refresh()
+
+  if ($launchedProcess.HasExited) {
+    throw "Installed executable exited with code $($launchedProcess.ExitCode)."
+  }
+
+  Stop-SmokeApp -Process $launchedProcess
+  $launchedProcess = $null
+
+  Invoke-SmokeProcess `
+    -FilePath $uninstallCommand `
+    -Arguments $uninstallArguments `
+    -Description "$InstallerKind uninstall"
+  $installed = $false
+
+  if (Test-Path -LiteralPath $executablePath) {
+    throw "Uninstall left executable behind: $executablePath"
+  }
+
+  if (Test-Path -LiteralPath $resolvedInstallDir) {
+    Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
+  }
+  Remove-SmokeRegistryEntries -InstallDir $resolvedInstallDir
+
+  [ordered]@{
+    installerKind = $InstallerKind
+    installedExecutableLaunched = $true
+    launchSeconds = $LaunchSeconds
+    uninstalled = $true
+    installDir = $resolvedInstallDir
+  } | ConvertTo-Json -Depth 3
+} finally {
+  Stop-SmokeApp -Process $launchedProcess
+
+  if ($installed -and -not $KeepInstallOnFailure) {
+    if (Test-Path -LiteralPath $uninstallPath) {
+      Invoke-SmokeProcess `
+        -FilePath $uninstallPath `
+        -Arguments $uninstallArguments `
+        -Description "$InstallerKind cleanup uninstall"
+    }
+
+    if (Test-Path -LiteralPath $resolvedInstallDir) {
+      Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
+    }
+    Remove-SmokeRegistryEntries -InstallDir $resolvedInstallDir
+  }
+}

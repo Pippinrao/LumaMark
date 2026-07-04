@@ -15,7 +15,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:fixtures": "vitest run tests/fixtures",
-    "perf:bench": "vitest run tests/perf"
+    "perf:bench": "vitest run tests/perf",
+    "release:installer-smoke:plan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -PlanOnly",
+    "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",

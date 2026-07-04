@@ -37,6 +37,28 @@ if ($started) { Stop-Process -Id $process.Id -Force }
 
 这个 smoke 证明 release exe 可以启动并保持运行；它不等同于 MSI/NSIS 安装后启动验证。
 
+## 安装器 Smoke
+
+已新增可重复执行的 Windows 安装器 smoke 脚本：
+
+```powershell
+pnpm release:installer-smoke:plan
+pnpm release:installer-smoke:nsis
+```
+
+脚本位置：`scripts/release/windows-installer-smoke.ps1`。
+
+默认策略：
+
+- `release:installer-smoke:plan` 只输出 JSON 计划，不安装、不卸载、不启动应用。
+- `release:installer-smoke:nsis` 运行 NSIS 用户级静默安装 smoke。
+- NSIS smoke 会安装到系统临时目录下的 `lumamark-installer-smoke\nsis`，启动安装后的 `lumamark.exe` 并保持 3 秒，然后静默卸载。
+- 脚本会拒绝临时 smoke 目录之外的安装路径，避免清理或覆盖非测试安装。
+- 脚本会检测现有 LumaMark 安装；若发现安装路径不在 smoke 临时目录下，会拒绝执行真实安装器 smoke。
+- MSI smoke 只能通过 `-InstallerKind Msi` 显式选择；由于当前 MSI 是 `perMachine`，真实执行需要管理员 PowerShell。
+
+本轮已自动化安装器 smoke 入口，并用测试覆盖 plan 和路径安全校验；真实 NSIS 安装/卸载 smoke 需项目所有者明确授权后执行。
+
 ## 本轮修复
 
 - `src-tauri/tauri.conf.json` 显式配置了 `bundle.icon`，使用现有 `src-tauri/icons/icon.ico` 等图标资源，修复 Windows bundling 阶段的 `Couldn't find a .ico icon` 错误。
@@ -45,7 +67,8 @@ if ($started) { Stop-Process -Id $process.Id -Force }
 ## 已知发布缺口
 
 - 产物尚未签名。V1 alpha 可以本地安装测试，但公开分发前需要补代码签名、证书管理和发布校验。
-- MSI/NSIS 安装、卸载、安装后启动 smoke 尚未在自动化中执行。本轮证据覆盖安装器生成和 release exe 启动。
+- NSIS 安装、卸载、安装后启动 smoke 已有自动化脚本入口，但本轮尚未执行真实安装器 smoke。
+- MSI 安装、卸载、安装后启动 smoke 需要管理员权限；本轮只提供显式可选入口，未执行真实 MSI smoke。
 - `identifier` 一旦进入公开分发应保持稳定；后续变更会影响安装身份、升级身份和应用数据路径。
 - 构建仍有 Vite 大 chunk 警告；不影响安装器生成，但后续需要继续拆分 Mermaid/KaTeX/Cytoscape 等重依赖。
 - 本轮只验证 Windows 构建。macOS 和 Linux 保持架构兼容，不作为 V1 alpha 发布门禁。
@@ -58,7 +81,7 @@ if ($started) { Stop-Process -Id $process.Id -Force }
 | P1 核心体验 | 工作区文件树、大纲、命令面板、设置页、状态栏、Windows 构建均已落地 | 通过 |
 | 应用可启动 | `pnpm test:e2e` 覆盖 Web shell；release exe smoke 证明 `lumamark.exe` 可启动并保持 3 秒 | 通过 |
 | Windows 安装产物生成 | `pnpm build` 生成 MSI 和 NSIS 安装器 | 通过 |
-| Windows 安装后启动 | 本轮未执行 MSI/NSIS 安装 smoke | 尚未覆盖 |
+| Windows 安装后启动 | `scripts/release/windows-installer-smoke.ps1` 已提供 NSIS 自动 smoke 和 MSI 可选 smoke；真实安装器 smoke 待授权执行 | 尚未覆盖 |
 | 中文和英文可切换 | `tests/e2e/v1-workflow.spec.ts` 覆盖设置页切换到 English | 通过 |
 | 亮色和暗色可切换 | `tests/e2e/v1-workflow.spec.ts` 断言 `html[data-theme="dark"]` | 通过 |
 | CodeMirror 6 是唯一主编辑核心 | `src/editor/core/*` 为唯一编辑器初始化入口；未引入其他编辑核心 | 通过 |

@@ -32,15 +32,18 @@
 | 5MB 尾部输入 dispatch | < 50 ms | 1.15 ms | 通过 |
 | 10MB 尾部输入 dispatch | < 100 ms | 1.11 ms | 通过 |
 | Mermaid 渲染 pending 时普通输入 dispatch | < 50 ms | 3.15 ms | 通过 |
+| Web 首屏入口 JS chunk | < 120 KiB | 59.11 KiB | 通过 |
+| Web 任意 JS chunk | < 700 KiB | 最大 662.69 KiB，gzip 143.24 KiB，Mermaid 动态依赖 | 通过 |
 
 ## 解释
 
 - 1MB、5MB 和 10MB 的自动化性能门禁通过，覆盖读取、应用文件动作打开、打开后大纲刷新、虚拟化大纲面板初始渲染、编辑器载入和尾部输入 dispatch。
 - 10MB 文件满足当前自动化 “不冻结” 门禁：可通过文件动作打开、完成 debounce 后大纲刷新、只初始渲染 27 / 7892 个大纲项、创建编辑器并完成一次尾部输入。
 - Mermaid 渲染通过 scheduler 异步执行；pending render 下普通输入 dispatch 仍低于 50 ms。
+- Web 构建已通过 `pnpm quality:web-build` 门禁：首屏入口从大 vendor 包中拆出，React、CodeMirror、UI 依赖和 Mermaid 重依赖分组加载。最大 chunk 是 Mermaid 动态渲染链路中的 `vscode-languageserver-types` / Langium 等上游解析依赖，不进入首屏入口。
 
 ## 已知限制
 
 - 当前基线运行在 Vitest + jsdom 环境，不能替代真实窗口中的滚动 FPS、IME 手感和长时间编辑测试。
-- 当前构建仍有 Vite 大 chunk 警告，主要来自 Mermaid、KaTeX、Cytoscape 等依赖；这不阻塞 V1 alpha，但后续需要继续拆分重依赖。
+- Web 构建 chunk 预算已自动化。后续若 Mermaid、KaTeX、Cytoscape 等依赖继续增长，应优先评估按图表类型懒加载或替换更细粒度入口，而不是提高预算。
 - 性能数值会受本机 CPU、磁盘缓存和依赖版本影响。若 CI 或其他机器出现回归，应以自动化门禁和新基线记录为准。

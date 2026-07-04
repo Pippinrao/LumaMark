@@ -153,6 +153,7 @@ LumaMark 必须逐步建立以下测试层。
 - `pnpm test:e2e`
 - `pnpm test:fixtures`
 - `pnpm perf:bench`
+- `pnpm quality:web-build`
 - `cargo check`
 - `cargo test`
 

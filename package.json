@@ -11,7 +11,7 @@
     "build:web": "vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --exclude tests/perf/**",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:fixtures": "vitest run tests/fixtures",

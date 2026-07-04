@@ -8,6 +8,7 @@
 - 平台：Windows，本地开发工作树
 - 命令：`pnpm perf:bench`
 - 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、Mermaid pending render 输入 dispatch
+- 运行口径：`pnpm test` 排除 `tests/perf/**`，性能基准必须通过 `pnpm perf:bench` 单独执行。
 
 ## 自动化门禁
 

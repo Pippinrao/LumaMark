@@ -95,6 +95,8 @@ LumaMark 的质量体系要做到：
 - Mermaid 渲染耗时。
 - 保存耗时。
 
+性能基准必须独立于默认单元测试运行：`pnpm test` 不包含 `tests/perf/**`，性能数据和预算判断通过 `pnpm perf:bench` 单独执行。
+
 初始目标：
 
 - 1MB 文件打开小于 300ms。

@@ -1,0 +1,13 @@
+{
+  "app.name": "LumaMark",
+  "app.emptyTitle": "未命名",
+  "app.toolbarLabel": "应用命令",
+  "app.sidebarLabel": "文档侧边栏",
+  "app.editorLabel": "编辑器",
+  "command.openFile": "打开文件",
+  "command.save": "保存",
+  "command.saveAs": "另存为",
+  "command.toggleTheme": "切换主题",
+  "command.toggleLanguage": "切换语言",
+  "status.ready": "就绪"
+}

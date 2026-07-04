@@ -1,0 +1,13 @@
+{
+  "app.name": "LumaMark",
+  "app.emptyTitle": "Untitled",
+  "app.toolbarLabel": "Application commands",
+  "app.sidebarLabel": "Document sidebar",
+  "app.editorLabel": "Editor",
+  "command.openFile": "Open File",
+  "command.save": "Save",
+  "command.saveAs": "Save As",
+  "command.toggleTheme": "Toggle Theme",
+  "command.toggleLanguage": "Switch Language",
+  "status.ready": "Ready"
+}

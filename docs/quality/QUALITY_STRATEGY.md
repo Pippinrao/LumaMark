@@ -131,6 +131,21 @@ AI agent 必须遵守：
 - 涉及性能时没有明显退化。
 - 涉及基础组件时符合成熟组件优先原则。
 
+## GitHub 质量门禁
+
+仓库必须维护 `.github/workflows/v1-quality.yml`，在 `v1-implementation` 的 push 和 pull request 上自动运行 V1 质量门禁。
+
+该门禁至少覆盖：
+
+- TypeScript typecheck。
+- lint。
+- 普通单元和集成测试。
+- fixture round-trip。
+- Rust check/test。
+- Playwright E2E。
+- Web 构建 chunk 预算。
+- 单独执行的性能基准。
+
 ## 手动测试策略
 
 手动测试只保留在以下场景：

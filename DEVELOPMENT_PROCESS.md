@@ -157,6 +157,8 @@ LumaMark 必须逐步建立以下测试层。
 - `cargo check`
 - `cargo test`
 
+GitHub Actions 必须维护 `.github/workflows/v1-quality.yml`，并在 `v1-implementation` 的 push 和 pull request 上运行 V1 质量门禁。该 workflow 至少覆盖 typecheck、lint、普通测试、fixture round-trip、Rust check/test、E2E、Web chunk 门禁和独立性能基准。
+
 任务完成前必须运行与改动相关的命令。
 
 `pnpm test` 是普通单元和集成测试门禁，不应包含 `tests/perf/**`。性能基准必须通过 `pnpm perf:bench` 单独运行，不得与 E2E、构建、typecheck、lint 等重 CPU 门禁并行执行。并行运行造成的性能预算失败不能直接作为退化结论，必须单独复现后再判断。

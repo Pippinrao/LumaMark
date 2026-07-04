@@ -1,0 +1,78 @@
+name: V1 Quality Gate
+
+on:
+  push:
+    branches:
+      - v1-implementation
+  pull_request:
+    branches:
+      - v1-implementation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v1-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-quality:
+    name: Windows V1 quality
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      npm_config_registry: https://registry.npmmirror.com/
+      PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmmirror.com/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit and integration tests
+        run: pnpm test
+
+      - name: Fixture round-trip tests
+        run: pnpm test:fixtures
+
+      - name: Rust check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Web build chunk gate
+        run: pnpm quality:web-build
+
+      - name: Performance benchmarks
+        run: pnpm perf:bench

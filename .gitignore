@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-ssr/
+target/
+src-tauri/target/
+.turbo/
+.vite/
+playwright-report/
+test-results/
+.env
+.env.*
+.worktrees/
+worktrees/
+.claude/
+.codex/
+.cursor/

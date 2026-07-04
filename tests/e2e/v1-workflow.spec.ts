@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 const fixturePath = 'E:/lumamark-fixtures/v1.md';
+const saveAsPath = 'E:/lumamark-fixtures/v1-copy.md';
 const fixtureText = [
   '# Fixture Title',
   '',
@@ -14,13 +15,13 @@ const fixtureText = [
   'After diagram',
 ].join('\n');
 
-test('covers the V1 open edit save mermaid language and theme workflow', async ({
+test('covers the V1 open edit save save-as mermaid language and theme workflow', async ({
   page,
 }) => {
   const storageKey = `lumamark-e2e-files-${Date.now()}`;
 
   await page.addInitScript(
-    ({ path, storageKey, text }) => {
+    ({ path, saveAsPath, storageKey, text }) => {
       const persistedFiles = JSON.parse(
         localStorage.getItem(storageKey) ?? '{}',
       ) as Record<string, string>;
@@ -57,7 +58,7 @@ test('covers the V1 open edit save mermaid language and theme workflow', async (
         }),
         showSaveDialog: async () => ({
           ok: true,
-          data: path,
+          data: saveAsPath,
         }),
         writeText: async (filePath: string, nextText: string) => {
           files[filePath] = nextText;
@@ -79,6 +80,7 @@ test('covers the V1 open edit save mermaid language and theme workflow', async (
     },
     {
       path: fixturePath,
+      saveAsPath,
       storageKey,
       text: fixtureText,
     },
@@ -115,7 +117,7 @@ test('covers the V1 open edit save mermaid language and theme workflow', async (
 
   await page.getByRole('button', { exact: true, name: 'Save' }).click();
   await expect(page.getByRole('status')).toHaveText('Saved');
-  const saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
+  let saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
   expect(saved?.path).toBe(fixturePath);
   expect(saved?.text).toContain('# V1 E2E Title');
   expect(saved?.text).toContain('- [x] verified task');
@@ -123,10 +125,44 @@ test('covers the V1 open edit save mermaid language and theme workflow', async (
   expect(saved?.text).toContain('flowchart TD');
   expect(saved?.text).toContain('A --> B');
 
+  await page.getByRole('button', { name: 'Save As' }).click();
+  await expect(page.getByRole('status')).toHaveText('Saved');
+  saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
+  expect(saved?.path).toBe(saveAsPath);
+  expect(saved?.text).toContain('# V1 E2E Title');
+  await expect(page.locator('.lm-document-title')).toHaveText('v1-copy.md');
+
+  await editor.click();
+  await page.keyboard.type('\n\n# Save As Current File');
+  await page.getByRole('button', { exact: true, name: 'Save' }).click();
+  await expect(page.getByRole('status')).toHaveText('Saved');
+  saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
+  expect(saved?.path).toBe(saveAsPath);
+  expect(saved?.text).toContain('# Save As Current File');
+
+  const savedFiles = await page.evaluate(
+    ({ originalPath, savedAsPath }) => {
+      const files = window.__LUMAMARK_E2E_STATE__?.files ?? {};
+
+      return {
+        copy: files[savedAsPath],
+        original: files[originalPath],
+      };
+    },
+    {
+      originalPath: fixturePath,
+      savedAsPath: saveAsPath,
+    },
+  );
+  expect(savedFiles.original).toContain('# V1 E2E Title');
+  expect(savedFiles.original).not.toContain('# Save As Current File');
+  expect(savedFiles.copy).toContain('# Save As Current File');
+
   await page.reload();
   await page.getByRole('button', { name: '打开文件' }).click();
   await expect(editor).toContainText('Fixture Title');
   await expect(editor).toContainText('V1 E2E Title');
+  await expect(editor).not.toContainText('Save As Current File');
   await expect(editor).toContainText('flowchart TD');
   await expect(editor).toContainText('A --> B');
   await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();

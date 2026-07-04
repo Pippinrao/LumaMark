@@ -202,6 +202,56 @@ describe('file actions', () => {
     });
   });
 
+  it('saves to the chosen path when using save as', async () => {
+    const editor = {
+      focus: vi.fn(),
+      getDocumentText: vi.fn(() => '# save as'),
+      loadDocument: vi.fn(),
+    };
+    const state = createState({
+      dirty: true,
+      dirtyRevision: 2,
+    });
+    const addRecentFile = vi.fn();
+    const writeText = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        byteLength: 9,
+        path: 'E:/docs/copy.md',
+      },
+    });
+
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn(),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn().mockResolvedValue({
+          ok: true,
+          data: 'E:/docs/copy.md',
+        }),
+        writeText,
+      },
+      editor,
+      recentFiles: { addRecentFile },
+      state,
+    });
+
+    const result = await actions.saveFileAs();
+
+    expect(result.ok).toBe(true);
+    expect(writeText).toHaveBeenCalledWith('E:/docs/copy.md', '# save as');
+    expect(state.getState()).toEqual({
+      currentFile: { name: 'copy.md', path: 'E:/docs/copy.md' },
+      dirty: false,
+      dirtyRevision: 2,
+      lastFileError: null,
+    });
+    expect(addRecentFile).toHaveBeenCalledWith({
+      name: 'copy.md',
+      path: 'E:/docs/copy.md',
+    });
+  });
+
   it('does not change state when the open dialog is canceled', async () => {
     const state = createState({
       currentFile: { name: 'note.md', path: 'E:/docs/note.md' },

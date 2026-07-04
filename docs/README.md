@@ -19,14 +19,14 @@ docs/
 ├─ architecture/             # 架构原则、模块边界、技术选型
 ├─ decisions/                # 重大决策记录
 ├─ quality/                  # 测试、性能、质量策略
+├─ performance/              # 性能基线和门禁结果
+├─ release/                  # 构建、发布和版本交付记录
 └─ roadmap/                  # 演进计划和阶段目标
 ```
 
 按需再创建：
 
 - `docs/testing/`：测试夹具和测试细则。
-- `docs/performance/`：性能基准方法和结果。
-- `docs/release/`：发布流程和版本说明。
 
 不要提前创建空目录。
 
@@ -57,6 +57,8 @@ docs/
 | [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md) | 架构 | 模块边界、数据流、技术选型 | 默认架构或主要依赖变化 |
 | [ADR 0001：V1 应用外壳成熟组件选型](decisions/0001-task8-ui-components.md) | 决策 | Task 8 UI 基础组件选择和复审条件 | 文件树、分栏、命令面板、dialog 基础组件变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
+| [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果和已知限制 | 性能预算、基准命令或实测结果变化 |
+| [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |
 | [演进计划](roadmap/EVOLUTION_PLAN.md) | 路线 | 近细远粗的阶段计划 | 近期阶段目标或退出条件变化 |
 | [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md) | 路线 | V1 可执行任务拆解、质量门禁、验收顺序 | V1 执行任务、阶段门禁或验证命令变化 |
 

@@ -32,6 +32,7 @@ import { OutlinePanel } from '../../features/outline/OutlinePanel';
 import type { OutlineHeading } from '../../features/outline/outlineParser';
 import { useDebouncedOutline } from '../../features/outline/useDebouncedOutline';
 import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
+import { resolveFileCommandClient } from '../../services/files/fileCommandClient';
 import {
   listWorkspaceChildren,
   openWorkspaceDirectory,
@@ -170,6 +171,7 @@ export function AppShell() {
     }
 
     return createFileActions({
+      commands: resolveFileCommandClient(),
       editor: editorRef.current,
       recentFiles,
       state: fileActionState,

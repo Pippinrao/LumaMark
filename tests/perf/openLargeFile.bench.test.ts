@@ -3,6 +3,12 @@ import { performance } from 'node:perf_hooks';
 import { describe, expect, it } from 'vitest';
 import { largeMarkdownFixturePaths } from '../fixtures/fixturePaths';
 
+const readBudgetsMs: Record<string, number> = {
+  'large-1mb.md': 300,
+  'large-5mb.md': 1_000,
+  'large-10mb.md': 2_000,
+};
+
 describe('large Markdown file open baseline', () => {
   it.each(largeMarkdownFixturePaths)(
     'records UTF-8 read duration for $name',
@@ -18,6 +24,7 @@ describe('large Markdown file open baseline', () => {
 
       expect(source.length).toBeGreaterThan(0);
       expect(Number.isFinite(durationMs)).toBe(true);
+      expect(durationMs).toBeLessThan(readBudgetsMs[name]);
     },
   );
 });

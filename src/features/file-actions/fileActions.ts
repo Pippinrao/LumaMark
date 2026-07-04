@@ -7,6 +7,7 @@ import {
   type ReadTextFileResult,
   type WriteTextFileResult,
 } from '../../services/files/fileCommands';
+import type { FileCommandClient } from '../../services/files/fileCommandClient';
 import type { FileMetadata } from '../../services/files/fileTypes';
 import type { CommandError, CommandResult } from '../../services/tauri/invokeCommand';
 import type { RecentFileInput } from '../recent-files/recentFilesStore';
@@ -25,16 +26,6 @@ export type FileActionStateAdapter = {
   setCurrentFile: (currentFile: CurrentFile | null) => void;
   setDirty: (dirty: boolean) => void;
   setLastFileError: (error: CommandError | null) => void;
-};
-
-export type FileCommandClient = {
-  readText: (path: string) => Promise<CommandResult<ReadTextFileResult>>;
-  showOpenDialog: () => Promise<CommandResult<string | null>>;
-  showSaveDialog: () => Promise<CommandResult<string | null>>;
-  writeText: (
-    path: string,
-    text: string,
-  ) => Promise<CommandResult<WriteTextFileResult>>;
 };
 
 type RecentFilesAdapter = {

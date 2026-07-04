@@ -1,7 +1,13 @@
+import { I18nProvider } from './providers/I18nProvider';
+import { ThemeProvider } from './providers/ThemeProvider';
+import { AppShell } from './shell/AppShell';
+
 export function App() {
   return (
-    <main aria-labelledby="app-title">
-      <h1 id="app-title">LumaMark</h1>
-    </main>
+    <I18nProvider>
+      <ThemeProvider>
+        <AppShell />
+      </ThemeProvider>
+    </I18nProvider>
   );
 }

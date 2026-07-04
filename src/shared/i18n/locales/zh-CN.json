@@ -9,5 +9,9 @@
   "command.saveAs": "另存为",
   "command.toggleTheme": "切换主题",
   "command.toggleLanguage": "切换语言",
-  "status.ready": "就绪"
+  "status.ready": "就绪",
+  "status.opened": "已打开",
+  "status.saved": "已保存",
+  "status.saveFailed": "保存失败",
+  "status.unsaved": "未保存"
 }

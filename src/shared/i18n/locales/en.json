@@ -9,5 +9,9 @@
   "command.saveAs": "Save As",
   "command.toggleTheme": "Toggle Theme",
   "command.toggleLanguage": "Switch Language",
-  "status.ready": "Ready"
+  "status.ready": "Ready",
+  "status.opened": "Opened",
+  "status.saved": "Saved",
+  "status.saveFailed": "Save failed",
+  "status.unsaved": "Unsaved"
 }

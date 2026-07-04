@@ -1,0 +1,60 @@
+.lm-editor-surface {
+  overflow: hidden;
+}
+
+.lm-editor-host {
+  position: relative;
+  min-height: 100%;
+  height: 100%;
+  background: var(--lm-color-surface);
+}
+
+.lm-editor-accessible-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip: rect(0 0 0 0);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.lm-codemirror {
+  min-height: 100%;
+  height: 100%;
+}
+
+.lm-codemirror .cm-editor {
+  height: 100%;
+  background: var(--lm-color-surface);
+  color: var(--lm-color-text);
+  font-family: var(--lm-font-editor);
+}
+
+.lm-codemirror .cm-editor.cm-focused {
+  outline: none;
+}
+
+.lm-codemirror .cm-scroller {
+  font-family: var(--lm-font-editor);
+  line-height: 1.6;
+}
+
+.lm-codemirror .cm-content {
+  width: min(760px, calc(100% - 48px));
+  min-height: 100%;
+  margin: 0 auto;
+  caret-color: var(--lm-color-accent);
+  padding: 12vh 0 var(--lm-space-8);
+}
+
+.lm-codemirror .cm-line {
+  padding: 0;
+}
+
+.lm-codemirror .cm-selectionBackground,
+.lm-codemirror .cm-content ::selection {
+  background: color-mix(in srgb, var(--lm-color-accent) 24%, transparent);
+}

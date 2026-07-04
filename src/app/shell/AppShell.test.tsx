@@ -57,35 +57,41 @@ describe('AppShell', () => {
       statusKey: 'status.ready',
       theme: 'light',
     });
+    const warnings = captureProcessWarnings();
 
-    render(
-      <I18nProvider>
-        <ThemeProvider>
-          <AppShell />
-        </ThemeProvider>
-      </I18nProvider>,
-    );
+    try {
+      render(
+        <I18nProvider>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
 
-    expect(
-      screen.getByRole('heading', { name: 'LumaMark' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('banner')).toBeInTheDocument();
-    expect(screen.getByRole('complementary')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'LumaMark' }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('banner')).toBeInTheDocument();
+      expect(screen.getByRole('complementary')).toBeInTheDocument();
 
-    const editor = screen.getByRole('main');
-    expect(
-      within(editor).getByRole('heading', { name: '未命名' }),
-    ).toBeInTheDocument();
+      const editor = screen.getByRole('main');
+      expect(
+        within(editor).getByRole('heading', { name: '未命名' }),
+      ).toBeInTheDocument();
 
-    expect(
-      screen.getByRole('button', { name: '打开文件' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('就绪');
+      expect(
+        screen.getByRole('button', { name: '打开文件' }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('就绪');
 
-    expect(screen.queryByRole('button', { name: 'Open File' })).not
-      .toBeInTheDocument();
-    expect(screen.queryByText('Untitled')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Open File' })).not
+        .toBeInTheDocument();
+      expect(screen.queryByText('Untitled')).not.toBeInTheDocument();
+      await expectNoNodeLocalStorageWarning(warnings);
+    } finally {
+      warnings.dispose();
+    }
   });
 
   it('ignores stale workspace child load errors after switching roots', async () => {
@@ -158,4 +164,32 @@ function createDeferred<T>() {
   });
 
   return { promise, resolve };
+}
+
+function captureProcessWarnings() {
+  const messages: string[] = [];
+  const onWarning = (warning: Error) => {
+    messages.push(warning.message);
+  };
+
+  process.on('warning', onWarning);
+
+  return {
+    dispose: () => {
+      process.off('warning', onWarning);
+    },
+    messages,
+  };
+}
+
+async function expectNoNodeLocalStorageWarning({
+  messages,
+}: ReturnType<typeof captureProcessWarnings>) {
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+
+  expect(messages).not.toContain(
+    '`--localstorage-file` was provided without a valid path',
+  );
 }

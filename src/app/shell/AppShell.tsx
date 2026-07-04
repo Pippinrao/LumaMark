@@ -57,10 +57,28 @@ const LazySettingsDialog = lazy(() =>
   })),
 );
 const fallbackPanelLayoutStorage = new Map<string, string>();
+function isJsdomRuntime(): boolean {
+  const userAgent = globalThis.navigator?.userAgent.toLowerCase() ?? '';
+
+  return userAgent.includes('jsdom');
+}
+
+function getPanelLayoutBrowserStorage(): Storage | null {
+  if (isJsdomRuntime()) {
+    return null;
+  }
+
+  try {
+    return globalThis.document?.defaultView?.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const panelLayoutStorage = {
   getItem(key: string) {
     try {
-      const storage = globalThis.window?.localStorage;
+      const storage = getPanelLayoutBrowserStorage();
 
       if (storage && typeof storage.getItem === 'function') {
         return storage.getItem(key);
@@ -73,7 +91,7 @@ const panelLayoutStorage = {
   },
   setItem(key: string, value: string) {
     try {
-      const storage = globalThis.window?.localStorage;
+      const storage = getPanelLayoutBrowserStorage();
 
       if (storage && typeof storage.setItem === 'function') {
         storage.setItem(key, value);

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { EditorViewHost } from '../../editor/core/EditorViewHost';
 import { useAppStore } from '../stores/appStore';
 
 export function AppShell() {
@@ -41,12 +42,10 @@ export function AppShell() {
           data-testid="editor-host"
           aria-label={t('app.editorLabel')}
         >
-          <section
-            className="lm-editor-placeholder"
-            aria-labelledby="lm-editor-title"
-          >
-            <h2 id="lm-editor-title">{t('app.emptyTitle')}</h2>
-          </section>
+          <EditorViewHost
+            accessibleTitle={t('app.emptyTitle')}
+            ariaLabel={t('app.editorLabel')}
+          />
         </main>
       </div>
 

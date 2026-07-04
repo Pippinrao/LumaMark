@@ -6,8 +6,8 @@ import {
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
-import { markdownLanguage } from '../markdown/markdownLanguage';
 import { recordEditorTransactionMetric } from '../metrics/editorMetrics';
+import { markdownWysiwygExtension } from '../wysiwyg/markdownDecorations';
 import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
@@ -76,7 +76,7 @@ export function createEditorState(
   return EditorState.create({
     doc,
     extensions: [
-      markdownLanguage(),
+      markdownWysiwygExtension(),
       history(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,

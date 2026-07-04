@@ -1,0 +1,88 @@
+.cm-content .lm-md-heading {
+  color: var(--lm-color-text);
+  font-weight: 700;
+}
+
+.cm-content .lm-md-heading-1 {
+  font-size: 1.8em;
+}
+
+.cm-content .lm-md-heading-2 {
+  font-size: 1.5em;
+}
+
+.cm-content .lm-md-heading-3 {
+  font-size: 1.3em;
+}
+
+.cm-content .lm-md-heading-4,
+.cm-content .lm-md-heading-5,
+.cm-content .lm-md-heading-6 {
+  font-size: 1.12em;
+}
+
+.cm-content .lm-md-strong {
+  font-weight: 700;
+}
+
+.cm-content .lm-md-emphasis {
+  font-style: italic;
+}
+
+.cm-content .lm-md-strikethrough {
+  text-decoration: line-through;
+}
+
+.cm-content .lm-md-blockquote {
+  border-left: 3px solid var(--lm-color-border);
+  color: var(--lm-color-text-muted);
+  padding-left: 0.8rem;
+}
+
+.cm-content .lm-md-list {
+  color: var(--lm-color-accent);
+  font-weight: 650;
+}
+
+.cm-content .lm-md-task-list {
+  color: var(--lm-color-text-muted);
+}
+
+.cm-content .lm-md-inline-code {
+  background: var(--lm-color-surface-muted);
+  border-radius: 4px;
+  color: var(--lm-color-accent);
+  font-family: var(--lm-font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
+  padding: 0 0.15em;
+}
+
+.cm-content .lm-md-code-block {
+  background: var(--lm-color-surface-muted);
+  color: var(--lm-color-text);
+  font-family: var(--lm-font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
+}
+
+.lm-md-task-checkbox {
+  appearance: none;
+  background: var(--lm-color-surface);
+  border: 1px solid var(--lm-color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-block;
+  height: 0.9rem;
+  margin: 0 0.25rem 0 0;
+  padding: 0;
+  position: relative;
+  vertical-align: -0.1rem;
+  width: 0.9rem;
+}
+
+.lm-md-task-checkbox[data-checked='true']::after {
+  color: var(--lm-color-accent);
+  content: '✓';
+  font-size: 0.78rem;
+  left: 0.13rem;
+  line-height: 0.9rem;
+  position: absolute;
+  top: -0.02rem;
+}

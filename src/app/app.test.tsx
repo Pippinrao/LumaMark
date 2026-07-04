@@ -1,9 +1,14 @@
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { installResizeObserverStub } from '../test/resizeObserverStub';
 import { App } from './App';
 
 describe('App', () => {
+  beforeEach(() => {
+    installResizeObserverStub();
+  });
+
   it('renders the accessible application title', () => {
     render(<App />);
 

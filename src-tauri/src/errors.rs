@@ -30,6 +30,14 @@ impl AppError {
     pub fn invalid_encoding() -> Self {
         Self::new("file.invalid_encoding", "File is not valid UTF-8.", true)
     }
+
+    pub fn workspace_not_directory() -> Self {
+        Self::new(
+            "workspace.not_directory",
+            "Workspace path is not a directory.",
+            true,
+        )
+    }
 }
 
 impl From<io::Error> for AppError {

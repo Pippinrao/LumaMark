@@ -12,10 +12,13 @@ Tauri v2
 └─ WebView Frontend
    ├─ React + TypeScript：应用壳和业务 UI
    ├─ CodeMirror 6：唯一主编辑器核心
-   ├─ Radix Primitives：基础交互组件
+   ├─ Radix Primitives：dialog、tabs、tooltip 等基础交互组件
+   ├─ react-resizable-panels：应用分栏
+   ├─ react-arborist：文件树
+   ├─ cmdk：命令面板
+   ├─ lucide-react：图标
    ├─ Zustand：轻量应用状态
    ├─ i18next/react-i18next：多语言
-   ├─ TanStack Virtual / react-arborist：长列表和文件树
    ├─ Mermaid / KaTeX：复杂块渲染
    └─ Vitest / Playwright：自动化验证
 ```

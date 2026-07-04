@@ -9,12 +9,14 @@ import type { CommandError } from '../../services/tauri/invokeCommand';
 
 export type ThemeMode = 'light' | 'dark';
 
-type StatusKey =
+export type StatusKey =
   | 'status.ready'
   | 'status.opened'
   | 'status.saved'
   | 'status.saveFailed'
-  | 'status.unsaved';
+  | 'status.unsaved'
+  | 'status.workspaceOpened'
+  | 'status.workspaceOpenFailed';
 
 type AppState = {
   currentFile: FileMetadata | null;

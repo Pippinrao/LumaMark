@@ -9,10 +9,19 @@ const requiredCoreKeys = [
   'command.saveAs',
   'command.toggleTheme',
   'command.toggleLanguage',
+  'command.focusEditor',
+  'commandPalette.open',
+  'commandPalette.title',
+  'commandPalette.searchPlaceholder',
+  'workspace.open',
+  'workspace.fileTree',
+  'outline.title',
+  'settings.title',
   'mermaid.editSource',
   'mermaid.loading',
   'mermaid.renderFailed',
   'status.ready',
+  'status.workspaceOpened',
 ] as const;
 
 describe('i18n resources', () => {

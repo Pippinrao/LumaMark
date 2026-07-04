@@ -849,8 +849,9 @@ V1 实现完成后，项目应形成以下主要结构：
 
   Commands:
 
-  - `workspace.open_directory`
-  - `workspace.list_children`
+  - 逻辑命令：`workspace.open_directory`
+  - 逻辑命令：`workspace.list_children`
+  - Tauri 实现命名沿用项目现有下划线约定：`workspace_open_directory`、`workspace_list_children`
 
   要求：
 

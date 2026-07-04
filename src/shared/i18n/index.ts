@@ -3,7 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import en from './locales/en.json';
 import zhCN from './locales/zh-CN.json';
 
-export const defaultLanguage = 'en';
+export const defaultLanguage = 'zh-CN';
 export const supportedLanguages = ['en', 'zh-CN'] as const;
 
 export type AppLanguage = (typeof supportedLanguages)[number];

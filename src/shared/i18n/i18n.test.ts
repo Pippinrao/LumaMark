@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { i18n, resources } from './index';
+import { defaultLanguage, i18n, resources } from './index';
 
 const requiredCoreKeys = [
   'app.name',
@@ -27,9 +27,11 @@ describe('i18n resources', () => {
     }
   });
 
-  it('initializes an i18next instance with English as the fallback language', async () => {
-    expect(i18n.options.fallbackLng).toContain('en');
+  it('defaults to Simplified Chinese when no persisted language is configured', async () => {
+    expect(defaultLanguage).toBe('zh-CN');
+    expect(i18n.options.fallbackLng).toContain('zh-CN');
     expect(i18n.exists('app.name')).toBe(true);
+    expect(i18n.t('status.ready')).toBe('就绪');
     expect(i18n.t('status.ready', { lng: 'zh-CN' })).toBe('就绪');
   });
 });

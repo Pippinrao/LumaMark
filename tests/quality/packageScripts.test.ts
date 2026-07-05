@@ -18,6 +18,14 @@ describe('package quality scripts', () => {
     );
   });
 
+  it('defines a release artifact verification script', async () => {
+    const packageJson = await readPackageJson();
+
+    expect(packageJson.scripts['release:verify-artifacts']).toBe(
+      'node scripts/release/verify-windows-artifacts.mjs',
+    );
+  });
+
   it('defines a GitHub Actions V1 quality gate with isolated performance benchmarks', async () => {
     const workflow = await readWorkflow('v1-quality.yml');
 
@@ -57,9 +65,16 @@ describe('package quality scripts', () => {
     expect(workflow).toContain('registry-url: https://registry.npmmirror.com/');
     expect(workflow).toContain('pnpm install --frozen-lockfile');
     expect(workflow).toContain('pnpm build');
+    expect(workflow).toContain('pnpm release:verify-artifacts');
+    expect(workflow.indexOf('pnpm release:verify-artifacts')).toBeGreaterThan(
+      workflow.indexOf('pnpm build'),
+    );
     expect(workflow).toContain('src-tauri/target/release/lumamark.exe');
     expect(workflow).toContain('src-tauri/target/release/bundle/msi/*.msi');
     expect(workflow).toContain('src-tauri/target/release/bundle/nsis/*setup.exe');
+    expect(workflow).toContain(
+      'src-tauri/target/release/lumamark-windows-artifacts.json',
+    );
   });
 });
 

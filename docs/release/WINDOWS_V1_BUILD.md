@@ -35,6 +35,15 @@ workflow 文件：`.github/workflows/windows-release-build.yml`。
 - `src-tauri/target/release/lumamark.exe`
 - `src-tauri/target/release/bundle/msi/*.msi`
 - `src-tauri/target/release/bundle/nsis/*setup.exe`
+- `src-tauri/target/release/lumamark-windows-artifacts.json`
+
+其中 `lumamark-windows-artifacts.json` 由以下命令生成：
+
+```powershell
+pnpm release:verify-artifacts
+```
+
+该命令会检查 Windows release 可执行文件、MSI 安装包和 NSIS 安装包是否存在、是否非空，并记录每个产物的大小和 SHA-256。
 
 已执行 GitHub 手动构建验证：
 
@@ -45,7 +54,7 @@ workflow 文件：`.github/workflows/windows-release-build.yml`。
 | 提交 | `8dff55e8059327a8dcf72bbe56b53b644eb4df27` |
 | 状态 | `success` |
 
-GitHub artifact 记录如下，大小为 GitHub artifact 压缩包大小：
+GitHub artifact 记录如下，大小为 GitHub artifact 压缩包大小。该 run 执行于 artifact manifest 接入前，因此只包含三个二进制产物：
 
 | Artifact | 大小 |
 |---|---:|

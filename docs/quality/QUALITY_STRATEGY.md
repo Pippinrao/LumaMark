@@ -148,7 +148,7 @@ AI agent 必须遵守：
 
 仓库还必须维护 `.github/workflows/windows-release-build.yml`，作为手动发布构建门禁，用于在 GitHub Windows runner 上生成并上传 release exe、MSI 和 NSIS 产物。
 
-任何用于 V1 发布判断的手动发布构建，都必须在 `docs/release/WINDOWS_V1_BUILD.md` 记录 workflow run 链接、提交哈希、结论和 artifact 清单。没有可追溯 run 证据时，不得把 GitHub runner 发布构建视为已验证。
+任何用于 V1 发布判断的手动发布构建，都必须先运行 `pnpm release:verify-artifacts`，生成包含大小和 SHA-256 的 `lumamark-windows-artifacts.json`，并将该 manifest 作为 GitHub artifact 保留。`docs/release/WINDOWS_V1_BUILD.md` 必须记录 workflow run 链接、提交哈希、结论和 artifact 清单。没有可追溯 run 证据和 artifact manifest 时，不得把 GitHub runner 发布构建视为已验证。
 
 ## 手动测试策略
 

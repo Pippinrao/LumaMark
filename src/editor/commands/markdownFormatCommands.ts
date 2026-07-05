@@ -41,7 +41,10 @@ export function applyMarkdownFormatCommand(
     case 'codeBlock':
       return wrapSelection(view, '```\n', '\n```', 'code');
     case 'table':
-      view.dispatch(insertMarkdownTable(view.state));
+      if (!insertMarkdownTable(view)) {
+        return false;
+      }
+
       view.focus();
       return true;
   }

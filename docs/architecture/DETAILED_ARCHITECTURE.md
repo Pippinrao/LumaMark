@@ -12,6 +12,7 @@ Tauri v2
 └─ WebView Frontend
    ├─ React + TypeScript：应用壳和业务 UI
    ├─ CodeMirror 6：唯一主编辑器核心
+   ├─ codemirror-markdown-tables：Markdown 表格交互组件
    ├─ Radix Primitives：dialog、tabs、tooltip 等基础交互组件
    ├─ react-resizable-panels：应用分栏
    ├─ react-arborist：文件树
@@ -122,6 +123,7 @@ Rust 保存：
 | 包管理 | pnpm | npm/yarn | 选 pnpm。依赖安装快，lockfile 稳定，适合后续 monorepo。 |
 | 编辑器核心 | CodeMirror 6 | Milkdown/ProseMirror/Monaco | 选 CodeMirror 6。性能、源码保真和可视区渲染更符合目标。 |
 | Markdown 交互解析 | `@codemirror/lang-markdown` / Lezer | remark 作为热路径 parser | 编辑热路径选 CodeMirror/Lezer；remark 只用于导出或离线处理。 |
+| Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成和主题适配。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)。 |
 | UI 基础组件 | Radix Primitives | Ariakit/Base UI/React Aria | 默认 Radix。若单个组件不满足，再按组件替换。 |
 | 视觉样式 | CSS variables + CSS Modules | Tailwind/shadcn/ui | 默认 CSS tokens + CSS Modules。暂不引入 shadcn 生成组件，避免基础组件变成自维护代码。 |
 | 图标 | lucide-react | Radix Icons | 选 lucide-react。图标覆盖更广。 |
@@ -423,10 +425,10 @@ Typora-like 行为分三层实现：
 
 表格 widget 规则：
 
-- CodeMirror/Lezer 识别 GFM `Table` 语法节点，Markdown 源文仍由 CodeMirror 文档持有。
-- live preview 中光标离开表格块时，用真实 `<table>` widget 提供结构化编辑。
-- 未编辑表格不改源码；用户编辑单元格、行列或对齐后，只重写当前 table block 为合法 GFM table。
-- 表格 widget 的单元格输入、Tab/Shift+Tab、Enter、Esc 和工具栏操作不经过 React 热路径。
+- live preview 表格交互由 `codemirror-markdown-tables` 提供，Markdown 源文仍由 CodeMirror 文档持有。
+- source mode 不启用表格 widget，显示原始 Markdown 表格。
+- LumaMark 只实现薄命令，例如复制当前表格源码、删除当前表格 block，以及主题适配。
+- 行列插入、删除、移动、选择、复制粘贴、单元格编辑和 table autocompletion 以成熟组件行为为准，不再自研表格编辑器。
 
 ### 命令层
 

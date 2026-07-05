@@ -237,6 +237,7 @@ test('keeps sidebar and editor on independent scroll boundaries', async ({
 test('opens the command palette and triggers save', async ({ page }) => {
   await page.goto('/');
 
+  await expect(page.getByRole('menuitem', { name: '文件' })).toBeVisible();
   await page.keyboard.press('Control+K');
   const palette = page.getByRole('dialog', { name: '命令面板' });
   await expect(palette).toBeVisible();

@@ -90,5 +90,16 @@ export default defineConfig({
       '**/tests/e2e/**',
     ],
     globals: false,
+    setupFiles: ['src/test/browserApiStubs.ts'],
+    server: {
+      deps: {
+        inline: [
+          'codemirror-markdown-tables',
+          '@floating-ui/dom',
+          '@mobily/ts-belt',
+          'clsx',
+        ],
+      },
+    },
   },
 });

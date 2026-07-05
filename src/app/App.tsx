@@ -1,12 +1,20 @@
+import { lazy, Suspense } from 'react';
 import { I18nProvider } from './providers/I18nProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
-import { AppShell } from './shell/AppShell';
+
+const LazyAppShell = lazy(() =>
+  import('./shell/AppShell').then((module) => ({
+    default: module.AppShell,
+  })),
+);
 
 export function App() {
   return (
     <I18nProvider>
       <ThemeProvider>
-        <AppShell />
+        <Suspense fallback={null}>
+          <LazyAppShell />
+        </Suspense>
       </ThemeProvider>
     </I18nProvider>
   );

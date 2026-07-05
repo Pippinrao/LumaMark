@@ -65,7 +65,7 @@ describe('markdown format commands', () => {
     applyMarkdownFormatCommand(view, 'table');
 
     expect(view.state.doc.toString()).toBe(
-      ['before', '| Column 1 | Column 2 |', '| --- | --- |', '|  |  |'].join('\n'),
+      ['before', '', '|   |   |', '| - | - |', '|   |   |', ''].join('\n'),
     );
     view.destroy();
   });

@@ -1,116 +1,93 @@
-import {
-  EditorSelection,
-  type EditorState,
-  type TransactionSpec,
-} from '@codemirror/state';
-import {
-  addTableColumn,
-  addTableRow,
-  deleteTableColumn,
-  deleteTableRow,
-  serializeMarkdownTable,
-  setTableAlignment,
-  type MarkdownTableAlignment,
-  type MarkdownTableModel,
-} from './markdownTableModel';
-import { collectTableBlocksInRanges } from './TableWidget';
+import { syntaxTree } from '@codemirror/language';
+import type { EditorView, KeyBinding } from '@codemirror/view';
+import { insertEmptyMarkdownTable } from 'codemirror-markdown-tables';
 
-const STARTER_TABLE = ['| Column 1 | Column 2 |', '| --- | --- |', '|  |  |'].join('\n');
+type MarkdownTableBlock = {
+  from: number;
+  to: number;
+};
 
-export function insertMarkdownTable(state: EditorState): TransactionSpec {
-  const selection = state.selection.main;
-  const prefix = selection.from > 0 && state.doc.sliceString(selection.from - 1, selection.from) !== '\n'
-    ? '\n'
-    : '';
-  const insert = `${prefix}${STARTER_TABLE}`;
-  const tableStart = selection.from + prefix.length;
-
-  return {
-    changes: {
-      from: selection.from,
-      insert,
-      to: selection.to,
-    },
-    selection: EditorSelection.cursor(tableStart),
-    userEvent: 'input.table-insert',
-  };
+export function insertMarkdownTable(view: EditorView): boolean {
+  return insertEmptyMarkdownTable()(view);
 }
 
-export function addRowAtSelection(
-  state: EditorState,
-  afterRowIndex: number,
-): TransactionSpec {
-  return replaceTableAtSelection(state, (table) =>
-    addTableRow(table, afterRowIndex),
-  );
-}
+export async function copyCurrentMarkdownTable(
+  view: EditorView,
+): Promise<boolean> {
+  const table = tableAtSelection(view);
 
-export function deleteRowAtSelection(
-  state: EditorState,
-  rowIndex: number,
-): TransactionSpec {
-  return replaceTableAtSelection(state, (table) =>
-    deleteTableRow(table, rowIndex),
-  );
-}
-
-export function addColumnAtSelection(
-  state: EditorState,
-  afterColumnIndex: number,
-): TransactionSpec {
-  return replaceTableAtSelection(state, (table) =>
-    addTableColumn(table, afterColumnIndex),
-  );
-}
-
-export function deleteColumnAtSelection(
-  state: EditorState,
-  columnIndex: number,
-): TransactionSpec {
-  return replaceTableAtSelection(state, (table) =>
-    deleteTableColumn(table, columnIndex),
-  );
-}
-
-export function setAlignmentAtSelection(
-  state: EditorState,
-  columnIndex: number,
-  alignment: MarkdownTableAlignment,
-): TransactionSpec {
-  return replaceTableAtSelection(state, (table) =>
-    setTableAlignment(table, columnIndex, alignment),
-  );
-}
-
-function replaceTableAtSelection(
-  state: EditorState,
-  edit: (table: MarkdownTableModel) => MarkdownTableModel,
-): TransactionSpec {
-  const table = tableAtSelection(state);
-
-  if (!table) {
-    return {};
+  if (!table || !navigator.clipboard) {
+    return false;
   }
 
-  return {
-    changes: {
-      from: table.from,
-      insert: serializeMarkdownTable(edit(table)),
-      to: table.to,
-    },
-    userEvent: 'input.table-edit',
-  };
+  await navigator.clipboard.writeText(
+    view.state.doc.sliceString(table.from, table.to),
+  );
+
+  return true;
 }
 
-function tableAtSelection(state: EditorState): MarkdownTableModel | null {
-  const head = state.selection.main.head;
+export function deleteCurrentMarkdownTable(view: EditorView): boolean {
+  const table = tableAtSelection(view);
 
-  return (
-    collectTableBlocksInRanges(state, [
-      {
-        from: 0,
-        to: state.doc.length,
-      },
-    ]).find((table) => head >= table.from && head <= table.to) ?? null
-  );
+  if (!table) {
+    return false;
+  }
+
+  view.dispatch({
+    changes: {
+      from: table.from,
+      to: table.to,
+    },
+    userEvent: 'delete.table',
+  });
+
+  return true;
+}
+
+export const tableKeymap: readonly KeyBinding[] = [
+  {
+    key: 'Alt-Mod-t',
+    run: insertMarkdownTable,
+  },
+  {
+    key: 'Alt-Mod-c',
+    run(view) {
+      const table = tableAtSelection(view);
+
+      if (!table) {
+        return false;
+      }
+
+      void copyCurrentMarkdownTable(view);
+
+      return true;
+    },
+  },
+  {
+    key: 'Alt-Mod-Backspace',
+    run: deleteCurrentMarkdownTable,
+  },
+];
+
+function tableAtSelection(view: EditorView): MarkdownTableBlock | null {
+  const head = view.state.selection.main.head;
+  let table: MarkdownTableBlock | null = null;
+
+  syntaxTree(view.state).iterate({
+    enter(node) {
+      if (table || node.name !== 'Table') {
+        return;
+      }
+
+      if (head >= node.from && head <= node.to) {
+        table = {
+          from: node.from,
+          to: node.to,
+        };
+      }
+    },
+  });
+
+  return table;
 }

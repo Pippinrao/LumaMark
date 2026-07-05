@@ -113,15 +113,22 @@ function imageBlockFromNode(
   }
 
   const raw = state.doc.sliceString(node.from, node.to);
+  const line = state.doc.lineAt(node.from);
+  const lineText = state.doc.sliceString(line.from, line.to);
+
+  if (lineText.trim() !== raw || node.to > line.to) {
+    return null;
+  }
+
   const altMatch = raw.match(/^!\[(?<alt>[^\]]*)\]/);
   const source = state.doc.sliceString(sourceNode.from, sourceNode.to).trim();
 
   return {
     alt: altMatch?.groups?.alt ?? '',
-    blockId: `${node.from}:${node.to}`,
-    from: node.from,
+    blockId: `${line.from}:${line.to}`,
+    from: line.from,
     source,
-    to: node.to,
+    to: line.to,
   };
 }
 

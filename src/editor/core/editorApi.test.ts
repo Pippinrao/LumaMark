@@ -88,16 +88,17 @@ describe('editorApi', () => {
     parent.remove();
   });
 
-  it('renders markdown tables as live preview widgets by default', () => {
+  it('renders markdown tables with the mature live preview component by default', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
 
     const editor = createEditorApi({
-      doc: ['intro', '', '| A | B |', '| --- | --- |', '| 1 | 2 |', '', 'after'].join('\n'),
+      doc: ['intro', '', '| A | B |', '| - | - |', '| 1 | 2 |', '', 'after'].join('\n'),
       parent,
     });
 
-    expect(parent.querySelector('.lm-table-widget table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.lm-table-widget')).toBeNull();
     expect(editor.getDocumentText()).toContain('| A | B |');
 
     editor.destroy();

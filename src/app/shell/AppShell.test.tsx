@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -143,6 +144,87 @@ describe('AppShell', () => {
         screen.getByRole('button', { name: '还原窗口' }),
       ).toBeInTheDocument();
     });
+  });
+
+  it('exposes table actions with shortcuts in the command palette', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.keyDown(window, {
+      ctrlKey: true,
+      key: 'k',
+    });
+
+    const dialog = await screen.findByRole('dialog', { name: '命令面板' });
+
+    expect(within(dialog).getByText('表格')).toBeInTheDocument();
+    expect(within(dialog).getByText('复制表格')).toBeInTheDocument();
+    expect(within(dialog).getByText('删除表格')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ctrl Alt T')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ctrl Alt C')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ctrl Alt Backspace')).toBeInTheDocument();
+  });
+
+  it('shows table shortcuts after table actions in the top menu', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const paragraphMenu = screen.getByRole('menuitem', { name: '段落' });
+    paragraphMenu.focus();
+    fireEvent.keyDown(paragraphMenu, { key: 'ArrowDown' });
+    expect(
+      await screen.findByRole('menuitem', { name: /^表格\s*Ctrl Alt T$/ }),
+    ).toHaveTextContent('Ctrl Alt T');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    const editMenu = screen.getByRole('menuitem', { name: '编辑' });
+    editMenu.focus();
+    fireEvent.keyDown(editMenu, { key: 'ArrowDown' });
+
+    expect(
+      await screen.findByRole('menuitem', {
+        name: /^复制表格\s*Ctrl Alt C$/,
+      }),
+    ).toHaveTextContent('Ctrl Alt C');
+    expect(
+      screen.getByRole('menuitem', {
+        name: /^删除表格\s*Ctrl Alt Backspace$/,
+      }),
+    ).toHaveTextContent('Ctrl Alt Backspace');
+  });
+
+  it('shows table actions and shortcuts in the editor context menu', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.contextMenu(screen.getByTestId('editor-host'));
+
+    expect(
+      await screen.findByRole('menuitem', { name: /^表格\s*Ctrl Alt T$/ }),
+    ).toHaveTextContent('Ctrl Alt T');
+    expect(
+      screen.getByRole('menuitem', { name: /^复制表格\s*Ctrl Alt C$/ }),
+    ).toHaveTextContent('Ctrl Alt C');
+    expect(
+      screen.getByRole('menuitem', {
+        name: /^删除表格\s*Ctrl Alt Backspace$/,
+      }),
+    ).toHaveTextContent('Ctrl Alt Backspace');
   });
 
   it('ignores stale workspace child load errors after switching roots', async () => {

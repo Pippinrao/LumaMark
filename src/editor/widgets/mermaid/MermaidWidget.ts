@@ -259,7 +259,6 @@ class MermaidBlockWidget extends WidgetType {
   private inlineEditor: EditorView | null = null;
   private parentView: EditorView | null = null;
   private pendingContent: string | null = null;
-  private syncTimer: number | null = null;
 
   constructor(
     private readonly block: AbsoluteMermaidBlock,
@@ -294,18 +293,25 @@ class MermaidBlockWidget extends WidgetType {
     actions.className = 'lm-mermaid-actions';
     wrapper.appendChild(actions);
 
-    const svgContainer = document.createElement('div');
-    svgContainer.className = 'lm-mermaid-svg';
-    wrapper.appendChild(svgContainer);
-
     const editorHost = document.createElement('div');
     editorHost.className = 'lm-mermaid-editor';
     editorHost.hidden = true;
     wrapper.appendChild(editorHost);
+
+    const svgContainer = document.createElement('div');
+    svgContainer.className = 'lm-mermaid-svg';
+    wrapper.appendChild(svgContainer);
     actions.replaceChildren(
       createEditButton(() => {
         editingMermaidBlocks.add(this.block.from);
-        this.openInlineEditor(view, wrapper, editorHost, { focus: true });
+        this.openInlineEditor(
+          view,
+          wrapper,
+          editorHost,
+          status,
+          svgContainer,
+          { focus: true },
+        );
       }),
       createDeleteButton(view, this.block),
     );
@@ -329,40 +335,25 @@ class MermaidBlockWidget extends WidgetType {
       }, 0);
     });
 
-    this.cancelRender = this.scheduler.request({
-      blockId: this.block.blockId,
-      config: safeMermaidConfig(this.options.config),
-      mermaidVersion: this.options.mermaidVersion ?? DEFAULT_MERMAID_VERSION,
-      onError: () => {
-        wrapper.classList.add('lm-mermaid-preview-error');
-        wrapper.dataset.status = 'error';
-        status.hidden = false;
-        status.className = 'lm-mermaid-error';
-        status.textContent = i18n.t('mermaid.renderFailed');
-        this.openInlineEditor(view, wrapper, editorHost, { focus: false });
-      },
-      onLoading: () => {
-        wrapper.classList.remove('lm-mermaid-preview-error');
-        wrapper.dataset.status = 'loading';
-        status.hidden = false;
-        status.className = 'lm-mermaid-status';
-        status.textContent = i18n.t('mermaid.loading');
-        svgContainer.replaceChildren();
-      },
-      onSuccess: ({ svg }) => {
-        wrapper.classList.remove('lm-mermaid-preview-error');
-        wrapper.dataset.status = 'success';
-        status.hidden = true;
-        status.textContent = '';
-        svgContainer.innerHTML = svg;
-      },
+    this.requestPreviewRender({
+      editorHost,
+      parentView: view,
       source: this.block.content,
-      theme: this.theme,
-    }).cancel;
+      status,
+      svgContainer,
+      wrapper,
+    });
 
     if (editingMermaidBlocks.has(this.block.from)) {
       window.setTimeout(() => {
-        this.openInlineEditor(view, wrapper, editorHost, { focus: true });
+        this.openInlineEditor(
+          view,
+          wrapper,
+          editorHost,
+          status,
+          svgContainer,
+          { focus: true },
+        );
       }, 0);
     }
 
@@ -378,14 +369,19 @@ class MermaidBlockWidget extends WidgetType {
     this.parentView = null;
   }
 
-  ignoreEvent(): boolean {
-    return false;
+  ignoreEvent(event: Event): boolean {
+    return (
+      event.target instanceof Element &&
+      event.target.closest('.lm-mermaid-editor') !== null
+    );
   }
 
   private openInlineEditor(
     parentView: EditorView,
     wrapper: HTMLElement,
     editorHost: HTMLElement,
+    status: HTMLElement,
+    svgContainer: HTMLElement,
     options: { focus: boolean },
   ): void {
     if (this.inlineEditor) {
@@ -411,7 +407,14 @@ class MermaidBlockWidget extends WidgetType {
               return;
             }
 
-            this.queueContentReplace(parentView, update.state.doc.toString());
+            this.queueContentUpdate({
+              content: update.state.doc.toString(),
+              editorHost,
+              parentView,
+              status,
+              svgContainer,
+              wrapper,
+            });
           }),
           keymap.of([...defaultKeymap, ...historyKeymap]),
         ],
@@ -431,12 +434,17 @@ class MermaidBlockWidget extends WidgetType {
     });
     this.inlineEditor.contentDOM.addEventListener('input', () => {
       const stateContent = this.inlineEditor?.state.doc.toString();
-      this.queueContentReplace(
+      this.queueContentUpdate({
+        content:
+          stateContent && stateContent !== this.block.content
+            ? stateContent
+            : this.inlineEditor?.contentDOM.textContent ?? '',
+        editorHost,
         parentView,
-        stateContent && stateContent !== this.block.content
-          ? stateContent
-          : this.inlineEditor?.contentDOM.textContent ?? '',
-      );
+        status,
+        svgContainer,
+        wrapper,
+      });
     });
     if (options.focus) {
       this.inlineEditor.focus();
@@ -460,25 +468,122 @@ class MermaidBlockWidget extends WidgetType {
     wrapper.classList.remove('lm-mermaid-preview-editing');
   }
 
-  private queueContentReplace(parentView: EditorView, content: string): void {
+  private queueContentUpdate({
+    content,
+    editorHost,
+    parentView,
+    status,
+    svgContainer,
+    wrapper,
+  }: {
+    content: string;
+    editorHost: HTMLElement;
+    parentView: EditorView;
+    status: HTMLElement;
+    svgContainer: HTMLElement;
+    wrapper: HTMLElement;
+  }): void {
     this.parentView = parentView;
     this.pendingContent = content;
+    this.requestPreviewRender({
+      editorHost,
+      parentView,
+      source: content,
+      status,
+      svgContainer,
+      wrapper,
+    });
+  }
 
-    if (this.syncTimer !== null) {
-      window.clearTimeout(this.syncTimer);
+  private requestPreviewRender({
+    editorHost,
+    parentView,
+    source,
+    status,
+    svgContainer,
+    wrapper,
+  }: {
+    editorHost: HTMLElement;
+    parentView: EditorView;
+    source: string;
+    status: HTMLElement;
+    svgContainer: HTMLElement;
+    wrapper: HTMLElement;
+  }): void {
+    this.cancelRender?.();
+    this.cancelRender = this.scheduler.request({
+      blockId: this.block.blockId,
+      config: safeMermaidConfig(this.options.config),
+      mermaidVersion: this.options.mermaidVersion ?? DEFAULT_MERMAID_VERSION,
+      onError: () => {
+        this.withInlineSelectionPreserved(() => {
+          wrapper.classList.add('lm-mermaid-preview-error');
+          wrapper.dataset.status = 'error';
+          status.hidden = false;
+          status.className = 'lm-mermaid-error';
+          status.textContent = i18n.t('mermaid.renderFailed');
+          this.openInlineEditor(
+            parentView,
+            wrapper,
+            editorHost,
+            status,
+            svgContainer,
+            { focus: false },
+          );
+        });
+      },
+      onLoading: () => {
+        this.withInlineSelectionPreserved(() => {
+          wrapper.classList.remove('lm-mermaid-preview-error');
+          wrapper.dataset.status = 'loading';
+          status.hidden = false;
+          status.className = 'lm-mermaid-status';
+          status.textContent = i18n.t('mermaid.loading');
+          svgContainer.replaceChildren();
+        });
+      },
+      onSuccess: ({ svg }) => {
+        this.withInlineSelectionPreserved(() => {
+          wrapper.classList.remove('lm-mermaid-preview-error');
+          wrapper.dataset.status = 'success';
+          status.hidden = true;
+          status.textContent = '';
+          svgContainer.innerHTML = svg;
+        });
+      },
+      source,
+      theme: this.theme,
+    }).cancel;
+  }
+
+  private withInlineSelectionPreserved(updatePreview: () => void): void {
+    const editor = this.inlineEditor;
+    const selection = editor?.state.selection;
+    const hadEditorFocus = editor
+      ? editor.dom.contains(document.activeElement)
+      : false;
+
+    updatePreview();
+
+    if (
+      !editor ||
+      this.inlineEditor !== editor ||
+      !selection ||
+      !hadEditorFocus
+    ) {
+      return;
     }
 
-    this.syncTimer = window.setTimeout(() => {
-      this.flushPendingContent();
-    }, 80);
+    if (!editor.state.selection.eq(selection)) {
+      editor.dispatch({ selection });
+    }
+
+    if (!editor.composing) {
+      editor.focus();
+    }
   }
 
   private flushPendingContent(options: { defer?: boolean } = {}): void {
-    if (this.syncTimer !== null) {
-      window.clearTimeout(this.syncTimer);
-      this.syncTimer = null;
-    }
-
     if (this.pendingContent === null || !this.parentView) {
       return;
     }

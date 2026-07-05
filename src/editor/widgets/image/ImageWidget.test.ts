@@ -26,7 +26,37 @@ describe('image preview extension', () => {
     expect(blocks).toEqual([
       expect.objectContaining({
         alt: 'Alt text',
+        from: 7,
         source: './assets/pic.png',
+        to: 36,
+      }),
+    ]);
+  });
+
+  it('collects only image-only paragraphs for block previews', () => {
+    const doc = [
+      'before ![Inline](https://example.com/inline.png) after',
+      '',
+      '  ![Block](data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==)  ',
+    ].join('\n');
+    const state = EditorState.create({
+      doc,
+      extensions: [markdownLanguage()],
+    });
+
+    const blocks = collectImageBlocksInRanges(state, [
+      {
+        from: 0,
+        to: doc.length,
+      },
+    ]);
+
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        alt: 'Block',
+        from: doc.indexOf('  ![Block]'),
+        source: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==',
+        to: doc.length,
       }),
     ]);
   });
@@ -81,6 +111,51 @@ describe('image preview extension', () => {
     expect(parent.querySelector('.lm-image-caption')?.textContent).toContain(
       'Alt',
     );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps image-only markdown editable on the active line', () => {
+    const doc = ['![Alt](https://example.com/pic.png)', '', 'after'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('Alt')),
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+    expect(parent.textContent).toContain('![Alt](https://example.com/pic.png)');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('does not replace inline markdown images inside normal paragraphs', () => {
+    const doc = 'before ![Alt](https://example.com/pic.png) after';
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+        ],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+    expect(parent.textContent).toContain(doc);
 
     view.destroy();
     parent.remove();

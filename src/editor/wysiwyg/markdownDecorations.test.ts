@@ -88,6 +88,9 @@ describe('markdown WYSIWYG decorations', () => {
       '- bullet',
       '1. ordered',
       '- [ ] task',
+      '[Luma](https://example.com)',
+      '',
+      '---',
       'inline `code`',
       '```ts',
       'const x = 1',
@@ -104,6 +107,43 @@ describe('markdown WYSIWYG decorations', () => {
         'taskList',
         'inlineCode',
         'codeBlock',
+        'link',
+        'horizontalRule',
+      ]),
+    );
+  });
+
+  it('marks links autolinks and horizontal rules from the markdown syntax tree', () => {
+    const ranges = collectMarkdownDecorationRanges(
+      [
+        '[Luma](https://example.com)',
+        '',
+        '<https://example.com>',
+        '',
+        '---',
+      ].join('\n'),
+    );
+
+    expect(ranges).toEqual(
+      expect.arrayContaining([
+        {
+          className: 'lm-md-link',
+          from: 0,
+          kind: 'link',
+          to: 27,
+        },
+        {
+          className: 'lm-md-link',
+          from: 29,
+          kind: 'link',
+          to: 50,
+        },
+        {
+          className: 'lm-md-horizontal-rule',
+          from: 52,
+          kind: 'horizontalRule',
+          to: 55,
+        },
       ]),
     );
   });
@@ -262,16 +302,19 @@ describe('markdown WYSIWYG extension', () => {
   it('adds stable line classes for unordered and task list preview rows', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
+    const doc = ['- item', '- [ ] task'].join('\n');
     const view = new EditorView({
       parent,
       state: EditorState.create({
-        doc: ['- item', '- [ ] task'].join('\n'),
+        doc,
         extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.length),
       }),
     });
 
     expect(parent.querySelector('.lm-md-unordered-list-line')).not.toBeNull();
     expect(parent.querySelector('.lm-md-task-list-line')).not.toBeNull();
+    expect(parent.querySelector('.lm-md-list-bullet')).not.toBeNull();
     expect(parent.querySelector('.lm-md-task-checkbox')).not.toBeNull();
 
     view.destroy();
@@ -325,6 +368,88 @@ describe('markdown WYSIWYG extension', () => {
     });
 
     expect(parent.querySelector('.lm-md-task-checkbox')).toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('renders nested unordered list markers as preview bullets off the active line', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['- top', '  - nested', 'plain'].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+
+    expect(parent.querySelectorAll('.lm-md-list-bullet')).toHaveLength(2);
+    expect(parent.querySelector('.lm-md-unordered-list-line')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps source markers visible on the active list quote and code lines', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['- item', '> quote', '```ts', 'const x = 1', '```'].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(1),
+      }),
+    });
+
+    expect(parent.querySelector('.lm-md-list-bullet')).toBeNull();
+    expect(parent.textContent).toContain('- item');
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('quote')),
+    });
+    expect(parent.textContent).toContain('> quote');
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('```ts')),
+    });
+    expect(parent.textContent).toContain('```ts');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('hides link quote and fenced code markdown marks away from the active line', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = [
+      '> quote',
+      '[Luma](https://example.com)',
+      '```ts',
+      'const x = 1',
+      '```',
+      'plain',
+    ].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+
+    expect(parent.textContent).toContain('quote');
+    expect(parent.textContent).toContain('Luma');
+    expect(parent.textContent).toContain('const x = 1');
+    expect(parent.textContent).not.toContain('> quote');
+    expect(parent.textContent).not.toContain('[Luma]');
+    expect(parent.textContent).not.toContain('https://example.com');
+    expect(parent.textContent).not.toContain('```');
 
     view.destroy();
     parent.remove();

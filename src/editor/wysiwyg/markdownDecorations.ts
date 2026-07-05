@@ -56,6 +56,25 @@ class HiddenMarkdownMarkWidget extends WidgetType {
   }
 }
 
+class ListBulletWidget extends WidgetType {
+  constructor(private readonly marker: string) {
+    super();
+  }
+
+  eq(widget: ListBulletWidget): boolean {
+    return widget.marker === this.marker;
+  }
+
+  toDOM(): HTMLElement {
+    const element = document.createElement('span');
+    element.className = 'lm-md-list-bullet';
+    element.setAttribute('aria-hidden', 'true');
+    element.textContent = '•';
+
+    return element;
+  }
+}
+
 class TaskCheckboxWidget extends WidgetType {
   constructor(
     private readonly checked: boolean,
@@ -108,6 +127,10 @@ function buildDecorations(view: EditorView): DecorationSet {
   }
 
   for (const range of collectSyntaxDecorationRanges(view.state, view.visibleRanges)) {
+    if (isRuntimeReplacedMarker(range.kind)) {
+      continue;
+    }
+
     if (range.from !== range.to) {
       decorations.push({
         decoration: Decoration.mark({ class: range.className }),
@@ -128,6 +151,10 @@ function buildDecorations(view: EditorView): DecorationSet {
     });
   }
 
+  for (const marker of collectUnorderedListMarkers(view)) {
+    decorations.push(marker);
+  }
+
   for (const mark of collectHiddenMarkdownMarks(view)) {
     decorations.push(mark);
   }
@@ -141,6 +168,16 @@ function buildDecorations(view: EditorView): DecorationSet {
   }
 
   return builder.finish();
+}
+
+function isRuntimeReplacedMarker(
+  kind: MarkdownDecorationRange['kind'],
+): boolean {
+  return (
+    kind === 'orderedList' ||
+    kind === 'taskList' ||
+    kind === 'unorderedList'
+  );
 }
 
 function collectSyntaxDecorationRanges(
@@ -206,6 +243,21 @@ function syntaxNodeToDecorationRange(
         className: 'lm-md-inline-code',
         from,
         kind: 'inlineCode',
+        to,
+      };
+    case 'Link':
+    case 'Autolink':
+      return {
+        className: 'lm-md-link',
+        from,
+        kind: 'link',
+        to,
+      };
+    case 'HorizontalRule':
+      return {
+        className: 'lm-md-horizontal-rule',
+        from,
+        kind: 'horizontalRule',
         to,
       };
     case 'Table':
@@ -295,6 +347,44 @@ function syntaxNodeToDecorationRange(
   }
 }
 
+function collectUnorderedListMarkers(view: EditorView): DecorationItem[] {
+  const markers: DecorationItem[] = [];
+
+  for (const range of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from: range.from,
+      to: range.to,
+      enter(node) {
+        if (node.name !== 'ListMark') {
+          return;
+        }
+
+        const marker = view.state.doc.sliceString(node.from, node.to);
+        const line = view.state.doc.lineAt(node.from);
+        const lineText = view.state.doc.sliceString(line.from, line.to);
+        const taskMarker = /^\s{0,3}[-*+]\s+\[[ xX]\](?=\s|$)/.test(lineText);
+        if (
+          !/^[-*+]$/.test(marker) ||
+          taskMarker ||
+          isRangeOnActiveLine(view, node.from, node.to)
+        ) {
+          return;
+        }
+
+        markers.push({
+          decoration: Decoration.replace({
+            widget: new ListBulletWidget(marker),
+          }),
+          from: node.from,
+          to: node.to,
+        });
+      },
+    });
+  }
+
+  return markers;
+}
+
 function collectTaskMarkersFromSyntax(
   state: EditorView['state'],
   ranges: readonly { from: number; to: number }[],
@@ -376,7 +466,7 @@ function collectHiddenMarkdownMarks(view: EditorView): DecorationItem[] {
       to: range.to,
       enter(node) {
         if (
-          !shouldHideSyntaxNode(node.name) ||
+          !shouldHideSyntaxNode(node.name, node.node.parent?.name) ||
           isRangeOnActiveLine(view, node.from, node.to)
         ) {
           return;
@@ -396,8 +486,18 @@ function collectHiddenMarkdownMarks(view: EditorView): DecorationItem[] {
   return marks;
 }
 
-function shouldHideSyntaxNode(name: string): boolean {
-  return name === 'HeaderMark' || INLINE_MARK_NODE_NAMES.has(name);
+function shouldHideSyntaxNode(name: string, parentName?: string): boolean {
+  if (
+    name === 'HeaderMark' ||
+    name === 'QuoteMark' ||
+    name === 'CodeInfo' ||
+    name === 'LinkMark' ||
+    INLINE_MARK_NODE_NAMES.has(name)
+  ) {
+    return true;
+  }
+
+  return name === 'URL' && parentName === 'Link';
 }
 
 function isRangeOnActiveLine(view: EditorView, from: number, to: number): boolean {

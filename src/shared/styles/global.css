@@ -94,6 +94,10 @@ button {
 }
 
 .lm-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--lm-space-4);
+  justify-content: space-between;
   min-height: 30px;
   border-radius: var(--lm-radius-1);
   color: var(--lm-color-text);
@@ -110,6 +114,17 @@ button {
 
 .lm-menu-item[data-disabled] {
   color: var(--lm-color-text-muted);
+}
+
+.lm-menu-shortcut {
+  color: var(--lm-color-text-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.lm-menu-item[data-highlighted] .lm-menu-shortcut {
+  color: color-mix(in srgb, white 82%, transparent);
 }
 
 .lm-editor-placeholder h2 {

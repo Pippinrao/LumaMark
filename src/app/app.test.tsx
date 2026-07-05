@@ -9,11 +9,11 @@ describe('App', () => {
     installResizeObserverStub();
   });
 
-  it('renders the accessible application title', () => {
+  it('renders the accessible application title', async () => {
     render(<App />);
 
     expect(
-      screen.getByRole('heading', { name: /lumamark/i }),
+      await screen.findByRole('heading', { name: /lumamark/i }),
     ).toBeInTheDocument();
   });
 });

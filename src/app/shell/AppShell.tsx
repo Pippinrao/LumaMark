@@ -10,6 +10,7 @@ import {
 } from 'react';
 import {
   Focus,
+  Copy,
   FolderOpen,
   Languages,
   Maximize2,
@@ -19,8 +20,11 @@ import {
   Save,
   SaveAll,
   Settings,
+  Table2,
+  Trash2,
   X,
 } from 'lucide-react';
+import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as Menubar from '@radix-ui/react-menubar';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
@@ -30,13 +34,16 @@ import {
   useDefaultLayout,
 } from 'react-resizable-panels';
 import { useTranslation } from 'react-i18next';
-import { EditorViewHost } from '../../editor/core/EditorViewHost';
 import type { EditorApi } from '../../editor/core/editorApi';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
 import {
   applyMarkdownFormatCommand,
   type MarkdownFormatCommand,
 } from '../../editor/commands/markdownFormatCommands';
+import {
+  copyCurrentMarkdownTable,
+  deleteCurrentMarkdownTable,
+} from '../../editor/widgets/table/tableCommands';
 import type { AppCommand } from '../../features/command-palette/CommandPalette';
 import { createFileActions } from '../../features/file-actions/fileActions';
 import { FileTree } from '../../features/file-tree/FileTree';
@@ -59,6 +66,8 @@ const DEFAULT_LAYOUT = {
   sidebar: 26,
 };
 type TopMenuAction =
+  | 'copyTable'
+  | 'deleteTable'
   | 'focusEditor'
   | 'openCommandPalette'
   | 'openFile'
@@ -75,10 +84,16 @@ type TopMenuItem = {
   action?: TopMenuAction;
   disabled?: boolean;
   label: string;
+  shortcut?: string;
 };
 type TopMenuGroup = {
   items: TopMenuItem[];
   label: string;
+};
+type EditorContextMenuItem = {
+  action: TopMenuAction;
+  label: string;
+  shortcut: string;
 };
 
 const LazyCommandPalette = lazy(() =>
@@ -89,6 +104,11 @@ const LazyCommandPalette = lazy(() =>
 const LazySettingsDialog = lazy(() =>
   import('../../features/settings/SettingsDialog').then((module) => ({
     default: module.SettingsDialog,
+  })),
+);
+const LazyEditorViewHost = lazy(() =>
+  import('../../editor/core/EditorViewHost').then((module) => ({
+    default: module.EditorViewHost,
   })),
 );
 const fallbackPanelLayoutStorage = new Map<string, string>();
@@ -180,6 +200,14 @@ export function AppShell() {
   });
   const documentTitle = currentFile?.name ?? t('app.emptyTitle');
   const visibleDocumentTitle = dirty ? `${documentTitle} *` : documentTitle;
+  const tableShortcuts = useMemo(
+    () => ({
+      copy: t('shortcut.table.copy'),
+      delete: t('shortcut.table.delete'),
+      insert: t('shortcut.table.insert'),
+    }),
+    [t],
+  );
   const setFileDirty = useCallback(
     (nextDirty: boolean) => {
       if (nextDirty) {
@@ -412,9 +440,35 @@ export function AppShell() {
 
     applyMarkdownFormatCommand(editor.view, command);
   }, []);
+  const copyTable = useCallback(() => {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    void copyCurrentMarkdownTable(editor.view);
+  }, []);
+  const deleteTable = useCallback(() => {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    if (deleteCurrentMarkdownTable(editor.view)) {
+      editor.focus();
+    }
+  }, []);
   const runTopMenuAction = useCallback(
     (action: TopMenuAction) => {
       switch (action) {
+        case 'copyTable':
+          copyTable();
+          break;
+        case 'deleteTable':
+          deleteTable();
+          break;
         case 'openFile':
           void handleOpenFile();
           break;
@@ -456,6 +510,8 @@ export function AppShell() {
     },
     [
       applyFormatCommand,
+      copyTable,
+      deleteTable,
       handleOpenFile,
       handleOpenWorkspace,
       handleSave,
@@ -525,12 +581,63 @@ export function AppShell() {
           setSettingsOpen(true);
         },
       },
+      {
+        icon: Table2,
+        id: 'insert-table',
+        keywords: [t('menu.table')],
+        label: t('menu.table'),
+        run: () => {
+          const editor = editorRef.current;
+
+          if (!editor) {
+            return;
+          }
+
+          applyMarkdownFormatCommand(editor.view, 'table');
+        },
+        shortcut: tableShortcuts.insert,
+      },
+      {
+        icon: Copy,
+        id: 'copy-table',
+        keywords: [t('table.copyTable')],
+        label: t('table.copyTable'),
+        run: () => {
+          const editor = editorRef.current;
+
+          if (!editor) {
+            return;
+          }
+
+          void copyCurrentMarkdownTable(editor.view);
+        },
+        shortcut: tableShortcuts.copy,
+      },
+      {
+        icon: Trash2,
+        id: 'delete-table',
+        keywords: [t('table.deleteTable')],
+        label: t('table.deleteTable'),
+        run: () => {
+          const editor = editorRef.current;
+
+          if (!editor) {
+            return;
+          }
+
+          if (deleteCurrentMarkdownTable(editor.view)) {
+            editor.focus();
+          }
+        },
+        shortcut: tableShortcuts.delete,
+      },
     ],
     [
       handleOpenFile,
       handleOpenWorkspace,
       handleSave,
       handleSaveAs,
+      tableShortcuts,
       t,
       toggleLanguage,
       toggleTheme,
@@ -561,6 +668,16 @@ export function AppShell() {
           { disabled: true, label: t('menu.undo') },
           { disabled: true, label: t('menu.redo') },
           {
+            action: 'copyTable' as const,
+            label: t('table.copyTable'),
+            shortcut: tableShortcuts.copy,
+          },
+          {
+            action: 'deleteTable' as const,
+            label: t('table.deleteTable'),
+            shortcut: tableShortcuts.delete,
+          },
+          {
             action: 'openCommandPalette' as const,
             label: t('commandPalette.open'),
           },
@@ -573,7 +690,11 @@ export function AppShell() {
           { action: 'heading2' as const, label: t('menu.heading2') },
           { action: 'unorderedList' as const, label: t('menu.unorderedList') },
           { action: 'taskList' as const, label: t('menu.taskList') },
-          { action: 'table' as const, label: t('menu.table') },
+          {
+            action: 'table' as const,
+            label: t('menu.table'),
+            shortcut: tableShortcuts.insert,
+          },
           { action: 'quote' as const, label: t('menu.quote') },
           { action: 'codeBlock' as const, label: t('menu.codeBlock') },
         ],
@@ -618,7 +739,27 @@ export function AppShell() {
         items: [{ action: 'openSettings' as const, label: t('menu.about') }],
       },
     ],
-    [editorDisplayMode, fileOpening, t],
+    [editorDisplayMode, fileOpening, tableShortcuts, t],
+  );
+  const editorContextMenuItems = useMemo<EditorContextMenuItem[]>(
+    () => [
+      {
+        action: 'table',
+        label: t('menu.table'),
+        shortcut: tableShortcuts.insert,
+      },
+      {
+        action: 'copyTable',
+        label: t('table.copyTable'),
+        shortcut: tableShortcuts.copy,
+      },
+      {
+        action: 'deleteTable',
+        label: t('table.deleteTable'),
+        shortcut: tableShortcuts.delete,
+      },
+    ],
+    [tableShortcuts, t],
   );
 
   useEffect(() => {
@@ -626,15 +767,37 @@ export function AppShell() {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setCommandPaletteOpen(true);
+        return;
+      }
+
+      if (!(event.ctrlKey || event.metaKey) || !event.altKey) {
+        return;
+      }
+
+      if (event.key.toLowerCase() === 't') {
+        event.preventDefault();
+        applyFormatCommand('table');
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        copyTable();
+        return;
+      }
+
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        deleteTable();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, []);
+  }, [applyFormatCommand, copyTable, deleteTable]);
 
   useEffect(() => {
     let canceled = false;
@@ -724,7 +887,10 @@ export function AppShell() {
                         }
                       }}
                     >
-                      {item.label}
+                      <span>{item.label}</span>
+                      {item.shortcut ? (
+                        <kbd className="lm-menu-shortcut">{item.shortcut}</kbd>
+                      ) : null}
                     </Menubar.Item>
                   ))}
                 </Menubar.Content>
@@ -824,32 +990,54 @@ export function AppShell() {
         </Panel>
         <PanelResizeHandle className="lm-resize-handle" />
         <Panel className="lm-editor-panel" defaultSize="74%" id="editor" minSize="360px">
-          <main
-            className="lm-editor-pane"
-            data-testid="editor-host"
-            aria-label={t('app.editorLabel')}
-          >
-            <div className="lm-editor-header">
-              <span className="lm-editor-title">{visibleDocumentTitle}</span>
-            </div>
-            <div className="lm-editor-scroll">
-              <div className="lm-editor-paper">
-                <EditorViewHost
-                  accessibleTitle={documentTitle}
-                  ariaLabel={t('app.editorLabel')}
-                  onDocumentChanged={() => {
-                    markDocumentDirty();
-                    scheduleOutlineRefresh();
-                  }}
-                  onEditorReady={(editor) => {
-                    editorRef.current = editor;
-                    setEditorDisplayMode(editor.getDisplayMode());
-                    scheduleOutlineRefresh();
-                  }}
-                />
-              </div>
-            </div>
-          </main>
+          <ContextMenu.Root>
+            <ContextMenu.Trigger asChild>
+              <main
+                className="lm-editor-pane"
+                data-testid="editor-host"
+                aria-label={t('app.editorLabel')}
+              >
+                <div className="lm-editor-header">
+                  <span className="lm-editor-title">{visibleDocumentTitle}</span>
+                </div>
+                <div className="lm-editor-scroll">
+                  <div className="lm-editor-paper">
+                    <Suspense fallback={null}>
+                      <LazyEditorViewHost
+                        accessibleTitle={documentTitle}
+                        ariaLabel={t('app.editorLabel')}
+                        onDocumentChanged={() => {
+                          markDocumentDirty();
+                          scheduleOutlineRefresh();
+                        }}
+                        onEditorReady={(editor) => {
+                          editorRef.current = editor;
+                          setEditorDisplayMode(editor.getDisplayMode());
+                          scheduleOutlineRefresh();
+                        }}
+                      />
+                    </Suspense>
+                  </div>
+                </div>
+              </main>
+            </ContextMenu.Trigger>
+            <ContextMenu.Portal>
+              <ContextMenu.Content className="lm-menu-content lm-context-menu-content">
+                {editorContextMenuItems.map((item) => (
+                  <ContextMenu.Item
+                    className="lm-menu-item lm-context-menu-item"
+                    key={item.label}
+                    onSelect={() => {
+                      runTopMenuAction(item.action);
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    <kbd className="lm-menu-shortcut">{item.shortcut}</kbd>
+                  </ContextMenu.Item>
+                ))}
+              </ContextMenu.Content>
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
         </Panel>
       </PanelGroup>
 

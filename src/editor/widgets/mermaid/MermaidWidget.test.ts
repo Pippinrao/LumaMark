@@ -332,8 +332,122 @@ describe('mermaidPreviewExtension', () => {
     );
     await vi.runAllTimersAsync();
 
+    expect(view.state.doc.toString()).toBe(doc);
+    editorContent.dispatchEvent(
+      new FocusEvent('focusout', {
+        bubbles: true,
+        relatedTarget: document.body,
+      }),
+    );
+    await vi.runAllTimersAsync();
+
     expect(view.state.doc.toString()).toContain('A --> C');
     expect(view.state.doc.toString()).toContain('```mermaid');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps the inline mermaid editor mounted while validating invalid edits', async () => {
+    vi.useFakeTimers();
+    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn(async ({ source }) => {
+        if (source.includes('not valid')) {
+          throw new Error('bad syntax');
+        }
+
+        return '<svg></svg>';
+      }),
+    });
+
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    ensureRangeMeasurement();
+
+    const editorHost = parent.querySelector<HTMLElement>('.lm-mermaid-editor');
+    const editorContent = parent.querySelector<HTMLElement>(
+      '.lm-mermaid-editor .cm-content',
+    );
+
+    if (!editorHost || !editorContent) {
+      throw new Error('Expected inline Mermaid editor to open.');
+    }
+
+    editorContent.focus();
+    editorContent.textContent = 'not valid mermaid';
+    editorContent.dispatchEvent(
+      new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
+    );
+    await vi.runAllTimersAsync();
+
+    expect(parent.querySelector<HTMLElement>('.lm-mermaid-editor')).toBe(
+      editorHost,
+    );
+    expect(editorHost.hidden).toBe(false);
+    expect(parent.querySelector('.lm-mermaid-preview-editing')).not.toBeNull();
+    expect(view.state.selection.main.from).toBe(doc.length);
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(parent.querySelector('.lm-mermaid-error')?.textContent).toContain(
+      'Mermaid 渲染失败',
+    );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps the inline mermaid editor mounted when the parent selection changes', async () => {
+    vi.useFakeTimers();
+    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn(async ({ source }) => {
+        if (source.includes('not valid')) {
+          throw new Error('bad syntax');
+        }
+
+        return '<svg></svg>';
+      }),
+    });
+
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    ensureRangeMeasurement();
+
+    const editorHost = parent.querySelector<HTMLElement>('.lm-mermaid-editor');
+    const editorContent = parent.querySelector<HTMLElement>(
+      '.lm-mermaid-editor .cm-content',
+    );
+
+    if (!editorHost || !editorContent) {
+      throw new Error('Expected inline Mermaid editor to open.');
+    }
+
+    editorContent.focus();
+    editorContent.textContent = 'not valid mermaid';
+    editorContent.dispatchEvent(
+      new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
+    );
+    await vi.runAllTimersAsync();
+
+    view.dispatch({
+      selection: EditorSelection.cursor(0),
+    });
+    await vi.runAllTimersAsync();
+
+    expect(parent.querySelector<HTMLElement>('.lm-mermaid-editor')).toBe(
+      editorHost,
+    );
+    expect(editorHost.hidden).toBe(false);
+    expect(parent.querySelector('.lm-mermaid-editor .cm-content')?.textContent)
+      .toContain('not valid mermaid');
 
     view.destroy();
     parent.remove();

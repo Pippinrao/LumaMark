@@ -166,9 +166,13 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await expect(editor).toContainText('Fixture Title');
   await expect(editor).toContainText('V1 E2E Title');
   await expect(editor).not.toContainText('Save As Current File');
+  await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();
+
+  await clickFirstVisibleMenuItem(page, ['View', '视图']);
+  await clickFirstVisibleMenuItem(page, ['Source Mode', '源码模式']);
+  await expect(page.locator('.lm-editor-source-mode')).toBeVisible();
   await expect(editor).toContainText('flowchart TD');
   await expect(editor).toContainText('A --> B');
-  await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();
 
   await editor.click();
   await page.keyboard.press('Control+A');
@@ -198,9 +202,12 @@ async function runFileMenuAction(
 async function clickFirstVisibleMenuItem(page: Page, names: string[]) {
   for (const name of names) {
     const item = page.getByRole('menuitem', { exact: true, name }).first();
-    if ((await item.count()) > 0 && (await item.isVisible())) {
+    try {
+      await expect(item).toBeVisible({ timeout: 2_000 });
       await item.click();
       return;
+    } catch {
+      // Try the next localized label.
     }
   }
 

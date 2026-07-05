@@ -36,6 +36,23 @@ workflow 文件：`.github/workflows/windows-release-build.yml`。
 - `src-tauri/target/release/bundle/msi/*.msi`
 - `src-tauri/target/release/bundle/nsis/*setup.exe`
 
+已执行 GitHub 手动构建验证：
+
+| 项目 | 结果 |
+|---|---|
+| Workflow run | <https://github.com/Pippinrao/LumaMark/actions/runs/28725030218> |
+| 触发分支 | `v1-implementation` |
+| 提交 | `8dff55e8059327a8dcf72bbe56b53b644eb4df27` |
+| 状态 | `success` |
+
+GitHub artifact 记录如下，大小为 GitHub artifact 压缩包大小：
+
+| Artifact | 大小 |
+|---|---:|
+| `lumamark-windows-release-exe` | 3,929,225 bytes |
+| `lumamark-windows-msi` | 3,882,214 bytes |
+| `lumamark-windows-nsis` | 3,065,781 bytes |
+
 这条 workflow 只证明 Windows release 可执行文件和安装器可以在 GitHub runner 上构建并作为 artifact 保留，不执行安装、卸载或安装后启动 smoke。
 
 ## 启动 Smoke
@@ -87,7 +104,7 @@ pnpm release:installer-smoke:nsis
 - 产物尚未签名。V1 alpha 可以本地安装测试，但公开分发前需要补代码签名、证书管理和发布校验。
 - NSIS 安装、卸载、安装后启动 smoke 已有自动化脚本入口，但本轮尚未执行真实安装器 smoke。
 - MSI 安装、卸载、安装后启动 smoke 需要管理员权限；本轮只提供显式可选入口，未执行真实 MSI smoke。
-- GitHub 手动构建 workflow 可生成并上传 release exe、MSI 和 NSIS 产物；真实安装器 smoke 仍需授权后执行。
+- GitHub 手动构建 workflow 已在 run `28725030218` 证明可生成并上传 release exe、MSI 和 NSIS 产物；真实安装器 smoke 仍需授权后执行。
 - `identifier` 一旦进入公开分发应保持稳定；后续变更会影响安装身份、升级身份和应用数据路径。
 - Web 构建已新增 `pnpm quality:web-build` chunk 门禁，首屏入口和动态 chunk 预算均通过；Mermaid/KaTeX/Cytoscape 等重依赖已从首屏入口拆出。
 - 本轮只验证 Windows 构建。macOS 和 Linux 保持架构兼容，不作为 V1 alpha 发布门禁。
@@ -99,7 +116,7 @@ pnpm release:installer-smoke:nsis
 | P0 能力 | 打开、编辑、保存、基础 WYSIWYG、Mermaid、i18n、性能和 fixture 均有自动化覆盖 | 通过 |
 | P1 核心体验 | 工作区文件树、大纲、命令面板、设置页、状态栏、Windows 构建均已落地 | 通过 |
 | 应用可启动 | `pnpm test:e2e` 覆盖 Web shell；release exe smoke 证明 `lumamark.exe` 可启动并保持 3 秒 | 通过 |
-| Windows 安装产物生成 | `pnpm build` 生成 MSI 和 NSIS 安装器 | 通过 |
+| Windows 安装产物生成 | `pnpm build` 生成 MSI 和 NSIS 安装器；GitHub run `28725030218` 在 `windows-latest` 上传 exe、MSI 和 NSIS artifacts | 通过 |
 | Windows 安装后启动 | `scripts/release/windows-installer-smoke.ps1` 已提供 NSIS 自动 smoke 和 MSI 可选 smoke；真实安装器 smoke 待授权执行 | 尚未覆盖 |
 | 中文和英文可切换 | `tests/e2e/v1-workflow.spec.ts` 覆盖设置页切换到 English | 通过 |
 | 亮色和暗色可切换 | `tests/e2e/v1-workflow.spec.ts` 断言 `html[data-theme="dark"]` | 通过 |

@@ -6,6 +6,7 @@ src-tauri/target/
 src-tauri/gen/
 .turbo/
 .vite/
+.cache/
 playwright-report/
 test-results/
 .env

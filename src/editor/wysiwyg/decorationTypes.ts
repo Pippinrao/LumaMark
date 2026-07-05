@@ -7,6 +7,11 @@ export type MarkdownDecorationKind =
   | 'orderedList'
   | 'strikethrough'
   | 'strong'
+  | 'table'
+  | 'tableCell'
+  | 'tableDelimiter'
+  | 'tableHeader'
+  | 'tableRow'
   | 'taskList'
   | 'unorderedList';
 

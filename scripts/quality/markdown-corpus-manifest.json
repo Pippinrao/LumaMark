@@ -1,0 +1,43 @@
+{
+  "cacheDirectory": ".cache/markdown-corpus",
+  "minimumSampleCount": 5,
+  "minimumTotalBytes": 200000,
+  "samples": [
+    {
+      "id": "commonmark-spec-0-31-2",
+      "license": "CommonMark project license",
+      "source": "CommonMark 0.31.2 spec",
+      "url": "https://raw.githubusercontent.com/commonmark/commonmark-spec/0.31.2/spec.txt"
+    },
+    {
+      "id": "cmark-gfm-spec",
+      "license": "cmark-gfm project license",
+      "source": "GitHub cmark-gfm spec",
+      "url": "https://raw.githubusercontent.com/github/cmark-gfm/master/test/spec.txt"
+    },
+    {
+      "id": "markdown-it-commonmark-spec",
+      "license": "markdown-it project license",
+      "source": "markdown-it CommonMark fixture",
+      "url": "https://raw.githubusercontent.com/markdown-it/markdown-it/master/test/fixtures/commonmark/spec.txt"
+    },
+    {
+      "id": "vite-readme",
+      "license": "Vite project license",
+      "source": "Vite README",
+      "url": "https://raw.githubusercontent.com/vitejs/vite/main/README.md"
+    },
+    {
+      "id": "rust-readme",
+      "license": "Rust project license",
+      "source": "Rust README",
+      "url": "https://raw.githubusercontent.com/rust-lang/rust/master/README.md"
+    },
+    {
+      "id": "markdown-here-readme",
+      "license": "Markdown Here project license",
+      "source": "Markdown Here README",
+      "url": "https://raw.githubusercontent.com/adam-p/markdown-here/master/README.md"
+    }
+  ]
+}

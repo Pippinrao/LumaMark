@@ -2,10 +2,10 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import {
-  collectVisibleMarkdownDecorationRanges,
   collectMarkdownDecorationRanges,
   markdownWysiwygExtension,
 } from './markdownDecorations';
+import { markdownLanguage } from '../markdown/markdownLanguage';
 import { toggleTaskListAtSelection } from './taskListCommands';
 
 describe('markdown WYSIWYG decorations', () => {
@@ -136,7 +136,7 @@ describe('markdown WYSIWYG decorations', () => {
   });
 
   it('marks only list markers for unordered and ordered lists', () => {
-    const ranges = collectMarkdownDecorationRanges('- bullet\n12. ordered');
+    const ranges = collectMarkdownDecorationRanges('- bullet\n\n12. ordered');
 
     expect(ranges).toEqual(
       expect.arrayContaining([
@@ -148,9 +148,9 @@ describe('markdown WYSIWYG decorations', () => {
         },
         {
           className: 'lm-md-list lm-md-ordered-list lm-md-list-marker',
-          from: 9,
+          from: 10,
           kind: 'orderedList',
-          to: 12,
+          to: 13,
         },
       ]),
     );
@@ -167,6 +167,35 @@ describe('markdown WYSIWYG decorations', () => {
           kind: 'taskList',
           to: 6,
         },
+      ]),
+    );
+  });
+
+  it('marks GFM table blocks and cells with document-grade ranges', () => {
+    const ranges = collectMarkdownDecorationRanges(
+      ['| Name | Status |', '| --- | --- |', '| Luma | Ready |'].join('\n'),
+    );
+
+    expect(ranges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          className: 'lm-md-table',
+          from: 0,
+          kind: 'table',
+        }),
+        expect.objectContaining({
+          className: 'lm-md-table-header',
+          from: 0,
+          kind: 'tableHeader',
+        }),
+        expect.objectContaining({
+          className: 'lm-md-table-cell',
+          kind: 'tableCell',
+        }),
+        expect.objectContaining({
+          className: 'lm-md-table-delimiter',
+          kind: 'tableDelimiter',
+        }),
       ]),
     );
   });
@@ -202,36 +231,53 @@ describe('markdown WYSIWYG decorations', () => {
     ).toEqual([]);
   });
 
-  it('does not apply markdown styling when a visible slice starts inside a fenced code block', () => {
-    const ranges = collectVisibleMarkdownDecorationRanges({
-      codeBlockRanges: [{ from: 0, to: 42 }],
-      markdown: ['# literal', '- [ ] literal'].join('\n'),
-      offset: 6,
-    });
-
-    expect(ranges).toEqual([]);
-  });
-
-  it('decorates markdown after a closing fence when a visible slice starts inside code', () => {
-    const markdown = ['# literal', '```', '# visible'].join('\n');
-    const ranges = collectVisibleMarkdownDecorationRanges({
-      codeBlockRanges: [{ from: 0, to: 19 }],
-      markdown,
-      offset: 6,
-    });
-
-    expect(ranges).toEqual([
-      {
-        className: 'lm-md-heading lm-md-heading-1',
-        from: 20,
-        kind: 'heading',
-        to: 29,
-      },
-    ]);
-  });
 });
 
 describe('markdown WYSIWYG extension', () => {
+  it('rehides markdown marks when the cursor leaves the active line', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['# Title', 'plain'].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(1),
+      }),
+    });
+
+    expect(parent.querySelector('.lm-md-hidden-mark')).toBeNull();
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('plain')),
+    });
+
+    expect(parent.querySelector('.lm-md-hidden-mark')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('adds stable line classes for unordered and task list preview rows', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: ['- item', '- [ ] task'].join('\n'),
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-md-unordered-list-line')).not.toBeNull();
+    expect(parent.querySelector('.lm-md-task-list-line')).not.toBeNull();
+    expect(parent.querySelector('.lm-md-task-checkbox')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
   it('renders task checkbox widgets without changing source text', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
@@ -239,7 +285,7 @@ describe('markdown WYSIWYG extension', () => {
       parent,
       state: EditorState.create({
         doc: '- [ ] task',
-        extensions: [markdownWysiwygExtension()],
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
       }),
     });
 
@@ -257,7 +303,7 @@ describe('markdown WYSIWYG extension', () => {
       parent,
       state: EditorState.create({
         doc: '1. [ ] task',
-        extensions: [markdownWysiwygExtension()],
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
       }),
     });
 
@@ -274,7 +320,7 @@ describe('markdown WYSIWYG extension', () => {
       parent,
       state: EditorState.create({
         doc: ['```md', '- [ ] literal task', '```'].join('\n'),
-        extensions: [markdownWysiwygExtension()],
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
       }),
     });
 
@@ -352,7 +398,7 @@ describe('task list commands', () => {
   it('does not toggle task-like text inside fenced code blocks', () => {
     const state = EditorState.create({
       doc: ['```md', '- [ ] literal task', '```'].join('\n'),
-      extensions: [markdownWysiwygExtension()],
+      extensions: [markdownLanguage(), markdownWysiwygExtension()],
       selection: EditorSelection.cursor(9),
     });
 

@@ -6,7 +6,29 @@ type PackageJson = {
   scripts: Record<string, string>;
 };
 
+type TauriCapability = {
+  permissions: string[];
+};
+
 describe('package quality scripts', () => {
+  it('grants the custom window chrome permissions used by AppShell controls', async () => {
+    const capability = await readJsonFile<TauriCapability>(
+      'src-tauri',
+      'capabilities',
+      'default.json',
+    );
+
+    expect(capability.permissions).toEqual(
+      expect.arrayContaining([
+        'core:window:allow-close',
+        'core:window:allow-is-maximized',
+        'core:window:allow-minimize',
+        'core:window:allow-start-dragging',
+        'core:window:allow-toggle-maximize',
+      ]),
+    );
+  });
+
   it('keeps performance benchmarks out of the default unit test gate', async () => {
     const packageJson = await readPackageJson();
 
@@ -43,6 +65,20 @@ describe('package quality scripts', () => {
     await expectFile('scripts', 'quality', 'capture-v1-ux-screenshots.mjs');
   });
 
+  it('defines explicit Markdown corpus download and verification scripts', async () => {
+    const packageJson = await readPackageJson();
+
+    expect(packageJson.scripts['download:markdown-corpus']).toBe(
+      'node scripts/quality/download-markdown-corpus.mjs',
+    );
+    expect(packageJson.scripts['test:markdown-corpus']).toBe(
+      'node scripts/quality/test-markdown-corpus.mjs',
+    );
+    await expectFile('scripts', 'quality', 'markdown-corpus-manifest.json');
+    await expectFile('scripts', 'quality', 'download-markdown-corpus.mjs');
+    await expectFile('scripts', 'quality', 'test-markdown-corpus.mjs');
+  });
+
   it('defines a GitHub Actions V1 quality gate with isolated performance benchmarks', async () => {
     const workflow = await readWorkflow('v1-quality.yml');
 
@@ -59,6 +95,8 @@ describe('package quality scripts', () => {
     expect(workflow).toContain('pnpm lint');
     expect(workflow).toContain('pnpm test');
     expect(workflow).toContain('pnpm test:fixtures');
+    expect(workflow).toContain('pnpm download:markdown-corpus');
+    expect(workflow).toContain('pnpm test:markdown-corpus');
     expect(workflow).toContain('pnpm quality:v1-ux-prototype');
     expect(workflow).toContain('pnpm quality:v1-ux-screenshots');
     expect(workflow).toContain('actions/upload-artifact@v7');
@@ -73,6 +111,12 @@ describe('package quality scripts', () => {
     );
     expect(workflow.indexOf('pnpm quality:v1-ux-screenshots')).toBeLessThan(
       workflow.indexOf('test-results/v1-ux-screenshots/*.png'),
+    );
+    expect(workflow.indexOf('pnpm download:markdown-corpus')).toBeLessThan(
+      workflow.indexOf('pnpm test:markdown-corpus'),
+    );
+    expect(workflow.indexOf('pnpm test:markdown-corpus')).toBeLessThan(
+      workflow.indexOf('pnpm test:e2e'),
     );
     expect(workflow).toContain('pnpm perf:bench');
     expect(workflow.indexOf('pnpm perf:bench')).toBeGreaterThan(
@@ -107,9 +151,13 @@ describe('package quality scripts', () => {
 });
 
 async function readPackageJson(): Promise<PackageJson> {
-  const content = await readFile(join(process.cwd(), 'package.json'), 'utf8');
+  return readJsonFile<PackageJson>('package.json');
+}
 
-  return JSON.parse(content) as PackageJson;
+async function readJsonFile<T>(...segments: string[]): Promise<T> {
+  const content = await readFile(join(process.cwd(), ...segments), 'utf8');
+
+  return JSON.parse(content) as T;
 }
 
 async function readWorkflow(name: string): Promise<string> {

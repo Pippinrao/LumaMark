@@ -1,29 +1,52 @@
 import { syntaxTree } from '@codemirror/language';
 import {
-  type EditorState,
+  EditorState,
   type Extension,
   RangeSetBuilder,
   StateEffect,
+  StateField,
 } from '@codemirror/state';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+} from '@codemirror/commands';
 import {
   Decoration,
   type DecorationSet,
   EditorView,
+  keymap,
   ViewPlugin,
-  type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
 import mermaidPackage from 'mermaid/package.json';
 import { i18n } from '../../../shared/i18n';
-import { detectMermaidBlocks, type MermaidBlock } from './mermaidBlockDetector';
 import {
   MermaidRenderScheduler,
   type MermaidRenderSchedulerOptions,
 } from './mermaidRenderScheduler';
+import { mermaidLanguageExtension } from './mermaidLanguageService';
 import './mermaid.css';
 
 type DocumentRange = {
   from: number;
+  to: number;
+};
+
+type MarkdownSyntaxNode = {
+  from: number;
+  to: number;
+  getChild: (type: string) => MarkdownSyntaxNode | null;
+};
+
+type MermaidBlock = {
+  content: string;
+  contentFrom: number;
+  contentTo: number;
+  fence: string;
+  from: number;
+  info: string;
+  language: 'mermaid';
   to: number;
 };
 
@@ -35,6 +58,13 @@ type SafeMermaidConfig = Record<string, unknown> & {
   securityLevel: 'strict';
 };
 
+type IconNode = readonly [
+  elementName: 'path',
+  attributes: {
+    d: string;
+  },
+][];
+
 export type MermaidPreviewExtensionOptions = {
   config?: Record<string, unknown>;
   mermaidVersion?: string;
@@ -43,6 +73,23 @@ export type MermaidPreviewExtensionOptions = {
 
 const DEFAULT_MERMAID_VERSION = mermaidPackage.version;
 const mermaidThemeChangedEffect = StateEffect.define();
+const editingMermaidBlocks = new Set<number>();
+const pencilIcon: IconNode = [
+  [
+    'path',
+    {
+      d: 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z',
+    },
+  ],
+  ['path', { d: 'm15 5 4 4' }],
+];
+const trashIcon: IconNode = [
+  ['path', { d: 'M10 11v6' }],
+  ['path', { d: 'M14 11v6' }],
+  ['path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6' }],
+  ['path', { d: 'M3 6h18' }],
+  ['path', { d: 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' }],
+];
 
 let defaultScheduler: MermaidRenderScheduler | null = null;
 
@@ -68,26 +115,21 @@ export function collectMermaidBlocksInRanges(
           return;
         }
 
-        const markdown = state.doc.sliceString(node.from, node.to);
-        for (const block of detectMermaidBlocks(markdown)) {
-          const from = node.from + block.from;
-          const to = node.from + block.to;
-          const blockId = `${from}:${to}`;
-
-          if (seen.has(blockId)) {
-            continue;
-          }
-
-          seen.add(blockId);
-          blocks.push({
-            ...block,
-            blockId,
-            contentFrom: node.from + block.contentFrom,
-            contentTo: node.from + block.contentTo,
-            from,
-            to,
-          });
+        const block = mermaidBlockFromFencedCode(state, node.node);
+        if (!block) {
+          return;
         }
+
+        const blockId = `${block.from}:${block.to}`;
+        if (seen.has(blockId)) {
+          return;
+        }
+
+        seen.add(blockId);
+        blocks.push({
+          ...block,
+          blockId,
+        });
       },
     });
   }
@@ -95,58 +137,100 @@ export function collectMermaidBlocksInRanges(
   return blocks.sort((left, right) => left.from - right.from);
 }
 
+function mermaidBlockFromFencedCode(
+  state: EditorState,
+  fencedCode: MarkdownSyntaxNode,
+): MermaidBlock | null {
+  const codeInfo = fencedCode.getChild('CodeInfo');
+  const codeText = fencedCode.getChild('CodeText');
+
+  if (!codeInfo || !codeText) {
+    return null;
+  }
+
+  const info = state.doc.sliceString(codeInfo.from, codeInfo.to).trim();
+  if (!isMermaidCodeInfo(info)) {
+    return null;
+  }
+
+  const openingFence = fencedCode.getChild('CodeMark');
+
+  return {
+    content: state.doc.sliceString(codeText.from, codeText.to),
+    contentFrom: codeText.from,
+    contentTo: codeText.to,
+    fence: openingFence
+      ? state.doc.sliceString(openingFence.from, openingFence.to)
+      : '',
+    from: fencedCode.from,
+    info,
+    language: 'mermaid',
+    to: fencedCode.to,
+  };
+}
+
+function isMermaidCodeInfo(info: string): boolean {
+  const normalizedInfo = info.toLowerCase();
+
+  return normalizedInfo === 'mermaid' || normalizedInfo.startsWith('mermaid ');
+}
+
 function mermaidPreviewPlugin(options: MermaidPreviewExtensionOptions): Extension {
   const scheduler = options.scheduler ?? getDefaultScheduler();
 
-  return ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      private readonly themeObserver: MutationObserver;
+  return [
+    mermaidDecorationsField(scheduler, options),
+    ViewPlugin.fromClass(
+      class {
+        private readonly themeObserver: MutationObserver;
 
-      constructor(private readonly view: EditorView) {
-        this.decorations = buildMermaidDecorations(view, scheduler, options);
-        this.themeObserver = new MutationObserver(() => {
-          this.view.dispatch({
-            effects: mermaidThemeChangedEffect.of(null),
+        constructor(private readonly view: EditorView) {
+          this.themeObserver = new MutationObserver(() => {
+            queueMicrotask(() => {
+              this.view.dispatch({
+                effects: mermaidThemeChangedEffect.of(null),
+              });
+            });
           });
-        });
-        this.themeObserver.observe(document.documentElement, {
-          attributeFilter: ['data-theme'],
-          attributes: true,
-        });
-      }
-
-      update(update: ViewUpdate) {
-        if (
-          update.docChanged ||
-          update.selectionSet ||
-          update.viewportChanged ||
-          update.transactions.some((transaction) =>
-            transaction.effects.some((effect) =>
-              effect.is(mermaidThemeChangedEffect),
-            ),
-          )
-        ) {
-          this.decorations = buildMermaidDecorations(
-            update.view,
-            scheduler,
-            options,
-          );
+          this.themeObserver.observe(document.documentElement, {
+            attributeFilter: ['data-theme'],
+            attributes: true,
+          });
         }
+
+        destroy() {
+          this.themeObserver.disconnect();
+        }
+      },
+    ),
+  ];
+}
+
+function mermaidDecorationsField(
+  scheduler: MermaidRenderScheduler,
+  options: MermaidPreviewExtensionOptions,
+): Extension {
+  return StateField.define<DecorationSet>({
+    create(state) {
+      return buildMermaidDecorations(state, scheduler, options);
+    },
+    update(value, transaction) {
+      if (
+        transaction.docChanged ||
+        transaction.selection ||
+        transaction.effects.some((effect) => effect.is(mermaidThemeChangedEffect))
+      ) {
+        return buildMermaidDecorations(transaction.state, scheduler, options);
       }
 
-      destroy() {
-        this.themeObserver.disconnect();
-      }
+      return value.map(transaction.changes);
     },
-    {
-      decorations: (plugin) => plugin.decorations,
-    },
-  );
+    provide: (field) => EditorView.decorations.from(field),
+  });
 }
 
 function buildMermaidDecorations(
-  view: EditorView,
+  state: EditorState,
   scheduler: MermaidRenderScheduler,
   options: MermaidPreviewExtensionOptions,
 ): DecorationSet {
@@ -154,18 +238,14 @@ function buildMermaidDecorations(
   const theme = currentMermaidTheme();
 
   for (const block of collectMermaidBlocksInRanges(
-    view.state,
-    view.visibleRanges,
+    state,
+    [{ from: 0, to: state.doc.length }],
   )) {
-    if (selectionIntersectsBlock(view.state, block)) {
-      continue;
-    }
-
     builder.add(
+      block.from,
       block.to,
-      block.to,
-      Decoration.widget({
-        side: 1,
+      Decoration.replace({
+        block: true,
         widget: new MermaidBlockWidget(block, scheduler, options, theme),
       }),
     );
@@ -174,21 +254,12 @@ function buildMermaidDecorations(
   return builder.finish();
 }
 
-function selectionIntersectsBlock(
-  state: EditorState,
-  block: AbsoluteMermaidBlock,
-): boolean {
-  return state.selection.ranges.some((range) => {
-    if (range.empty) {
-      return range.from >= block.from && range.from <= block.to;
-    }
-
-    return range.from < block.to && range.to > block.from;
-  });
-}
-
 class MermaidBlockWidget extends WidgetType {
   private cancelRender: (() => void) | null = null;
+  private inlineEditor: EditorView | null = null;
+  private parentView: EditorView | null = null;
+  private pendingContent: string | null = null;
+  private syncTimer: number | null = null;
 
   constructor(
     private readonly block: AbsoluteMermaidBlock,
@@ -212,6 +283,7 @@ class MermaidBlockWidget extends WidgetType {
     const wrapper = document.createElement('section');
     wrapper.className = 'lm-mermaid-preview';
     wrapper.dataset.status = 'loading';
+    wrapper.tabIndex = 0;
 
     const status = document.createElement('div');
     status.className = 'lm-mermaid-status';
@@ -226,6 +298,37 @@ class MermaidBlockWidget extends WidgetType {
     svgContainer.className = 'lm-mermaid-svg';
     wrapper.appendChild(svgContainer);
 
+    const editorHost = document.createElement('div');
+    editorHost.className = 'lm-mermaid-editor';
+    editorHost.hidden = true;
+    wrapper.appendChild(editorHost);
+    actions.replaceChildren(
+      createEditButton(() => {
+        editingMermaidBlocks.add(this.block.from);
+        this.openInlineEditor(view, wrapper, editorHost, { focus: true });
+      }),
+      createDeleteButton(view, this.block),
+    );
+    wrapper.addEventListener('focusout', (event) => {
+      const nextTarget = event.relatedTarget;
+
+      window.setTimeout(() => {
+        if (nextTarget instanceof Node) {
+          if (wrapper.contains(nextTarget)) {
+            return;
+          }
+        } else if (wrapper.contains(document.activeElement)) {
+          return;
+        }
+
+        if (wrapper.dataset.status === 'error') {
+          return;
+        }
+
+        this.closeInlineEditor(wrapper, editorHost);
+      }, 0);
+    });
+
     this.cancelRender = this.scheduler.request({
       blockId: this.block.blockId,
       config: safeMermaidConfig(this.options.config),
@@ -233,60 +336,268 @@ class MermaidBlockWidget extends WidgetType {
       onError: () => {
         wrapper.classList.add('lm-mermaid-preview-error');
         wrapper.dataset.status = 'error';
+        status.hidden = false;
         status.className = 'lm-mermaid-error';
         status.textContent = i18n.t('mermaid.renderFailed');
-        actions.replaceChildren(createEditSourceButton(view, this.block));
+        this.openInlineEditor(view, wrapper, editorHost, { focus: false });
       },
       onLoading: () => {
         wrapper.classList.remove('lm-mermaid-preview-error');
         wrapper.dataset.status = 'loading';
+        status.hidden = false;
         status.className = 'lm-mermaid-status';
         status.textContent = i18n.t('mermaid.loading');
-        actions.replaceChildren();
         svgContainer.replaceChildren();
       },
       onSuccess: ({ svg }) => {
+        wrapper.classList.remove('lm-mermaid-preview-error');
         wrapper.dataset.status = 'success';
+        status.hidden = true;
         status.textContent = '';
-        actions.replaceChildren();
         svgContainer.innerHTML = svg;
       },
       source: this.block.content,
       theme: this.theme,
     }).cancel;
 
+    if (editingMermaidBlocks.has(this.block.from)) {
+      window.setTimeout(() => {
+        this.openInlineEditor(view, wrapper, editorHost, { focus: true });
+      }, 0);
+    }
+
     return wrapper;
   }
 
   destroy(): void {
+    this.flushPendingContent({ defer: true });
     this.cancelRender?.();
     this.cancelRender = null;
+    this.inlineEditor?.destroy();
+    this.inlineEditor = null;
+    this.parentView = null;
   }
 
   ignoreEvent(): boolean {
     return false;
   }
+
+  private openInlineEditor(
+    parentView: EditorView,
+    wrapper: HTMLElement,
+    editorHost: HTMLElement,
+    options: { focus: boolean },
+  ): void {
+    if (this.inlineEditor) {
+      if (options.focus) {
+        this.inlineEditor.focus();
+      }
+      return;
+    }
+
+    editorHost.hidden = false;
+    wrapper.classList.add('lm-mermaid-preview-editing');
+    this.parentView = parentView;
+    this.inlineEditor = new EditorView({
+      parent: editorHost,
+      state: EditorState.create({
+        doc: this.block.content,
+        extensions: [
+          history(),
+          EditorView.lineWrapping,
+          mermaidLanguageExtension(),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) {
+              return;
+            }
+
+            this.queueContentReplace(parentView, update.state.doc.toString());
+          }),
+          keymap.of([...defaultKeymap, ...historyKeymap]),
+        ],
+      }),
+    });
+    this.inlineEditor.dom.addEventListener('focusin', () => {
+      editingMermaidBlocks.add(this.block.from);
+    });
+    this.inlineEditor.dom.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      this.closeInlineEditor(wrapper, editorHost);
+      parentView.focus();
+    });
+    this.inlineEditor.contentDOM.addEventListener('input', () => {
+      const stateContent = this.inlineEditor?.state.doc.toString();
+      this.queueContentReplace(
+        parentView,
+        stateContent && stateContent !== this.block.content
+          ? stateContent
+          : this.inlineEditor?.contentDOM.textContent ?? '',
+      );
+    });
+    if (options.focus) {
+      this.inlineEditor.focus();
+    }
+  }
+
+  private closeInlineEditor(
+    wrapper: HTMLElement,
+    editorHost: HTMLElement,
+  ): void {
+    if (!this.inlineEditor) {
+      return;
+    }
+
+    const editor = this.inlineEditor;
+    editingMermaidBlocks.delete(this.block.from);
+    this.inlineEditor = null;
+    this.flushPendingContent();
+    editor.destroy();
+    editorHost.hidden = true;
+    wrapper.classList.remove('lm-mermaid-preview-editing');
+  }
+
+  private queueContentReplace(parentView: EditorView, content: string): void {
+    this.parentView = parentView;
+    this.pendingContent = content;
+
+    if (this.syncTimer !== null) {
+      window.clearTimeout(this.syncTimer);
+    }
+
+    this.syncTimer = window.setTimeout(() => {
+      this.flushPendingContent();
+    }, 80);
+  }
+
+  private flushPendingContent(options: { defer?: boolean } = {}): void {
+    if (this.syncTimer !== null) {
+      window.clearTimeout(this.syncTimer);
+      this.syncTimer = null;
+    }
+
+    if (this.pendingContent === null || !this.parentView) {
+      return;
+    }
+
+    const content = this.pendingContent;
+    const parentView = this.parentView;
+    this.pendingContent = null;
+    if (options.defer) {
+      queueMicrotask(() => {
+        replaceMermaidContent(parentView, this.block, content);
+      });
+      return;
+    }
+
+    replaceMermaidContent(parentView, this.block, content);
+  }
 }
 
-function createEditSourceButton(
+function createEditButton(onClick: () => void): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'lm-mermaid-edit-source';
+  button.setAttribute('aria-label', i18n.t('mermaid.editSource'));
+  button.title = i18n.t('mermaid.editSource');
+  button.appendChild(createIconSvg(pencilIcon));
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    onClick();
+  });
+
+  return button;
+}
+
+function createDeleteButton(
   view: EditorView,
   block: AbsoluteMermaidBlock,
 ): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'lm-mermaid-edit-source';
-  button.textContent = i18n.t('mermaid.editSource');
+  button.className = 'lm-mermaid-delete';
+  button.setAttribute('aria-label', i18n.t('mermaid.delete'));
+  button.title = i18n.t('mermaid.delete');
+  button.appendChild(createIconSvg(trashIcon));
   button.addEventListener('click', (event) => {
     event.preventDefault();
+    editingMermaidBlocks.delete(block.from);
+    const range = deletionRangeForBlock(view.state, block);
     view.dispatch({
-      selection: {
-        anchor: block.contentFrom,
+      changes: {
+        from: range.from,
+        to: range.to,
       },
+      userEvent: 'delete.mermaid',
     });
     view.focus();
   });
 
   return button;
+}
+
+function createIconSvg(icon: IconNode): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '16');
+
+  for (const [elementName, attributes] of icon) {
+    const element = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      elementName,
+    );
+    element.setAttribute('d', attributes.d);
+    svg.appendChild(element);
+  }
+
+  return svg;
+}
+
+function replaceMermaidContent(
+  view: EditorView,
+  block: AbsoluteMermaidBlock,
+  content: string,
+): void {
+  view.dispatch({
+    changes: {
+      from: block.contentFrom,
+      insert: content,
+      to: block.contentTo,
+    },
+    userEvent: 'input.mermaid',
+  });
+}
+
+function deletionRangeForBlock(
+  state: EditorState,
+  block: AbsoluteMermaidBlock,
+): { from: number; to: number } {
+  const before = block.from > 0
+    ? state.doc.sliceString(block.from - 1, block.from)
+    : '';
+  const after = block.to < state.doc.length
+    ? state.doc.sliceString(block.to, block.to + 1)
+    : '';
+
+  if (before === '\n') {
+    return { from: block.from - 1, to: block.to };
+  }
+
+  if (after === '\n') {
+    return { from: block.from, to: block.to + 1 };
+  }
+
+  return { from: block.from, to: block.to };
 }
 
 function getDefaultScheduler(): MermaidRenderScheduler {

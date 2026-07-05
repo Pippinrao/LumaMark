@@ -1,6 +1,6 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
-import { Tree, type NodeRendererProps } from 'react-arborist';
+import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceDirectory } from '../workspace/workspaceCommands';
 import type { WorkspaceTreeNode } from '../workspace/workspaceStore';
@@ -25,29 +25,27 @@ export function FileTree({
   tree,
 }: FileTreeProps) {
   const { t } = useTranslation();
-  const [heightRef, height] = useElementHeight(320);
-  const nodeByPath = useMemo(() => indexNodes(tree), [tree]);
+  const [treeBodyRef, treeSize] = useElementSize();
+  const treeRef = useRef<TreeApi<WorkspaceTreeNode> | undefined>(undefined);
   const pendingLoadPathsRef = useRef(new Set<string>());
   const requestLoadChildren = useCallback(
-    (path: string) => {
-      const node = nodeByPath.get(path);
-
+    (node: WorkspaceTreeNode) => {
       if (
-        node?.kind !== 'directory' ||
+        node.kind !== 'directory' ||
         node.loaded ||
-        loadingPaths[path] ||
-        pendingLoadPathsRef.current.has(path)
+        loadingPaths[node.path] ||
+        pendingLoadPathsRef.current.has(node.path)
       ) {
         return;
       }
 
-      pendingLoadPathsRef.current.add(path);
+      pendingLoadPathsRef.current.add(node.path);
       queueMicrotask(() => {
-        pendingLoadPathsRef.current.delete(path);
+        pendingLoadPathsRef.current.delete(node.path);
       });
-      onLoadChildren(path);
+      onLoadChildren(node.path);
     },
-    [loadingPaths, nodeByPath, onLoadChildren],
+    [loadingPaths, onLoadChildren],
   );
 
   return (
@@ -68,8 +66,8 @@ export function FileTree({
         <div className="lm-sidebar-empty">{t('workspace.empty')}</div>
       )}
 
-      <div className="lm-file-tree-body" ref={heightRef}>
-        {root ? (
+      <div className="lm-file-tree-body" ref={treeBodyRef}>
+        {root && treeSize.height > 0 ? (
           <Tree<WorkspaceTreeNode>
             aria-label={t('workspace.fileTree')}
             childrenAccessor={(node) => node.children ?? null}
@@ -77,26 +75,30 @@ export function FileTree({
             disableDrag
             disableEdit
             disableMultiSelection
-            height={height}
+            height={treeSize.height}
             idAccessor={(node) => node.id}
             indent={16}
-            onActivate={(node) => {
-              if (node.data.kind === 'markdownFile') {
-                onOpenFile(node.data.path);
-              } else {
-                node.toggle();
+            ref={treeRef}
+            onToggle={(path) => {
+              const node = treeRef.current?.get(path);
+
+              if (node?.isOpen) {
+                requestLoadChildren(node.data);
               }
             }}
-            onToggle={(path) => {
-              requestLoadChildren(path);
-            }}
+            openByDefault={false}
             overscanCount={8}
-            rowHeight={28}
+            rowHeight={32}
             selection={selectedPath}
-            width="100%"
+            width={treeSize.width}
           >
             {(props) => (
-              <FileTreeNode {...props} loading={Boolean(loadingPaths[props.node.data.path])} />
+              <FileTreeNode
+                {...props}
+                loading={Boolean(loadingPaths[props.node.data.path])}
+                onLoadChildren={requestLoadChildren}
+                onOpenFile={onOpenFile}
+              />
             )}
           </Tree>
         ) : null}
@@ -105,21 +107,49 @@ export function FileTree({
   );
 }
 
-function FileTreeNode({
+type FileTreeNodeProps = NodeRendererProps<WorkspaceTreeNode> & {
+  loading: boolean;
+  onLoadChildren: (node: WorkspaceTreeNode) => void;
+  onOpenFile: (path: string) => void;
+};
+
+const FileTreeNode = memo(function FileTreeNode({
   loading,
   node,
+  onLoadChildren,
+  onOpenFile,
   style,
-}: NodeRendererProps<WorkspaceTreeNode> & { loading: boolean }) {
+}: FileTreeNodeProps) {
   const { t } = useTranslation();
   const isDirectory = node.data.kind === 'directory';
-  const Icon = isDirectory ? Folder : FileText;
+  const Icon = isDirectory && node.isOpen ? FolderOpen : isDirectory ? Folder : FileText;
   const Chevron = node.isOpen ? ChevronDown : ChevronRight;
+  const handleClick = () => {
+    node.select();
+
+    if (isDirectory) {
+      const willOpen = !node.isOpen;
+
+      node.toggle();
+
+      if (willOpen) {
+        onLoadChildren(node.data);
+      }
+
+      return;
+    }
+
+    onOpenFile(node.data.path);
+  };
 
   return (
     <div
+      data-testid={`file-tree-row-${node.data.path}`}
       className={[
         'lm-file-tree-node',
+        isDirectory ? 'lm-file-tree-node-directory' : 'lm-file-tree-node-file',
         node.isSelected ? 'lm-file-tree-node-selected' : '',
+        loading ? 'lm-file-tree-node-loading' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -127,34 +157,35 @@ function FileTreeNode({
       title={node.data.path}
       onClick={(event) => {
         event.preventDefault();
-        node.activate();
+        event.stopPropagation();
+        handleClick();
       }}
     >
-      <span className="lm-file-tree-chevron">
+      <span
+        className={[
+          'lm-file-tree-chevron',
+          isDirectory && node.isOpen ? 'lm-file-tree-chevron-open' : '',
+          isDirectory && !node.isOpen ? 'lm-file-tree-chevron-closed' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        data-testid={`file-tree-chevron-${node.data.path}`}
+      >
         {isDirectory ? <Chevron size={14} aria-hidden="true" /> : null}
       </span>
-      <Icon size={15} aria-hidden="true" />
+      <Icon className="lm-file-tree-icon" size={15} aria-hidden="true" />
       <span className="lm-file-tree-name">{node.data.name}</span>
       {loading ? <span className="lm-file-tree-loading">{t('workspace.loading')}</span> : null}
     </div>
   );
-}
+});
 
-function indexNodes(nodes: readonly WorkspaceTreeNode[]) {
-  const index = new Map<string, WorkspaceTreeNode>();
-  const visit = (node: WorkspaceTreeNode) => {
-    index.set(node.path, node);
-    node.children?.forEach(visit);
-  };
-
-  nodes.forEach(visit);
-
-  return index;
-}
-
-function useElementHeight(defaultHeight: number) {
+function useElementSize() {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [height, setHeight] = useState(defaultHeight);
+  const [size, setSize] = useState({
+    height: 0,
+    width: 0,
+  });
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -163,22 +194,25 @@ function useElementHeight(defaultHeight: number) {
       return;
     }
 
-    const updateHeight = () => {
-      setHeight(Math.max(180, Math.floor(element.clientHeight || defaultHeight)));
+    const updateSize = () => {
+      setSize({
+        height: Math.floor(element.clientHeight),
+        width: Math.floor(element.clientWidth),
+      });
     };
 
-    updateHeight();
+    updateSize();
     if (typeof ResizeObserver === 'undefined') {
       return undefined;
     }
 
-    const observer = new ResizeObserver(updateHeight);
+    const observer = new ResizeObserver(updateSize);
     observer.observe(element);
 
     return () => {
       observer.disconnect();
     };
-  }, [defaultHeight]);
+  }, []);
 
-  return [ref, height] as const;
+  return [ref, size] as const;
 }

@@ -1,0 +1,27 @@
+.cm-content .lm-image-preview {
+  display: block;
+  margin: 22px 0 28px;
+  text-align: center;
+}
+
+.cm-content .lm-image-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  margin: 0 auto;
+  border-radius: var(--lm-radius-2);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--lm-color-text) 10%, transparent);
+}
+
+.cm-content .lm-image-caption {
+  margin-top: var(--lm-space-2);
+  color: var(--lm-color-text-muted);
+  font: 500 0.84rem / 1.45 var(--lm-font-ui);
+}
+
+.cm-content .lm-image-preview-error {
+  padding: var(--lm-space-4);
+  border: 1px solid var(--lm-color-border-subtle);
+  border-radius: var(--lm-radius-2);
+  background: color-mix(in srgb, var(--lm-color-surface-muted) 76%, transparent);
+}

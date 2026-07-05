@@ -415,10 +415,18 @@ Typora-like 行为分三层实现：
 
 用 block widgets 展示复杂块：
 
+- 表格。
 - Mermaid。
 - 公式。
 - 图片预览。
 - 未来图表。
+
+表格 widget 规则：
+
+- CodeMirror/Lezer 识别 GFM `Table` 语法节点，Markdown 源文仍由 CodeMirror 文档持有。
+- live preview 中光标离开表格块时，用真实 `<table>` widget 提供结构化编辑。
+- 未编辑表格不改源码；用户编辑单元格、行列或对齐后，只重写当前 table block 为合法 GFM table。
+- 表格 widget 的单元格输入、Tab/Shift+Tab、Enter、Esc 和工具栏操作不经过 React 热路径。
 
 ### 命令层
 

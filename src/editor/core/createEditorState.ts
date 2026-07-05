@@ -7,8 +7,13 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { recordEditorTransactionMetric } from '../metrics/editorMetrics';
-import { markdownWysiwygExtension } from '../wysiwyg/markdownDecorations';
-import { mermaidPreviewExtension } from '../widgets/mermaid/MermaidWidget';
+import { markdownLanguage } from '../markdown/markdownLanguage';
+import {
+  editorDisplayModeCompartment,
+  editorDisplayModeExtension,
+  type EditorDocumentContext,
+  type EditorDisplayMode,
+} from './editorDisplayMode';
 import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
@@ -16,7 +21,9 @@ import type {
 
 export type CreateEditorStateOptions = {
   doc?: string;
+  documentContext?: EditorDocumentContext;
   extensions?: readonly Extension[];
+  displayMode?: EditorDisplayMode;
   onDocumentChanged?: EditorDocumentChangedHandler;
   onFocusChanged?: EditorFocusChangedHandler;
 };
@@ -26,6 +33,8 @@ export function createEditorState(
 ): EditorState {
   const {
     doc = '',
+    documentContext = { path: null },
+    displayMode = 'livePreview',
     extensions = [],
     onDocumentChanged,
     onFocusChanged,
@@ -77,8 +86,10 @@ export function createEditorState(
   return EditorState.create({
     doc,
     extensions: [
-      markdownWysiwygExtension(),
-      mermaidPreviewExtension(),
+      markdownLanguage(),
+      editorDisplayModeCompartment.of(
+        editorDisplayModeExtension(displayMode, documentContext),
+      ),
       history(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,

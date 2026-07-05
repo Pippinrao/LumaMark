@@ -1,5 +1,6 @@
 import {
   lazy,
+  type MouseEvent as ReactMouseEvent,
   Suspense,
   useCallback,
   useEffect,
@@ -11,11 +12,17 @@ import {
   Focus,
   FolderOpen,
   Languages,
+  Maximize2,
+  Minimize2,
+  Minus,
   Moon,
   Save,
   SaveAll,
   Settings,
+  X,
 } from 'lucide-react';
+import * as Menubar from '@radix-ui/react-menubar';
+import * as Tabs from '@radix-ui/react-tabs';
 import {
   Group as PanelGroup,
   Panel,
@@ -25,6 +32,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { EditorViewHost } from '../../editor/core/EditorViewHost';
 import type { EditorApi } from '../../editor/core/editorApi';
+import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
+import {
+  applyMarkdownFormatCommand,
+  type MarkdownFormatCommand,
+} from '../../editor/commands/markdownFormatCommands';
 import type { AppCommand } from '../../features/command-palette/CommandPalette';
 import { createFileActions } from '../../features/file-actions/fileActions';
 import { FileTree } from '../../features/file-tree/FileTree';
@@ -37,15 +49,38 @@ import {
   listWorkspaceChildren,
   openWorkspaceDirectory,
 } from '../../features/workspace/workspaceCommands';
+import { windowControls } from '../../services/window/windowControls';
 import { useWorkspaceStore } from '../../features/workspace/workspaceStore';
 import { useAppStore } from '../stores/appStore';
 import { StatusBar } from './StatusBar';
 
 const DEFAULT_LAYOUT = {
-  editor: 58,
-  outline: 20,
-  sidebar: 22,
+  editor: 74,
+  sidebar: 26,
 };
+type TopMenuAction =
+  | 'focusEditor'
+  | 'openCommandPalette'
+  | 'openFile'
+  | 'openSettings'
+  | 'openWorkspace'
+  | 'save'
+  | 'saveAs'
+  | 'setLivePreviewMode'
+  | 'setSourceMode'
+  | 'toggleLanguage'
+  | 'toggleTheme'
+  | MarkdownFormatCommand;
+type TopMenuItem = {
+  action?: TopMenuAction;
+  disabled?: boolean;
+  label: string;
+};
+type TopMenuGroup = {
+  items: TopMenuItem[];
+  label: string;
+};
+
 const LazyCommandPalette = lazy(() =>
   import('../../features/command-palette/CommandPalette').then((module) => ({
     default: module.CommandPalette,
@@ -113,7 +148,11 @@ export function AppShell() {
   const workspaceLoadSessionRef = useRef(0);
   const workspaceLoadGenerationsRef = useRef(new Map<string, number>());
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [editorDisplayMode, setEditorDisplayMode] =
+    useState<EditorDisplayMode>('livePreview');
+  const [fileOpening, setFileOpening] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [windowMaximized, setWindowMaximized] = useState(false);
   const currentFile = useAppStore((state) => state.currentFile);
   const dirty = useAppStore((state) => state.dirty);
   const language = useAppStore((state) => state.language);
@@ -134,9 +173,9 @@ export function AppShell() {
   const setWorkspaceRoot = useWorkspaceStore((state) => state.setRoot);
   const startWorkspaceLoading = useWorkspaceStore((state) => state.startLoading);
   const layout = useDefaultLayout({
-    id: 'lumamark-main-panels',
+    id: 'lumamark-v1-main-panels',
     onlySaveAfterUserInteractions: true,
-    panelIds: ['sidebar', 'editor', 'outline'],
+    panelIds: ['sidebar', 'editor'],
     storage: panelLayoutStorage,
   });
   const documentTitle = currentFile?.name ?? t('app.emptyTitle');
@@ -203,10 +242,20 @@ export function AppShell() {
       return;
     }
 
-    const result = await actions.openFileFromDialog();
+    setFileOpening(true);
+    setStatusKey('status.opening');
+    try {
+      const result = await actions.openFileFromDialog();
 
-    if (result.ok && result.data) {
-      setStatusKey('status.opened');
+      if (result.ok && result.data) {
+        setStatusKey('status.opened');
+      } else if (!result.ok) {
+        setStatusKey('status.openFailed');
+      } else {
+        setStatusKey('status.ready');
+      }
+    } finally {
+      setFileOpening(false);
     }
   }, [createActions, setStatusKey]);
 
@@ -314,10 +363,18 @@ export function AppShell() {
         return;
       }
 
-      const result = await actions.openFile(path);
+      setFileOpening(true);
+      setStatusKey('status.opening');
+      try {
+        const result = await actions.openFile(path);
 
-      if (result.ok) {
-        setStatusKey('status.opened');
+        if (result.ok) {
+          setStatusKey('status.opened');
+        } else {
+          setStatusKey('status.openFailed');
+        }
+      } finally {
+        setFileOpening(false);
       }
     },
     [createActions, setStatusKey],
@@ -346,6 +403,67 @@ export function AppShell() {
     });
     editor.focus();
   }, []);
+  const applyFormatCommand = useCallback((command: MarkdownFormatCommand) => {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    applyMarkdownFormatCommand(editor.view, command);
+  }, []);
+  const runTopMenuAction = useCallback(
+    (action: TopMenuAction) => {
+      switch (action) {
+        case 'openFile':
+          void handleOpenFile();
+          break;
+        case 'openWorkspace':
+          void handleOpenWorkspace();
+          break;
+        case 'save':
+          void handleSave();
+          break;
+        case 'saveAs':
+          void handleSaveAs();
+          break;
+        case 'setLivePreviewMode':
+          editorRef.current?.setDisplayMode('livePreview');
+          setEditorDisplayMode('livePreview');
+          break;
+        case 'setSourceMode':
+          editorRef.current?.setDisplayMode('source');
+          setEditorDisplayMode('source');
+          break;
+        case 'openCommandPalette':
+          setCommandPaletteOpen(true);
+          break;
+        case 'focusEditor':
+          editorRef.current?.focus();
+          break;
+        case 'openSettings':
+          setSettingsOpen(true);
+          break;
+        case 'toggleTheme':
+          toggleTheme();
+          break;
+        case 'toggleLanguage':
+          toggleLanguage();
+          break;
+        default:
+          applyFormatCommand(action);
+      }
+    },
+    [
+      applyFormatCommand,
+      handleOpenFile,
+      handleOpenWorkspace,
+      handleSave,
+      handleSaveAs,
+      toggleLanguage,
+      toggleTheme,
+    ],
+  );
 
   const commands = useMemo<readonly AppCommand[]>(
     () => [
@@ -418,6 +536,90 @@ export function AppShell() {
       toggleTheme,
     ],
   );
+  const topMenuGroups = useMemo<TopMenuGroup[]>(
+    () => [
+      {
+        label: t('menu.file'),
+        items: [
+          {
+            action: 'openFile' as const,
+            disabled: fileOpening,
+            label: t('command.openFile'),
+          },
+          {
+            action: 'openWorkspace' as const,
+            disabled: fileOpening,
+            label: t('workspace.open'),
+          },
+          { action: 'save' as const, label: t('command.save') },
+          { action: 'saveAs' as const, label: t('command.saveAs') },
+        ],
+      },
+      {
+        label: t('menu.edit'),
+        items: [
+          { disabled: true, label: t('menu.undo') },
+          { disabled: true, label: t('menu.redo') },
+          {
+            action: 'openCommandPalette' as const,
+            label: t('commandPalette.open'),
+          },
+        ],
+      },
+      {
+        label: t('menu.paragraph'),
+        items: [
+          { action: 'heading1' as const, label: t('menu.heading1') },
+          { action: 'heading2' as const, label: t('menu.heading2') },
+          { action: 'unorderedList' as const, label: t('menu.unorderedList') },
+          { action: 'taskList' as const, label: t('menu.taskList') },
+          { action: 'table' as const, label: t('menu.table') },
+          { action: 'quote' as const, label: t('menu.quote') },
+          { action: 'codeBlock' as const, label: t('menu.codeBlock') },
+        ],
+      },
+      {
+        label: t('menu.format'),
+        items: [
+          { action: 'bold' as const, label: t('menu.bold') },
+          { action: 'italic' as const, label: t('menu.italic') },
+          { action: 'inlineCode' as const, label: t('menu.inlineCode') },
+          { action: 'link' as const, label: t('menu.link') },
+        ],
+      },
+      {
+        label: t('menu.view'),
+        items: [
+          { action: 'focusEditor' as const, label: t('command.focusEditor') },
+          editorDisplayMode === 'source'
+            ? {
+                action: 'setLivePreviewMode' as const,
+                label: t('menu.livePreviewMode'),
+              }
+            : {
+                action: 'setSourceMode' as const,
+                label: t('menu.sourceMode'),
+              },
+          { action: 'openSettings' as const, label: t('settings.title') },
+        ],
+      },
+      {
+        label: t('menu.theme'),
+        items: [
+          { action: 'toggleTheme' as const, label: t('command.toggleTheme') },
+          {
+            action: 'toggleLanguage' as const,
+            label: t('command.toggleLanguage'),
+          },
+        ],
+      },
+      {
+        label: t('menu.help'),
+        items: [{ action: 'openSettings' as const, label: t('menu.about') }],
+      },
+    ],
+    [editorDisplayMode, fileOpening, t],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -434,52 +636,151 @@ export function AppShell() {
     };
   }, []);
 
+  useEffect(() => {
+    let canceled = false;
+
+    void windowControls.isMaximized().then((maximized) => {
+      if (!canceled && maximized !== null) {
+        setWindowMaximized(maximized);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  const handleChromeMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const target = event.target;
+
+      if (
+        target instanceof Element &&
+        target.closest('[data-lm-window-interactive="true"]')
+      ) {
+        return;
+      }
+
+      void windowControls.startDragging();
+    },
+    [],
+  );
+
+  const handleWindowControl = useCallback(
+    (action: 'close' | 'minimize' | 'toggleMaximize') => {
+      if (action !== 'toggleMaximize') {
+        void windowControls[action]();
+        return;
+      }
+
+      void windowControls.toggleMaximize().then(async (toggled) => {
+        if (!toggled) {
+          return;
+        }
+
+        const maximized = await windowControls.isMaximized();
+        setWindowMaximized((current) => maximized ?? !current);
+      });
+    },
+    [],
+  );
+
   return (
     <div className="lm-app-shell" data-testid="app-shell">
-      <header className="lm-shell-header">
-        <div className="lm-title-group">
-          <h1>{t('app.name')}</h1>
-          <span className="lm-document-title">{visibleDocumentTitle}</span>
-        </div>
+      <header
+        className="lm-top-chrome"
+        data-tauri-drag-region
+        onMouseDown={handleChromeMouseDown}
+      >
+        <h1 className="lm-app-heading">{t('app.name')}</h1>
 
-        <nav className="lm-command-bar" aria-label={t('app.toolbarLabel')}>
-          <button type="button" onClick={handleOpenFile}>
-            <FolderOpen size={15} aria-hidden="true" />
-            {t('command.openFile')}
-          </button>
-          <button type="button" onClick={handleSave}>
-            <Save size={15} aria-hidden="true" />
-            {t('command.save')}
-          </button>
-          <button type="button" onClick={handleSaveAs}>
-            <SaveAll size={15} aria-hidden="true" />
-            {t('command.saveAs')}
-          </button>
+        <Menubar.Root
+          className="lm-menu-bar"
+          data-lm-window-interactive="true"
+        >
+          {topMenuGroups.map((group) => (
+            <Menubar.Menu key={group.label}>
+              <Menubar.Trigger className="lm-menu-trigger">
+                {group.label}
+              </Menubar.Trigger>
+              <Menubar.Portal>
+                <Menubar.Content
+                  className="lm-menu-content"
+                  align="start"
+                  sideOffset={12}
+                >
+                  {group.items.map((item) => (
+                    <Menubar.Item
+                      className="lm-menu-item"
+                      disabled={item.disabled}
+                      key={item.label}
+                      onSelect={() => {
+                        if (item.action) {
+                          runTopMenuAction(item.action);
+                        }
+                      }}
+                    >
+                      {item.label}
+                    </Menubar.Item>
+                  ))}
+                </Menubar.Content>
+              </Menubar.Portal>
+            </Menubar.Menu>
+          ))}
+        </Menubar.Root>
+
+        <nav
+          className="lm-window-controls"
+          aria-label={t('window.controls')}
+          data-lm-window-interactive="true"
+        >
           <button
+            className="lm-window-control"
             type="button"
+            aria-label={t('window.minimize')}
             onClick={() => {
-              setCommandPaletteOpen(true);
+              handleWindowControl('minimize');
             }}
           >
-            <Focus size={15} aria-hidden="true" />
-            {t('commandPalette.open')}
+            <Minus size={14} aria-hidden="true" />
           </button>
           <button
+            className="lm-window-control"
             type="button"
+            aria-label={
+              windowMaximized ? t('window.restore') : t('window.maximize')
+            }
             onClick={() => {
-              setSettingsOpen(true);
+              handleWindowControl('toggleMaximize');
             }}
           >
-            <Settings size={15} aria-hidden="true" />
-            {t('settings.title')}
+            {windowMaximized ? (
+              <Minimize2 size={13} aria-hidden="true" />
+            ) : (
+              <Maximize2 size={13} aria-hidden="true" />
+            )}
+          </button>
+          <button
+            className="lm-window-control lm-window-control-close"
+            type="button"
+            aria-label={t('window.close')}
+            onClick={() => {
+              handleWindowControl('close');
+            }}
+          >
+            <X size={14} aria-hidden="true" />
           </button>
         </nav>
       </header>
 
       <PanelGroup
-        className="lm-shell-body"
+        className="lm-workspace-shell"
         defaultLayout={layout.defaultLayout ?? DEFAULT_LAYOUT}
-        id="lumamark-main-panels"
+        id="lumamark-v1-main-panels"
         onLayoutChanged={layout.onLayoutChanged}
         orientation="horizontal"
       >
@@ -492,44 +793,63 @@ export function AppShell() {
           minSize="220px"
         >
           <aside className="lm-sidebar" aria-label={t('app.sidebarLabel')}>
-            <FileTree
-              loadingPaths={workspaceLoadingPaths}
-              onLoadChildren={handleLoadWorkspaceChildren}
-              onOpenFile={handleOpenWorkspaceFile}
-              onOpenWorkspace={handleOpenWorkspace}
-              root={workspaceRoot}
-              selectedPath={currentFile?.path}
-              tree={workspaceTree}
-            />
+            <Tabs.Root className="lm-sidebar-tabs" defaultValue="files">
+              <Tabs.List className="lm-sidebar-tabs-list" aria-label={t('app.sidebarLabel')}>
+                <Tabs.Trigger className="lm-sidebar-tab" value="files">
+                  {t('sidebar.files')}
+                </Tabs.Trigger>
+                <Tabs.Trigger className="lm-sidebar-tab" value="outline">
+                  {t('outline.title')}
+                </Tabs.Trigger>
+              </Tabs.List>
+              <Tabs.Content className="lm-sidebar-tab-panel" value="files">
+                <FileTree
+                  loadingPaths={workspaceLoadingPaths}
+                  onLoadChildren={handleLoadWorkspaceChildren}
+                  onOpenFile={handleOpenWorkspaceFile}
+                  onOpenWorkspace={handleOpenWorkspace}
+                  root={workspaceRoot}
+                  selectedPath={currentFile?.path}
+                  tree={workspaceTree}
+                />
+              </Tabs.Content>
+              <Tabs.Content className="lm-sidebar-tab-panel" value="outline">
+                <OutlinePanel
+                  headings={headings}
+                  onSelectHeading={handleSelectHeading}
+                />
+              </Tabs.Content>
+            </Tabs.Root>
           </aside>
         </Panel>
         <PanelResizeHandle className="lm-resize-handle" />
-        <Panel className="lm-editor-panel" defaultSize="58%" id="editor" minSize="360px">
+        <Panel className="lm-editor-panel" defaultSize="74%" id="editor" minSize="360px">
           <main
-            className="lm-editor-surface"
+            className="lm-editor-pane"
             data-testid="editor-host"
             aria-label={t('app.editorLabel')}
           >
-            <EditorViewHost
-              accessibleTitle={documentTitle}
-              ariaLabel={t('app.editorLabel')}
-              onDocumentChanged={() => {
-                markDocumentDirty();
-                scheduleOutlineRefresh();
-              }}
-              onEditorReady={(editor) => {
-                editorRef.current = editor;
-                scheduleOutlineRefresh();
-              }}
-            />
+            <div className="lm-editor-header">
+              <span className="lm-editor-title">{visibleDocumentTitle}</span>
+            </div>
+            <div className="lm-editor-scroll">
+              <div className="lm-editor-paper">
+                <EditorViewHost
+                  accessibleTitle={documentTitle}
+                  ariaLabel={t('app.editorLabel')}
+                  onDocumentChanged={() => {
+                    markDocumentDirty();
+                    scheduleOutlineRefresh();
+                  }}
+                  onEditorReady={(editor) => {
+                    editorRef.current = editor;
+                    setEditorDisplayMode(editor.getDisplayMode());
+                    scheduleOutlineRefresh();
+                  }}
+                />
+              </div>
+            </div>
           </main>
-        </Panel>
-        <PanelResizeHandle className="lm-resize-handle" />
-        <Panel className="lm-outline-panel" defaultSize="20%" id="outline" minSize="200px">
-          <OutlinePanel
-            headings={headings}
-            onSelectHeading={handleSelectHeading}
-          />
         </Panel>
       </PanelGroup>
 

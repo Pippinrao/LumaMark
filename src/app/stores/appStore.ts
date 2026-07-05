@@ -11,7 +11,9 @@ export type ThemeMode = 'light' | 'dark';
 
 export type StatusKey =
   | 'status.ready'
+  | 'status.opening'
   | 'status.opened'
+  | 'status.openFailed'
   | 'status.saved'
   | 'status.saveFailed'
   | 'status.unsaved'

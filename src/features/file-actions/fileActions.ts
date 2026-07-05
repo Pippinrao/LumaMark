@@ -43,7 +43,8 @@ export type FileActions = {
 
 type CreateFileActionsOptions = {
   commands?: FileCommandClient;
-  editor: Pick<EditorApi, 'focus' | 'getDocumentText' | 'loadDocument'>;
+  editor: Pick<EditorApi, 'focus' | 'getDocumentText' | 'loadDocument'> &
+    Partial<Pick<EditorApi, 'setDocumentContext'>>;
   recentFiles: RecentFilesAdapter;
   state: FileActionStateAdapter;
 };
@@ -101,6 +102,7 @@ export function createFileActions({
 
     const currentFile = fileMetadataFromPath(result.data.path);
     editor.loadDocument(result.data.text);
+    editor.setDocumentContext?.({ path: currentFile.path });
     state.setCurrentFile(currentFile);
     state.setDirty(false);
     state.setLastFileError(null);
@@ -132,6 +134,7 @@ export function createFileActions({
     }
 
     const currentFile = fileMetadataFromPath(result.data.path);
+    editor.setDocumentContext?.({ path: currentFile.path });
     state.setCurrentFile(currentFile);
     if (state.getState().dirtyRevision === saveStartedAtRevision) {
       state.setDirty(false);

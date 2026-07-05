@@ -66,7 +66,9 @@ LumaMark 的质量体系要做到：
 
 用于保护 Markdown 源码保真。
 
-每个 fixture 需要覆盖一种文档特征：
+仓库内固定 fixture 用于稳定、可复现地覆盖核心语法和编辑器交互边界。`tests/fixtures/markdownFixtureManifest.ts` 记录每个 fixture 的语法标签，覆盖测试必须确保新增语法不会遗漏样本。
+
+每个 fixture 需要覆盖一种或多种文档特征：
 
 - 标题。
 - 列表。
@@ -79,9 +81,17 @@ LumaMark 的质量体系要做到：
 - 中英文混排。
 - 大文档。
 
+Mermaid 采用分层语料：
+
+- `mermaid-gallery.md` 覆盖 V1 必须渲染成功的核心 Mermaid 图类型。
+- `mermaid-edge-cases.md` 覆盖 info string 变体、错误图、连续块、长图和 fixture-only 图类型。
+- 冷门或 beta Mermaid 图类型先做源码保真和 fixture 覆盖，升级为正式支持后再进入必过渲染门禁。
+
 关键检查：
 
 > open -> save -> diff，无关 diff 必须为 0。
+
+外部 Markdown corpus 作为真实世界大样本补充，只验证解析、源码保真和 Lezer 节点覆盖；它不能替代仓库内确定性 fixture，也不作为 Mermaid 渲染正确性的唯一依据。
 
 ## 性能门禁
 

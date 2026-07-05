@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { type Extension, RangeSetBuilder } from '@codemirror/state';
+import { EditorState, type Extension, RangeSetBuilder } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
@@ -10,17 +10,7 @@ import {
   WidgetType,
 } from '@codemirror/view';
 import { markdownLanguage } from '../markdown/markdownLanguage';
-import { collectBlockquoteDecorations } from './blockquoteDecorations';
-import {
-  collectCodeDecorations,
-  collectInlineCodeDecorations,
-} from './codeDecorations';
 import type { MarkdownDecorationRange } from './decorationTypes';
-import { iterateLines } from './decorationTypes';
-import { collectEmphasisDecorations } from './emphasisDecorations';
-import { collectHeadingDecorations } from './headingDecorations';
-import { collectListDecorations } from './listDecorations';
-import { parseTaskListMarker } from './taskListMarkers';
 import { toggleTaskListCommand } from './taskListCommands';
 import './wysiwyg.css';
 
@@ -31,107 +21,39 @@ type TaskMarker = {
   from: number;
 };
 
-type AbsoluteRange = {
+type DecorationItem = {
+  decoration: Decoration;
   from: number;
   to: number;
 };
 
-type CollectVisibleMarkdownDecorationRangesOptions = {
-  codeBlockRanges: readonly AbsoluteRange[];
-  markdown: string;
-  offset: number;
-};
+const INLINE_MARK_NODE_NAMES = new Set([
+  'CodeMark',
+  'EmphasisMark',
+  'StrikethroughMark',
+]);
 
 export function collectMarkdownDecorationRanges(
   markdown: string,
 ): MarkdownDecorationRange[] {
-  const codeRanges = collectCodeDecorations(markdown);
-  const codeBlockRanges = codeRanges.filter(
-    (range) => range.kind === 'codeBlock',
-  );
-  const blockRanges = [
-    ...collectHeadingDecorations(markdown),
-    ...collectBlockquoteDecorations(markdown),
-    ...collectListDecorations(markdown),
-  ].filter((range) => !isInsideCodeRange(range, codeBlockRanges));
-  const emphasisRanges = collectEmphasisDecorations(markdown).filter(
-    (range) => !isInsideCodeRange(range, codeRanges),
-  );
+  const state = EditorState.create({
+    doc: markdown,
+    extensions: [markdownLanguage()],
+  });
 
-  return [
-    ...blockRanges,
-    ...codeRanges,
-    ...emphasisRanges,
-  ].sort((left, right) => left.from - right.from || left.to - right.to);
-}
-
-export function collectVisibleMarkdownDecorationRanges({
-  codeBlockRanges,
-  markdown,
-  offset,
-}: CollectVisibleMarkdownDecorationRangesOptions): MarkdownDecorationRange[] {
-  const blockRanges = [
-    ...collectHeadingDecorations(markdown),
-    ...collectBlockquoteDecorations(markdown),
-    ...collectListDecorations(markdown),
-  ]
-    .map((range) => toAbsoluteRange(range, offset))
-    .filter((range) => !isInsideAbsoluteRange(range, codeBlockRanges));
-  const inlineCodeRanges = collectInlineCodeDecorations(markdown, offset).filter(
-    (range) => !isInsideAbsoluteRange(range, codeBlockRanges),
-  );
-  const emphasisRanges = collectEmphasisDecorations(markdown)
-    .map((range) => toAbsoluteRange(range, offset))
-    .filter(
-      (range) =>
-        !isInsideAbsoluteRange(range, codeBlockRanges) &&
-        !isInsideAbsoluteRange(range, inlineCodeRanges),
-    );
-
-  return [
-    ...blockRanges,
-    ...inlineCodeRanges,
-    ...emphasisRanges,
-  ].sort((left, right) => left.from - right.from || left.to - right.to);
-}
-
-function toAbsoluteRange(
-  range: MarkdownDecorationRange,
-  offset: number,
-): MarkdownDecorationRange {
-  return {
-    ...range,
-    from: offset + range.from,
-    to: offset + range.to,
-  };
-}
-
-function isInsideCodeRange(
-  range: MarkdownDecorationRange,
-  codeRanges: MarkdownDecorationRange[],
-): boolean {
-  return codeRanges.some(
-    (codeRange) => range.from >= codeRange.from && range.to <= codeRange.to,
+  return collectSyntaxDecorationRanges(state).sort(
+    (left, right) => left.from - right.from || left.to - right.to,
   );
 }
 
-function collectTaskMarkers(markdown: string, offset = 0): TaskMarker[] {
-  const markers: TaskMarker[] = [];
+class HiddenMarkdownMarkWidget extends WidgetType {
+  toDOM(): HTMLElement {
+    const element = document.createElement('span');
+    element.className = 'lm-md-hidden-mark';
+    element.setAttribute('aria-hidden', 'true');
 
-  for (const line of iterateLines(markdown)) {
-    const marker = parseTaskListMarker(line.text);
-
-    if (!marker) {
-      continue;
-    }
-
-    markers.push({
-      checked: marker.checked,
-      from: offset + line.from + marker.taskMarkerFrom,
-    });
+    return element;
   }
-
-  return markers;
 }
 
 class TaskCheckboxWidget extends WidgetType {
@@ -179,66 +101,35 @@ class TaskCheckboxWidget extends WidgetType {
 
 function buildDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const decorations: Array<{
-    decoration: Decoration;
-    from: number;
-    to: number;
-  }> = [];
+  const decorations: DecorationItem[] = [];
 
-  for (const visibleRange of view.visibleRanges) {
-    const fromLine = view.state.doc.lineAt(visibleRange.from);
-    const toLine = view.state.doc.lineAt(visibleRange.to);
-    const from = fromLine.from;
-    const to = toLine.to;
-    const markdown = view.state.doc.sliceString(from, to);
-    const codeBlockRanges = collectVisibleCodeBlockRanges(view, from, to);
+  for (const item of collectListLineDecorations(view.state, view.visibleRanges)) {
+    decorations.push(item);
+  }
 
-    for (const range of collectVisibleMarkdownDecorationRanges({
-      codeBlockRanges,
-      markdown,
-      offset: from,
-    })) {
-      if (range.from === range.to) {
-        continue;
-      }
-
-      if (range.to < visibleRange.from || range.from > visibleRange.to) {
-        continue;
-      }
-
+  for (const range of collectSyntaxDecorationRanges(view.state, view.visibleRanges)) {
+    if (range.from !== range.to) {
       decorations.push({
         decoration: Decoration.mark({ class: range.className }),
         from: range.from,
         to: range.to,
       });
     }
+  }
 
-    for (const range of codeBlockRanges) {
-      decorations.push({
-        decoration: Decoration.mark({ class: 'lm-md-code-block' }),
-        from: Math.max(range.from, from),
-        to: Math.min(range.to, to),
-      });
-    }
+  for (const marker of collectTaskMarkersFromSyntax(view.state, view.visibleRanges)) {
+    decorations.push({
+      decoration: Decoration.widget({
+        side: -1,
+        widget: new TaskCheckboxWidget(marker.checked, marker.from),
+      }),
+      from: marker.from,
+      to: marker.from,
+    });
+  }
 
-    for (const marker of collectTaskMarkers(markdown, from)) {
-      if (marker.from < visibleRange.from || marker.from > visibleRange.to) {
-        continue;
-      }
-
-      if (isInsideAbsoluteRange(marker.from, codeBlockRanges)) {
-        continue;
-      }
-
-      decorations.push({
-        decoration: Decoration.widget({
-          side: -1,
-          widget: new TaskCheckboxWidget(marker.checked, marker.from),
-        }),
-        from: marker.from,
-        to: marker.from,
-      });
-    }
+  for (const mark of collectHiddenMarkdownMarks(view)) {
+    decorations.push(mark);
   }
 
   decorations.sort(
@@ -252,40 +143,268 @@ function buildDecorations(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
-function collectVisibleCodeBlockRanges(
-  view: EditorView,
-  from: number,
-  to: number,
-): AbsoluteRange[] {
-  const ranges: AbsoluteRange[] = [];
+function collectSyntaxDecorationRanges(
+  state: EditorView['state'],
+  ranges?: readonly { from: number; to: number }[],
+): MarkdownDecorationRange[] {
+  const decorationRanges: MarkdownDecorationRange[] = [];
 
-  syntaxTree(view.state).iterate({
-    from,
-    to,
-    enter(node) {
-      if (node.name !== 'FencedCode') {
-        return;
+  for (const range of ranges ?? [{ from: 0, to: state.doc.length }]) {
+    syntaxTree(state).iterate({
+      from: range.from,
+      to: range.to,
+      enter(node) {
+        const item = syntaxNodeToDecorationRange(
+          state,
+          node.name,
+          node.from,
+          node.to,
+        );
+
+        if (item) {
+          decorationRanges.push(item);
+        }
       }
-
-      ranges.push({
-        from: node.from,
-        to: node.to,
-      });
-    },
-  });
-
-  return ranges;
-}
-
-function isInsideAbsoluteRange(
-  item: AbsoluteRange | number,
-  ranges: readonly AbsoluteRange[],
-): boolean {
-  if (typeof item === 'number') {
-    return ranges.some((range) => item >= range.from && item < range.to);
+    });
   }
 
-  return ranges.some((range) => item.from >= range.from && item.to <= range.to);
+  return decorationRanges;
+}
+
+function syntaxNodeToDecorationRange(
+  state: EditorView['state'],
+  name: string,
+  from: number,
+  to: number,
+): MarkdownDecorationRange | null {
+  if (/^ATXHeading[1-6]$/.test(name)) {
+    return {
+      className: `lm-md-heading lm-md-heading-${name.at(-1)}`,
+      from,
+      kind: 'heading',
+      to,
+    };
+  }
+
+  switch (name) {
+    case 'Blockquote':
+      return {
+        className: 'lm-md-blockquote',
+        from,
+        kind: 'blockquote',
+        to,
+      };
+    case 'FencedCode':
+      return {
+        className: 'lm-md-code-block',
+        from,
+        kind: 'codeBlock',
+        to,
+      };
+    case 'InlineCode':
+      return {
+        className: 'lm-md-inline-code',
+        from,
+        kind: 'inlineCode',
+        to,
+      };
+    case 'Table':
+      return {
+        className: 'lm-md-table',
+        from,
+        kind: 'table',
+        to,
+      };
+    case 'TableHeader':
+      return {
+        className: 'lm-md-table-header',
+        from,
+        kind: 'tableHeader',
+        to,
+      };
+    case 'TableRow':
+      return {
+        className: 'lm-md-table-row',
+        from,
+        kind: 'tableRow',
+        to,
+      };
+    case 'TableCell':
+      return {
+        className: 'lm-md-table-cell',
+        from,
+        kind: 'tableCell',
+        to,
+      };
+    case 'TableDelimiter':
+      return {
+        className: 'lm-md-table-delimiter',
+        from,
+        kind: 'tableDelimiter',
+        to,
+      };
+    case 'ListMark':
+      if (/^\d/.test(state.doc.sliceString(from, to))) {
+        return {
+          className: 'lm-md-list lm-md-ordered-list lm-md-list-marker',
+          from,
+          kind: 'orderedList',
+          to,
+        };
+      }
+
+      return {
+        className: 'lm-md-list lm-md-unordered-list lm-md-list-marker',
+        from,
+        kind: 'unorderedList',
+        to,
+      };
+    case 'TaskMarker': {
+      const line = state.doc.lineAt(from);
+
+      return {
+        className: 'lm-md-list lm-md-task-list lm-md-list-marker',
+        from: line.from,
+        kind: 'taskList',
+        to,
+      };
+    }
+    case 'StrongEmphasis':
+      return {
+        className: 'lm-md-strong',
+        from,
+        kind: 'strong',
+        to,
+      };
+    case 'Emphasis':
+      return {
+        className: 'lm-md-emphasis',
+        from,
+        kind: 'emphasis',
+        to,
+      };
+    case 'Strikethrough':
+      return {
+        className: 'lm-md-strikethrough',
+        from,
+        kind: 'strikethrough',
+        to,
+      };
+    default:
+      return null;
+  }
+}
+
+function collectTaskMarkersFromSyntax(
+  state: EditorView['state'],
+  ranges: readonly { from: number; to: number }[],
+): TaskMarker[] {
+  const markers: TaskMarker[] = [];
+
+  for (const range of ranges) {
+    syntaxTree(state).iterate({
+      from: range.from,
+      to: range.to,
+      enter(node) {
+        if (node.name !== 'TaskMarker') {
+          return;
+        }
+
+        markers.push({
+          checked: state.doc.sliceString(node.from, node.to).toLowerCase() === '[x]',
+          from: node.from,
+        });
+      }
+    });
+  }
+
+  return markers;
+}
+
+function collectListLineDecorations(
+  state: EditorView['state'],
+  ranges: readonly { from: number; to: number }[],
+): DecorationItem[] {
+  const items: DecorationItem[] = [];
+
+  for (const range of ranges) {
+    syntaxTree(state).iterate({
+      from: range.from,
+      to: range.to,
+      enter(node) {
+        if (node.name !== 'ListItem') {
+          return;
+        }
+
+        const line = state.doc.lineAt(node.from);
+        const lineText = state.doc.sliceString(line.from, line.to);
+        const taskMarker = /^\s{0,3}(?:[-*+]|\d+[.)])\s+\[[ xX]\](?=\s|$)/.test(lineText);
+        const unorderedMarker = /^\s{0,3}[-*+]\s+/.test(lineText);
+        const orderedMarker = /^\s{0,3}\d+[.)]\s+/.test(lineText);
+
+        if (!taskMarker && !unorderedMarker && !orderedMarker) {
+          return;
+        }
+
+        items.push({
+          decoration: Decoration.line({
+            class: [
+              'lm-md-list-line',
+              taskMarker
+                ? 'lm-md-task-list-line'
+                : unorderedMarker
+                  ? 'lm-md-unordered-list-line'
+                  : 'lm-md-ordered-list-line',
+            ].join(' '),
+          }),
+          from: line.from,
+          to: line.from,
+        });
+      },
+    });
+  }
+
+  return items;
+}
+
+function collectHiddenMarkdownMarks(view: EditorView): DecorationItem[] {
+  const marks: DecorationItem[] = [];
+
+  for (const range of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from: range.from,
+      to: range.to,
+      enter(node) {
+        if (
+          !shouldHideSyntaxNode(node.name) ||
+          isRangeOnActiveLine(view, node.from, node.to)
+        ) {
+          return;
+        }
+
+        marks.push({
+          decoration: Decoration.replace({
+            widget: new HiddenMarkdownMarkWidget(),
+          }),
+          from: node.from,
+          to: node.to,
+        });
+      },
+    });
+  }
+
+  return marks;
+}
+
+function shouldHideSyntaxNode(name: string): boolean {
+  return name === 'HeaderMark' || INLINE_MARK_NODE_NAMES.has(name);
+}
+
+function isRangeOnActiveLine(view: EditorView, from: number, to: number): boolean {
+  return view.state.selection.ranges.some((selectionRange) => {
+    const selectionLine = view.state.doc.lineAt(selectionRange.head);
+    return from >= selectionLine.from && to <= selectionLine.to;
+  });
 }
 
 const markdownDecorationsPlugin = ViewPlugin.fromClass(
@@ -297,7 +416,7 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
+      if (update.docChanged || update.selectionSet || update.viewportChanged) {
         this.decorations = buildDecorations(update.view);
       }
     }
@@ -308,7 +427,7 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
 );
 
 export function markdownWysiwygExtension(): Extension {
-  return [markdownLanguage(), markdownDecorationsPlugin, keymapExtension()];
+  return [markdownDecorationsPlugin, keymapExtension()];
 }
 
 function keymapExtension(): Extension {

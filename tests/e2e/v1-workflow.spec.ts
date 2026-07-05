@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 const fixturePath = 'E:/lumamark-fixtures/v1.md';
 const saveAsPath = 'E:/lumamark-fixtures/v1-copy.md';
@@ -88,7 +89,8 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
 
   await page.goto('/');
 
-  await page.getByRole('button', { name: '设置' }).click();
+  await clickFirstVisibleMenuItem(page, ['视图', 'View']);
+  await clickFirstVisibleMenuItem(page, ['设置', 'Settings']);
   await page.getByRole('tab', { name: '语言' }).click();
   await page.getByRole('button', { name: 'English' }).click();
   await expect(
@@ -98,11 +100,12 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await page.getByRole('button', { name: 'Dark' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('button', { name: 'Close' }).click();
-  await expect(page.getByRole('button', { name: 'Open File' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'File' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Open File' }).click();
+  await runFileMenuAction(page, 'openFile');
   const editor = page.locator('.cm-content');
   await expect(editor).toContainText('Fixture Title');
+  await page.getByRole('tab', { name: 'Outline' }).click();
   await expect(page.getByRole('button', { name: 'Fixture Title' })).toBeVisible();
   await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();
 
@@ -115,7 +118,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await page.locator('.lm-md-task-checkbox').last().click();
   await expect(editor).toContainText('- [x] verified task');
 
-  await page.getByRole('button', { exact: true, name: 'Save' }).click();
+  await runFileMenuAction(page, 'save');
   await expect(page.getByRole('status')).toHaveText('Saved');
   let saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
   expect(saved?.path).toBe(fixturePath);
@@ -125,16 +128,16 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   expect(saved?.text).toContain('flowchart TD');
   expect(saved?.text).toContain('A --> B');
 
-  await page.getByRole('button', { name: 'Save As' }).click();
+  await runFileMenuAction(page, 'saveAs');
   await expect(page.getByRole('status')).toHaveText('Saved');
   saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
   expect(saved?.path).toBe(saveAsPath);
   expect(saved?.text).toContain('# V1 E2E Title');
-  await expect(page.locator('.lm-document-title')).toHaveText('v1-copy.md');
+  await expect(page.locator('.lm-editor-title')).toHaveText('v1-copy.md');
 
   await editor.click();
   await page.keyboard.type('\n\n# Save As Current File');
-  await page.getByRole('button', { exact: true, name: 'Save' }).click();
+  await runFileMenuAction(page, 'save');
   await expect(page.getByRole('status')).toHaveText('Saved');
   saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
   expect(saved?.path).toBe(saveAsPath);
@@ -159,7 +162,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   expect(savedFiles.copy).toContain('# Save As Current File');
 
   await page.reload();
-  await page.getByRole('button', { name: '打开文件' }).click();
+  await runFileMenuAction(page, 'openFile');
   await expect(editor).toContainText('Fixture Title');
   await expect(editor).toContainText('V1 E2E Title');
   await expect(editor).not.toContainText('Save As Current File');
@@ -170,9 +173,36 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await editor.click();
   await page.keyboard.press('Control+A');
   await page.keyboard.type('# temporary overwrite');
-  await page.getByRole('button', { name: '打开文件' }).click();
+  await runFileMenuAction(page, 'openFile');
 
   await expect(editor).toContainText('Fixture Title');
   await expect(editor).toContainText('V1 E2E Title');
   await expect(editor).not.toContainText('temporary overwrite');
 });
+
+async function runFileMenuAction(
+  page: Page,
+  actionName: 'openFile' | 'save' | 'saveAs',
+) {
+  await clickFirstVisibleMenuItem(page, ['File', '文件']);
+  await clickFirstVisibleMenuItem(
+    page,
+    {
+      openFile: ['Open File', '打开文件'],
+      save: ['Save', '保存'],
+      saveAs: ['Save As', '另存为'],
+    }[actionName],
+  );
+}
+
+async function clickFirstVisibleMenuItem(page: Page, names: string[]) {
+  for (const name of names) {
+    const item = page.getByRole('menuitem', { exact: true, name }).first();
+    if ((await item.count()) > 0 && (await item.isVisible())) {
+      await item.click();
+      return;
+    }
+  }
+
+  throw new Error(`Unable to find a visible menu item: ${names.join(' / ')}`);
+}

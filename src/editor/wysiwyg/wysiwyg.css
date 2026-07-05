@@ -1,24 +1,39 @@
 .cm-content .lm-md-heading {
   color: var(--lm-color-text);
-  font-weight: 700;
+  font-family: var(--lm-font-display);
+  font-weight: 720;
+  letter-spacing: 0;
 }
 
 .cm-content .lm-md-heading-1 {
-  font-size: 1.8em;
+  display: inline-block;
+  margin: 0.18em 0 0.24em;
+  font-size: 2.28em;
+  line-height: 1.16;
 }
 
 .cm-content .lm-md-heading-2 {
-  font-size: 1.5em;
+  display: inline-block;
+  margin: 1.05em 0 0.2em;
+  font-size: 1.52em;
+  line-height: 1.24;
 }
 
 .cm-content .lm-md-heading-3 {
-  font-size: 1.3em;
+  display: inline-block;
+  margin: 0.9em 0 0.12em;
+  font-size: 1.24em;
+  line-height: 1.32;
 }
 
 .cm-content .lm-md-heading-4,
 .cm-content .lm-md-heading-5,
 .cm-content .lm-md-heading-6 {
-  font-size: 1.12em;
+  display: inline-block;
+  margin: 0.76em 0 0.08em;
+  color: var(--lm-color-text-soft);
+  font-size: 1.04em;
+  line-height: 1.38;
 }
 
 .cm-content .lm-md-strong {
@@ -31,58 +46,113 @@
 
 .cm-content .lm-md-strikethrough {
   text-decoration: line-through;
+  text-decoration-thickness: 0.08em;
+  text-decoration-color: color-mix(in srgb, var(--lm-color-text-muted) 70%, transparent);
 }
 
 .cm-content .lm-md-blockquote {
-  border-left: 3px solid var(--lm-color-border);
+  border-left: 3px solid var(--lm-color-accent);
   color: var(--lm-color-text-muted);
-  padding-left: 0.8rem;
+  font-size: 1.02em;
+  padding: 0.22rem 0 0.22rem 1rem;
 }
 
 .cm-content .lm-md-list {
-  color: var(--lm-color-accent);
-  font-weight: 650;
+  color: var(--lm-color-accent-strong);
+  font-weight: 680;
+}
+
+.cm-content .lm-md-list-line {
+  padding-left: 0.14rem;
+}
+
+.cm-content .lm-md-unordered-list-line {
+  list-style-position: outside;
 }
 
 .cm-content .lm-md-task-list {
   color: var(--lm-color-text-muted);
 }
 
+.cm-content .lm-md-task-list-line {
+  color: var(--lm-color-text);
+}
+
 .cm-content .lm-md-inline-code {
-  background: var(--lm-color-surface-muted);
-  border-radius: 4px;
-  color: var(--lm-color-accent);
-  font-family: var(--lm-font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
-  padding: 0 0.15em;
+  border: 1px solid var(--lm-color-border-subtle);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--lm-color-surface-muted) 84%, transparent);
+  color: var(--lm-color-accent-strong);
+  font-family: var(--lm-font-mono);
+  font-size: 0.88em;
+  padding: 0.08em 0.34em;
 }
 
 .cm-content .lm-md-code-block {
-  background: var(--lm-color-surface-muted);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  border: 1px solid var(--lm-color-border-subtle);
+  border-radius: var(--lm-radius-2);
+  background: color-mix(in srgb, var(--lm-color-surface-muted) 92%, transparent);
   color: var(--lm-color-text);
-  font-family: var(--lm-font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
+  font-family: var(--lm-font-mono);
+  font-size: 0.9em;
+  line-height: 1.72;
+  padding: 0.18rem 0.4rem;
+}
+
+.cm-content .lm-md-table {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: var(--lm-color-text-soft);
+  font-size: 0.94em;
+}
+
+.cm-content .lm-md-table-header {
+  color: var(--lm-color-text-soft);
+  font-weight: 720;
+}
+
+.cm-content .lm-md-table-row {
+  color: var(--lm-color-text);
+}
+
+.cm-content .lm-md-table-cell {
+  padding-inline: 0.18rem;
+}
+
+.cm-content .lm-md-table-delimiter {
+  color: color-mix(in srgb, var(--lm-color-text-muted) 62%, transparent);
+}
+
+.cm-content .lm-md-hidden-mark {
+  display: inline-block;
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
 }
 
 .lm-md-task-checkbox {
   appearance: none;
   background: var(--lm-color-surface);
-  border: 1px solid var(--lm-color-border);
-  border-radius: 4px;
+  border: 1px solid var(--lm-color-border-subtle);
+  border-radius: 5px;
   cursor: pointer;
   display: inline-block;
-  height: 0.9rem;
-  margin: 0 0.25rem 0 0;
+  height: 0.96rem;
+  margin: 0 0.34rem 0 0;
   padding: 0;
   position: relative;
-  vertical-align: -0.1rem;
-  width: 0.9rem;
+  vertical-align: -0.12rem;
+  width: 0.96rem;
 }
 
 .lm-md-task-checkbox[data-checked='true']::after {
   color: var(--lm-color-accent);
   content: '✓';
-  font-size: 0.78rem;
-  left: 0.13rem;
-  line-height: 0.9rem;
+  font-size: 0.8rem;
+  left: 0.14rem;
+  line-height: 0.96rem;
   position: absolute;
-  top: -0.02rem;
+  top: -0.04rem;
 }

@@ -6,7 +6,7 @@
   position: relative;
   min-height: 100%;
   height: 100%;
-  background: var(--lm-color-surface);
+  background: transparent;
 }
 
 .lm-editor-accessible-title {
@@ -28,9 +28,13 @@
 
 .lm-codemirror .cm-editor {
   height: 100%;
-  background: var(--lm-color-surface);
+  min-height: 0;
+  background: transparent;
   color: var(--lm-color-text);
   font-family: var(--lm-font-editor);
+  font-feature-settings: "kern" 1, "liga" 1;
+  font-kerning: normal;
+  font-variant-east-asian: proportional-width;
 }
 
 .lm-codemirror .cm-editor.cm-focused {
@@ -39,22 +43,38 @@
 
 .lm-codemirror .cm-scroller {
   font-family: var(--lm-font-editor);
-  line-height: 1.6;
+  font-size: 16.5px;
+  line-height: 1.74;
+  overflow: auto;
 }
 
 .lm-codemirror .cm-content {
-  width: min(760px, calc(100% - 48px));
+  width: min(calc(100% - 96px), 810px);
+  max-width: 810px;
   min-height: 100%;
   margin: 0 auto;
   caret-color: var(--lm-color-accent);
-  padding: 12vh 0 var(--lm-space-8);
+  padding: 64px 0 104px;
+  text-rendering: optimizeLegibility;
 }
 
 .lm-codemirror .cm-line {
-  padding: 0;
+  padding: 0.08rem 0;
 }
 
 .lm-codemirror .cm-selectionBackground,
 .lm-codemirror .cm-content ::selection {
-  background: color-mix(in srgb, var(--lm-color-accent) 24%, transparent);
+  background: color-mix(in srgb, var(--lm-color-accent) 18%, transparent);
+}
+
+@media (max-width: 720px) {
+  .lm-codemirror .cm-scroller {
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .lm-codemirror .cm-content {
+    width: min(calc(100% - 36px), 760px);
+    padding: 42px 0 78px;
+  }
 }

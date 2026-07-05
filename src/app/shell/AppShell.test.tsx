@@ -6,7 +6,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceEntry } from '../../features/workspace/workspaceCommands';
@@ -23,9 +22,21 @@ const workspaceCommandMocks = vi.hoisted(() => ({
   openWorkspaceDirectory: vi.fn(),
 }));
 
+const windowControlMocks = vi.hoisted(() => ({
+  close: vi.fn(),
+  isMaximized: vi.fn(),
+  minimize: vi.fn(),
+  startDragging: vi.fn(),
+  toggleMaximize: vi.fn(),
+}));
+
 vi.mock('../../features/workspace/workspaceCommands', () => ({
   listWorkspaceChildren: workspaceCommandMocks.listWorkspaceChildren,
   openWorkspaceDirectory: workspaceCommandMocks.openWorkspaceDirectory,
+}));
+
+vi.mock('../../services/window/windowControls', () => ({
+  windowControls: windowControlMocks,
 }));
 
 describe('AppShell', () => {
@@ -33,6 +44,11 @@ describe('AppShell', () => {
     installResizeObserverStub();
     workspaceCommandMocks.listWorkspaceChildren.mockReset();
     workspaceCommandMocks.openWorkspaceDirectory.mockReset();
+    windowControlMocks.close.mockReset().mockResolvedValue(true);
+    windowControlMocks.isMaximized.mockReset().mockResolvedValue(false);
+    windowControlMocks.minimize.mockReset().mockResolvedValue(true);
+    windowControlMocks.startDragging.mockReset().mockResolvedValue(true);
+    windowControlMocks.toggleMaximize.mockReset().mockResolvedValue(true);
     useWorkspaceStore.getState().clearWorkspace();
     useAppStore.setState({
       currentFile: null,
@@ -73,25 +89,60 @@ describe('AppShell', () => {
       ).toBeInTheDocument();
       expect(screen.getByRole('banner')).toBeInTheDocument();
       expect(screen.getByRole('complementary')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: '文件' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: '大纲' })).toBeInTheDocument();
+      expect(document.querySelector('.lm-outline-panel')).toBeNull();
 
       const editor = screen.getByRole('main');
-      expect(
-        within(editor).getByRole('heading', { name: '未命名' }),
-      ).toBeInTheDocument();
+      expect(editor.querySelector('.lm-editor-title')).toHaveTextContent(
+        '未命名',
+      );
 
       expect(
-        screen.getByRole('button', { name: '打开文件' }),
+        screen.getByRole('navigation', { name: '窗口控制' }),
       ).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '最小化窗口' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '最大化窗口' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '关闭窗口' })).toBeInTheDocument();
+      expect(document.querySelector('.lm-command-bar')).toBeNull();
+      expect(document.querySelector('.lm-title-group')).toBeNull();
       expect(screen.getByRole('status')).toHaveTextContent('就绪');
 
       expect(screen.queryByRole('button', { name: 'Open File' })).not
         .toBeInTheDocument();
       expect(screen.queryByText('Untitled')).not.toBeInTheDocument();
+
       await expectNoNodeLocalStorageWarning(warnings);
     } finally {
       warnings.dispose();
     }
+  });
+
+  it('shows a restore control after maximizing the window', async () => {
+    windowControlMocks.isMaximized
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByRole('button', { name: '最大化窗口' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '最大化窗口' }));
+
+    await waitFor(() => {
+      expect(windowControlMocks.toggleMaximize).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByRole('button', { name: '还原窗口' }),
+      ).toBeInTheDocument();
+    });
   });
 
   it('ignores stale workspace child load errors after switching roots', async () => {

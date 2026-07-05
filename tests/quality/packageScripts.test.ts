@@ -13,6 +13,9 @@ describe('package quality scripts', () => {
     expect(packageJson.scripts.test).toContain('--exclude');
     expect(packageJson.scripts.test).toContain('tests/perf/**');
     expect(packageJson.scripts['perf:bench']).toContain('tests/perf');
+    expect(packageJson.scripts['perf:bench']).toContain(
+      '--no-file-parallelism',
+    );
   });
 
   it('defines a GitHub Actions V1 quality gate with isolated performance benchmarks', async () => {
@@ -20,6 +23,9 @@ describe('package quality scripts', () => {
 
     expect(workflow).toContain('name: V1 Quality Gate');
     expect(workflow).toContain('runs-on: windows-latest');
+    expect(workflow).toContain('actions/checkout@v7');
+    expect(workflow).toContain('actions/setup-node@v6');
+    expect(workflow).toContain('pnpm/action-setup@v6');
     expect(workflow).toContain('registry-url: https://registry.npmmirror.com/');
     expect(workflow).toContain(
       'PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright',

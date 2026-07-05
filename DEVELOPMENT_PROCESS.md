@@ -161,7 +161,7 @@ GitHub Actions 必须维护 `.github/workflows/v1-quality.yml`，并在 `v1-impl
 
 任务完成前必须运行与改动相关的命令。
 
-`pnpm test` 是普通单元和集成测试门禁，不应包含 `tests/perf/**`。性能基准必须通过 `pnpm perf:bench` 单独运行，不得与 E2E、构建、typecheck、lint 等重 CPU 门禁并行执行。并行运行造成的性能预算失败不能直接作为退化结论，必须单独复现后再判断。
+`pnpm test` 是普通单元和集成测试门禁，不应包含 `tests/perf/**`。性能基准必须通过 `pnpm perf:bench` 单独运行，并且 `tests/perf/**` 内部测试文件也必须串行执行，避免大文档基准在同一机器上互相抢占 CPU、磁盘或 jsdom 资源。性能基准不得与 E2E、构建、typecheck、lint 等重 CPU 门禁并行执行。并行运行造成的性能预算失败不能直接作为退化结论，必须单独复现后再判断。
 
 测试、构建和发布脚本输出中的 warning 也是质量信号。新增 warning 必须定位根因并修复；确认为既有外部限制时，必须在结果中说明证据、影响范围和后续治理项。
 

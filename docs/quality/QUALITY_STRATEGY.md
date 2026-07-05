@@ -95,7 +95,7 @@ LumaMark 的质量体系要做到：
 - Mermaid 渲染耗时。
 - 保存耗时。
 
-性能基准必须独立于默认单元测试运行：`pnpm test` 不包含 `tests/perf/**`，性能数据和预算判断通过 `pnpm perf:bench` 单独执行。
+性能基准必须独立于默认单元测试运行：`pnpm test` 不包含 `tests/perf/**`，性能数据和预算判断通过 `pnpm perf:bench` 单独执行。`pnpm perf:bench` 必须串行运行性能测试文件，避免大文档基准在同一机器上互相抢占资源并产生假回归。
 
 初始目标：
 

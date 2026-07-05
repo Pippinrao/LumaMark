@@ -9,6 +9,7 @@ export default [
       '.claude',
       '.codex',
       '.cursor',
+      '.agents',
       'dist',
       'node_modules',
       'src-tauri/target',
@@ -34,7 +35,12 @@ export default [
     },
   },
   {
-    files: ['vite.config.ts', 'playwright.config.ts', 'tests/**/*.{ts,tsx}'],
+    files: [
+      'vite.config.ts',
+      'playwright.config.ts',
+      'tests/**/*.{ts,tsx}',
+      'scripts/**/*.mjs',
+    ],
     languageOptions: {
       globals: {
         ...globals.browser,

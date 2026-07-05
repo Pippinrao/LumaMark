@@ -15,3 +15,5 @@ worktrees/
 .claude/
 .codex/
 .cursor/
+.agents/
+skills-lock.json

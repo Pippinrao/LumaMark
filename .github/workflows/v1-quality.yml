@@ -68,6 +68,19 @@ jobs:
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
+      - name: V1 UX prototype gate
+        run: pnpm quality:v1-ux-prototype
+
+      - name: Capture V1 UX review screenshots
+        run: pnpm quality:v1-ux-screenshots
+
+      - name: Upload V1 UX screenshots
+        uses: actions/upload-artifact@v7
+        with:
+          name: v1-ux-screenshots
+          path: test-results/v1-ux-screenshots/*.png
+          if-no-files-found: error
+
       - name: E2E tests
         run: pnpm test:e2e
 

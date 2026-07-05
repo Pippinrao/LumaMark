@@ -37,12 +37,13 @@ docs/
 1. [项目章程](product/PROJECT_CHARTER.md)
 2. [产品定位与策略](product/PRODUCT_STRATEGY.md)
 3. [V1 版本设计](product/V1_VERSION_DESIGN.md)
-4. [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md)
-5. [演进计划](roadmap/EVOLUTION_PLAN.md)
-6. [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md)
-7. [质量策略](quality/QUALITY_STRATEGY.md)
-8. [Agent 工作契约](../AGENTS.md)
-9. [AI 开发流程](../DEVELOPMENT_PROCESS.md)
+4. [V1 UX 设计](product/V1_UX_DESIGN.md)
+5. [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md)
+6. [演进计划](roadmap/EVOLUTION_PLAN.md)
+7. [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md)
+8. [质量策略](quality/QUALITY_STRATEGY.md)
+9. [Agent 工作契约](../AGENTS.md)
+10. [AI 开发流程](../DEVELOPMENT_PROCESS.md)
 
 ## 当前文档清单
 
@@ -52,6 +53,7 @@ docs/
 | [产品定位与策略](product/PRODUCT_STRATEGY.md) | 产品 | 用户价值、战场选择、差异化方向 | 产品战略或目标用户变化 |
 | [V1 产品需求](product/V1_PRODUCT_REQUIREMENTS.md) | 产品 | V1 功能范围和验收标准 | V1 需求范围变化 |
 | [V1 版本设计](product/V1_VERSION_DESIGN.md) | 产品 | V1 产品、交互、架构切片和完成定义 | V1 设计、验收或切片变化 |
+| [V1 UX 设计](product/V1_UX_DESIGN.md) | 产品 | V1 默认布局、Apple-like 视觉方向、高保真原型和 UX 验收 | V1 前台体验、菜单、布局或视觉标准变化 |
 | [竞品策略与历史债务](product/COMPETITOR_STRATEGY.md) | 产品 | Typora、MarkText 等竞品策略和避坑 | 竞品判断或避坑策略变化 |
 | [架构策略](architecture/ARCHITECTURE_STRATEGY.md) | 架构 | 高层架构原则和反模式 | 架构原则变化 |
 | [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md) | 架构 | 模块边界、数据流、技术选型 | 默认架构或主要依赖变化 |
@@ -67,6 +69,7 @@ docs/
 - 工作规则以 [AGENTS.md](../AGENTS.md) 为准。
 - 开发流程以 [DEVELOPMENT_PROCESS.md](../DEVELOPMENT_PROCESS.md) 为准。
 - V1 当前设计以 [V1 版本设计](product/V1_VERSION_DESIGN.md) 为准。
+- V1 前台 UX 以 [V1 UX 设计](product/V1_UX_DESIGN.md) 为准。
 - 当前详细架构以 [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md) 为准。
 - 当前阶段计划以 [演进计划](roadmap/EVOLUTION_PLAN.md) 为准。
 - 当前 V1 执行拆解以 [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md) 为准。

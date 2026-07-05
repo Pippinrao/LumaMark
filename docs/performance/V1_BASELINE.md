@@ -8,7 +8,7 @@
 - 平台：Windows，本地开发工作树
 - 命令：`pnpm perf:bench`
 - 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、Mermaid pending render 输入 dispatch
-- 运行口径：`pnpm test` 排除 `tests/perf/**`，性能基准必须通过 `pnpm perf:bench` 单独串行执行。
+- 运行口径：`pnpm test` 排除 `tests/perf/**`，性能基准必须通过 `pnpm perf:bench` 单独串行执行；大纲面板 benchmark 会先预热一次极小渲染，避免把测试环境的 React/jsdom 首次初始化成本计入产品路径。
 
 ## 自动化门禁
 
@@ -23,9 +23,9 @@
 | 打开后大纲刷新 `large-1mb.md` | < 50 ms | 7.31 ms | 通过 |
 | 打开后大纲刷新 `large-5mb.md` | < 150 ms | 24.34 ms | 通过 |
 | 打开后大纲刷新 `large-10mb.md` | < 300 ms | 56.96 ms | 通过 |
-| 大纲面板初始渲染 `large-1mb.md` | < 60 ms | 23 / 799 项，30.99 ms | 通过 |
-| 大纲面板初始渲染 `large-5mb.md` | < 60 ms | 23 / 3953 项，8.12 ms | 通过 |
-| 大纲面板初始渲染 `large-10mb.md` | < 60 ms | 23 / 7892 项，9.63 ms | 通过 |
+| 大纲面板初始渲染 `large-1mb.md` | < 60 ms | 23 / 799 项，13.00 ms | 通过 |
+| 大纲面板初始渲染 `large-5mb.md` | < 60 ms | 23 / 3953 项，19.14 ms | 通过 |
+| 大纲面板初始渲染 `large-10mb.md` | < 60 ms | 23 / 7892 项，5.78 ms | 通过 |
 | 编辑器载入 `large-1mb.md` | < 300 ms | 87.19 ms | 通过 |
 | 编辑器载入 `large-5mb.md` | < 1000 ms | 17.22 ms | 通过 |
 | 编辑器载入 `large-10mb.md` | < 2000 ms | 30.40 ms | 通过 |

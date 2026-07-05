@@ -64,6 +64,25 @@ describe('large Markdown outline panel render baseline', () => {
         return originalOffsetWidth?.get?.call(this) ?? 0;
       },
     });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <OutlinePanel
+          headings={[
+            {
+              from: 0,
+              id: 'warmup',
+              level: 1,
+              line: 1,
+              text: 'Warmup',
+              to: 6,
+            },
+          ]}
+          onSelectHeading={() => undefined}
+        />
+      </I18nextProvider>,
+    );
+    cleanup();
   });
 
   afterAll(() => {

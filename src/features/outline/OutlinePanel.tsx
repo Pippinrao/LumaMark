@@ -9,7 +9,7 @@ type OutlinePanelProps = {
 };
 
 const OUTLINE_ITEM_HEIGHT_PX = 28;
-const OUTLINE_OVERSCAN = 8;
+const OUTLINE_OVERSCAN = 4;
 const OUTLINE_INITIAL_RECT = {
   height: 520,
   width: 240,

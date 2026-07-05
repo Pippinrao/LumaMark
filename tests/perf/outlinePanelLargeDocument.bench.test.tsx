@@ -20,7 +20,7 @@ const outlineRenderBudgetsMs: Record<string, number> = {
   'large-10mb.md': 60,
 };
 
-const maxInitialRenderedOutlineItems = 64;
+const maxInitialRenderedOutlineItems = 24;
 const outlinePanelTestRect = {
   height: 520,
   width: 240,

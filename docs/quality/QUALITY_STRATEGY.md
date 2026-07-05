@@ -146,6 +146,8 @@ AI agent 必须遵守：
 - Web 构建 chunk 预算。
 - 单独执行的性能基准。
 
+仓库还必须维护 `.github/workflows/windows-release-build.yml`，作为手动发布构建门禁，用于在 GitHub Windows runner 上生成并上传 release exe、MSI 和 NSIS 产物。
+
 ## 手动测试策略
 
 手动测试只保留在以下场景：

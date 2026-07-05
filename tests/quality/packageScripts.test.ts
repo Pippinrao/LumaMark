@@ -43,6 +43,24 @@ describe('package quality scripts', () => {
       workflow.indexOf('pnpm quality:web-build'),
     );
   });
+
+  it('defines a manual Windows release build workflow that uploads installer artifacts', async () => {
+    const workflow = await readWorkflow('windows-release-build.yml');
+
+    expect(workflow).toContain('name: Windows Release Build');
+    expect(workflow).toContain('workflow_dispatch:');
+    expect(workflow).toContain('runs-on: windows-latest');
+    expect(workflow).toContain('actions/checkout@v7');
+    expect(workflow).toContain('actions/setup-node@v6');
+    expect(workflow).toContain('pnpm/action-setup@v6');
+    expect(workflow).toContain('actions/upload-artifact@v7');
+    expect(workflow).toContain('registry-url: https://registry.npmmirror.com/');
+    expect(workflow).toContain('pnpm install --frozen-lockfile');
+    expect(workflow).toContain('pnpm build');
+    expect(workflow).toContain('src-tauri/target/release/lumamark.exe');
+    expect(workflow).toContain('src-tauri/target/release/bundle/msi/*.msi');
+    expect(workflow).toContain('src-tauri/target/release/bundle/nsis/*setup.exe');
+  });
 });
 
 async function readPackageJson(): Promise<PackageJson> {

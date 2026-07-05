@@ -20,6 +20,24 @@
 | MSI 安装包 | `src-tauri/target/release/bundle/msi/LumaMark_0.1.0_x64_en-US.msi` | 4,161,536 bytes |
 | NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.1.0_x64-setup.exe` | 3,152,794 bytes |
 
+## GitHub 手动构建
+
+已新增手动触发的 GitHub Actions workflow：
+
+```powershell
+gh workflow run "Windows Release Build" --repo Pippinrao/LumaMark --ref v1-implementation
+```
+
+workflow 文件：`.github/workflows/windows-release-build.yml`。
+
+该 workflow 在 `windows-latest` runner 上执行 `pnpm build`，并上传以下构建产物：
+
+- `src-tauri/target/release/lumamark.exe`
+- `src-tauri/target/release/bundle/msi/*.msi`
+- `src-tauri/target/release/bundle/nsis/*setup.exe`
+
+这条 workflow 只证明 Windows release 可执行文件和安装器可以在 GitHub runner 上构建并作为 artifact 保留，不执行安装、卸载或安装后启动 smoke。
+
 ## 启动 Smoke
 
 已执行 release 可执行文件启动 smoke：
@@ -69,6 +87,7 @@ pnpm release:installer-smoke:nsis
 - 产物尚未签名。V1 alpha 可以本地安装测试，但公开分发前需要补代码签名、证书管理和发布校验。
 - NSIS 安装、卸载、安装后启动 smoke 已有自动化脚本入口，但本轮尚未执行真实安装器 smoke。
 - MSI 安装、卸载、安装后启动 smoke 需要管理员权限；本轮只提供显式可选入口，未执行真实 MSI smoke。
+- GitHub 手动构建 workflow 可生成并上传 release exe、MSI 和 NSIS 产物；真实安装器 smoke 仍需授权后执行。
 - `identifier` 一旦进入公开分发应保持稳定；后续变更会影响安装身份、升级身份和应用数据路径。
 - Web 构建已新增 `pnpm quality:web-build` chunk 门禁，首屏入口和动态 chunk 预算均通过；Mermaid/KaTeX/Cytoscape 等重依赖已从首屏入口拆出。
 - 本轮只验证 Windows 构建。macOS 和 Linux 保持架构兼容，不作为 V1 alpha 发布门禁。

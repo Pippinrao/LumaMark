@@ -26,10 +26,12 @@ describe('windows release artifact verifier', () => {
   it('prints a manifest with sizes and sha256 hashes for Windows release artifacts', () => {
     const root = createArtifactRoot({
       'src-tauri/target/release/lumamark.exe': 'exe-content',
-      'src-tauri/target/release/bundle/msi/LumaMark_0.1.0_x64_en-US.msi':
+      'src-tauri/target/release/bundle/msi/LumaMark_0.1.1_x64_en-US.msi':
         'msi-content',
-      'src-tauri/target/release/bundle/nsis/LumaMark_0.1.0_x64-setup.exe':
+      'src-tauri/target/release/bundle/nsis/LumaMark_0.1.1_x64-setup.exe':
         'nsis-content',
+      'src-tauri/target/release/bundle/nsis/LumaMark_0.1.0_x64-setup.exe':
+        'stale-nsis-content',
     });
 
     const result = runVerifier('--root', root);
@@ -40,6 +42,7 @@ describe('windows release artifact verifier', () => {
     const manifest = JSON.parse(result.stdout) as ArtifactManifest;
     expect(manifest.generatedAt).toEqual(expect.any(String));
     expect(manifest.root).toBe(root);
+    expect(manifest.version).toBe('0.1.1');
     expect(manifest.artifacts).toHaveLength(3);
     expect(manifest.artifacts).toEqual(
       expect.arrayContaining([
@@ -53,7 +56,7 @@ describe('windows release artifact verifier', () => {
         expect.objectContaining({
           kind: 'msi',
           path:
-            'src-tauri/target/release/bundle/msi/LumaMark_0.1.0_x64_en-US.msi',
+            'src-tauri/target/release/bundle/msi/LumaMark_0.1.1_x64_en-US.msi',
           sizeBytes: 11,
           sha256:
             '376423ee71233d8bdd307d29259765101d5a52cf7cd991e2cd0238a2a55ea907',
@@ -61,7 +64,7 @@ describe('windows release artifact verifier', () => {
         expect.objectContaining({
           kind: 'nsis',
           path:
-            'src-tauri/target/release/bundle/nsis/LumaMark_0.1.0_x64-setup.exe',
+            'src-tauri/target/release/bundle/nsis/LumaMark_0.1.1_x64-setup.exe',
           sizeBytes: 12,
           sha256:
             '27fdf16ef6c28d7bbbb313820967f04c62f3c798b4e9f23376af3d1ce38a5fb7',
@@ -73,7 +76,7 @@ describe('windows release artifact verifier', () => {
   it('fails when a required Windows artifact is missing', () => {
     const root = createArtifactRoot({
       'src-tauri/target/release/lumamark.exe': 'exe-content',
-      'src-tauri/target/release/bundle/nsis/LumaMark_0.1.0_x64-setup.exe':
+      'src-tauri/target/release/bundle/nsis/LumaMark_0.1.1_x64-setup.exe':
         'nsis-content',
     });
 
@@ -93,11 +96,19 @@ type ArtifactManifest = {
   }>;
   generatedAt: string;
   root: string;
+  version: string;
 };
 
 function createArtifactRoot(files: Record<string, string>) {
   const root = mkdtempSync(join(tmpdir(), 'lumamark-release-artifacts-'));
   tempRoots.push(root);
+
+  files = {
+    'src-tauri/tauri.conf.json': JSON.stringify({
+      version: '0.1.1',
+    }),
+    ...files,
+  };
 
   for (const [relativePath, content] of Object.entries(files)) {
     const fullPath = join(root, ...relativePath.split('/'));

@@ -162,6 +162,8 @@ function Stop-SmokeApp {
 }
 
 $repoRoot = Get-FullPath (Join-Path $PSScriptRoot '..\..')
+$tauriConfigPath = Join-Path $repoRoot 'src-tauri\tauri.conf.json'
+$appVersion = (Get-Content -LiteralPath $tauriConfigPath -Raw | ConvertFrom-Json).version
 $smokeRoot = Get-FullPath (Join-Path ([System.IO.Path]::GetTempPath()) 'lumamark-installer-smoke')
 $resolvedInstallDir = if ($InstallDir) {
   Get-FullPath $InstallDir
@@ -174,9 +176,9 @@ if (-not (Test-PathUnderRoot -Path $resolvedInstallDir -Root $smokeRoot)) {
 }
 
 $defaultInstallerPath = if ($InstallerKind -eq 'Nsis') {
-  Join-Path $repoRoot 'src-tauri\target\release\bundle\nsis\LumaMark_0.1.0_x64-setup.exe'
+  Join-Path $repoRoot "src-tauri\target\release\bundle\nsis\LumaMark_${appVersion}_x64-setup.exe"
 } else {
-  Join-Path $repoRoot 'src-tauri\target\release\bundle\msi\LumaMark_0.1.0_x64_en-US.msi'
+  Join-Path $repoRoot "src-tauri\target\release\bundle\msi\LumaMark_${appVersion}_x64_en-US.msi"
 }
 $resolvedInstallerPath = if ($InstallerPath) {
   Get-FullPath $InstallerPath

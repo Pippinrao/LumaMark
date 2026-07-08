@@ -1,30 +1,30 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
-
-const artifactSpecs = [
-  {
-    dir: 'src-tauri/target/release',
-    kind: 'exe',
-    match: (name) => name === 'lumamark.exe',
-  },
-  {
-    dir: 'src-tauri/target/release/bundle/msi',
-    kind: 'msi',
-    match: (name) => name.endsWith('.msi'),
-  },
-  {
-    dir: 'src-tauri/target/release/bundle/nsis',
-    kind: 'nsis',
-    match: (name) => name.endsWith('setup.exe'),
-  },
-];
 
 const root = parseRoot(process.argv.slice(2));
 
 try {
+  const version = await readTauriVersion();
+  const artifactSpecs = [
+    {
+      dir: 'src-tauri/target/release',
+      kind: 'exe',
+      match: (name) => name === 'lumamark.exe',
+    },
+    {
+      dir: 'src-tauri/target/release/bundle/msi',
+      kind: 'msi',
+      match: (name) => name === `LumaMark_${version}_x64_en-US.msi`,
+    },
+    {
+      dir: 'src-tauri/target/release/bundle/nsis',
+      kind: 'nsis',
+      match: (name) => name === `LumaMark_${version}_x64-setup.exe`,
+    },
+  ];
   const artifacts = [];
 
   for (const spec of artifactSpecs) {
@@ -50,6 +50,7 @@ try {
         artifacts,
         generatedAt: new Date().toISOString(),
         root,
+        version,
       },
       null,
       2,
@@ -58,6 +59,17 @@ try {
 } catch (error) {
   process.stderr.write(`${error.message}\n`);
   process.exit(1);
+}
+
+async function readTauriVersion() {
+  const configPath = resolve(root, 'src-tauri/tauri.conf.json');
+  const config = JSON.parse(await readFile(configPath, 'utf8'));
+
+  if (!config.version) {
+    throw new Error(`Missing version in ${configPath}.`);
+  }
+
+  return config.version;
 }
 
 function parseRoot(args) {

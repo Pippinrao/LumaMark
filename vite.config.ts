@@ -24,7 +24,6 @@ export default defineConfig({
             },
             {
               name: 'vendor-codemirror',
-              maxSize: 420_000,
               priority: 35,
               test: dependencyGroupPattern('@codemirror|@lezer'),
             },

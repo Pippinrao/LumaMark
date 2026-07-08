@@ -901,6 +901,59 @@ V1 实现完成后，项目应形成以下主要结构：
   git commit -m "feat: add workspace shell outline and commands"
   ```
 
+## Task 8A：架构止血和边界收敛
+
+**目标：** 在继续 V1 收敛前，拆解已经膨胀的 shell、workflow、service 和 editor widget 边界，避免后续功能继续堆进单文件和跨层调用。完成标准不是“文件变小”，而是渲染视图和功能行为分离、子功能边界可由自动化测试约束。
+
+**文件：**
+
+- 修改：`src/app/shell/AppShell.tsx`
+- 创建：`src/app/shell/AppShellView.tsx`
+- 创建：`src/app/controllers/`
+- 创建：`src/app/containers/`
+- 创建：`src/app/shell/TopChrome.tsx`
+- 创建：`src/app/shell/WorkspaceSidebar.tsx`
+- 创建：`src/app/shell/EditorPane.tsx`
+- 创建：`src/app/shell/AppDialogs.tsx`
+- 创建：`src/features/commands/`
+- 创建：`src/features/file-actions/useFileWorkflow.ts`
+- 创建：`src/features/workspace/useWorkspaceWorkflow.ts`
+- 创建：`src/editor/commands/editorCommandPort.ts`
+- 移动：`src/features/workspace/workspaceCommands.ts` -> `src/services/workspace/workspaceCommands.ts`
+- 修改：`src/editor/widgets/mermaid/`
+- 测试：`tests/quality/architectureBoundaries.test.ts`
+
+**步骤：**
+
+- [ ] 写架构边界测试，约束 AppShell 只做薄布局、shell render components 不 import store/service/workflow/editor commands/window controls、workspace command wrapper 只能在 service 层、Mermaid public entry 只做兼容导出。
+- [ ] 拆 AppShell 为 `AppShell` + `AppShellView` + `useAppShellSlots`：`AppShellView` 只接收 view model、labels、callbacks 和 slots。
+- [ ] 拆 AppShell UI 子组件，保留现有窗口布局、菜单、侧边栏、编辑器区域、状态栏、命令面板和设置弹窗行为；`TopChrome`、`WorkspaceSidebar`、`EditorPane`、`AppDialogs` 只能做纯渲染。
+- [ ] 拆 app controller 为 document、workspace、commands、editor、settings、window 子 hook，避免 `useAppController` 成为新的总控。
+- [ ] 建立 `features/commands`，菜单、命令面板和右键菜单共享同一组 command model，不在 JSX 或 controller 中重复定义动作。
+- [ ] 建立 `editor/commands/editorCommandPort.ts`，app 层只调用 `EditorDocumentPort` 和 `EditorCommandPort`，不直接 import 表格命令或 Markdown format 命令。
+- [ ] 文件打开、保存、另存为、dirty revision 和 recent files 通过 file workflow 收口；workflow 通过 `FileStateAdapter`、`StatusAdapter`、`EditorDocumentPort` 注入状态和编辑器能力，不硬依赖 `appStore`。
+- [ ] 工作区打开、children lazy load 和 stale request 防护通过 workspace workflow 收口；打开文件只通过注入 callback，不知道 file workflow 实现。
+- [ ] workspace Tauri wrapper 移入 `services/workspace/`，不改 Rust command 名称和 wire shape。
+- [ ] Mermaid preview 按 public entry、extension、block detection、WidgetType lifecycle、DOM view、inline editor、editing state、render adapter 建立模块边界，保持 `mermaidPreviewExtension()` 对外 API 不变。
+- [ ] 验证。
+
+  Run:
+
+  ```powershell
+  pnpm test tests/quality/architectureBoundaries.test.ts
+  pnpm test src/app/shell/AppShell.test.tsx src/features/file-actions/fileActions.test.ts src/services/workspace/workspaceCommands.test.ts src/editor/widgets/mermaid/MermaidWidget.test.ts src/editor/widgets/mermaid/mermaidRenderScheduler.test.ts
+  pnpm typecheck
+  pnpm lint
+  pnpm test
+  pnpm test:fixtures
+  pnpm perf:bench
+  pnpm test:e2e tests/e2e/app-shell.spec.ts tests/e2e/mermaid.spec.ts
+  cargo check --manifest-path src-tauri/Cargo.toml
+  cargo test --manifest-path src-tauri/Cargo.toml
+  ```
+
+  Expected: 全部 exit 0。若某个环境门禁不可用，必须记录失败命令、原因和影响，不能把未运行命令描述为已通过。
+
 ## Task 9：V1 收敛、性能门禁和 Windows 构建
 
 **目标：** 收敛 V1，证明核心路径可用、可测、可发布。

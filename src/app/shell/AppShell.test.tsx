@@ -9,7 +9,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WorkspaceEntry } from '../../features/workspace/workspaceCommands';
+import type { WorkspaceEntry } from '../../services/workspace/workspaceCommands';
 import { useWorkspaceStore } from '../../features/workspace/workspaceStore';
 import type { CommandError, CommandResult } from '../../services/tauri/invokeCommand';
 import { installResizeObserverStub } from '../../test/resizeObserverStub';
@@ -31,7 +31,7 @@ const windowControlMocks = vi.hoisted(() => ({
   toggleMaximize: vi.fn(),
 }));
 
-vi.mock('../../features/workspace/workspaceCommands', () => ({
+vi.mock('../../services/workspace/workspaceCommands', () => ({
   listWorkspaceChildren: workspaceCommandMocks.listWorkspaceChildren,
   openWorkspaceDirectory: workspaceCommandMocks.openWorkspaceDirectory,
 }));

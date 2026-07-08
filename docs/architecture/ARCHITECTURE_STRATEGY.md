@@ -65,6 +65,8 @@ Tauri 桌面壳
 边界：
 
 - React 不参与逐字符输入。
+- shell 渲染组件只消费 view model、labels、callbacks 和 slots，不直接调用业务 workflow、store、service 或 editor command。
+- 业务行为进入 feature workflow、app controller 或 service facade，不能堆进 JSX 组件。
 - 不把每个 Markdown 块都变成 React component。
 - 不把每次输入同步到全局 React state 再渲染。
 - React 只订阅必要的轻量状态，例如当前文件、dirty 状态、outline、选区摘要。
@@ -220,6 +222,8 @@ LumaMark 自己负责：
 - 用 ProseMirror/Milkdown 作为主编辑核心，除非新的验证证明它更符合目标。
 - 用富文本 AST 作为 Markdown 主存储。
 - 自研基础 UI 组件。
+- 让 AppShell、controller 或 feature component 变成跨功能总控。
+- 在渲染组件里直接 import store、service、workflow、Tauri wrapper 或编辑器命令。
 - React 逐字符重渲染编辑器。
 - Mermaid 同步渲染。
 - 保存时格式化整个文档。

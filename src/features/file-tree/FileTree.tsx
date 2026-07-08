@@ -2,7 +2,7 @@ import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
 import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist';
 import { useTranslation } from 'react-i18next';
-import type { WorkspaceDirectory } from '../workspace/workspaceCommands';
+import type { WorkspaceDirectory } from '../../services/workspace/workspaceCommands';
 import type { WorkspaceTreeNode } from '../workspace/workspaceStore';
 
 type FileTreeProps = {

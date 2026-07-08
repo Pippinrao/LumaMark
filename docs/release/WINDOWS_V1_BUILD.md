@@ -10,6 +10,39 @@
 - 构建入口：`pnpm build`
 - 实际执行：`tauri build`，并在构建前执行 `pnpm build:web`
 
+## 0.1.2 NSIS-only Release
+
+本次发布只生成并上传 NSIS 安装器，不发布 MSI 或裸 exe 资产。
+
+构建命令：
+
+```powershell
+pnpm exec tauri build --bundles nsis
+```
+
+发布产物：
+
+| 产物 | 路径 | 大小 | SHA-256 |
+|---|---|---:|---|
+| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.1.2_x64-setup.exe` | 3,275,232 bytes | `3bdabee7e1c66f5af1c47a2f01437e8f5fc7989e0d1a6491f6828e55ccf1d9f3` |
+
+本次发布前验证：
+
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm test`
+- `pnpm test:fixtures`
+- `pnpm perf:bench`
+- `pnpm test:e2e`
+- `pnpm quality:web-build`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml`
+- `pnpm release:packaged-webview`
+- `pnpm release:installer-smoke:plan`
+- `pnpm release:installer-smoke:nsis`
+
+NSIS 安装器 smoke 结果：静默安装到临时目录、启动安装后的 `lumamark.exe` 并保持 3 秒、静默卸载，全部通过。
+
 ## 产物
 
 `pnpm build` 已成功生成 Windows release 可执行文件和安装器：

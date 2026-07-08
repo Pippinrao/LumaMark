@@ -1,0 +1,77 @@
+import { lazy, Suspense } from 'react';
+import * as ContextMenu from '@radix-ui/react-context-menu';
+import type { EditorApi } from '../../editor/core/editorApi';
+import type {
+  ShellActionId,
+  ShellContextMenuItem,
+} from './shellTypes';
+
+const LazyEditorViewHost = lazy(() =>
+  import('../../editor/core/EditorViewHost').then((module) => ({
+    default: module.EditorViewHost,
+  })),
+);
+
+type EditorPaneProps = {
+  accessibleTitle: string;
+  ariaLabel: string;
+  contextMenuItems: ShellContextMenuItem[];
+  onAction: (action: ShellActionId) => void;
+  onDocumentChanged: () => void;
+  onEditorReady: (editor: EditorApi) => void;
+  visibleDocumentTitle: string;
+};
+
+export function EditorPane({
+  accessibleTitle,
+  ariaLabel,
+  contextMenuItems,
+  onAction,
+  onDocumentChanged,
+  onEditorReady,
+  visibleDocumentTitle,
+}: EditorPaneProps) {
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <main
+          className="lm-editor-pane"
+          data-testid="editor-host"
+          aria-label={ariaLabel}
+        >
+          <div className="lm-editor-header">
+            <span className="lm-editor-title">{visibleDocumentTitle}</span>
+          </div>
+          <div className="lm-editor-scroll">
+            <div className="lm-editor-paper">
+              <Suspense fallback={null}>
+                <LazyEditorViewHost
+                  accessibleTitle={accessibleTitle}
+                  ariaLabel={ariaLabel}
+                  onDocumentChanged={onDocumentChanged}
+                  onEditorReady={onEditorReady}
+                />
+              </Suspense>
+            </div>
+          </div>
+        </main>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className="lm-menu-content lm-context-menu-content">
+          {contextMenuItems.map((item) => (
+            <ContextMenu.Item
+              className="lm-menu-item lm-context-menu-item"
+              key={item.label}
+              onSelect={() => {
+                onAction(item.action);
+              }}
+            >
+              <span>{item.label}</span>
+              <kbd className="lm-menu-shortcut">{item.shortcut}</kbd>
+            </ContextMenu.Item>
+          ))}
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  );
+}

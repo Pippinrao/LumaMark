@@ -1,7 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { requiredMermaidRenderSamples } from '../fixtures/mermaidSamples';
+import {
+  mermaidTestSamples,
+  requiredMermaidRenderSamples,
+} from '../fixtures/mermaidSamples';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -45,7 +48,7 @@ test('renders mermaid asynchronously while normal text remains editable', async 
   await expect(editor).toContainText('fast input');
   const preview = page.locator('.lm-mermaid-preview').first();
   await expect(preview).toBeVisible();
-  await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(page.locator('.lm-mermaid-svg > svg')).toBeVisible();
   await page.mouse.move(20, 20);
   await expect(preview.locator('.lm-mermaid-actions')).toBeHidden();
   await preview.hover();
@@ -67,7 +70,7 @@ test('edits and deletes mermaid from explicit preview actions', async ({
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-mermaid-preview').first();
-  await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(page.locator('.lm-mermaid-svg > svg')).toBeVisible();
   await preview.hover();
   await page.getByRole('button', { name: '编辑源码' }).click();
   await expect(page.locator('.lm-mermaid-editor .cm-content')).toBeVisible();
@@ -75,7 +78,7 @@ test('edits and deletes mermaid from explicit preview actions', async ({
   await page.keyboard.type('flowchart TD');
   await page.keyboard.press('Enter');
   await page.keyboard.type('  A --> C');
-  await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(page.locator('.lm-mermaid-svg > svg')).toBeVisible();
   await expect(page.locator('.lm-mermaid-editor .cm-content')).toContainText(
     'A --> C',
   );
@@ -103,7 +106,7 @@ test('keeps the inline cursor position after invalid mermaid validation', async 
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-mermaid-preview').first();
-  await expect(preview.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(preview.locator('.lm-mermaid-svg > svg')).toBeVisible();
   await preview.hover();
   await page.getByRole('button', { name: '编辑源码' }).click();
 
@@ -133,7 +136,7 @@ test('keeps typing at the caret after an intermediate mermaid render failure', a
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-mermaid-preview').first();
-  await expect(preview.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(preview.locator('.lm-mermaid-svg > svg')).toBeVisible();
   await preview.hover();
   await page.getByRole('button', { name: '编辑源码' }).click();
 
@@ -165,7 +168,7 @@ test('keeps the inline cursor position after successful live mermaid render', as
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-mermaid-preview').first();
-  await expect(preview.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(preview.locator('.lm-mermaid-svg > svg')).toBeVisible();
   await preview.hover();
   await page.getByRole('button', { name: '编辑源码' }).click();
 
@@ -198,7 +201,7 @@ test('places the live mermaid preview below the source editor while editing', as
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-mermaid-preview').first();
-  await expect(preview.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(preview.locator('.lm-mermaid-svg > svg')).toBeVisible();
   await preview.hover();
   await page.getByRole('button', { name: '编辑源码' }).click();
 
@@ -234,7 +237,27 @@ for (const sample of requiredMermaidRenderSamples) {
 
     const preview = page.locator('.lm-mermaid-preview').first();
     await expect(preview).toHaveAttribute('data-status', 'success');
-    await expect(preview.locator('.lm-mermaid-svg svg')).toBeVisible();
+    await expect(preview.locator('.lm-mermaid-svg > svg')).toBeVisible();
+  });
+}
+
+for (const sample of mermaidTestSamples.filter(
+  (candidate) => candidate.renderGate === 'fixture-only',
+)) {
+  test(`renders extended Mermaid sample: ${sample.title}`, async ({ page }) => {
+    await page.goto('/');
+
+    const editor = page.locator('.cm-content').first();
+    await editor.click();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.insertText(
+      ['before', '', '```mermaid', sample.source, '```', '', 'after'].join('\n'),
+    );
+    await page.locator('.cm-line', { hasText: 'after' }).click();
+
+    const preview = page.locator('.lm-mermaid-preview').first();
+    await expect(preview).toHaveAttribute('data-status', 'success');
+    await expect(preview.locator('.lm-mermaid-svg > svg')).toBeVisible();
   });
 }
 
@@ -263,7 +286,7 @@ test('isolates an invalid mermaid block while the document remains editable', as
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   await expect(
-    page.locator('.lm-mermaid-preview[data-status="success"] .lm-mermaid-svg svg'),
+    page.locator('.lm-mermaid-preview[data-status="success"] .lm-mermaid-svg > svg'),
   ).toBeVisible();
   const failedPreview = page.locator('.lm-mermaid-preview[data-status="error"]');
   await expect(failedPreview).toBeVisible();

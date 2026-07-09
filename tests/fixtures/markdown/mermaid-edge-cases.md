@@ -46,7 +46,7 @@ stateDiagram-v2
   [*] --> Ready
 ```
 
-Fixture-only Mermaid diagrams:
+Additional modern Mermaid diagrams:
 
 ```mermaid
 sankey-beta
@@ -67,6 +67,17 @@ block-beta
   columns 2
   A["Markdown"] B["Preview"]
   A --> B
+```
+
+```mermaid
+info
+```
+
+```mermaid
+treeView-beta
+  root
+    src
+      editor.ts
 ```
 
 Text after edge cases.

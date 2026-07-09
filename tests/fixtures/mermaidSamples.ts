@@ -7,12 +7,24 @@ export type MermaidTestSample = {
   title: string;
 };
 
-export const mermaidTestSamples = [
+export const mermaidTestSamples: MermaidTestSample[] = [
   {
     id: 'flowchart',
     renderGate: 'required',
     title: 'flowchart',
     source: ['flowchart TD', '  A[Open Markdown] --> B{Valid?}', '  B --> C[Preview]'].join('\n'),
+  },
+  {
+    id: 'graph',
+    renderGate: 'required',
+    title: 'legacy graph flowchart',
+    source: ['graph TD', '  A[Typora style] --> B[Mermaid preview]'].join('\n'),
+  },
+  {
+    id: 'flowchartElk',
+    renderGate: 'required',
+    title: 'flowchart elk',
+    source: ['flowchart-elk TD', '  A --> B', '  B --> C'].join('\n'),
   },
   {
     id: 'sequenceDiagram',
@@ -38,6 +50,18 @@ export const mermaidTestSamples = [
       '  }',
       '  Document <|-- MarkdownDocument',
     ].join('\n'),
+  },
+  {
+    id: 'classDiagram-v2',
+    renderGate: 'required',
+    title: 'class diagram v2',
+    source: ['classDiagram-v2', '  class Document', '  Document : +save()'].join('\n'),
+  },
+  {
+    id: 'stateDiagram',
+    renderGate: 'required',
+    title: 'legacy state diagram',
+    source: ['stateDiagram', '  [*] --> Editing', '  Editing --> Preview'].join('\n'),
   },
   {
     id: 'stateDiagram-v2',
@@ -138,24 +162,101 @@ export const mermaidTestSamples = [
     ].join('\n'),
   },
   {
+    id: 'c4Context',
+    renderGate: 'required',
+    title: 'C4 context diagram',
+    source: [
+      'C4Context',
+      '  title System Context',
+      '  Person(user, "Writer")',
+      '  System(app, "LumaMark")',
+      '  Rel(user, app, "Writes Markdown")',
+    ].join('\n'),
+  },
+  {
     id: 'sankey',
-    renderGate: 'fixture-only',
+    renderGate: 'required',
     title: 'sankey beta',
     source: ['sankey-beta', 'Open,Parse,10', 'Parse,Preview,8'].join('\n'),
   },
   {
     id: 'xyChart',
-    renderGate: 'fixture-only',
+    renderGate: 'required',
     title: 'xy chart beta',
     source: ['xychart-beta', '  title "Fixture Growth"', '  x-axis [Jan, Feb, Mar]', '  y-axis "Files" 0 --> 10', '  line [3, 6, 9]'].join('\n'),
   },
   {
     id: 'block',
-    renderGate: 'fixture-only',
+    renderGate: 'required',
     title: 'block beta',
     source: ['block-beta', '  columns 2', '  A["Markdown"] B["Preview"]', '  A --> B'].join('\n'),
   },
-] satisfies MermaidTestSample[];
+  {
+    id: 'packet',
+    renderGate: 'required',
+    title: 'packet diagram',
+    source: ['packet-beta', '  0-15: "Source Port"', '  16-31: "Destination Port"'].join('\n'),
+  },
+  {
+    id: 'radar',
+    renderGate: 'required',
+    title: 'radar beta',
+    source: ['radar-beta', '  axis Speed, Quality, Focus', '  curve LumaMark{4, 5, 4}'].join('\n'),
+  },
+  {
+    id: 'architecture',
+    renderGate: 'required',
+    title: 'architecture beta',
+    source: [
+      'architecture-beta',
+      '  group app(cloud)[LumaMark]',
+      '  service editor(server)[Editor] in app',
+      '  service renderer(server)[Renderer] in app',
+      '  editor:R --> L:renderer',
+    ].join('\n'),
+  },
+  {
+    id: 'kanban',
+    renderGate: 'required',
+    title: 'kanban',
+    source: [
+      'kanban',
+      '  todo[Todo]',
+      '    docs[Check Mermaid syntax]',
+      '  done[Done]',
+      '    render[Render preview]',
+    ].join('\n'),
+  },
+  {
+    id: 'treemap',
+    renderGate: 'required',
+    title: 'treemap',
+    source: ['treemap-beta', '  "Documents"', '    "Markdown": 10', '    "Mermaid": 4'].join('\n'),
+  },
+  {
+    id: 'venn',
+    renderGate: 'required',
+    title: 'venn beta',
+    source: [
+      'venn-beta',
+      '  set A [Markdown]',
+      '  set B [Preview]',
+      '  union A,B [LumaMark]',
+    ].join('\n'),
+  },
+  {
+    id: 'info',
+    renderGate: 'fixture-only',
+    title: 'info diagram',
+    source: 'info',
+  },
+  {
+    id: 'treeView',
+    renderGate: 'fixture-only',
+    title: 'tree view beta',
+    source: ['treeView-beta', '  root', '    src', '      editor.ts'].join('\n'),
+  },
+];
 
 export const requiredMermaidRenderSamples = mermaidTestSamples.filter(
   (sample) => sample.renderGate === 'required',

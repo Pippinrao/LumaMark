@@ -33,6 +33,46 @@ describe('mermaid language service', () => {
     ]);
   });
 
+  it('accepts Mermaid diagram types supported by the renderer', () => {
+    const supportedStarts = [
+      'graph TD',
+      'flowchart-elk TD',
+      'swimlane-beta',
+      'stateDiagram',
+      'classDiagram-v2',
+      'info',
+      'C4Context',
+      'sankey',
+      'sankey-beta',
+      'xychart',
+      'xychart-beta',
+      'block',
+      'block-beta',
+      'packet',
+      'packet-beta',
+      'radar-beta',
+      'treeView-beta',
+      'architecture',
+      'architecture-beta',
+      'eventmodeling',
+      'ishikawa-beta',
+      'kanban',
+      'wardley-beta',
+      'cynefin-beta',
+      'treemap',
+      'treemap-beta',
+      'venn-beta',
+      'railroad-beta',
+      'railroad-ebnf-beta',
+      'railroad-abnf-beta',
+      'railroad-peg-beta',
+    ];
+
+    for (const start of supportedStarts) {
+      expect(getMermaidDiagnostics(start), start).toEqual([]);
+    }
+  });
+
   it('reports unterminated block structures for common diagrams', () => {
     expect(getMermaidDiagnostics(['sequenceDiagram', 'loop retry'].join('\n'))).toEqual([
       expect.objectContaining({

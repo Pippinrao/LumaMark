@@ -2,4 +2,4 @@ export {
   collectMermaidBlocksInRanges,
   mermaidPreviewExtension,
   type MermaidPreviewExtensionOptions,
-} from './mermaidPreviewExtension';
+} from '../../capabilities/mermaid/mermaidPreviewExtension';

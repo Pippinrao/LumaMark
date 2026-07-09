@@ -6,7 +6,7 @@ import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import {
   collectMermaidBlocksInRanges,
   mermaidPreviewExtension,
-} from './MermaidWidget';
+} from './mermaidPreviewExtension';
 
 function createView(doc: string, scheduler: MermaidRenderScheduler) {
   const parent = document.createElement('div');

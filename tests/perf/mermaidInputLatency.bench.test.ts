@@ -3,8 +3,8 @@ import { EditorView } from '@codemirror/view';
 import { performance } from 'node:perf_hooks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { markdownLanguage } from '../../src/editor/markdown/markdownLanguage';
-import { MermaidRenderScheduler } from '../../src/editor/widgets/mermaid/mermaidRenderScheduler';
-import { mermaidPreviewExtension } from '../../src/editor/widgets/mermaid/MermaidWidget';
+import { MermaidRenderScheduler } from '../../src/editor/capabilities/mermaid/mermaidRenderScheduler';
+import { mermaidPreviewExtension } from '../../src/editor/capabilities/mermaid/mermaidPreviewExtension';
 
 function waitForRenderStart() {
   let resolveStarted: () => void;

@@ -8,7 +8,6 @@ import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { recordEditorTransactionMetric } from '../metrics/editorMetrics';
 import { markdownLanguage } from '../markdown/markdownLanguage';
-import { tableKeymap } from '../widgets/table/tableCommands';
 import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
@@ -96,7 +95,7 @@ export function createEditorState(
       EditorView.lineWrapping,
       documentChangeListener,
       ...focusExtensions,
-      keymap.of([...tableKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       ...extensions,
     ],
   });

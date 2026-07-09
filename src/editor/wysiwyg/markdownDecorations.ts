@@ -9,6 +9,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
+import { codeBlockSyntaxDecorationRange } from '../capabilities/code-block/codeBlockDecorations';
 import { markdownLanguage } from '../markdown/markdownLanguage';
 import type { MarkdownDecorationRange } from './decorationTypes';
 import { toggleTaskListCommand } from './taskListCommands';
@@ -214,6 +215,12 @@ function syntaxNodeToDecorationRange(
   from: number,
   to: number,
 ): MarkdownDecorationRange | null {
+  const codeDecoration = codeBlockSyntaxDecorationRange({ from, name, to });
+
+  if (codeDecoration) {
+    return codeDecoration;
+  }
+
   if (/^ATXHeading[1-6]$/.test(name)) {
     return {
       className: `lm-md-heading lm-md-heading-${name.at(-1)}`,
@@ -229,20 +236,6 @@ function syntaxNodeToDecorationRange(
         className: 'lm-md-blockquote',
         from,
         kind: 'blockquote',
-        to,
-      };
-    case 'FencedCode':
-      return {
-        className: 'lm-md-code-block',
-        from,
-        kind: 'codeBlock',
-        to,
-      };
-    case 'InlineCode':
-      return {
-        className: 'lm-md-inline-code',
-        from,
-        kind: 'inlineCode',
         to,
       };
     case 'Link':

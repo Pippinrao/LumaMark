@@ -2,12 +2,9 @@ import {
   applyMarkdownFormatCommand,
   type MarkdownFormatCommand,
 } from './markdownFormatCommands';
+import { createEditorCapabilityCommands } from '../capabilities';
 import type { EditorApi } from '../core/editorApi';
 import type { EditorDisplayMode } from '../core/editorDisplayMode';
-import {
-  copyCurrentMarkdownTable,
-  deleteCurrentMarkdownTable,
-} from '../widgets/table/tableCommands';
 
 export type EditorDocumentPort = {
   focus: () => void;
@@ -42,10 +39,10 @@ export function createEditorDocumentPort(editor: EditorApi): EditorDocumentPort 
 export function createEditorCommandPort(editor: EditorApi): EditorCommandPort {
   return {
     copyTable: () => {
-      void copyCurrentMarkdownTable(editor.view);
+      void createEditorCapabilityCommands(editor.view).copyTable();
     },
     deleteTable: () => {
-      if (deleteCurrentMarkdownTable(editor.view)) {
+      if (createEditorCapabilityCommands(editor.view).deleteTable()) {
         editor.focus();
       }
     },

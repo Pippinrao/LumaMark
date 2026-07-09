@@ -28,7 +28,7 @@ LumaMark 只保留薄集成层：
 - 表格行列插入、删除、移动、选择、复制粘贴等核心交互以 `codemirror-markdown-tables` 行为为准。
 - LumaMark 不再维护 cell editor、尺寸 picker、行列操作状态机和表格序列化模型。
 - 新增依赖进入 `package.json` 和 lockfile；依赖安装遵循 `https://registry.npmmirror.com/`。
-- 表格主题由 `src/editor/widgets/table/table.css` 和扩展配置适配 LumaMark token。
+- 表格主题由 `src/editor/capabilities/table/table.css` 和扩展配置适配 LumaMark token。
 
 ## 回滚或复审条件
 

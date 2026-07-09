@@ -27,7 +27,13 @@ describe('editor visual style contract', () => {
 
   it('styles Markdown blocks with document-grade rhythm and surfaces', async () => {
     const wysiwygCss = await readCss('src', 'editor', 'wysiwyg', 'wysiwyg.css');
-    const mermaidCss = await readCss('src', 'editor', 'widgets', 'mermaid', 'mermaid.css');
+    const mermaidCss = await readCss(
+      'src',
+      'editor',
+      'capabilities',
+      'mermaid',
+      'mermaid.css',
+    );
 
     expect(wysiwygCss).toContain('font-family: var(--lm-font-display);');
     expect(wysiwygCss).toContain('.cm-content .lm-md-blockquote');

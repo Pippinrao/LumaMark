@@ -1,9 +1,6 @@
 import { Compartment, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { markdownWysiwygExtension } from '../wysiwyg/markdownDecorations';
-import { imagePreviewExtension } from '../widgets/image/ImageWidget';
-import { mermaidPreviewExtension } from '../widgets/mermaid/MermaidWidget';
-import { tablePreviewExtension } from '../widgets/table/TableWidget';
+import { createLivePreviewExtensions } from '../capabilities';
 
 export type EditorDisplayMode = 'livePreview' | 'source';
 export type EditorDocumentContext = {
@@ -26,9 +23,6 @@ export function editorDisplayModeExtension(
     EditorView.editorAttributes.of({
       class: 'lm-editor-live-preview-mode',
     }),
-    markdownWysiwygExtension(),
-    imagePreviewExtension({ documentPath: context.path }),
-    tablePreviewExtension(),
-    mermaidPreviewExtension(),
+    ...createLivePreviewExtensions(context),
   ];
 }

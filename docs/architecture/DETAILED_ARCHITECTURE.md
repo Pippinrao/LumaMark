@@ -153,10 +153,11 @@ src/
 │  ├─ shell/
 │  └─ stores/
 ├─ editor/
+│  ├─ capabilities/
 │  ├─ core/
 │  ├─ markdown/
 │  ├─ wysiwyg/
-│  ├─ widgets/
+│  ├─ widgets/        # compatibility re-exports only
 │  ├─ commands/
 │  └─ metrics/
 ├─ features/
@@ -219,11 +220,21 @@ src/
 推荐子模块：
 
 - `core`：CodeMirror view/state 初始化。
+- `capabilities`：Mermaid、table、code block、image 等可独立演进的编辑器子能力。
 - `markdown`：Markdown 语言包和语法工具。
-- `wysiwyg`：Typora-like decorations。
-- `widgets`：Mermaid、图片、公式等块级 widget。
+- `wysiwyg`：Typora-like 通用 decorations 组合层，不持有复杂子能力主体实现。
+- `widgets`：旧路径兼容导出；新能力不得把主体实现放回这里。
 - `commands`：编辑器命令和快捷键。
 - `metrics`：输入延迟、渲染耗时、scroll 采样。
+
+Editor capability 边界：
+
+- 每个复杂编辑器子功能进入 `editor/capabilities/<name>/`，例如 `mermaid`、`table`、`code-block`、`image`。
+- 每个 capability 通过一个薄 public entry 暴露 extension、command factory 和必要类型；主体实现拆到 detection、DOM、adapter、commands、decorations 等子模块。
+- `editor/core/**` 只能消费 capability 聚合入口，不能 import capability 内部文件或旧 `widgets/*` 内部文件。
+- `editor/commands/**` 只能通过 capability command factory 调用表格、代码块等能力，不能直接 import table widget、Mermaid widget 或 code-block decoration internals。
+- `editor/widgets/**` 只允许保留兼容 re-export，不能继续承载新主体实现。
+- 通用 `wysiwyg/markdownDecorations.ts` 只组合能力提供的 decoration builder；代码块、图片、Mermaid、表格增强行为不得重新堆回通用 WYSIWYG 文件。
 
 编辑器命令边界：
 
@@ -231,9 +242,11 @@ src/
 - Markdown format、table command、display mode、range selection 等具体 CodeMirror 命令不能散落 import 到 shell 渲染层或 feature UI。
 - `EditorDocumentPort` 只提供 `getText()`、`loadText(text)`、`focus()`、`setContext(context)` 等轻量能力，避免 React 层持有 Markdown 全文。
 
-Mermaid widget 拆分要求：
+Mermaid capability 拆分要求：
 
 - public entry 保持 `editor/widgets/mermaid/MermaidWidget.ts`，只做兼容导出。
+- 主体实现位于 `editor/capabilities/mermaid/`。
+- `createMermaidCapability.ts` 只组装 public capability。
 - `mermaidPreviewExtension.ts` 只组装 CodeMirror extension/state field。
 - `mermaidBlockDetection.ts` 负责 fenced block 检测和类型。
 - `MermaidBlockWidget.ts` 负责 `WidgetType` lifecycle 和 DOM view 协调。
@@ -242,6 +255,12 @@ Mermaid widget 拆分要求：
 - `mermaidRenderAdapter.ts` 负责 Mermaid dynamic import、safe config 和 render。
 - `mermaidEditingState.ts` 负责正在编辑 block 的状态。
 - 后续性能优化应优先在 `mermaidPreviewExtension` 的 block 收集和 decoration 构建路径上做增量化，不能把复杂逻辑重新堆回 public entry。
+
+Table/code-block/image capability 规则：
+
+- table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory。
+- code-block capability 负责 fenced/indented code block decoration 和 wrap command；通用 Markdown format command 只转发到 capability command。
+- image capability 负责 image-only Markdown preview、relative path resolution 和 image DOM widget；不依赖 workspace、file tree 或 app shell。
 
 ### `features`
 
@@ -515,15 +534,21 @@ Typora-like 行为分三层实现：
 - 列表 marker 样式。
 - Markdown 符号弱化或隐藏。
 
-### Widget 层
+### Capability 和 Widget 层
 
-用 block widgets 展示复杂块：
+用 editor capabilities 管理复杂编辑器子功能，用 block widgets 展示需要替换或增强渲染的复杂块：
 
 - 表格。
 - Mermaid。
 - 公式。
 - 图片预览。
 - 未来图表。
+
+capability 规则：
+
+- capability 是长期边界，负责 extension、commands、DOM widget、render adapter、检测逻辑和性能 hooks 的组合。
+- widget 是 capability 内部实现细节；旧 `editor/widgets/*` 路径只作为兼容导出。
+- 新增复杂块能力时，先创建 capability，不把逻辑散落到 `core`、`commands`、`wysiwyg` 或 app shell。
 
 表格 widget 规则：
 

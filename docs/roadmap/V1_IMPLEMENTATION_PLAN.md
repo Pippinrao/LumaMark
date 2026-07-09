@@ -721,14 +721,15 @@ V1 实现完成后，项目应形成以下主要结构：
 
 **文件：**
 
-- 创建：`src/editor/widgets/mermaid/mermaidBlockDetector.ts`
-- 创建：`src/editor/widgets/mermaid/MermaidWidget.ts`
-- 创建：`src/editor/widgets/mermaid/mermaidRenderScheduler.ts`
-- 创建：`src/editor/widgets/mermaid/mermaidCache.ts`
-- 创建：`src/editor/widgets/mermaid/mermaid.css`
+- 创建：`src/editor/capabilities/mermaid/mermaidBlockDetection.ts`
+- 创建：`src/editor/capabilities/mermaid/mermaidPreviewExtension.ts`
+- 创建：`src/editor/capabilities/mermaid/mermaidRenderScheduler.ts`
+- 创建：`src/editor/capabilities/mermaid/mermaidCache.ts`
+- 创建：`src/editor/capabilities/mermaid/mermaid.css`
+- 兼容导出：`src/editor/widgets/mermaid/MermaidWidget.ts`
 - 创建：`src/services/render-jobs/renderJobTypes.ts`
-- 测试：`src/editor/widgets/mermaid/mermaidBlockDetector.test.ts`
-- 测试：`src/editor/widgets/mermaid/mermaidRenderScheduler.test.ts`
+- 测试：`src/editor/capabilities/mermaid/MermaidWidget.test.ts`
+- 测试：`src/editor/capabilities/mermaid/mermaidRenderScheduler.test.ts`
 - 测试：`tests/e2e/mermaid.spec.ts`
 
 **成熟组件/工具：**
@@ -740,19 +741,19 @@ V1 实现完成后，项目应形成以下主要结构：
 
 - [ ] 写失败测试：检测 ` ```mermaid ` fenced block 的开始、结束和源码内容。
 
-  Run: `pnpm test src/editor/widgets/mermaid/mermaidBlockDetector.test.ts`
+  Run: `pnpm test src/editor/capabilities/mermaid/MermaidWidget.test.ts`
 
   Expected: 先失败。
 
 - [ ] 写失败测试：scheduler 取消旧任务，旧结果不能覆盖新结果。
 
-  Run: `pnpm test src/editor/widgets/mermaid/mermaidRenderScheduler.test.ts`
+  Run: `pnpm test src/editor/capabilities/mermaid/mermaidRenderScheduler.test.ts`
 
   Expected: 先失败。
 
 - [ ] 写失败测试：cache key 包含源码、主题、配置和 Mermaid 版本。
 
-  Run: `pnpm test src/editor/widgets/mermaid/mermaidRenderScheduler.test.ts`
+  Run: `pnpm test src/editor/capabilities/mermaid/mermaidRenderScheduler.test.ts`
 
   Expected: 先失败。
 
@@ -900,6 +901,106 @@ V1 实现完成后，项目应形成以下主要结构：
   git add src src-tauri tests
   git commit -m "feat: add workspace shell outline and commands"
   ```
+
+## Task 8A：架构止血和边界收敛
+
+**目标：** 在继续 V1 收敛前，拆解已经膨胀的 shell、workflow、service 和 editor widget 边界，避免后续功能继续堆进单文件和跨层调用。完成标准不是“文件变小”，而是渲染视图和功能行为分离、子功能边界可由自动化测试约束。
+
+**文件：**
+
+- 修改：`src/app/shell/AppShell.tsx`
+- 创建：`src/app/shell/AppShellView.tsx`
+- 创建：`src/app/controllers/`
+- 创建：`src/app/containers/`
+- 创建：`src/app/shell/TopChrome.tsx`
+- 创建：`src/app/shell/WorkspaceSidebar.tsx`
+- 创建：`src/app/shell/EditorPane.tsx`
+- 创建：`src/app/shell/AppDialogs.tsx`
+- 创建：`src/features/commands/`
+- 创建：`src/features/file-actions/useFileWorkflow.ts`
+- 创建：`src/features/workspace/useWorkspaceWorkflow.ts`
+- 创建：`src/editor/commands/editorCommandPort.ts`
+- 移动：`src/features/workspace/workspaceCommands.ts` -> `src/services/workspace/workspaceCommands.ts`
+- 修改：`src/editor/widgets/mermaid/`
+- 测试：`tests/quality/architectureBoundaries.test.ts`
+
+**步骤：**
+
+- [ ] 写架构边界测试，约束 AppShell 只做薄布局、shell render components 不 import store/service/workflow/editor commands/window controls、workspace command wrapper 只能在 service 层、Mermaid public entry 只做兼容导出。
+- [ ] 拆 AppShell 为 `AppShell` + `AppShellView` + `useAppShellSlots`：`AppShellView` 只接收 view model、labels、callbacks 和 slots。
+- [ ] 拆 AppShell UI 子组件，保留现有窗口布局、菜单、侧边栏、编辑器区域、状态栏、命令面板和设置弹窗行为；`TopChrome`、`WorkspaceSidebar`、`EditorPane`、`AppDialogs` 只能做纯渲染。
+- [ ] 拆 app controller 为 document、workspace、commands、editor、settings、window 子 hook，避免 `useAppController` 成为新的总控。
+- [ ] 建立 `features/commands`，菜单、命令面板和右键菜单共享同一组 command model，不在 JSX 或 controller 中重复定义动作。
+- [ ] 建立 `editor/commands/editorCommandPort.ts`，app 层只调用 `EditorDocumentPort` 和 `EditorCommandPort`，不直接 import 表格命令或 Markdown format 命令。
+- [ ] 文件打开、保存、另存为、dirty revision 和 recent files 通过 file workflow 收口；workflow 通过 `FileStateAdapter`、`StatusAdapter`、`EditorDocumentPort` 注入状态和编辑器能力，不硬依赖 `appStore`。
+- [ ] 工作区打开、children lazy load 和 stale request 防护通过 workspace workflow 收口；打开文件只通过注入 callback，不知道 file workflow 实现。
+- [ ] workspace Tauri wrapper 移入 `services/workspace/`，不改 Rust command 名称和 wire shape。
+- [ ] Mermaid preview 按 public entry、extension、block detection、WidgetType lifecycle、DOM view、inline editor、editing state、render adapter 建立模块边界，保持 `mermaidPreviewExtension()` 对外 API 不变。
+- [ ] 验证。
+
+  Run:
+
+  ```powershell
+  pnpm test tests/quality/architectureBoundaries.test.ts
+  pnpm test src/app/shell/AppShell.test.tsx src/features/file-actions/fileActions.test.ts src/services/workspace/workspaceCommands.test.ts src/editor/capabilities/mermaid/MermaidWidget.test.ts src/editor/capabilities/mermaid/mermaidRenderScheduler.test.ts
+  pnpm typecheck
+  pnpm lint
+  pnpm test
+  pnpm test:fixtures
+  pnpm perf:bench
+  pnpm test:e2e tests/e2e/app-shell.spec.ts tests/e2e/mermaid.spec.ts
+  cargo check --manifest-path src-tauri/Cargo.toml
+  cargo test --manifest-path src-tauri/Cargo.toml
+  ```
+
+  Expected: 全部 exit 0。若某个环境门禁不可用，必须记录失败命令、原因和影响，不能把未运行命令描述为已通过。
+
+## Task 8B：Editor 子功能独立化
+
+**目标：** 把 Mermaid、表格、代码块、图片等编辑器子功能收敛到 `editor/capabilities/`，让每个复杂能力可以独立演进，避免主体实现散落在 `core`、`commands`、`wysiwyg` 和旧 `widgets` 路径。
+
+**文件：**
+
+- 创建：`src/editor/capabilities/editorCapability.ts`
+- 创建：`src/editor/capabilities/mermaid/`
+- 创建：`src/editor/capabilities/table/`
+- 创建：`src/editor/capabilities/code-block/`
+- 创建：`src/editor/capabilities/image/`
+- 修改：`src/editor/core/editorDisplayMode.ts`
+- 修改：`src/editor/core/createEditorState.ts`
+- 修改：`src/editor/commands/markdownFormatCommands.ts`
+- 修改：`src/editor/commands/editorCommandPort.ts`
+- 修改：`src/editor/wysiwyg/markdownDecorations.ts`
+- 修改：`tests/quality/architectureBoundaries.test.ts`
+
+**步骤：**
+
+- [ ] 写架构边界测试，约束 `editor/core/**` 只能消费 capability 聚合入口，`editor/commands/**` 不能直接 import table、Mermaid、code-block 或 image 的内部实现。
+- [ ] 建立 `EditorCapability`、`EditorCapabilityCommands`、capability 聚合入口和 live preview extension 聚合函数。
+- [ ] 迁移 Mermaid 到 `editor/capabilities/mermaid/`，旧 `editor/widgets/mermaid/MermaidWidget.ts` 只保留兼容 re-export。
+- [ ] 迁移 table 到 `editor/capabilities/table/`，通过 capability command factory 暴露 insert/copy/delete，继续使用 `codemirror-markdown-tables`。
+- [ ] 拆 code-block 到 `editor/capabilities/code-block/`，负责代码块 decoration 和 wrap command；通用 Markdown format command 只转发到 capability command。
+- [ ] 迁移 image 到 `editor/capabilities/image/`，旧 `editor/widgets/image/ImageWidget.ts` 只保留兼容 re-export。
+- [ ] 更新架构文档，明确 capability 是长期边界，旧 `widgets/*` 是兼容层。
+- [ ] 验证。
+
+  Run:
+
+  ```powershell
+  pnpm test tests/quality/architectureBoundaries.test.ts
+  pnpm test src/editor/capabilities/mermaid src/editor/capabilities/table src/editor/capabilities/code-block src/editor/capabilities/image
+  pnpm test src/editor/commands src/editor/core src/editor/wysiwyg/markdownDecorations.test.ts
+  pnpm test:fixtures
+  pnpm test:e2e tests/e2e/mermaid.spec.ts tests/e2e/editor-markdown.spec.ts tests/e2e/app-shell.spec.ts
+  pnpm typecheck
+  pnpm lint
+  pnpm test
+  pnpm perf:bench
+  cargo check --manifest-path src-tauri/Cargo.toml
+  cargo test --manifest-path src-tauri/Cargo.toml
+  ```
+
+  Expected: 全部 exit 0。不得新增用户可见行为、快捷键或 i18n key。
 
 ## Task 9：V1 收敛、性能门禁和 Windows 构建
 

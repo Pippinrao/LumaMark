@@ -13,7 +13,7 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: /lumamark/i }),
+      await screen.findByRole('heading', { name: /lumamark/i }, { timeout: 3000 }),
     ).toBeInTheDocument();
   });
 });

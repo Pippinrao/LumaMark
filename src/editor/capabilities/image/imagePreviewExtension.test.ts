@@ -6,7 +6,7 @@ import {
   collectImageBlocksInRanges,
   imagePreviewExtension,
   resolveMarkdownImageSource,
-} from './ImageWidget';
+} from './imagePreviewExtension';
 
 describe('image preview extension', () => {
   it('collects markdown image blocks from the syntax tree', () => {

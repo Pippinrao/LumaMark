@@ -147,17 +147,22 @@ Rust 保存：
 src/
 ├─ app/
 │  ├─ App.tsx
+│  ├─ containers/
+│  ├─ controllers/
 │  ├─ providers/
 │  ├─ shell/
 │  └─ stores/
 ├─ editor/
+│  ├─ capabilities/
 │  ├─ core/
 │  ├─ markdown/
 │  ├─ wysiwyg/
-│  ├─ widgets/
+│  ├─ widgets/        # compatibility re-exports only
 │  ├─ commands/
 │  └─ metrics/
 ├─ features/
+│  ├─ commands/
+│  ├─ file-actions/
 │  ├─ workspace/
 │  ├─ outline/
 │  ├─ search/
@@ -167,6 +172,7 @@ src/
 ├─ services/
 │  ├─ tauri/
 │  ├─ files/
+│  ├─ workspace/
 │  ├─ render-jobs/
 │  └─ telemetry/
 ├─ shared/
@@ -190,6 +196,16 @@ src/
 - shell layout。
 - 全局错误边界。
 
+整改门禁：
+
+- `AppShell` 只能组合 `useAppShellModel`、`useAppShellSlots` 和 `AppShellView`，不直接调用文件、工作区、编辑器表格或 Tauri service 细节。
+- `app/shell/**` 是纯渲染层：只消费 props、labels、callbacks 和 ReactNode slots；不能 import store、service、workflow、editor command 或窗口控制实现。
+- `app/controllers/` 拆为独立子域 hook：document、workspace、commands、editor、settings、window；不能再形成新的总控大文件。
+- `app/containers/` 负责把 feature UI 容器装配成 shell slots；shell view 不知道 feature workflow 或 store。
+- 菜单、命令面板和右键菜单必须消费 `features/commands` 的同一组 command model，不能在 shell JSX 或 controller 中重复定义同一业务动作。
+- i18n label 生成放在 controller/model 层，渲染组件只消费字符串。
+- `tests/quality/architectureBoundaries.test.ts` 是当前架构止血边界测试，新增 shell/workflow/editor widget 改动时必须保持通过。
+
 ### `editor`
 
 负责 CodeMirror 封装和所有编辑器扩展。
@@ -204,11 +220,47 @@ src/
 推荐子模块：
 
 - `core`：CodeMirror view/state 初始化。
+- `capabilities`：Mermaid、table、code block、image 等可独立演进的编辑器子能力。
 - `markdown`：Markdown 语言包和语法工具。
-- `wysiwyg`：Typora-like decorations。
-- `widgets`：Mermaid、图片、公式等块级 widget。
+- `wysiwyg`：Typora-like 通用 decorations 组合层，不持有复杂子能力主体实现。
+- `widgets`：旧路径兼容导出；新能力不得把主体实现放回这里。
 - `commands`：编辑器命令和快捷键。
 - `metrics`：输入延迟、渲染耗时、scroll 采样。
+
+Editor capability 边界：
+
+- 每个复杂编辑器子功能进入 `editor/capabilities/<name>/`，例如 `mermaid`、`table`、`code-block`、`image`。
+- 每个 capability 通过一个薄 public entry 暴露 extension、command factory 和必要类型；主体实现拆到 detection、DOM、adapter、commands、decorations 等子模块。
+- `editor/core/**` 只能消费 capability 聚合入口，不能 import capability 内部文件或旧 `widgets/*` 内部文件。
+- `editor/commands/**` 只能通过 capability command factory 调用表格、代码块等能力，不能直接 import table widget、Mermaid widget 或 code-block decoration internals。
+- `editor/widgets/**` 只允许保留兼容 re-export，不能继续承载新主体实现。
+- 通用 `wysiwyg/markdownDecorations.ts` 只组合能力提供的 decoration builder；代码块、图片、Mermaid、表格增强行为不得重新堆回通用 WYSIWYG 文件。
+
+编辑器命令边界：
+
+- app 层只调用 `editor/commands/editorCommandPort.ts` 暴露的 `EditorDocumentPort` 和 `EditorCommandPort`。
+- Markdown format、table command、display mode、range selection 等具体 CodeMirror 命令不能散落 import 到 shell 渲染层或 feature UI。
+- `EditorDocumentPort` 只提供 `getText()`、`loadText(text)`、`focus()`、`setContext(context)` 等轻量能力，避免 React 层持有 Markdown 全文。
+
+Mermaid capability 拆分要求：
+
+- public entry 保持 `editor/widgets/mermaid/MermaidWidget.ts`，只做兼容导出。
+- 主体实现位于 `editor/capabilities/mermaid/`。
+- `createMermaidCapability.ts` 只组装 public capability。
+- `mermaidPreviewExtension.ts` 只组装 CodeMirror extension/state field。
+- `mermaidBlockDetection.ts` 负责 fenced block 检测和类型。
+- `MermaidBlockWidget.ts` 负责 `WidgetType` lifecycle 和 DOM view 协调。
+- `mermaidWidgetDom.ts` 负责按钮、状态、svg container 等 DOM 创建。
+- `mermaidInlineEditor.ts` 负责 inline editor 创建、事件和 flush。
+- `mermaidRenderAdapter.ts` 负责 Mermaid dynamic import、safe config 和 render。
+- `mermaidEditingState.ts` 负责正在编辑 block 的状态。
+- 后续性能优化应优先在 `mermaidPreviewExtension` 的 block 收集和 decoration 构建路径上做增量化，不能把复杂逻辑重新堆回 public entry。
+
+Table/code-block/image capability 规则：
+
+- table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory。
+- code-block capability 负责 fenced/indented code block decoration 和 wrap command；通用 Markdown format command 只转发到 capability command。
+- image capability 负责 image-only Markdown preview、relative path resolution 和 image DOM widget；不依赖 workspace、file tree 或 app shell。
 
 ### `features`
 
@@ -216,11 +268,26 @@ src/
 
 每个 feature 只通过 service/editor API 与其他层交互，避免横向耦合。
 
+feature workflow 规则：
+
+- 文件打开、保存、另存为、dirty revision 和 recent files 通过 `features/file-actions` 的 workflow 收口。
+- `features/file-actions` 通过 `FileStateAdapter`、`StatusAdapter`、`EditorDocumentPort` 接收状态和编辑器能力，不能硬依赖 `appStore`。
+- 工作区打开、children lazy load、stale request 防护通过 `features/workspace` 的 workflow 收口。
+- `features/workspace` 拆为 workflow、selectors、view model/UI-facing 类型；打开文件只通过注入 callback，不知道 file workflow 实现。
+- `features/commands` 是 command id、label、shortcut、enabled 状态和 run handler 的唯一 command model 来源。
+- `features/*/components/**` 只负责渲染；需要业务行为时由 feature container、workflow 或 app container 注入 props。
+- feature 可以组合 editor API 和 service facade，但不能持有 Markdown 全文。
+
 ### `services`
 
 负责与 Tauri、渲染任务、缓存、性能记录通信。
 
 所有 Tauri command 必须通过 typed wrapper 调用，不允许在 UI 组件里直接散落 `invoke()`。
+
+当前强制边界：
+
+- workspace Tauri wrapper 位于 `services/workspace/`，`features/workspace/` 只保留 workflow、store 和 UI-facing 类型使用。
+- services 不能依赖 React 组件、Zustand store 或 app shell。
 
 ### `shared`
 
@@ -233,6 +300,60 @@ src/
 - 共享类型。
 
 `shared/components` 不能变成自研组件库。它只允许组合成熟组件和项目视觉样式。
+
+## 前端依赖方向和端口
+
+当前前端必须按以下方向依赖：
+
+```text
+app/shell view
+  <- app/containers
+  <- app/controllers
+  <- features workflows + feature containers
+  <- services + editor ports
+  <- Tauri commands / CodeMirror internals
+```
+
+允许的调用关系：
+
+- `app/shell/**` 只接收 props，不直接调用业务能力。
+- `app/containers/**` 可以组合 shell view 和 feature UI container，但不实现业务流程。
+- `app/controllers/**` 可以组合 feature workflow、editor port、i18n label、轻量 app state 和窗口级 callbacks。
+- `features/**` 可以组合 service facade 和 editor port，但不能依赖具体 app shell，也不能持有 Markdown 全文。
+- `services/**` 只暴露 typed command client 或纯 service facade，不依赖 React、Zustand、editor 或 app。
+- `editor/**` 暴露稳定 `EditorApi`、`EditorDocumentPort`、`EditorCommandPort` 和轻量事件，不依赖 app shell、file tree、settings 或 workspace UI。
+
+禁止的调用关系：
+
+- shell render component import `useAppStore`、feature workflow、service wrapper、Tauri command、editor table command 或 window control adapter。
+- feature UI component 直接调用 service/store；需要业务动作时从 container 或 workflow 注入。
+- service import React 组件、hook、Zustand store 或 CodeMirror view。
+- app controller 重新定义菜单、命令面板和右键菜单的动作列表；这些动作必须来自 `features/commands`。
+
+轻量端口：
+
+```ts
+interface EditorDocumentPort {
+  getText(): string
+  loadText(text: string): void
+  focus(): void
+  setContext(context: EditorDocumentContext): void
+}
+
+interface EditorCommandPort {
+  runFormat(command: MarkdownFormatCommand): void
+  copyTable(): void
+  deleteTable(): void
+  setDisplayMode(mode: EditorDisplayMode): void
+  selectRange(position: number): void
+}
+
+interface StatusAdapter {
+  setStatusKey(statusKey: string): void
+}
+```
+
+这些端口是跨层协作边界，不是新的全局抽象层。端口只放已经跨层使用、且需要隔离实现细节的最小能力。
 
 ## Rust 模块划分
 
@@ -413,15 +534,21 @@ Typora-like 行为分三层实现：
 - 列表 marker 样式。
 - Markdown 符号弱化或隐藏。
 
-### Widget 层
+### Capability 和 Widget 层
 
-用 block widgets 展示复杂块：
+用 editor capabilities 管理复杂编辑器子功能，用 block widgets 展示需要替换或增强渲染的复杂块：
 
 - 表格。
 - Mermaid。
 - 公式。
 - 图片预览。
 - 未来图表。
+
+capability 规则：
+
+- capability 是长期边界，负责 extension、commands、DOM widget、render adapter、检测逻辑和性能 hooks 的组合。
+- widget 是 capability 内部实现细节；旧 `editor/widgets/*` 路径只作为兼容导出。
+- 新增复杂块能力时，先创建 capability，不把逻辑散落到 `core`、`commands`、`wysiwyg` 或 app shell。
 
 表格 widget 规则：
 

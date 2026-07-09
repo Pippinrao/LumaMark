@@ -2,7 +2,7 @@ import {
   invokeCommand,
   type CommandResult,
   type InvokeCommandFunction,
-} from '../../services/tauri/invokeCommand';
+} from '../tauri/invokeCommand';
 
 export type WorkspaceDirectory = {
   name: string;

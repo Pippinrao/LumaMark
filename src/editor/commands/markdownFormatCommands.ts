@@ -1,6 +1,6 @@
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
-import { insertMarkdownTable } from '../widgets/table/tableCommands';
+import { createEditorCapabilityCommands } from '../capabilities';
 
 export type MarkdownFormatCommand =
   | 'bold'
@@ -39,14 +39,9 @@ export function applyMarkdownFormatCommand(
     case 'quote':
       return prefixSelectedLines(view, '> ');
     case 'codeBlock':
-      return wrapSelection(view, '```\n', '\n```', 'code');
+      return createEditorCapabilityCommands(view).wrapCodeBlock();
     case 'table':
-      if (!insertMarkdownTable(view)) {
-        return false;
-      }
-
-      view.focus();
-      return true;
+      return createEditorCapabilityCommands(view).insertTable();
   }
 }
 

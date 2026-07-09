@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { CommandError } from '../../services/tauri/invokeCommand';
-import type { WorkspaceDirectory, WorkspaceEntry } from './workspaceCommands';
+import type {
+  WorkspaceDirectory,
+  WorkspaceEntry,
+} from '../../services/workspace/workspaceCommands';
 
 export type WorkspaceTreeNode = WorkspaceEntry & {
   children?: WorkspaceTreeNode[];

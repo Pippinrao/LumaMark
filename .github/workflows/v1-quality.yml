@@ -90,8 +90,15 @@ jobs:
       - name: E2E tests
         run: pnpm test:e2e
 
+      - name: Live remote image assets
+        timeout-minutes: 2
+        run: pnpm test:live-assets
+
       - name: Web build chunk gate
         run: pnpm quality:web-build
+
+      - name: Production bundle startup
+        run: pnpm test:e2e:production
 
       - name: Performance benchmarks
         run: pnpm perf:bench

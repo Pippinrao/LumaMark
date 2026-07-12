@@ -34,6 +34,40 @@ button {
   color: var(--lm-color-text);
 }
 
+.lm-focus-mode {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.lm-focus-mode .lm-top-chrome,
+.lm-focus-mode .lm-status-bar {
+  display: none;
+}
+
+.lm-focus-mode-exit {
+  position: fixed;
+  z-index: 45;
+  top: var(--lm-space-3);
+  right: var(--lm-space-3);
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lm-color-border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--lm-color-bg) 86%, transparent);
+  color: var(--lm-color-text-muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.lm-focus-mode-exit:hover,
+.lm-focus-mode-exit:focus-visible {
+  background: var(--lm-color-surface-muted);
+  color: var(--lm-color-text);
+  opacity: 1;
+}
+
 .lm-top-chrome {
   position: relative;
   z-index: 40;
@@ -181,6 +215,10 @@ button {
   overflow: hidden;
 }
 
+.lm-sidebar-content {
+  height: 100%;
+}
+
 .lm-sidebar {
   display: flex;
   min-height: 0;
@@ -287,6 +325,62 @@ button {
   height: 100%;
   flex: 1;
   flex-direction: column;
+}
+
+.lm-recent-files {
+  max-height: 180px;
+  overflow: auto;
+  border-bottom: 1px solid color-mix(in srgb, var(--lm-color-border) 72%, transparent);
+}
+
+.lm-recent-files-header {
+  padding: var(--lm-space-1) var(--lm-space-3);
+  color: var(--lm-color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lm-recent-files-list {
+  display: grid;
+  gap: 1px;
+  padding: 0 var(--lm-space-1) var(--lm-space-2);
+}
+
+.lm-recent-file {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--lm-space-2);
+  overflow: hidden;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--lm-color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 28px;
+  padding: 0 var(--lm-space-2);
+  text-align: left;
+}
+
+.lm-recent-file:hover,
+.lm-recent-file:focus-visible {
+  background: color-mix(in srgb, var(--lm-color-accent) 10%, var(--lm-color-surface));
+  outline: none;
+}
+
+.lm-recent-file svg {
+  flex: 0 0 auto;
+  color: var(--lm-color-text-muted);
+}
+
+.lm-recent-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lm-file-tree-body {
@@ -452,6 +546,60 @@ button {
   flex: 1;
 }
 
+.lm-file-error-notice {
+  position: fixed;
+  z-index: 30;
+  right: var(--lm-space-5);
+  bottom: calc(var(--lm-status-height) + var(--lm-space-4));
+  display: flex;
+  width: min(360px, calc(100vw - (var(--lm-space-5) * 2)));
+  align-items: flex-start;
+  gap: var(--lm-space-3);
+  border: 1px solid color-mix(in srgb, var(--lm-color-danger) 46%, var(--lm-color-border));
+  border-radius: var(--lm-radius-2);
+  background: var(--lm-color-surface);
+  box-shadow: 0 12px 30px color-mix(in srgb, black 16%, transparent);
+  color: var(--lm-color-danger);
+  padding: var(--lm-space-3);
+}
+
+.lm-file-error-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.lm-file-error-copy strong {
+  color: var(--lm-color-text);
+  font-size: 0.84rem;
+  font-weight: 620;
+}
+
+.lm-file-error-copy span {
+  color: var(--lm-color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.lm-file-error-dismiss {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: var(--lm-radius-1);
+  background: transparent;
+  color: var(--lm-color-text-muted);
+}
+
+.lm-file-error-dismiss:hover,
+.lm-file-error-dismiss:focus-visible {
+  background: var(--lm-color-surface-muted);
+  color: var(--lm-color-text);
+}
+
 .lm-outline {
   display: flex;
   height: 100%;
@@ -600,6 +748,23 @@ button {
   padding: var(--lm-space-4);
 }
 
+.lm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lm-space-2);
+}
+
+.lm-danger-button {
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--lm-radius-1);
+  background: #bf3e3e;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  padding: 0 var(--lm-space-3);
+}
+
 .lm-dialog-title-row {
   display: flex;
   align-items: center;
@@ -655,6 +820,13 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: var(--lm-space-4);
+}
+
+.lm-setting-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--lm-color-accent);
 }
 
 @media (max-width: 720px) {

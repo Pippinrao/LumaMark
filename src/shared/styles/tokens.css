@@ -11,6 +11,7 @@
   --lm-color-accent: #0a66d8;
   --lm-color-accent-strong: #074da5;
   --lm-color-accent-soft: rgb(10 102 216 / 10%);
+  --lm-color-danger: #b42318;
   --lm-shadow-shell: 0 1px 8px rgb(23 26 31 / 8%);
   --lm-font-sans: "Aptos", "Segoe UI Variable", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
   --lm-font-editor: "Aptos", "Segoe UI Variable", "MiSans", "HarmonyOS Sans SC", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
@@ -20,6 +21,7 @@
   --lm-space-2: 8px;
   --lm-space-3: 12px;
   --lm-space-4: 16px;
+  --lm-space-5: 20px;
   --lm-space-6: 24px;
   --lm-space-8: 32px;
   --lm-radius-1: 4px;
@@ -42,5 +44,6 @@
   --lm-color-accent: #65a7ff;
   --lm-color-accent-strong: #91c1ff;
   --lm-color-accent-soft: rgb(101 167 255 / 16%);
+  --lm-color-danger: #ff9b8f;
   --lm-shadow-shell: 0 1px 10px rgb(0 0 0 / 24%);
 }

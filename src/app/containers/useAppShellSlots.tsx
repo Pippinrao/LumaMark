@@ -1,5 +1,9 @@
 import { lazy, useMemo } from 'react';
 import { FileTree } from '../../features/file-tree/FileTree';
+import { DiscardChangesDialog } from '../../features/file-actions/DiscardChangesDialog';
+import { FileErrorNotice } from '../../features/file-actions/FileErrorNotice';
+import { ExternalFileConflictDialog } from '../../features/file-actions/ExternalFileConflictDialog';
+import { RecoveryDraftDialog } from '../../features/recovery-drafts/RecoveryDraftDialog';
 import { OutlinePanel } from '../../features/outline/OutlinePanel';
 import type { useAppShellModel } from '../controllers/useAppShellModel';
 import { AppDialogs } from '../shell/AppDialogs';
@@ -30,20 +34,62 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
             model.commandPaletteOpen ? (
               <LazyCommandPalette
                 commands={model.commands}
+                onCommandSelect={model.runCommandAfterPaletteClose}
                 onOpenChange={model.setCommandPaletteOpen}
                 open={model.commandPaletteOpen}
+              />
+            ) : null
+          }
+          discardChangesDialog={
+            model.newDocumentConfirmOpen ? (
+              <DiscardChangesDialog
+                onConfirm={model.confirmNewDocument}
+                onOpenChange={model.setNewDocumentConfirmOpen}
+                open={model.newDocumentConfirmOpen}
+              />
+            ) : null
+          }
+          externalFileConflictDialog={
+            model.externalFileConflict.conflict ? (
+              <ExternalFileConflictDialog
+                onKeepCurrentContent={
+                  model.externalFileConflict.keepCurrentContent
+                }
+                onReloadFromDisk={() => {
+                  void model.externalFileConflict.reloadFromDisk();
+                }}
+                open
+              />
+            ) : null
+          }
+          fileErrorNotice={
+            model.lastFileError ? (
+              <FileErrorNotice
+                error={model.lastFileError}
+                onDismiss={model.dismissFileError}
               />
             ) : null
           }
           settingsDialog={
             model.settingsOpen ? (
               <LazySettingsDialog
+                copyImagesToAssets={model.copyImagesToAssets}
                 language={model.language}
+                onCopyImagesToAssetsChange={model.setCopyImagesToAssets}
                 onLanguageChange={model.setLanguage}
                 onOpenChange={model.setSettingsOpen}
                 onThemeChange={model.setTheme}
                 open={model.settingsOpen}
                 theme={model.theme}
+              />
+            ) : null
+          }
+          recoveryDraftDialog={
+            model.recoveryDraft.pendingRecoveryDraft ? (
+              <RecoveryDraftDialog
+                draft={model.recoveryDraft.pendingRecoveryDraft}
+                onDiscard={model.recoveryDraft.discardRecoveryDraft}
+                onRestore={model.recoveryDraft.restoreRecoveryDraft}
               />
             ) : null
           }
@@ -57,9 +103,15 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
           onAction={model.runAction}
           onDocumentChanged={() => {
             model.editor.markDocumentDirty();
+            model.recoveryDraft.scheduleRecoveryDraft();
+            model.documentStatistics.scheduleRefresh();
             model.scheduleOutlineRefresh();
           }}
           onEditorReady={model.editor.onReady}
+          imageAssetResolver={model.editor.imageAssetResolver}
+          imageImportErrorHandler={model.editor.imageImportErrorHandler}
+          imageImportHandler={model.editor.imageImportHandler}
+          language={model.language}
           visibleDocumentTitle={model.visibleDocumentTitle}
         />
       ),
@@ -71,6 +123,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
               onLoadChildren={model.workspace.loadChildren}
               onOpenFile={model.workspace.openFile}
               onOpenWorkspace={model.workspace.openWorkspace}
+              recentFiles={model.recentFiles}
               root={model.workspace.root}
               selectedPath={model.currentFile?.path}
               tree={model.workspace.tree}

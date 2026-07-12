@@ -12,6 +12,8 @@ export const markdownFixtureNames = [
   'table.md',
   'code-blocks.md',
   'links-images.md',
+  'remote-images.md',
+  'live-preview-rich.md',
   'mermaid.md',
   'comprehensive.md',
   'gfm-edge-cases.md',

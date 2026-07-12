@@ -74,4 +74,104 @@ describe('tablePreviewExtension', () => {
     view.destroy();
     parent.remove();
   });
+
+  it('renders inline markdown inside inactive table cells without exposing source markers', async () => {
+    const doc = [
+      'before',
+      '',
+      '| A        | B      |',
+      '| -------- | ------ |',
+      '| **bold** | `code` |',
+      '',
+      'after',
+    ].join('\n');
+    const { parent, view } = createView(doc);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const widget = parent.querySelector('.tbl-table-widget');
+    const overlays = [
+      ...parent.querySelectorAll<HTMLElement>('.lm-table-inline-preview'),
+    ];
+
+    expect(widget).not.toBeNull();
+    expect(overlays.some((overlay) => overlay.textContent === 'bold')).toBe(true);
+    expect(overlays.some((overlay) => overlay.textContent === 'code')).toBe(true);
+    expect(widget?.querySelector('.lm-table-inline-preview strong')?.textContent).toBe(
+      'bold',
+    );
+    expect(widget?.querySelector('.lm-table-inline-preview code')?.textContent).toBe(
+      'code',
+    );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('reveals markdown source markers while hovering an inactive table cell', async () => {
+    const doc = [
+      'before',
+      '',
+      '| A        | B      |',
+      '| -------- | ------ |',
+      '| **bold** | `code` |',
+      '',
+      'after',
+    ].join('\n');
+    const { parent, view } = createView(doc);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const boldCell = [...parent.querySelectorAll<HTMLElement>('.tbl-cell')]
+      .find((cell) => cell.textContent?.includes('bold'));
+    const boldCellView = boldCell?.querySelector<HTMLElement>('.tbl-cell-view');
+    const overlay = boldCell?.querySelector<HTMLElement>('.lm-table-inline-preview');
+
+    expect(boldCell).toBeDefined();
+    expect(boldCellView?.textContent).toBe('**bold**');
+    expect(boldCellView?.dataset.lmInlineMarkdownMode).toBe('preview');
+    expect(overlay?.hidden).toBe(false);
+    expect(overlay?.querySelector('strong')?.textContent).toBe('bold');
+
+    boldCell?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+
+    expect(boldCellView?.textContent).toBe('**bold**');
+    expect(boldCellView?.dataset.lmInlineMarkdownMode).toBe('source');
+    expect(overlay?.hidden).toBe(true);
+
+    boldCell?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+
+    expect(boldCellView?.dataset.lmInlineMarkdownMode).toBe('preview');
+    expect(overlay?.hidden).toBe(false);
+    expect(overlay?.querySelector('strong')?.textContent).toBe('bold');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps a real table header aligned when earlier pipe-delimited prose is not a table', async () => {
+    const doc = [
+      '| this is pipe-delimited prose |',
+      '',
+      '| A        | B      |',
+      '| -------- | ------ |',
+      '| **bold** | `code` |',
+      '',
+      'after',
+    ].join('\n');
+    const { parent, view } = createView(doc);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const header = parent.querySelector<HTMLElement>('.tbl-header-cell');
+    const preview = header?.querySelector<HTMLElement>('.lm-table-inline-preview');
+
+    expect(preview?.textContent).toBe('A');
+
+    view.destroy();
+    parent.remove();
+  });
 });

@@ -102,7 +102,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('menuitem', { name: 'File' })).toBeVisible();
 
-  await runFileMenuAction(page, 'openFile');
+  await page.keyboard.press('Control+O');
   const editor = page.locator('.cm-content');
   await expect(editor).toContainText('Fixture Title');
   await page.getByRole('tab', { name: 'Outline' }).click();
@@ -118,7 +118,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await page.locator('.lm-md-task-checkbox').last().click();
   await expect(editor).toContainText('- [x] verified task');
 
-  await runFileMenuAction(page, 'save');
+  await page.keyboard.press('Control+S');
   await expect(page.getByRole('status')).toHaveText('Saved');
   let saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
   expect(saved?.path).toBe(fixturePath);
@@ -128,7 +128,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   expect(saved?.text).toContain('flowchart TD');
   expect(saved?.text).toContain('A --> B');
 
-  await runFileMenuAction(page, 'saveAs');
+  await page.keyboard.press('Control+Shift+S');
   await expect(page.getByRole('status')).toHaveText('Saved');
   saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
   expect(saved?.path).toBe(saveAsPath);
@@ -182,6 +182,141 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await expect(editor).toContainText('Fixture Title');
   await expect(editor).toContainText('V1 E2E Title');
   await expect(editor).not.toContainText('temporary overwrite');
+});
+
+test('reopens a recent file from the files sidebar', async ({ page }) => {
+  const path = 'E:/lumamark-fixtures/recent.md';
+  const text = '# Recent document';
+
+  await page.addInitScript(
+    ({ path, text }) => {
+      const byteLength = (value: string) => new TextEncoder().encode(value).length;
+
+      window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+        readText: async (filePath: string) => ({
+          ok: true,
+          data: {
+            byteLength: byteLength(text),
+            path: filePath,
+            text,
+          },
+        }),
+        showOpenDialog: async () => ({ ok: true, data: path }),
+        showSaveDialog: async () => ({ ok: true, data: null }),
+        writeText: async () => ({
+          ok: false,
+          error: {
+            code: 'not-needed',
+            message: 'Not needed for this test',
+            recoverable: true,
+          },
+        }),
+      };
+    },
+    { path, text },
+  );
+  await page.goto('/');
+
+  await runFileMenuAction(page, 'openFile');
+  const editor = page.locator('.cm-content');
+  await expect(editor).toContainText('Recent document');
+  await expect(page.getByRole('button', { name: 'recent.md' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'recent.md' })).toBeVisible();
+
+  await editor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.insertText('# Temporary overwrite');
+  await page.getByRole('button', { name: 'recent.md' }).click();
+
+  await expect(editor).toContainText('Recent document');
+  await expect(editor).not.toContainText('Temporary overwrite');
+});
+
+test('keeps the current draft and explains a failed file open', async ({ page }) => {
+  const missingPath = 'E:/lumamark-fixtures/missing.md';
+
+  await page.addInitScript((path) => {
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: async () => ({
+        ok: false,
+        error: {
+          code: 'file.not_found',
+          message: 'File was not found.',
+          recoverable: true,
+        },
+      }),
+      showOpenDialog: async () => ({ ok: true, data: path }),
+      showSaveDialog: async () => ({ ok: true, data: null }),
+      writeText: async () => ({
+        ok: false,
+        error: {
+          code: 'not-needed',
+          message: 'Not needed for this test',
+          recoverable: true,
+        },
+      }),
+    };
+  }, missingPath);
+  await page.goto('/');
+
+  const editor = page.locator('.cm-content');
+  await editor.click();
+  await page.keyboard.insertText('保留草稿');
+
+  await runFileMenuAction(page, 'openFile');
+
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('找不到该文件');
+  await expect(alert).toContainText('当前文档内容未被更改。');
+  await expect(editor).toContainText('保留草稿');
+
+  await alert.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(alert).toBeHidden();
+  await expect(page.getByRole('status')).toHaveText('未保存');
+});
+
+test('creates a new document only after confirming discarded changes', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  const editor = page.locator('.cm-content');
+  await editor.click();
+  await page.keyboard.insertText('draft');
+
+  await page.keyboard.press('Control+N');
+  await expect(
+    page.getByRole('dialog', { name: '放弃未保存的修改？' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '取消' }).click();
+  await expect(editor).toContainText('draft');
+
+  await clickFirstVisibleMenuItem(page, ['文件', 'File']);
+  await clickFirstVisibleMenuItem(page, ['新建文档', 'New Document']);
+  await page.getByRole('button', { name: '放弃修改' }).click();
+
+  await expect(editor).toHaveText('');
+  await expect(page.locator('.lm-editor-title')).toHaveText('未命名');
+});
+
+test('creates a new document from the command palette through the same confirmation flow', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  const editor = page.locator('.cm-content');
+  await editor.click();
+  await page.keyboard.insertText('draft');
+  await page.keyboard.press('Control+K');
+  await page.getByRole('option', { name: '新建文档' }).click();
+
+  await expect(
+    page.getByRole('dialog', { name: '放弃未保存的修改？' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '放弃修改' }).click();
+  await expect(editor).toHaveText('');
 });
 
 async function runFileMenuAction(

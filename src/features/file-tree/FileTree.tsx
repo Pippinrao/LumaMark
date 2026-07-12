@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from 'lucide-
 import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceDirectory } from '../../services/workspace/workspaceCommands';
+import { RecentFilesList } from '../recent-files/RecentFilesList';
+import type { RecentFile } from '../recent-files/recentFilesStore';
 import type { WorkspaceTreeNode } from '../workspace/workspaceStore';
 
 type FileTreeProps = {
@@ -10,6 +12,7 @@ type FileTreeProps = {
   onLoadChildren: (path: string) => void;
   onOpenFile: (path: string) => void;
   onOpenWorkspace: () => void;
+  recentFiles?: readonly RecentFile[];
   root: WorkspaceDirectory | null;
   selectedPath?: string;
   tree: WorkspaceTreeNode[];
@@ -20,6 +23,7 @@ export function FileTree({
   onLoadChildren,
   onOpenFile,
   onOpenWorkspace,
+  recentFiles = [],
   root,
   selectedPath,
   tree,
@@ -57,6 +61,8 @@ export function FileTree({
           {t('workspace.open')}
         </button>
       </div>
+
+      <RecentFilesList files={recentFiles} onOpenFile={onOpenFile} />
 
       {root ? (
         <div className="lm-workspace-root" title={root.path}>

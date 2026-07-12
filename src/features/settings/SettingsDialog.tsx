@@ -7,7 +7,9 @@ import type { AppLanguage } from '../../shared/i18n';
 type ThemeMode = 'light' | 'dark';
 
 type SettingsDialogProps = {
+  copyImagesToAssets: boolean;
   language: AppLanguage;
+  onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
   onLanguageChange: (language: AppLanguage) => void;
   onOpenChange: (open: boolean) => void;
   onThemeChange: (theme: ThemeMode) => void;
@@ -16,7 +18,9 @@ type SettingsDialogProps = {
 };
 
 export function SettingsDialog({
+  copyImagesToAssets,
   language,
+  onCopyImagesToAssetsChange,
   onLanguageChange,
   onOpenChange,
   onThemeChange,
@@ -44,6 +48,7 @@ export function SettingsDialog({
             <Tabs.List className="lm-settings-tab-list">
               <Tabs.Trigger value="appearance">{t('settings.appearance')}</Tabs.Trigger>
               <Tabs.Trigger value="language">{t('settings.language')}</Tabs.Trigger>
+              <Tabs.Trigger value="images">{t('settings.images')}</Tabs.Trigger>
             </Tabs.List>
             <Tabs.Content value="appearance" className="lm-settings-panel">
               <div className="lm-setting-row">
@@ -94,6 +99,18 @@ export function SettingsDialog({
                   </button>
                 </div>
               </div>
+            </Tabs.Content>
+            <Tabs.Content value="images" className="lm-settings-panel">
+              <label className="lm-setting-row">
+                <span>{t('settings.copyImagesToAssets')}</span>
+                <input
+                  checked={copyImagesToAssets}
+                  onChange={(event) => {
+                    onCopyImagesToAssetsChange(event.currentTarget.checked);
+                  }}
+                  type="checkbox"
+                />
+              </label>
             </Tabs.Content>
           </Tabs.Root>
         </Dialog.Content>

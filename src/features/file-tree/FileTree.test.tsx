@@ -118,6 +118,30 @@ describe('FileTree', () => {
     expect(onLoadChildren).not.toHaveBeenCalled();
   });
 
+  it('opens a recent file from the files sidebar', () => {
+    const onOpenFile = vi.fn();
+
+    renderFileTree({
+      onOpenFile,
+      recentFiles: [
+        {
+          name: 'journal.md',
+          openedAt: 1,
+          path: 'E:/docs/journal.md',
+        },
+      ],
+      tree: [],
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: '打开最近文件 journal.md（E:/docs/journal.md）',
+      }),
+    );
+
+    expect(onOpenFile).toHaveBeenCalledWith('E:/docs/journal.md');
+  });
+
   it('does not duplicate lazy loads when a closed directory is clicked repeatedly', () => {
     const onLoadChildren = vi.fn();
 
@@ -179,6 +203,7 @@ type RenderFileTreeOptions = {
   loadingPaths?: Record<string, boolean>;
   onLoadChildren?: (path: string) => void;
   onOpenFile?: (path: string) => void;
+  recentFiles?: ComponentProps<typeof FileTree>['recentFiles'];
   selectedPath?: string;
   tree: ComponentProps<typeof FileTree>['tree'];
 };
@@ -187,6 +212,7 @@ function renderFileTree({
   loadingPaths = {},
   onLoadChildren = vi.fn(),
   onOpenFile = vi.fn(),
+  recentFiles,
   selectedPath,
   tree,
 }: RenderFileTreeOptions) {
@@ -197,6 +223,7 @@ function renderFileTree({
         onLoadChildren={onLoadChildren}
         onOpenFile={onOpenFile}
         onOpenWorkspace={vi.fn()}
+        recentFiles={recentFiles}
         root={{ name: 'Notes', path: 'E:/docs/Notes' }}
         selectedPath={selectedPath}
         tree={tree}

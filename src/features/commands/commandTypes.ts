@@ -4,17 +4,24 @@ import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormat
 export type CommandActionId =
   | 'copyTable'
   | 'deleteTable'
+  | 'exitFocusMode'
+  | 'toggleFocusMode'
   | 'focusEditor'
+  | 'newDocument'
   | 'openCommandPalette'
   | 'openFile'
+  | 'openSearch'
   | 'openSettings'
   | 'openWorkspace'
+  | 'redo'
   | 'save'
   | 'saveAs'
   | 'setLivePreviewMode'
   | 'setSourceMode'
   | 'toggleLanguage'
+  | 'toggleSidebar'
   | 'toggleTheme'
+  | 'undo'
   | MarkdownFormatCommand;
 
 export type CommandHandlerMap = Record<CommandActionId, () => void>;

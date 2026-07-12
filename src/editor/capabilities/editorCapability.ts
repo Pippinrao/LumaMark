@@ -6,6 +6,11 @@ export type EditorCapabilityCommands = {
   copyTable(): Promise<boolean>;
   deleteTable(): boolean;
   insertTable(): boolean;
+  insertImages(
+    images: readonly { alt: string; markdownSource: string }[],
+    position?: { x: number; y: number },
+  ): void;
+  refreshImages(path: string): void;
   wrapCodeBlock(): boolean;
 };
 

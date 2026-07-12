@@ -6,6 +6,7 @@ import type { EditorCapability, EditorCapabilityCommands } from './editorCapabil
 import { createCodeBlockCapability } from './code-block/createCodeBlockCapability';
 import { createCodeBlockCommands } from './code-block/codeBlockCommands';
 import { createImageCapability } from './image/createImageCapability';
+import { createImageCommands } from './image/imageCommands';
 import { createMermaidCapability } from './mermaid/createMermaidCapability';
 import { createTableCapability } from './table/createTableCapability';
 import { createTableCommands } from './table/tableCommands';
@@ -42,6 +43,7 @@ export function createEditorCapabilityCommands(
   view: EditorView,
 ): EditorCapabilityCommands {
   return {
+    ...createImageCommands(view),
     ...createTableCommands(view),
     ...createCodeBlockCommands(view),
   };

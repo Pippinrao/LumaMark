@@ -9,6 +9,10 @@ src-tauri/gen/
 .cache/
 playwright-report/
 test-results/
+artifacts/image-preview-report/
+artifacts/live-preview-report/
+artifacts/typora-observe/__pycache__/
+tests/fixtures/markdown/.lumamark/
 .env
 .env.*
 .worktrees/

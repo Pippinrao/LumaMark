@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -20,6 +20,26 @@ function expectFileToAvoid(path: string, forbidden: readonly string[]): void {
       pattern,
     );
   }
+}
+
+function listProjectFiles(directory: string): string[] {
+  const absoluteDirectory = join(root, directory);
+
+  if (!existsSync(absoluteDirectory)) {
+    return [];
+  }
+
+  return readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap(
+    (entry) => {
+      const child = `${directory}/${entry.name}`;
+
+      if (entry.isDirectory()) {
+        return listProjectFiles(child);
+      }
+
+      return [child];
+    },
+  );
 }
 
 describe('architecture boundaries', () => {
@@ -173,6 +193,43 @@ describe('architecture boundaries', () => {
     }
   });
 
+  it('keeps editor capabilities independent from app feature and service layers', () => {
+    const capabilityFiles = listProjectFiles('src/editor/capabilities').filter(
+      (file) =>
+        /\.(ts|tsx)$/.test(file) &&
+        !file.endsWith('.test.ts') &&
+        !file.endsWith('.test.tsx'),
+    );
+
+    const forbidden = [
+      '../../app/',
+      '../../../app/',
+      '../../features/',
+      '../../../features/',
+      '../../services/',
+      '../../../services/',
+      '@tauri-apps/api',
+      'useAppStore',
+      'useWorkspaceStore',
+      'useTranslation',
+    ];
+
+    for (const file of capabilityFiles) {
+      expectFileToAvoid(file, forbidden);
+    }
+
+    expectFileToAvoid('src/editor/capabilities/index.ts', [
+      'document.createElement',
+      'new EditorView',
+      'syntaxTree(',
+      'mermaid.render',
+      'markdownTables(',
+    ]);
+    expect(
+      lineCount(readProjectFile('src/editor/capabilities/index.ts')),
+    ).toBeLessThanOrEqual(80);
+  });
+
   it('splits Mermaid preview into focused modules behind the existing public entry', () => {
     const expectedModules = [
       'src/editor/capabilities/mermaid/mermaidBlockDetection.ts',
@@ -222,6 +279,10 @@ describe('architecture boundaries', () => {
       'lm-md-code-block',
       "case 'FencedCode'",
     ]);
+    expectFileToAvoid(
+      'src/editor/capabilities/code-block/codeBlockDecorations.ts',
+      ['../../wysiwyg/'],
+    );
 
     expectFileToAvoid('src/editor/widgets/table/TableWidget.ts', [
       'codemirror-markdown-tables',

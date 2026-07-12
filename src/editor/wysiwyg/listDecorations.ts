@@ -1,5 +1,5 @@
-import type { MarkdownDecorationRange } from './decorationTypes';
-import { iterateLines } from './decorationTypes';
+import type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
+import { iterateLines } from '../markdown/markdownDecorationTypes';
 import { parseTaskListMarker } from './taskListMarkers';
 
 const UNORDERED_PATTERN = /^(\s{0,3}[-*+])\s+/;

@@ -2,14 +2,17 @@ import {
   applyMarkdownFormatCommand,
   type MarkdownFormatCommand,
 } from './markdownFormatCommands';
+import { redo, undo } from '@codemirror/commands';
+import { openSearchPanel } from '@codemirror/search';
 import { createEditorCapabilityCommands } from '../capabilities';
-import type { EditorApi } from '../core/editorApi';
+import type { EditorApi, LoadDocumentOptions } from '../core/editorApi';
 import type { EditorDisplayMode } from '../core/editorDisplayMode';
 
 export type EditorDocumentPort = {
   focus: () => void;
   getText: () => string;
-  loadText: (text: string) => void;
+  loadText: (text: string, options?: LoadDocumentOptions) => void;
+  refreshImages?: (path: string) => void;
   setContext: NonNullable<EditorApi['setDocumentContext']>;
 };
 
@@ -18,17 +21,27 @@ export type EditorCommandPort = {
   deleteTable: () => void;
   focus: () => void;
   getDisplayMode: () => EditorDisplayMode;
+  insertImages: (
+    images: readonly { alt: string; markdownSource: string }[],
+    position?: { x: number; y: number },
+  ) => void;
+  openSearch: () => void;
   runFormat: (command: MarkdownFormatCommand) => void;
+  redo: () => void;
   selectPosition: (position: number) => void;
   setDisplayMode: (mode: EditorDisplayMode) => void;
+  undo: () => void;
 };
 
 export function createEditorDocumentPort(editor: EditorApi): EditorDocumentPort {
   return {
     focus: () => editor.focus(),
     getText: () => editor.getDocumentText(),
-    loadText: (text) => {
-      editor.loadDocument(text);
+    loadText: (text, options) => {
+      editor.loadDocument(text, options);
+    },
+    refreshImages: (path) => {
+      createEditorCapabilityCommands(editor.view).refreshImages(path);
     },
     setContext: (context) => {
       editor.setDocumentContext(context);
@@ -48,8 +61,19 @@ export function createEditorCommandPort(editor: EditorApi): EditorCommandPort {
     },
     focus: () => editor.focus(),
     getDisplayMode: () => editor.getDisplayMode(),
+    insertImages: (images, position) => {
+      createEditorCapabilityCommands(editor.view).insertImages(images, position);
+    },
+    openSearch: () => {
+      openSearchPanel(editor.view);
+    },
     runFormat: (command) => {
       applyMarkdownFormatCommand(editor.view, command);
+    },
+    redo: () => {
+      if (redo(editor.view)) {
+        editor.focus();
+      }
     },
     selectPosition: (position) => {
       editor.view.dispatch({
@@ -62,6 +86,11 @@ export function createEditorCommandPort(editor: EditorApi): EditorCommandPort {
     },
     setDisplayMode: (mode) => {
       editor.setDisplayMode(mode);
+    },
+    undo: () => {
+      if (undo(editor.view)) {
+        editor.focus();
+      }
     },
   };
 }

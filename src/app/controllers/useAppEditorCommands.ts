@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createEditorCommandPort,
   createEditorDocumentPort,
@@ -8,21 +8,80 @@ import {
 import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormatCommands';
 import type { EditorApi } from '../../editor/core/editorApi';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
+import { createLocalImageReferences } from '../../services/assets/assetCommands';
+import { subscribeToLocalImageDrops } from '../../services/assets/localImageDrop';
+import { useAppStore } from '../stores/appStore';
+import {
+  reportImageInsertFailure,
+  useAppImageAssets,
+} from './useAppImageAssets';
 
 export function useAppEditorCommands() {
   const documentPortRef = useRef<EditorDocumentPort | null>(null);
   const commandPortRef = useRef<EditorCommandPort | null>(null);
+  const pendingFocusRef = useRef(false);
+  const imageAssets = useAppImageAssets(documentPortRef);
   const [editorDisplayMode, setEditorDisplayMode] =
     useState<EditorDisplayMode>('livePreview');
+  const [editorReady, setEditorReady] = useState(false);
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: () => void = () => undefined;
+
+    void subscribeToLocalImageDrops((drop) => {
+      const state = useAppStore.getState();
+      const documentPath = state.currentFile?.path ?? null;
+      void createLocalImageReferences({
+        copyToAssets: state.copyImagesToAssets,
+        documentPath,
+        paths: drop.paths,
+      })
+        .then((images) => {
+          if (
+            disposed ||
+            (useAppStore.getState().currentFile?.path ?? null) !== documentPath
+          ) {
+            return;
+          }
+
+          commandPortRef.current?.insertImages(images, drop.position);
+        })
+        .catch(reportImageInsertFailure);
+    })
+      .then((dispose) => {
+        if (disposed) {
+          dispose();
+          return;
+        }
+
+        unlisten = dispose;
+      })
+      .catch(reportImageInsertFailure);
+
+    return () => {
+      disposed = true;
+      unlisten();
+    };
+  }, []);
 
   const onEditorReady = useCallback((editor: EditorApi) => {
     documentPortRef.current = createEditorDocumentPort(editor);
     commandPortRef.current = createEditorCommandPort(editor);
+    setEditorReady(true);
     setEditorDisplayMode(editor.getDisplayMode());
-  }, []);
+
+    if (pendingFocusRef.current) {
+      pendingFocusRef.current = false;
+      editor.focus();
+    }
+  }, [setEditorDisplayMode, setEditorReady]);
 
   const runFormat = useCallback((command: MarkdownFormatCommand) => {
     commandPortRef.current?.runFormat(command);
+  }, []);
+
+  const redo = useCallback(() => {
+    commandPortRef.current?.redo();
   }, []);
 
   const copyTable = useCallback(() => {
@@ -34,7 +93,18 @@ export function useAppEditorCommands() {
   }, []);
 
   const focusEditor = useCallback(() => {
-    commandPortRef.current?.focus();
+    const commandPort = commandPortRef.current;
+
+    if (commandPort) {
+      commandPort.focus();
+      return;
+    }
+
+    pendingFocusRef.current = true;
+  }, []);
+
+  const openSearch = useCallback(() => {
+    commandPortRef.current?.openSearch();
   }, []);
 
   const selectPosition = useCallback((position: number) => {
@@ -44,17 +114,29 @@ export function useAppEditorCommands() {
   const setDisplayMode = useCallback((mode: EditorDisplayMode) => {
     commandPortRef.current?.setDisplayMode(mode);
     setEditorDisplayMode(mode);
+  }, [setEditorDisplayMode]);
+
+  const undo = useCallback(() => {
+    commandPortRef.current?.undo();
   }, []);
 
   return {
     copyTable,
     deleteTable,
     documentPortRef,
+    editorReady,
     editorDisplayMode,
     focusEditor,
+    imageAssetResolver: imageAssets.imageAssetResolver,
+    imageImportErrorHandler: reportImageInsertFailure,
+    imageImportHandler: imageAssets.imageImportHandler,
     onEditorReady,
+    openSearch,
     runFormat,
+    redo,
+    refreshLocalImage: imageAssets.refreshLocalImage,
     selectPosition,
     setDisplayMode,
+    undo,
   };
 }

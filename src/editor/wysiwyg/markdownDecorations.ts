@@ -9,13 +9,12 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
-import { codeBlockSyntaxDecorationRange } from '../capabilities/code-block/codeBlockDecorations';
 import { markdownLanguage } from '../markdown/markdownLanguage';
-import type { MarkdownDecorationRange } from './decorationTypes';
+import type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
 import { toggleTaskListCommand } from './taskListCommands';
 import './wysiwyg.css';
 
-export type { MarkdownDecorationRange } from './decorationTypes';
+export type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
 
 type TaskMarker = {
   checked: boolean;
@@ -215,12 +214,6 @@ function syntaxNodeToDecorationRange(
   from: number,
   to: number,
 ): MarkdownDecorationRange | null {
-  const codeDecoration = codeBlockSyntaxDecorationRange({ from, name, to });
-
-  if (codeDecoration) {
-    return codeDecoration;
-  }
-
   if (/^ATXHeading[1-6]$/.test(name)) {
     return {
       className: `lm-md-heading lm-md-heading-${name.at(-1)}`,
@@ -251,6 +244,13 @@ function syntaxNodeToDecorationRange(
         className: 'lm-md-horizontal-rule',
         from,
         kind: 'horizontalRule',
+        to,
+      };
+    case 'InlineCode':
+      return {
+        className: 'lm-md-inline-code',
+        from,
+        kind: 'inlineCode',
         to,
       };
     case 'Table':

@@ -7,10 +7,18 @@ export type MarkdownFormatCommand =
   | 'codeBlock'
   | 'heading1'
   | 'heading2'
+  | 'heading3'
+  | 'heading4'
+  | 'heading5'
+  | 'heading6'
+  | 'horizontalRule'
+  | 'image'
   | 'inlineCode'
   | 'italic'
   | 'link'
+  | 'orderedList'
   | 'quote'
+  | 'strikethrough'
   | 'table'
   | 'taskList'
   | 'unorderedList';
@@ -21,23 +29,43 @@ export function applyMarkdownFormatCommand(
 ): boolean {
   switch (command) {
     case 'bold':
-      return wrapSelection(view, '**', '**', 'bold');
+      return wrapSelection(view, '**', '**', 'bold', true);
     case 'italic':
-      return wrapSelection(view, '*', '*', 'italic');
+      return wrapSelection(view, '*', '*', 'italic', true);
+    case 'strikethrough':
+      return wrapSelection(view, '~~', '~~', 'strikethrough', true);
     case 'inlineCode':
-      return wrapSelection(view, '`', '`', 'code');
+      return wrapSelection(view, '`', '`', 'code', true);
     case 'link':
       return wrapSelection(view, '[', '](url)', 'link');
+    case 'image':
+      return wrapSelection(view, '![', '](url)', 'image');
+    case 'horizontalRule':
+      return insertHorizontalRule(view);
     case 'heading1':
-      return replaceHeadingPrefix(view, '# ');
+      return replaceHeadingPrefix(view, '#');
     case 'heading2':
-      return replaceHeadingPrefix(view, '## ');
+      return replaceHeadingPrefix(view, '##');
+    case 'heading3':
+      return replaceHeadingPrefix(view, '###');
+    case 'heading4':
+      return replaceHeadingPrefix(view, '####');
+    case 'heading5':
+      return replaceHeadingPrefix(view, '#####');
+    case 'heading6':
+      return replaceHeadingPrefix(view, '######');
     case 'unorderedList':
-      return prefixSelectedLines(view, '- ');
+      return prefixSelectedLines(view, '- ', /^(\s*)([-*+]\s+)/);
+    case 'orderedList':
+      return prefixSelectedLines(view, '1. ', /^(\s*)(\d+[.)]\s+)/);
     case 'taskList':
-      return prefixSelectedLines(view, '- [ ] ');
+      return prefixSelectedLines(
+        view,
+        '- [ ] ',
+        /^(\s{0,3})((?:[-*+]|\d+[.)])\s+\[[ xX]\](?:\s+)?)(?=\S|$)/,
+      );
     case 'quote':
-      return prefixSelectedLines(view, '> ');
+      return prefixSelectedLines(view, '> ', /^(\s*)(>\s?)/);
     case 'codeBlock':
       return createEditorCapabilityCommands(view).wrapCodeBlock();
     case 'table':
@@ -50,9 +78,31 @@ function wrapSelection(
   before: string,
   after: string,
   placeholder: string,
+  allowUnwrap = false,
 ): boolean {
   const selection = view.state.selection.main;
   const selectedText = view.state.doc.sliceString(selection.from, selection.to);
+
+  if (allowUnwrap && selectedText && isWrappedSelection(view, before, after)) {
+    const wrapperFrom = selection.from - before.length;
+
+    view.dispatch({
+      changes: {
+        from: wrapperFrom,
+        insert: selectedText,
+        to: selection.to + after.length,
+      },
+      selection: EditorSelection.range(
+        wrapperFrom,
+        wrapperFrom + selectedText.length,
+      ),
+      userEvent: 'input.format',
+    });
+    view.focus();
+
+    return true;
+  }
+
   const content = selectedText || placeholder;
   const insert = `${before}${content}${after}`;
   const cursorFrom = selection.from + before.length;
@@ -72,21 +122,55 @@ function wrapSelection(
   return true;
 }
 
-function replaceHeadingPrefix(view: EditorView, prefix: '# ' | '## '): boolean {
+function isWrappedSelection(
+  view: EditorView,
+  before: string,
+  after: string,
+): boolean {
   const selection = view.state.selection.main;
-  const line = view.state.doc.lineAt(selection.from);
-  const text = line.text;
-  const headingMatch = /^(#{1,6})[ \t]+/.exec(text);
-  const from = line.from;
-  const to = headingMatch ? line.from + headingMatch[0].length : line.from;
+
+  if (selection.from < before.length || selection.to + after.length > view.state.doc.length) {
+    return false;
+  }
+
+  return (
+    view.state.doc.sliceString(selection.from - before.length, selection.from) ===
+      before &&
+    view.state.doc.sliceString(selection.to, selection.to + after.length) === after
+  );
+}
+
+function insertHorizontalRule(view: EditorView): boolean {
+  const selection = view.state.selection.main;
+  const line = view.state.doc.lineAt(selection.to);
+
+  if (line.length === 0) {
+    const previousLine =
+      line.number > 1 ? view.state.doc.line(line.number - 1) : null;
+    const needsParagraphBoundary = Boolean(previousLine?.text.trim());
+    const hasFollowingLine = line.number < view.state.doc.lines;
+    const insertion = needsParagraphBoundary ? '\n---\n' : '---';
+
+    view.dispatch({
+      changes: { from: line.from, insert: insertion },
+      selection: EditorSelection.cursor(
+        line.from + insertion.length + (hasFollowingLine ? 1 : 0),
+      ),
+      userEvent: 'input.format',
+    });
+    view.focus();
+
+    return true;
+  }
+
+  const hasFollowingLine = line.number < view.state.doc.lines;
+  const insertion = hasFollowingLine ? '\n\n---\n' : '\n\n---\n\n';
 
   view.dispatch({
-    changes: {
-      from,
-      insert: prefix,
-      to,
-    },
-    selection: EditorSelection.cursor(selection.head + prefix.length - (to - from)),
+    changes: { from: line.to, insert: insertion },
+    selection: EditorSelection.cursor(
+      line.to + insertion.length + (hasFollowingLine ? 1 : 0),
+    ),
     userEvent: 'input.format',
   });
   view.focus();
@@ -94,23 +178,70 @@ function replaceHeadingPrefix(view: EditorView, prefix: '# ' | '## '): boolean {
   return true;
 }
 
-function prefixSelectedLines(view: EditorView, prefix: string): boolean {
+function replaceHeadingPrefix(view: EditorView, marker: string): boolean {
+  const selection = view.state.selection.main;
+  const line = view.state.doc.lineAt(selection.from);
+  const text = line.text;
+  const headingMatch = /^(#{1,6})(?=[ \t]+)/.exec(text);
+  const from = line.from;
+  const to = headingMatch ? line.from + headingMatch[0].length : line.from;
+  const insert = headingMatch ? marker : `${marker} `;
+
+  view.dispatch({
+    changes: {
+      from,
+      insert,
+      to,
+    },
+    selection: EditorSelection.cursor(selection.head + insert.length - (to - from)),
+    userEvent: 'input.format',
+  });
+  view.focus();
+
+  return true;
+}
+
+function prefixSelectedLines(
+  view: EditorView,
+  prefix: string,
+  removablePrefix: RegExp,
+): boolean {
   const selection = view.state.selection.main;
   const fromLine = view.state.doc.lineAt(selection.from);
   const toLine = view.state.doc.lineAt(selection.to);
-  const changes = [];
+  const lines = [];
 
   for (let lineNumber = fromLine.number; lineNumber <= toLine.number; lineNumber += 1) {
-    const line = view.state.doc.line(lineNumber);
+    lines.push(view.state.doc.line(lineNumber));
+  }
+
+  const nonEmptyLines = lines.filter((line) => line.text.trim());
+  const shouldRemove =
+    nonEmptyLines.length > 0 &&
+    nonEmptyLines.every((line) => removablePrefix.test(line.text));
+  const changes = [];
+
+  for (const line of lines) {
+    const marker = removablePrefix.exec(line.text);
 
     if (!line.text.trim()) {
       continue;
     }
 
-    changes.push({
-      from: line.from,
-      insert: prefix,
-    });
+    if (shouldRemove && marker) {
+      const markerFrom = line.from + marker[1].length;
+
+      changes.push({
+        from: markerFrom,
+        to: markerFrom + marker[2].length,
+        insert: '',
+      });
+    } else {
+      changes.push({
+        from: line.from + leadingIndentLength(line.text),
+        insert: prefix,
+      });
+    }
   }
 
   if (!changes.length) {
@@ -127,4 +258,8 @@ function prefixSelectedLines(view: EditorView, prefix: string): boolean {
   view.focus();
 
   return true;
+}
+
+function leadingIndentLength(text: string): number {
+  return /^\s*/.exec(text)?.[0].length ?? 0;
 }

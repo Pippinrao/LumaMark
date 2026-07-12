@@ -82,7 +82,7 @@ describe('markdown WYSIWYG decorations', () => {
     );
   });
 
-  it('marks blockquotes lists tasks inline code and code blocks', () => {
+  it('marks blockquotes lists tasks inline code links and horizontal rules', () => {
     const markdown = [
       '> quote',
       '- bullet',
@@ -106,11 +106,11 @@ describe('markdown WYSIWYG decorations', () => {
         'orderedList',
         'taskList',
         'inlineCode',
-        'codeBlock',
         'link',
         'horizontalRule',
       ]),
     );
+    expect(ranges.some((range) => range.kind === 'codeBlock')).toBe(false);
   });
 
   it('marks links autolinks and horizontal rules from the markdown syntax tree', () => {
@@ -148,7 +148,7 @@ describe('markdown WYSIWYG decorations', () => {
     );
   });
 
-  it('marks tilde fenced code blocks and ignores markdown inside them', () => {
+  it('keeps fenced code block surface styling out of generic WYSIWYG marks', () => {
     const ranges = collectMarkdownDecorationRanges(
       [
         '~~~md',
@@ -158,16 +158,7 @@ describe('markdown WYSIWYG decorations', () => {
       ].join('\n'),
     );
 
-    expect(ranges).toEqual(
-      expect.arrayContaining([
-        {
-          className: 'lm-md-code-block',
-          from: 0,
-          kind: 'codeBlock',
-          to: 42,
-        },
-      ]),
-    );
+    expect(ranges.filter((range) => range.kind === 'codeBlock')).toEqual([]);
     expect(
       ranges.filter((range) =>
         ['heading', 'taskList', 'unorderedList'].includes(range.kind),

@@ -9,6 +9,26 @@ export function createCodeBlockCommands(view: EditorView): {
   };
 }
 
+function isClosingFenceLine(line: string): boolean {
+  return /^\s{0,3}(?:`{3,}|~{3,})\s*$/.test(line);
+}
+
+export function shouldInsertAfterFinalFence({
+  document,
+  from,
+  to,
+}: {
+  document: string;
+  from: number;
+  to: number;
+}): boolean {
+  if (from !== to || from !== document.length) {
+    return false;
+  }
+
+  return isClosingFenceLine(document.slice(document.lastIndexOf('\n') + 1));
+}
+
 export function wrapCodeBlockSelection(view: EditorView): boolean {
   const selection = view.state.selection.main;
   const selectedText = view.state.doc.sliceString(selection.from, selection.to);
@@ -30,4 +50,3 @@ export function wrapCodeBlockSelection(view: EditorView): boolean {
 
   return true;
 }
-

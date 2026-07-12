@@ -42,6 +42,29 @@ export const markdownFixtureManifest = [
     tags: ['commonmark:link', 'commonmark:image', 'gfm:autolink'],
   },
   {
+    fileName: 'remote-images.md',
+    notes: 'Remote image cache, duplicate URL, source fidelity, and inline-image fixture.',
+    tags: [
+      'commonmark:image',
+      'i18n:mixed-chinese-english',
+      'typora-like:live-preview',
+    ],
+  },
+  {
+    fileName: 'live-preview-rich.md',
+    notes: 'Live preview matrix for image, code block highlighting, and table inline editing states.',
+    tags: [
+      'commonmark:image',
+      'commonmark:code',
+      'commonmark:link',
+      'commonmark:emphasis',
+      'gfm:table',
+      'gfm:strikethrough',
+      'typora-like:live-preview',
+      'typora-like:editing-process',
+    ],
+  },
+  {
     fileName: 'mermaid.md',
     tags: ['mermaid:flowchart', 'mermaid:sequenceDiagram'],
   },

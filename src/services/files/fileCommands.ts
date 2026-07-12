@@ -6,12 +6,14 @@ import {
 
 export type ReadTextFileResult = {
   byteLength: number;
+  fingerprint?: string;
   path: string;
   text: string;
 };
 
 export type WriteTextFileResult = {
   byteLength: number;
+  fingerprint?: string;
   path: string;
 };
 

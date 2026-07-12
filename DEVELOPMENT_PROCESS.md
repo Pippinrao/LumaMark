@@ -151,13 +151,15 @@ LumaMark 必须逐步建立以下测试层。
 - `pnpm lint`
 - `pnpm test`
 - `pnpm test:e2e`
+- `pnpm test:e2e:production`
+- `pnpm test:live-assets`
 - `pnpm test:fixtures`
 - `pnpm perf:bench`
 - `pnpm quality:web-build`
 - `cargo check`
 - `cargo test`
 
-GitHub Actions 必须维护 `.github/workflows/v1-quality.yml`，并在 `v1-implementation` 的 push 和 pull request 上运行 V1 质量门禁。该 workflow 至少覆盖 typecheck、lint、普通测试、fixture round-trip、Rust check/test、E2E、Web chunk 门禁和独立性能基准。
+GitHub Actions 必须维护 `.github/workflows/v1-quality.yml`，并在 `v1-implementation` 的 push 和 pull request 上运行 V1 质量门禁。该 workflow 至少覆盖 typecheck、lint、普通测试、fixture round-trip、Rust check/test、Web E2E、生产构建启动回归、远程图片真实公网缓存、Web chunk 门禁和独立性能基准。
 
 任务完成前必须运行与改动相关的命令。
 

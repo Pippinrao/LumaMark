@@ -66,6 +66,8 @@ LumaMark 策略：
 
 Typora 是 LumaMark 第一阶段最重要的体验基线。
 
+**行为细节**（语法表面、阅读态/编辑态、输入路径、源码落盘、对齐表）以 [Typora 行为基线文档集](typora-baseline/README.md) 为准；本文件只保留战略判断与节奏，不重复逐条行为事实。
+
 Typora 的强项：
 
 - 阅读和写作一体。

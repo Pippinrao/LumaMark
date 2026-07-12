@@ -1,9 +1,13 @@
-import type { RenderJobResult } from '../../../services/render-jobs/renderJobTypes';
 import {
   createMermaidCacheKey,
   MermaidRenderCache,
   type MermaidCacheKeyInput,
 } from './mermaidCache';
+
+type RenderJobResult<T> = {
+  cacheKey: string;
+  value: T;
+};
 
 export type MermaidRenderRequest = MermaidCacheKeyInput & {
   blockId: string;

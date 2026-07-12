@@ -8,3 +8,6 @@ and a horizontal rule.
 ---
 
 Final paragraph with English and 中文内容 in one line.
+![魔法森林动漫](C:\Users\pippin\Pictures\autodl\image\魔法森林动漫.png)
+
+![魔法森林真人](C:\Users\pippin\Pictures\autodl\image\魔法森林真人.png)

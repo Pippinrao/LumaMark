@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export type AppCommand = {
+  disabled?: boolean;
   id: string;
   icon: LucideIcon;
   keywords?: string[];
@@ -13,12 +14,14 @@ export type AppCommand = {
 
 type CommandPaletteProps = {
   commands: readonly AppCommand[];
+  onCommandSelect: (run: AppCommand['run']) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 };
 
 export function CommandPalette({
   commands,
+  onCommandSelect,
   onOpenChange,
   open,
 }: CommandPaletteProps) {
@@ -50,11 +53,12 @@ export function CommandPalette({
               <Command.Item
                 key={command.id}
                 className="lm-command-palette-item"
+                disabled={command.disabled}
                 keywords={command.keywords}
                 value={command.label}
                 onSelect={() => {
+                  onCommandSelect(command.run);
                   onOpenChange(false);
-                  void command.run();
                 }}
               >
                 <Icon size={16} aria-hidden="true" />

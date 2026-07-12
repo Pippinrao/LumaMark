@@ -73,4 +73,18 @@ describe('markdown fixture coverage manifest', () => {
         .filter((id) => !coveredTags.has(`mermaid:${id}`)),
     ).toEqual([]);
   });
+
+  it('keeps every image referenced by the links fixture as a valid PNG asset', async () => {
+    const paths = [
+      join(fixtureDirectory, 'assets', 'lumamark-logo.png'),
+      join(process.cwd(), 'tests', 'fixtures', 'images', 'source-preservation.png'),
+    ];
+
+    for (const path of paths) {
+      const bytes = await readFile(path);
+      expect([...bytes.subarray(0, 8)]).toEqual([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ]);
+    }
+  });
 });

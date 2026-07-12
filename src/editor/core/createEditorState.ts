@@ -3,11 +3,18 @@ import {
   history,
   historyKeymap,
 } from '@codemirror/commands';
+import { autocompletion } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-import { EditorState, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
+import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
+import type { AppLanguage } from '../../shared/i18n';
+import { markdownFormatKeymap } from '../commands/markdownFormatKeymap';
 import { recordEditorTransactionMetric } from '../metrics/editorMetrics';
-import { markdownLanguage } from '../markdown/markdownLanguage';
+import {
+  markdownLanguage,
+  markdownSyntaxHighlighting,
+} from '../markdown/markdownLanguage';
 import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
@@ -24,9 +31,12 @@ export type CreateEditorStateOptions = {
   documentContext?: EditorDocumentContext;
   extensions?: readonly Extension[];
   displayMode?: EditorDisplayMode;
+  language?: AppLanguage;
   onDocumentChanged?: EditorDocumentChangedHandler;
   onFocusChanged?: EditorFocusChangedHandler;
 };
+
+export const editorSearchPhrasesCompartment = new Compartment();
 
 export function createEditorState(
   options: CreateEditorStateOptions = {},
@@ -36,6 +46,7 @@ export function createEditorState(
     documentContext = { path: null },
     displayMode = 'livePreview',
     extensions = [],
+    language = 'zh-CN',
     onDocumentChanged,
     onFocusChanged,
   } = options;
@@ -87,15 +98,25 @@ export function createEditorState(
     doc,
     extensions: [
       markdownLanguage(),
+      markdownSyntaxHighlighting(),
       editorDisplayModeCompartment.of(
         editorDisplayModeExtension(displayMode, documentContext),
       ),
+      editorSearchPhrasesCompartment.of(
+        EditorState.phrases.of(getEditorSearchPhrases(language)),
+      ),
       history(),
+      autocompletion(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,
       documentChangeListener,
       ...focusExtensions,
-      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+      keymap.of(markdownFormatKeymap),
+      keymap.of([
+        ...defaultKeymap,
+        ...historyKeymap,
+        ...searchKeymap,
+      ]),
       ...extensions,
     ],
   });

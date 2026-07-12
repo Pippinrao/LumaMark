@@ -2,7 +2,12 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
-import { wrapCodeBlockSelection } from './codeBlockCommands';
+import { createEditorState } from '../../core/createEditorState';
+import { createCodeBlockCapability } from './createCodeBlockCapability';
+import {
+  shouldInsertAfterFinalFence,
+  wrapCodeBlockSelection,
+} from './codeBlockCommands';
 import {
   codeBlockSyntaxDecorationRange,
   collectCodeDecorations,
@@ -68,5 +73,39 @@ describe('code block capability', () => {
     view.destroy();
     parent.remove();
   });
-});
 
+  it('detects ordinary text appended after a final closing fence', () => {
+    const doc = ['```ts', 'const value = 1', '```'].join('\n');
+
+    expect(
+      shouldInsertAfterFinalFence({
+        document: doc,
+        from: doc.length,
+        to: doc.length,
+      }),
+    ).toBe(true);
+  });
+
+  it('renders fenced code blocks as stable whole-block preview rows', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: createEditorState({
+        doc: ['```ts', 'const value = 1', '```', '', 'after'].join('\n'),
+        extensions: createCodeBlockCapability().extensions,
+      }),
+    });
+
+    const blockRows = parent.querySelectorAll('.lm-md-code-block-line');
+
+    expect(blockRows).toHaveLength(3);
+    expect(parent.querySelector('.lm-md-code-block-start')?.textContent).toContain(
+      '```ts',
+    );
+    expect(parent.querySelector('.lm-md-code-block-end')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+});

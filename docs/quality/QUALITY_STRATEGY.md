@@ -153,6 +153,8 @@ AI agent 必须遵守：
 - fixture round-trip。
 - Rust check/test。
 - Playwright E2E。
+- 生产构建启动白屏回归。
+- 远程图片确定性 mock 与独立真实公网缓存集成测试。
 - Web 构建 chunk 预算。
 - 单独执行的性能基准。
 

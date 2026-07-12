@@ -103,7 +103,9 @@ describe('package quality scripts', () => {
     expect(workflow).toContain('name: v1-ux-screenshots');
     expect(workflow).toContain('test-results/v1-ux-screenshots/*.png');
     expect(workflow).toContain('pnpm test:e2e');
+    expect(workflow).toContain('pnpm test:live-assets');
     expect(workflow).toContain('pnpm quality:web-build');
+    expect(workflow).toContain('pnpm test:e2e:production');
     expect(workflow).toContain('cargo check --manifest-path src-tauri/Cargo.toml');
     expect(workflow).toContain('cargo test --manifest-path src-tauri/Cargo.toml');
     expect(workflow.indexOf('pnpm quality:v1-ux-prototype')).toBeLessThan(
@@ -120,6 +122,9 @@ describe('package quality scripts', () => {
     );
     expect(workflow).toContain('pnpm perf:bench');
     expect(workflow.indexOf('pnpm perf:bench')).toBeGreaterThan(
+      workflow.indexOf('pnpm quality:web-build'),
+    );
+    expect(workflow.indexOf('pnpm test:e2e:production')).toBeGreaterThan(
       workflow.indexOf('pnpm quality:web-build'),
     );
   });

@@ -48,11 +48,9 @@ pub fn list_children(path: impl AsRef<Path>) -> Result<Vec<WorkspaceEntry>, AppE
     open_directory(path)?;
     let mut entries = Vec::new();
 
-    for entry in fs::read_dir(path)? {
-        if let Ok(entry) = entry {
-            if let Some(workspace_entry) = workspace_entry_from_dir_entry(entry) {
-                entries.push(workspace_entry);
-            }
+    for entry in fs::read_dir(path)?.flatten() {
+        if let Some(workspace_entry) = workspace_entry_from_dir_entry(entry) {
+            entries.push(workspace_entry);
         }
     }
 

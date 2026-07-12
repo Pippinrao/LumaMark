@@ -41,7 +41,7 @@ describe('editor visual style contract', () => {
     expect(wysiwygCss).toContain('box-decoration-break: clone;');
     expect(wysiwygCss).toContain('.cm-content .lm-md-table');
     expect(wysiwygCss).toContain('.cm-content .lm-md-table-row');
-    expect(wysiwygCss).toContain('.cm-content .lm-md-code-block');
+    expect(wysiwygCss).toContain('.cm-content .lm-md-code-block-line');
     expect(mermaidCss).toContain('border: 1px solid var(--lm-color-border-subtle);');
     expect(mermaidCss).toContain('margin: 26px 0 34px;');
     expect(mermaidCss).toContain('position: relative;');

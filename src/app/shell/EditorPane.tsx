@@ -2,6 +2,12 @@ import { lazy, Suspense } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { EditorApi } from '../../editor/core/editorApi';
 import type {
+  ImageAssetResolver,
+  ImageImportErrorHandler,
+  ImageImportHandler,
+} from '../../editor/core/editorDisplayMode';
+import type { AppLanguage } from '../../shared/i18n';
+import type {
   ShellActionId,
   ShellContextMenuItem,
 } from './shellTypes';
@@ -19,6 +25,10 @@ type EditorPaneProps = {
   onAction: (action: ShellActionId) => void;
   onDocumentChanged: () => void;
   onEditorReady: (editor: EditorApi) => void;
+  imageAssetResolver?: ImageAssetResolver;
+  imageImportErrorHandler?: ImageImportErrorHandler;
+  imageImportHandler?: ImageImportHandler;
+  language: AppLanguage;
   visibleDocumentTitle: string;
 };
 
@@ -29,6 +39,10 @@ export function EditorPane({
   onAction,
   onDocumentChanged,
   onEditorReady,
+  imageAssetResolver,
+  imageImportErrorHandler,
+  imageImportHandler,
+  language,
   visibleDocumentTitle,
 }: EditorPaneProps) {
   return (
@@ -48,6 +62,10 @@ export function EditorPane({
                 <LazyEditorViewHost
                   accessibleTitle={accessibleTitle}
                   ariaLabel={ariaLabel}
+                  imageAssetResolver={imageAssetResolver}
+                  imageImportErrorHandler={imageImportErrorHandler}
+                  imageImportHandler={imageImportHandler}
+                  language={language}
                   onDocumentChanged={onDocumentChanged}
                   onEditorReady={onEditorReady}
                 />

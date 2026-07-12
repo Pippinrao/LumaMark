@@ -33,6 +33,7 @@ type RecentFilesAdapter = {
 };
 
 export type FileActions = {
+  createNewDocument: () => void;
   openFile: (path: string) => Promise<CommandResult<ReadTextFileResult>>;
   openFileFromDialog: () => Promise<CommandResult<ReadTextFileResult | null>>;
   saveCurrentFile: (
@@ -46,6 +47,9 @@ type CreateFileActionsOptions = {
   editor: Pick<EditorApi, 'focus' | 'getDocumentText' | 'loadDocument'> &
     Partial<Pick<EditorApi, 'setDocumentContext'>>;
   recentFiles: RecentFilesAdapter;
+  prepareTextForSave?: (path: string, text: string) => Promise<string>;
+  shouldApplyOpenResult?: () => boolean;
+  shouldApplySaveResult?: () => boolean;
   state: FileActionStateAdapter;
 };
 
@@ -88,12 +92,19 @@ export function createFileActions({
   commands = defaultCommands,
   editor,
   recentFiles,
+  prepareTextForSave = async (_path, text) => text,
+  shouldApplyOpenResult = () => true,
+  shouldApplySaveResult = () => true,
   state,
 }: CreateFileActionsOptions): FileActions {
   const openFile = async (
     path: string,
   ): Promise<CommandResult<ReadTextFileResult>> => {
     const result = await commands.readText(path);
+
+    if (!shouldApplyOpenResult()) {
+      return result;
+    }
 
     if (!result.ok) {
       state.setLastFileError(result.error);
@@ -125,12 +136,25 @@ export function createFileActions({
       );
     }
 
-    const text = editor.getDocumentText();
+    const originalText = editor.getDocumentText();
+    const text = await prepareTextForSave(targetPath, originalText);
     const result = await commands.writeText(targetPath, text);
+
+    if (!shouldApplySaveResult()) {
+      return result;
+    }
 
     if (!result.ok) {
       state.setLastFileError(result.error);
       return result;
+    }
+
+    const documentUnchanged =
+      state.getState().dirtyRevision === saveStartedAtRevision &&
+      editor.getDocumentText() === originalText;
+
+    if (text !== originalText && documentUnchanged) {
+      editor.loadDocument(text);
     }
 
     const currentFile = fileMetadataFromPath(result.data.path);
@@ -146,10 +170,24 @@ export function createFileActions({
   };
 
   return {
+    createNewDocument() {
+      editor.loadDocument('');
+      editor.setDocumentContext?.({ path: null });
+      state.setCurrentFile(null);
+      state.setDirty(false);
+      state.setLastFileError(null);
+      editor.focus();
+    },
     openFile,
 
     async openFileFromDialog() {
       const dialogResult = await commands.showOpenDialog();
+
+      if (!shouldApplyOpenResult()) {
+        return dialogResult.ok
+          ? { ok: true, data: null }
+          : dialogResult;
+      }
 
       if (!dialogResult.ok) {
         state.setLastFileError(dialogResult.error);
@@ -167,6 +205,12 @@ export function createFileActions({
 
     async saveFileAs() {
       const dialogResult = await commands.showSaveDialog();
+
+      if (!shouldApplySaveResult()) {
+        return dialogResult.ok
+          ? { ok: true, data: null }
+          : dialogResult;
+      }
 
       if (!dialogResult.ok) {
         state.setLastFileError(dialogResult.error);

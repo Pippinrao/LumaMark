@@ -97,17 +97,64 @@
   padding: 0.08em 0.34em;
 }
 
-.cm-content .lm-md-code-block {
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-  border: 1px solid var(--lm-color-border-subtle);
-  border-radius: var(--lm-radius-2);
+.cm-content .lm-md-code-block-line {
   background: color-mix(in srgb, var(--lm-color-surface-muted) 92%, transparent);
+  box-shadow:
+    inset 1px 0 0 var(--lm-color-border-subtle),
+    inset -1px 0 0 var(--lm-color-border-subtle);
   color: var(--lm-color-text);
   font-family: var(--lm-font-mono);
-  font-size: 0.9em;
-  line-height: 1.72;
-  padding: 0.18rem 0.4rem;
+}
+
+.cm-content .lm-md-code-block-start {
+  box-shadow:
+    inset 1px 0 0 var(--lm-color-border-subtle),
+    inset -1px 0 0 var(--lm-color-border-subtle),
+    inset 0 1px 0 var(--lm-color-border-subtle);
+  border-top-left-radius: var(--lm-radius-2);
+  border-top-right-radius: var(--lm-radius-2);
+}
+
+.cm-content .lm-md-code-block-end {
+  box-shadow:
+    inset 1px 0 0 var(--lm-color-border-subtle),
+    inset -1px 0 0 var(--lm-color-border-subtle),
+    inset 0 -1px 0 var(--lm-color-border-subtle);
+  border-bottom-left-radius: var(--lm-radius-2);
+  border-bottom-right-radius: var(--lm-radius-2);
+}
+
+.cm-content .lm-md-code-block-start.lm-md-code-block-end {
+  box-shadow:
+    inset 1px 0 0 var(--lm-color-border-subtle),
+    inset -1px 0 0 var(--lm-color-border-subtle),
+    inset 0 1px 0 var(--lm-color-border-subtle),
+    inset 0 -1px 0 var(--lm-color-border-subtle);
+}
+
+.cm-content .lm-code-token-keyword,
+.cm-content .lm-code-token-atom {
+  color: var(--lm-color-accent-strong);
+  font-weight: 650;
+}
+
+.cm-content .lm-code-token-string {
+  color: color-mix(in srgb, var(--lm-color-accent) 74%, var(--lm-color-text));
+}
+
+.cm-content .lm-code-token-number,
+.cm-content .lm-code-token-type {
+  color: color-mix(in srgb, var(--lm-color-text-soft) 72%, var(--lm-color-accent));
+}
+
+.cm-content .lm-code-token-comment {
+  color: var(--lm-color-text-muted);
+  font-style: italic;
+}
+
+.cm-content .lm-code-token-function,
+.cm-content .lm-code-token-definition {
+  color: color-mix(in srgb, var(--lm-color-text) 72%, var(--lm-color-accent-strong));
 }
 
 .cm-content .lm-md-link {

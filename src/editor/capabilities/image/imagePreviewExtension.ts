@@ -1,8 +1,10 @@
 import { syntaxTree } from '@codemirror/language';
 import {
+  EditorSelection,
   type EditorState,
   type Extension,
   RangeSetBuilder,
+  StateEffect,
   StateField,
 } from '@codemirror/state';
 import {
@@ -12,6 +14,10 @@ import {
   WidgetType,
 } from '@codemirror/view';
 import { i18n } from '../../../shared/i18n';
+import type {
+  ImageAssetResolution,
+  ImageAssetResolver,
+} from '../../core/editorDisplayMode';
 import './image.css';
 
 type DocumentRange = {
@@ -35,11 +41,18 @@ export type ImageBlock = {
 
 export type ImagePreviewContext = {
   documentPath: string | null;
+  imageAssetResolver?: ImageAssetResolver;
+};
+
+type ImageDecorationState = {
+  decorations: DecorationSet;
 };
 
 export type ResolvedImageSource =
   | { kind: 'error'; reason: 'relative_without_document' }
   | { kind: 'resolved'; src: string };
+
+export const refreshImagePreviews = StateEffect.define<string>();
 
 export function imagePreviewExtension(
   context: ImagePreviewContext = { documentPath: null },
@@ -120,11 +133,11 @@ function imageBlockFromNode(
     return null;
   }
 
-  const altMatch = raw.match(/^!\[(?<alt>[^\]]*)\]/);
+  const altMatch = raw.match(/^!\[(?<alt>(?:\\.|(?!\]).)*)\]/);
   const source = state.doc.sliceString(sourceNode.from, sourceNode.to).trim();
 
   return {
-    alt: altMatch?.groups?.alt ?? '',
+    alt: unescapeMarkdownAlt(altMatch?.groups?.alt ?? ''),
     blockId: `${line.from}:${line.to}`,
     from: line.from,
     source,
@@ -133,18 +146,28 @@ function imageBlockFromNode(
 }
 
 function imageDecorationsField(context: ImagePreviewContext): Extension {
-  return StateField.define<DecorationSet>({
+  return StateField.define<ImageDecorationState>({
     create(state) {
-      return buildImageDecorations(state, context);
+      return {
+        decorations: buildImageDecorations(state, context),
+      };
     },
     update(value, transaction) {
-      if (transaction.docChanged || transaction.selection) {
-        return buildImageDecorations(transaction.state, context);
+      const shouldRefresh = transaction.effects.some((effect) =>
+        effect.is(refreshImagePreviews),
+      );
+      if (transaction.docChanged || transaction.selection || shouldRefresh) {
+        return {
+          decorations: buildImageDecorations(transaction.state, context),
+        };
       }
 
-      return value.map(transaction.changes);
+      return {
+        decorations: value.decorations.map(transaction.changes),
+      };
     },
-    provide: (field) => EditorView.decorations.from(field),
+    provide: (field) =>
+      EditorView.decorations.from(field, (value) => value.decorations),
   });
 }
 
@@ -153,11 +176,26 @@ function buildImageDecorations(
   context: ImagePreviewContext,
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-
-  for (const block of collectImageBlocksInRanges(state, [
+  const blocks = collectImageBlocksInRanges(state, [
     { from: 0, to: state.doc.length },
-  ])) {
+  ]);
+  syncLocalImageSources(context, blocks);
+
+  for (const block of blocks) {
+    const revision =
+      context.imageAssetResolver?.getLocalSourceRevision?.(block.source);
+    const widget = new ImageBlockWidget(block, context, revision);
+
     if (selectionIntersectsBlock(state, block)) {
+      builder.add(
+        block.to,
+        block.to,
+        Decoration.widget({
+          block: true,
+          side: 1,
+          widget,
+        }),
+      );
       continue;
     }
 
@@ -166,7 +204,7 @@ function buildImageDecorations(
       block.to,
       Decoration.replace({
         block: true,
-        widget: new ImageBlockWidget(block, context),
+        widget,
       }),
     );
   }
@@ -188,6 +226,7 @@ class ImageBlockWidget extends WidgetType {
   constructor(
     private readonly block: ImageBlock,
     private readonly context: ImagePreviewContext,
+    private readonly revision: number | undefined,
   ) {
     super();
   }
@@ -197,13 +236,30 @@ class ImageBlockWidget extends WidgetType {
       widget.block.blockId === this.block.blockId &&
       widget.block.alt === this.block.alt &&
       widget.block.source === this.block.source &&
-      widget.context.documentPath === this.context.documentPath
+      widget.context.documentPath === this.context.documentPath &&
+      widget.revision === this.revision
     );
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement('figure');
     wrapper.className = 'lm-image-preview';
+    wrapper.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      view.dispatch({
+        selection: EditorSelection.cursor(this.block.from),
+        scrollIntoView: true,
+      });
+      view.focus();
+    });
+
+    if (
+      this.context.imageAssetResolver &&
+      !/^(?:data:|blob:)/i.test(this.block.source)
+    ) {
+      return this.renderRemotePlaceholder(wrapper);
+    }
+
     const resolved = resolveMarkdownImageSource({
       documentPath: this.context.documentPath,
       source: this.block.source,
@@ -211,10 +267,7 @@ class ImageBlockWidget extends WidgetType {
 
     if (resolved.kind === 'error') {
       wrapper.classList.add('lm-image-preview-error');
-      const message = document.createElement('figcaption');
-      message.className = 'lm-image-caption';
-      message.textContent = i18n.t('image.relativePathUnavailable');
-      wrapper.appendChild(message);
+      wrapper.appendChild(createCaption(i18n.t('image.relativePathUnavailable')));
       return wrapper;
     }
 
@@ -225,27 +278,141 @@ class ImageBlockWidget extends WidgetType {
     image.addEventListener('error', () => {
       wrapper.classList.add('lm-image-preview-error');
       if (!wrapper.querySelector('.lm-image-error')) {
-        const error = document.createElement('figcaption');
-        error.className = 'lm-image-caption lm-image-error';
-        error.textContent = i18n.t('image.loadFailed');
+        const error = createCaption(i18n.t('image.loadFailed'));
+        error.classList.add('lm-image-error');
         wrapper.appendChild(error);
       }
     });
     wrapper.appendChild(image);
 
     if (this.block.alt.trim()) {
-      const caption = document.createElement('figcaption');
-      caption.className = 'lm-image-caption';
-      caption.textContent = this.block.alt;
-      wrapper.appendChild(caption);
+      wrapper.appendChild(createCaption(this.block.alt));
     }
+
+    return wrapper;
+  }
+
+  private renderRemotePlaceholder(wrapper: HTMLElement): HTMLElement {
+    if (
+      !this.context.documentPath &&
+      !isDraftImageSource(this.block.source) &&
+      !isAbsolutePath(this.block.source)
+    ) {
+      wrapper.classList.add('lm-image-preview-error');
+      wrapper.appendChild(
+        createCaption(i18n.t('image.unsavedRemoteCacheUnavailable')),
+      );
+      return wrapper;
+    }
+
+    wrapper.appendChild(createCaption(i18n.t('image.downloading')));
+    void this.context
+      .imageAssetResolver?.({
+        documentPath: this.context.documentPath,
+        source: this.block.source,
+      })
+      .then((resolution) => {
+        renderRemoteResolution(wrapper, this.block.alt, resolution);
+      })
+      .catch(() => {
+        renderRemoteResolution(wrapper, this.block.alt, {
+          kind: 'error',
+          reason: 'remote_cache_failed',
+        });
+      });
 
     return wrapper;
   }
 }
 
+function syncLocalImageSources(
+  context: ImagePreviewContext,
+  blocks: readonly ImageBlock[],
+): void {
+  const sync = context.imageAssetResolver?.syncLocalSources;
+
+  if (!sync) {
+    return;
+  }
+
+  const sources = blocks
+    .map((block) => block.source)
+    .filter(isWatchableLocalImageSource);
+  void Promise.resolve(
+    sync({
+      documentPath: context.documentPath,
+      sources: [...new Set(sources)],
+    }),
+  ).catch(() => undefined);
+}
+
+function isWatchableLocalImageSource(source: string): boolean {
+  return !/^(?:https?:|data:|blob:|lumamark-draft:)/i.test(source);
+}
+
+function createCaption(text: string): HTMLElement {
+  const caption = document.createElement('figcaption');
+  caption.className = 'lm-image-caption';
+  caption.textContent = text;
+
+  return caption;
+}
+
+function renderRemoteResolution(
+  wrapper: HTMLElement,
+  alt: string,
+  resolution: ImageAssetResolution,
+): void {
+  wrapper.textContent = '';
+
+  if (resolution.kind === 'error') {
+    wrapper.classList.add('lm-image-preview-error');
+    wrapper.appendChild(
+      createCaption(
+        i18n.t(
+          resolution.reason === 'local_authorization_failed'
+            ? 'image.loadFailed'
+            : 'image.remoteCacheFailed',
+        ),
+      ),
+    );
+    return;
+  }
+
+  wrapper.classList.remove('lm-image-preview-error');
+  const image = document.createElement('img');
+  image.alt = alt;
+  image.loading = 'lazy';
+  image.src = resolution.src;
+  image.addEventListener('error', () => {
+    wrapper.classList.add('lm-image-preview-error');
+    if (!wrapper.querySelector('.lm-image-error')) {
+      const error = createCaption(i18n.t('image.loadFailed'));
+      error.classList.add('lm-image-error');
+      wrapper.appendChild(error);
+    }
+  });
+  wrapper.appendChild(image);
+
+  if (alt.trim()) {
+    wrapper.appendChild(createCaption(alt));
+  }
+}
+
 function isAbsolutePath(path: string): boolean {
   return /^[a-z]:[\\/]/i.test(path) || path.startsWith('/') || path.startsWith('\\');
+}
+
+function isDraftImageSource(source: string): boolean {
+  return source.startsWith('lumamark-draft://');
+}
+
+function unescapeMarkdownAlt(alt: string): string {
+  return alt.replace(/\\(.)/g, (match, character: string) =>
+    character === '\\' || character === '[' || character === ']'
+      ? character
+      : match,
+  );
 }
 
 function resolveRelativePath(documentPath: string, source: string): string {

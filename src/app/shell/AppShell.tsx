@@ -10,6 +10,12 @@ export function AppShell() {
     <AppShellView
       currentFileName={model.currentFile?.name}
       dirty={model.dirty}
+      focusMode={model.focusMode}
+      focusModeExitLabel={model.labels.focusMode.exit}
+      onExitFocusMode={model.toggleFocusMode}
+      onSidebarCollapsedFocus={model.editor.focusEditor}
+      onSidebarOpenChange={model.setSidebarOpen}
+      sidebarOpen={model.sidebarOpen}
       slots={slots}
       statusLabels={model.labels.status}
       workspaceName={model.workspace.root?.name}

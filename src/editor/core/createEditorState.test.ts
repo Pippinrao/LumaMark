@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { openSearchPanel, searchPanelOpen } from '@codemirror/search';
 import { EditorView } from '@codemirror/view';
 import { createEditorState } from './createEditorState';
 import type { EditorDocumentChangedEvent } from './editorEvents';
@@ -42,6 +43,49 @@ describe('createEditorState', () => {
       type: 'documentChanged',
     });
     expect(JSON.stringify(events)).not.toContain('Updated body');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('opens the built-in search panel from the registered search command', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: createEditorState({ doc: 'Find this Markdown text.' }),
+    });
+
+    expect(searchPanelOpen(view.state)).toBe(false);
+    expect(openSearchPanel(view)).toBe(true);
+    expect(searchPanelOpen(view.state)).toBe(true);
+    expect(parent.querySelector('.cm-search')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('localizes the built-in search panel with the requested editor language', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: createEditorState({
+        doc: 'Find this Markdown text.',
+        language: 'zh-CN',
+      }),
+    });
+
+    expect(openSearchPanel(view)).toBe(true);
+    expect(
+      parent.querySelector<HTMLInputElement>('[name="search"]')?.placeholder,
+    ).toBe('查找');
+    expect(parent.querySelector<HTMLButtonElement>('[name="next"]')?.textContent).toBe(
+      '下一个',
+    );
+    expect(
+      parent.querySelector<HTMLButtonElement>('[name="replaceAll"]')?.textContent,
+    ).toBe('全部替换');
 
     view.destroy();
     parent.remove();

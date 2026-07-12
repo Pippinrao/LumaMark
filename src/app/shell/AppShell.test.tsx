@@ -10,8 +10,13 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceEntry } from '../../services/workspace/workspaceCommands';
+import { saveRecoveryDraft } from '../../services/drafts/draftStore';
 import { useWorkspaceStore } from '../../features/workspace/workspaceStore';
 import type { CommandError, CommandResult } from '../../services/tauri/invokeCommand';
+import type {
+  FileWatchChangeEvent,
+  FileWatchClient,
+} from '../../services/file-watch/fileWatchClient';
 import { installResizeObserverStub } from '../../test/resizeObserverStub';
 import { I18nProvider } from '../providers/I18nProvider';
 import { ThemeProvider } from '../providers/ThemeProvider';
@@ -52,6 +57,7 @@ describe('AppShell', () => {
     windowControlMocks.toggleMaximize.mockReset().mockResolvedValue(true);
     useWorkspaceStore.getState().clearWorkspace();
     useAppStore.setState({
+      copyImagesToAssets: false,
       currentFile: null,
       dirty: false,
       dirtyRevision: 0,
@@ -116,6 +122,185 @@ describe('AppShell', () => {
       await expectNoNodeLocalStorageWarning(warnings);
     } finally {
       warnings.dispose();
+    }
+  });
+
+  it('shows a localized, dismissible file error without changing the current document', async () => {
+    useAppStore.setState({
+      currentFile: { name: 'draft.md', path: 'E:/docs/draft.md' },
+      dirty: true,
+      lastFileError: {
+        code: 'file.permission_denied',
+        message: 'File access was denied.',
+        recoverable: true,
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const alert = await screen.findByRole('alert');
+
+    expect(alert).toHaveTextContent('无法访问该文件');
+    expect(alert).toHaveTextContent('当前文档内容未被更改。');
+    expect(
+      screen.getByRole('main').querySelector('.lm-editor-title'),
+    ).toHaveTextContent('draft.md');
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+    expect(useAppStore.getState().lastFileError).toBeNull();
+    expect(useAppStore.getState().currentFile).toEqual({
+      name: 'draft.md',
+      path: 'E:/docs/draft.md',
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('未保存');
+  });
+
+  it('shows a localized choice when disk changes conflict with unsaved edits', async () => {
+    let emitChange: ((event: FileWatchChangeEvent) => void) | undefined;
+    const fileWatch: FileWatchClient = {
+      listen: vi.fn(async (listener) => {
+        emitChange = listener;
+        return () => undefined;
+      }),
+      replaceLocalImageTargets: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+      unwatchDocument: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+      watchDocument: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+    };
+    window.__LUMAMARK_E2E_FILE_WATCH__ = fileWatch;
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            byteLength: 8,
+            path: 'E:/notes/opened.md',
+            text: '# Opened',
+          },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            byteLength: 13,
+            path: 'E:/notes/opened.md',
+            text: '# From disk',
+          },
+        }),
+      showOpenDialog: vi.fn().mockResolvedValue({
+        ok: true,
+        data: 'E:/notes/opened.md',
+      }),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    };
+
+    try {
+      render(
+        <I18nProvider>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+
+      const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+      fileMenu.focus();
+      fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: /^打开文件/ }),
+      );
+      await waitFor(() => {
+        expect(useAppStore.getState().currentFile?.path).toBe(
+          'E:/notes/opened.md',
+        );
+      });
+
+      act(() => {
+        useAppStore.getState().setDirty(true);
+      });
+      await act(async () => {
+        emitChange?.({
+          fingerprint: 'sha256:external',
+          kind: 'document',
+          path: 'E:/notes/opened.md',
+          revision: 9,
+        });
+        await Promise.resolve();
+      });
+
+      const dialog = await screen.findByRole('dialog', {
+        name: '磁盘上的文件已更改',
+      });
+      expect(
+        within(dialog).getByRole('button', { name: '从磁盘重新加载' }),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: '保留当前内容' }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('dialog', { name: '磁盘上的文件已更改' }),
+        ).not.toBeInTheDocument();
+      });
+      expect(useAppStore.getState().dirty).toBe(true);
+    } finally {
+      delete window.__LUMAMARK_E2E_FILE_WATCH__;
+      delete window.__LUMAMARK_E2E_FILE_COMMANDS__;
+    }
+  });
+
+  it('offers the user a localized choice to restore an unsaved recovery draft', async () => {
+    const entries = new Map<string, string>();
+    const storage: Storage = {
+      clear: () => entries.clear(),
+      getItem: (key) => entries.get(key) ?? null,
+      key: () => null,
+      get length() {
+        return entries.size;
+      },
+      removeItem: (key) => entries.delete(key),
+      setItem: (key, value) => entries.set(key, value),
+    };
+    vi.stubGlobal('localStorage', storage);
+    saveRecoveryDraft({ filePath: 'E:/notes/draft.md', text: '# Recovered' });
+
+    try {
+      render(
+        <I18nProvider>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+
+      const dialog = await screen.findByRole('dialog', { name: '恢复未保存的草稿？' });
+
+      expect(dialog).toHaveTextContent('draft.md');
+      expect(within(dialog).getByRole('button', { name: '恢复草稿' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: '丢弃草稿' })).toBeInTheDocument();
+    } finally {
+      storage.clear();
+      vi.unstubAllGlobals();
     }
   });
 
@@ -201,6 +386,96 @@ describe('AppShell', () => {
         name: /^删除表格\s*Ctrl Alt Backspace$/,
       }),
     ).toHaveTextContent('Ctrl Alt Backspace');
+  });
+
+  it('toggles the sidebar from the view menu and keyboard shortcut', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const viewMenu = screen.getByRole('menuitem', { name: '视图' });
+    viewMenu.focus();
+    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: '切换侧边栏' }),
+    );
+
+    await waitFor(() => {
+      expect(useAppStore.getState().sidebarOpen).toBe(false);
+    });
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: '\\' });
+
+    await waitFor(() => {
+      expect(useAppStore.getState().sidebarOpen).toBe(true);
+    });
+  });
+
+  it('lets the user opt in to copying inserted local images to document assets', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const viewMenu = screen.getByRole('menuitem', { name: '视图' });
+    viewMenu.focus();
+    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
+    const imagesTab = await screen.findByRole('tab', { name: '图片' });
+    fireEvent.mouseDown(imagesTab, { button: 0 });
+    fireEvent.click(imagesTab);
+    await waitFor(() => {
+      expect(imagesTab).toHaveAttribute('data-state', 'active');
+    });
+
+    const checkbox = await screen.findByRole('checkbox', {
+      name: '复制插入的本地图片到文档资源目录',
+    });
+
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    expect(
+      (useAppStore.getState() as unknown as Record<string, unknown>)
+        .copyImagesToAssets,
+    ).toBe(true);
+  });
+
+  it('enters a distraction-free focus mode and provides an explicit exit control', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const viewMenu = screen.getByRole('menuitem', { name: '视图' });
+    viewMenu.focus();
+    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: '进入专注模式' }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('app-shell')).toHaveClass('lm-focus-mode');
+    });
+    expect(screen.getByRole('button', { name: '退出专注模式' })).toBeInTheDocument();
+    expect(document.querySelector('.lm-top-chrome')).toBeInTheDocument();
+    expect(document.querySelector('.lm-status-bar')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '退出专注模式' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('app-shell')).not.toHaveClass('lm-focus-mode');
+    });
   });
 
   it('shows table actions and shortcuts in the editor context menu', async () => {

@@ -78,6 +78,7 @@ Tauri v2
 
 - 当前文件路径。
 - dirty 状态。
+- 恢复草稿仅保存在 `services/drafts` 的本地持久化槽；React 状态只保留是否有待用户决策的草稿元数据，正文仍从 CodeMirror 读取。恢复总是作为新未保存文档，详见 [ADR 0004](../decisions/0004-local-recovery-drafts.md)。
 - 最近文件列表。
 - 当前 workspace。
 - UI 展开状态。
@@ -222,7 +223,7 @@ src/
 - `core`：CodeMirror view/state 初始化。
 - `capabilities`：Mermaid、table、code block、image 等可独立演进的编辑器子能力。
 - `markdown`：Markdown 语言包和语法工具。
-- `wysiwyg`：Typora-like 通用 decorations 组合层，不持有复杂子能力主体实现。
+- `wysiwyg`：Typora-like 通用 visual decorations 组合层，只保留低成本、源码保真的通用视觉规则，不持有复杂子能力主体实现。
 - `widgets`：旧路径兼容导出；新能力不得把主体实现放回这里。
 - `commands`：编辑器命令和快捷键。
 - `metrics`：输入延迟、渲染耗时、scroll 采样。
@@ -234,7 +235,7 @@ Editor capability 边界：
 - `editor/core/**` 只能消费 capability 聚合入口，不能 import capability 内部文件或旧 `widgets/*` 内部文件。
 - `editor/commands/**` 只能通过 capability command factory 调用表格、代码块等能力，不能直接 import table widget、Mermaid widget 或 code-block decoration internals。
 - `editor/widgets/**` 只允许保留兼容 re-export，不能继续承载新主体实现。
-- 通用 `wysiwyg/markdownDecorations.ts` 只组合能力提供的 decoration builder；代码块、图片、Mermaid、表格增强行为不得重新堆回通用 WYSIWYG 文件。
+- 通用 `wysiwyg/markdownDecorations.ts` 可以负责标题、引用、列表 marker、inline mark 隐藏等低成本 syntax visual rule，也可以组合 capability 暴露的 decoration builder；代码块、图片、Mermaid、表格交互增强行为不得重新堆回通用 WYSIWYG 文件。
 
 编辑器命令边界：
 
@@ -258,9 +259,27 @@ Mermaid capability 拆分要求：
 
 Table/code-block/image capability 规则：
 
-- table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory。
-- code-block capability 负责 fenced/indented code block decoration 和 wrap command；通用 Markdown format command 只转发到 capability command。
-- image capability 负责 image-only Markdown preview、relative path resolution 和 image DOM widget；不依赖 workspace、file tree 或 app shell。
+- table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory，以及 inactive cell inline Markdown 薄渲染层；复杂表格交互仍以成熟组件为准。
+- code-block capability 负责 fenced/indented code block decoration、整块行级 preview class 和 wrap command；代码高亮通过 CodeMirror 官方语言包接入。
+- image capability 负责 image-only Markdown preview、relative path resolution、image DOM widget 和注入式远程图片 resolver；不直接依赖 workspace、file tree、app shell 或 Tauri service。
+
+当前能力边界审计结论：
+
+- 已独立的能力：`mermaid`、`table`、`code-block`、`image` 都有独立 capability 目录和薄 public entry；`editor/core/**` 与 `editor/commands/**` 不直接 import capability 内部实现。
+- 允许的共享层：`editor/capabilities/index.ts` 只做 capability 和通用 WYSIWYG extension 组装；不得出现 DOM 创建、语法树扫描、渲染调度、第三方 widget 配置等主体逻辑。
+- 允许的通用 WYSIWYG：`wysiwyg/markdownDecorations.ts` 只处理所有 Markdown 都会共享的视觉规则，以及 capability decoration builder 的组合。它不能拥有异步渲染、block widget lifecycle、文件路径解析、table 命令、Mermaid 编辑器或 image preview DOM。
+- 已修正的依赖方向：capability 内部不能反向 import `app`、`features`、`services` 或 `wysiwyg` 私有类型；跨 capability 共享的 decoration range 类型放在 `editor/markdown`。
+- 仍需治理的债务：`imagePreviewExtension.ts` 目前仍集中 detection、path resolution、StateField 和 DOM widget，若继续增加 toolbar、cache、async size probing 或错误恢复，应拆为 `imageBlockDetection`、`imagePathResolver`、`ImageBlockWidget`、`imagePreviewExtension`。
+- 仍需治理的债务：表格的源码视觉 class 仍在通用 WYSIWYG 里，表格交互和 inactive cell inline Markdown 薄渲染已在 table capability 里。若表格视觉规则继续增长，应迁入 table capability 提供的 decoration builder。
+- 仍需治理的债务：任务列表 checkbox、`Mod-Enter` toggle 和列表 marker 仍在通用 WYSIWYG/list command 附近。若后续出现 task-list toolbar、批量操作、嵌套列表专门逻辑，应新增 `editor/capabilities/list` 或 `editor/capabilities/task-list`，不能继续扩大 `markdownDecorations.ts`。
+- 兼容层债务：`editor/widgets/*` 只允许 re-export。迁移完成且调用方稳定后，应删除旧路径和对应 re-export 测试，而不是在旧路径继续加逻辑。
+
+自动化门禁：
+
+- `tests/quality/architectureBoundaries.test.ts` 必须阻止 shell render component 直接调用业务能力。
+- 同一测试必须阻止 `editor/core/**`、`editor/commands/**` 直接 import capability 内部文件。
+- 同一测试必须阻止 `editor/capabilities/**` 反向 import app、feature、service 层。
+- 同一测试必须限制 `editor/capabilities/index.ts` 保持薄组装入口，不能成为新的总控文件。
 
 ### `features`
 
@@ -271,6 +290,7 @@ Table/code-block/image capability 规则：
 feature workflow 规则：
 
 - 文件打开、保存、另存为、dirty revision 和 recent files 通过 `features/file-actions` 的 workflow 收口。
+- 当前文档的磁盘监听事件也由 `features/file-actions` 收口：clean 自动重载，dirty 只产生显式冲突决策，同文档 request id 和跨文档 generation 都必须阻止旧读取晚到覆盖。
 - `features/file-actions` 通过 `FileStateAdapter`、`StatusAdapter`、`EditorDocumentPort` 接收状态和编辑器能力，不能硬依赖 `appStore`。
 - 工作区打开、children lazy load、stale request 防护通过 `features/workspace` 的 workflow 收口。
 - `features/workspace` 拆为 workflow、selectors、view model/UI-facing 类型；打开文件只通过注入 callback，不知道 file workflow 实现。
@@ -287,6 +307,7 @@ feature workflow 规则：
 当前强制边界：
 
 - workspace Tauri wrapper 位于 `services/workspace/`，`features/workspace/` 只保留 workflow、store 和 UI-facing 类型使用。
+- 文件监听 command/event wrapper 位于 `services/file-watch/`；打开结果 fingerprint 与 watch baseline 在这里形成竞态握手。图片 resolver 只向该 facade 串行同步已授权本地目标，editor capability 不直接依赖 Tauri。
 - services 不能依赖 React 组件、Zustand store 或 app shell。
 
 ### `shared`
@@ -364,12 +385,14 @@ src-tauri/src/
 ├─ main.rs
 ├─ commands/
 │  ├─ files.rs
+│  ├─ file_watch.rs
 │  ├─ workspace.rs
 │  ├─ search.rs
 │  ├─ cache.rs
 │  └─ app.rs
 ├─ services/
 │  ├─ file_service.rs
+│  ├─ file_watch_service.rs
 │  ├─ workspace_service.rs
 │  ├─ search_service.rs
 │  └─ cache_service.rs
@@ -385,6 +408,7 @@ src-tauri/src/
 - 原子保存。
 - 路径规范化。
 - 文件监听。
+- 当前 Markdown 与已授权本地图片使用父目录非递归 watcher、精确目标过滤和内容 fingerprint；事件不得直接被当作最终文件状态。
 - 工作区扫描。
 - 搜索。
 - 缓存。
@@ -405,6 +429,9 @@ src-tauri/src/
 files.read_text
 files.write_text
 files.show_open_dialog
+watch_document
+replace_local_image_targets
+unwatch_document
 workspace.open
 workspace.list_children
 workspace.watch
@@ -459,6 +486,26 @@ User action
 - 打开大文件不能冻结 UI。
 - 文件内容进入 CodeMirror，不进入全局 store。
 - 文件编码问题必须显式报错。
+
+### 外部文件与图片变更
+
+```text
+Rust parent-directory watcher
+-> 200ms debounce + exact target filter
+-> bounded retry + read/hash current target
+-> file-watch://changed
+-> service facade
+-> clean document reload / dirty conflict decision / targeted image preview revision
+```
+
+要求：
+
+- 监听范围只包含当前 Markdown 和已授权本地图片，不递归授权或监听整个工作区。
+- Markdown 事件到达后必须重新读取；图片事件只能刷新运行时 asset URL，不能改写 Markdown。
+- 本地图片授权路径、watcher 事件路径和前端 revision key 必须使用同一词法路径身份：折叠 `.` / `..`、统一分隔符，并在 Windows 下忽略大小写；不能把字符串拼写差异当成不同文件。
+- 文档 target 和图片 target 分别管理；替换/取消文档监听不能清空已同步的图片 targets。
+- 打开/写入 fingerprint 与 watcher baseline 必须同源；临时读取失败通过单一合并 worker 有界重试，事件串行发送，前端仍按 revision 丢弃迟到事件；耗尽的 `error` 事件只能显示可恢复提示。
+- 文档切换、引用集合变化和 React cleanup 必须释放旧监听；自身保存的相同 fingerprint 不产生用户冲突。
 
 ### 编辑文档
 

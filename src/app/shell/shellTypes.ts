@@ -43,6 +43,7 @@ export type SidebarLabels = {
 
 export type StatusBarLabels = {
   dirtyIndicator: string;
+  statistics: string;
   status: string;
 };
 

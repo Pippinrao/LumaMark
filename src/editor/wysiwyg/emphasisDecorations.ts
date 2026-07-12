@@ -1,4 +1,4 @@
-import type { MarkdownDecorationRange } from './decorationTypes';
+import type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
 
 type InlineRule = {
   className: string;

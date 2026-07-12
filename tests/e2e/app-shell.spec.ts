@@ -82,6 +82,118 @@ test('matches the high fidelity editor gutter and sidebar sizing contract', asyn
   expect(editorPaneBox.x + editorPaneBox.width - (contentBox.x + contentBox.width)).toBeGreaterThanOrEqual(48);
 });
 
+test('collapses, restores, and persists an accessible sidebar state from the view menu', async ({ page }) => {
+  await page.goto('/');
+
+  const sidebar = page.locator('.lm-sidebar-panel');
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(200);
+
+  await page.getByRole('menuitem', { name: '视图' }).click();
+  await page.getByRole('menuitem', { name: '切换侧边栏' }).click();
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeLessThan(2);
+  await expect(page.getByTestId('sidebar-content')).toHaveAttribute(
+    'aria-hidden',
+    'true',
+  );
+
+  await page.reload();
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeLessThan(2);
+  await expect(page.getByTestId('sidebar-content')).toHaveAttribute(
+    'aria-hidden',
+    'true',
+  );
+
+  await page.getByRole('menuitem', { name: '视图' }).click();
+  await page.getByRole('menuitem', { name: '切换侧边栏' }).click();
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(200);
+  await expect(page.getByTestId('sidebar-content')).toHaveAttribute(
+    'aria-hidden',
+    'false',
+  );
+});
+
+test('moves focus into the editor when a sidebar shortcut collapses it', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const sidebar = page.locator('.lm-sidebar-panel');
+
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(200);
+  await expect(page.locator('.cm-content')).toBeVisible();
+
+  await page.getByRole('tab', { name: '文件' }).focus();
+  await page.keyboard.press('Control+\\');
+
+  await expect(page.getByTestId('sidebar-content')).toHaveAttribute(
+    'aria-hidden',
+    'true',
+  );
+  await expect(page.locator('.cm-content')).toBeFocused();
+});
+
+test('enters and exits a distraction-free focus mode without changing the editor document', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await page.getByRole('menuitem', { name: '视图' }).click();
+  await page.getByRole('menuitem', { name: '进入专注模式' }).click();
+
+  const shell = page.getByTestId('app-shell');
+  await expect(shell).toHaveClass(/lm-focus-mode/);
+  await expect(page.locator('.lm-top-chrome')).toBeHidden();
+  await expect(page.locator('.lm-status-bar')).toBeHidden();
+  await expect(page.locator('.lm-sidebar-panel')).toHaveCSS('width', '0px');
+  await expect(page.getByRole('button', { name: '退出专注模式' })).toBeVisible();
+  await expect(page.locator('.cm-content')).toContainText('# LumaMark');
+
+  await page.getByRole('button', { name: '退出专注模式' }).click();
+
+  await expect(shell).not.toHaveClass(/lm-focus-mode/);
+  await expect(page.locator('.lm-top-chrome')).toBeVisible();
+  await expect(page.locator('.lm-status-bar')).toBeVisible();
+  await expect
+    .poll(async () => (await page.locator('.lm-sidebar-panel').boundingBox())?.width ?? 0)
+    .toBeGreaterThan(200);
+  await expect(page.locator('.cm-content')).toContainText('# LumaMark');
+});
+
+test('toggles focus mode with the writing shortcut', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.cm-content').focus();
+
+  await page.keyboard.press('Control+Shift+F');
+  await expect(page.getByTestId('app-shell')).toHaveClass(/lm-focus-mode/);
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('app-shell')).not.toHaveClass(/lm-focus-mode/);
+});
+
+test('updates low-distraction document statistics after editing Chinese and English text', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  const statusBar = page.locator('.lm-status-bar');
+
+  const editor = page.locator('.cm-content');
+  await editor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.insertText('中文 text\nmore');
+
+  await expect(statusBar).toContainText('2 行 · 4 词 · 10 个字符');
+});
+
 test('keeps the document title in the editor header without pushing the menu', async ({
   page,
 }) => {

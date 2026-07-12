@@ -14,6 +14,7 @@ export type StatusKey =
   | 'status.opening'
   | 'status.opened'
   | 'status.openFailed'
+  | 'status.externalReloaded'
   | 'status.saved'
   | 'status.saveFailed'
   | 'status.unsaved'
@@ -21,6 +22,7 @@ export type StatusKey =
   | 'status.workspaceOpenFailed';
 
 type AppState = {
+  copyImagesToAssets: boolean;
   currentFile: FileMetadata | null;
   dirty: boolean;
   dirtyRevision: number;
@@ -29,6 +31,7 @@ type AppState = {
   sidebarOpen: boolean;
   statusKey: StatusKey;
   theme: ThemeMode;
+  setCopyImagesToAssets: (copyImagesToAssets: boolean) => void;
   setCurrentFile: (currentFile: FileMetadata | null) => void;
   setDirty: (dirty: boolean) => void;
   setLanguage: (language: AppLanguage) => void;
@@ -42,6 +45,7 @@ type AppState = {
 };
 
 export const useAppStore = create<AppState>((set) => ({
+  copyImagesToAssets: false,
   currentFile: null,
   dirty: false,
   dirtyRevision: 0,
@@ -50,6 +54,9 @@ export const useAppStore = create<AppState>((set) => ({
   sidebarOpen: true,
   statusKey: 'status.ready',
   theme: 'light',
+  setCopyImagesToAssets: (copyImagesToAssets) => {
+    set({ copyImagesToAssets });
+  },
   setCurrentFile: (currentFile) => {
     set({ currentFile });
   },
@@ -76,10 +83,14 @@ export const useAppStore = create<AppState>((set) => ({
     set({ language });
   },
   setLastFileError: (lastFileError) => {
-    set({
+    set((state) => ({
       lastFileError,
-      statusKey: lastFileError ? 'status.saveFailed' : 'status.ready',
-    });
+      statusKey: lastFileError
+        ? 'status.saveFailed'
+        : state.dirty
+          ? 'status.unsaved'
+          : 'status.ready',
+    }));
   },
   setSidebarOpen: (sidebarOpen) => {
     set({ sidebarOpen });

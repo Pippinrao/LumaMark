@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormatCommands';
 import {
   createCommandPaletteModels,
@@ -11,16 +11,25 @@ import type {
   CommandHandlerMap,
 } from '../../features/commands/commandTypes';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
+import { useGlobalCommandShortcuts } from './useGlobalCommandShortcuts';
 
 const markdownCommands: readonly MarkdownFormatCommand[] = [
   'bold',
   'codeBlock',
   'heading1',
   'heading2',
+  'heading3',
+  'heading4',
+  'heading5',
+  'heading6',
+  'horizontalRule',
+  'image',
   'inlineCode',
   'italic',
   'link',
+  'orderedList',
   'quote',
+  'strikethrough',
   'table',
   'taskList',
   'unorderedList',
@@ -30,12 +39,17 @@ type UseAppCommandModelsOptions = {
   copyTable: () => void;
   deleteTable: () => void;
   editorDisplayMode: EditorDisplayMode;
+  exitFocusMode: () => void;
+  focusMode: boolean;
   fileOpening: boolean;
   focusEditor: () => void;
+  newDocument: () => void;
   openCommandPalette: () => void;
   openFile: () => void;
+  openSearch: () => void;
   openSettings: () => void;
   openWorkspace: () => void;
+  redo: () => void;
   runFormat: (command: MarkdownFormatCommand) => void;
   save: () => void;
   saveAs: () => void;
@@ -48,19 +62,27 @@ type UseAppCommandModelsOptions = {
   };
   t: (key: string) => string;
   toggleLanguage: () => void;
+  toggleFocusMode: () => void;
+  toggleSidebar: () => void;
   toggleTheme: () => void;
+  undo: () => void;
 };
 
 export function useAppCommandModels({
   copyTable,
   deleteTable,
   editorDisplayMode,
+  exitFocusMode,
+  focusMode,
   fileOpening,
   focusEditor,
+  newDocument,
   openCommandPalette,
   openFile,
+  openSearch,
   openSettings,
   openWorkspace,
+  redo,
   runFormat,
   save,
   saveAs,
@@ -69,7 +91,10 @@ export function useAppCommandModels({
   shortcuts,
   t,
   toggleLanguage,
+  toggleFocusMode,
+  toggleSidebar,
   toggleTheme,
+  undo,
 }: UseAppCommandModelsOptions) {
   const handlers = useMemo<CommandHandlerMap>(() => {
     const formatHandlers = Object.fromEntries(
@@ -85,53 +110,70 @@ export function useAppCommandModels({
       ...formatHandlers,
       copyTable,
       deleteTable,
+      exitFocusMode,
       focusEditor,
+      newDocument,
       openCommandPalette,
       openFile,
+      openSearch,
       openSettings,
       openWorkspace,
+      redo,
       save,
       saveAs,
       setLivePreviewMode,
       setSourceMode,
       toggleLanguage,
+      toggleFocusMode,
+      toggleSidebar,
       toggleTheme,
+      undo,
     };
   }, [
     copyTable,
     deleteTable,
+    exitFocusMode,
     focusEditor,
+    newDocument,
     openCommandPalette,
     openFile,
+    openSearch,
     openSettings,
     openWorkspace,
+    redo,
     runFormat,
     save,
     saveAs,
     setLivePreviewMode,
     setSourceMode,
     toggleLanguage,
+    toggleFocusMode,
+    toggleSidebar,
     toggleTheme,
+    undo,
   ]);
 
   const commands = useMemo(
     () =>
       createCommandPaletteModels({
+        fileOpening,
+        focusMode,
         handlers,
         shortcuts,
         t,
       }),
-    [handlers, shortcuts, t],
+    [fileOpening, focusMode, handlers, shortcuts, t],
   );
   const topMenuGroups = useMemo(
     () =>
       createTopMenuModels({
         editorDisplayMode,
         fileOpening,
+        focusMode,
         shortcuts,
         t,
       }),
-    [editorDisplayMode, fileOpening, shortcuts, t],
+    [editorDisplayMode, fileOpening, focusMode, shortcuts, t],
   );
   const editorContextMenuItems = useMemo(
     () =>
@@ -148,42 +190,7 @@ export function useAppCommandModels({
     [handlers],
   );
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        handlers.openCommandPalette();
-        return;
-      }
-
-      if (!(event.ctrlKey || event.metaKey) || !event.altKey) {
-        return;
-      }
-
-      if (event.key.toLowerCase() === 't') {
-        event.preventDefault();
-        handlers.table();
-        return;
-      }
-
-      if (event.key.toLowerCase() === 'c') {
-        event.preventDefault();
-        handlers.copyTable();
-        return;
-      }
-
-      if (event.key === 'Backspace') {
-        event.preventDefault();
-        handlers.deleteTable();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true });
-    };
-  }, [handlers]);
+  useGlobalCommandShortcuts(handlers);
 
   return {
     commands,

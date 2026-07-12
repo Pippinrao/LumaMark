@@ -138,6 +138,24 @@ LumaMark 不采用“富文本 AST 主存储 -> 保存时 stringify Markdown”�
 
 这种策略可以降低源码保真风险。
 
+## Editor Capability 策略
+
+Mermaid、表格、代码块、图片等复杂编辑器子功能按 Editor Capability 独立演进。
+
+默认边界：
+
+- 每个复杂能力有独立 `editor/capabilities/<name>/` 目录和薄 public entry。
+- `editor/core` 只消费 capability 聚合入口，不直接 import Mermaid、table、image、code-block 内部实现。
+- `editor/commands` 只通过 capability command factory 调用复杂能力，不知道 widget、DOM 或第三方库路径。
+- `editor/widgets/*` 只作为旧路径兼容 re-export，不承载新实现。
+- 通用 `editor/wysiwyg` 只负责低成本、源码保真的视觉规则和 capability decoration 组合，不承担异步渲染、文件路径解析、block widget lifecycle 或能力专属命令。
+
+当前仍需警惕的混杂点：
+
+- image capability 的检测、路径解析和 DOM 仍在一个文件里，继续增长前必须拆分。
+- 表格源码视觉 class 仍在通用 WYSIWYG，若扩展为表格专属视觉行为应迁回 table capability。
+- 任务列表目前仍属于通用列表/WYSIWYG 行为，若变成独立交互能力应抽成 list 或 task-list capability。
+
 ## Mermaid 策略
 
 Mermaid 是高性能风险点，必须异步。
@@ -223,6 +241,8 @@ LumaMark 自己负责：
 - 用富文本 AST 作为 Markdown 主存储。
 - 自研基础 UI 组件。
 - 让 AppShell、controller 或 feature component 变成跨功能总控。
+- 让 `editor/capabilities/index.ts` 或 `wysiwyg/markdownDecorations.ts` 变成新的编辑器能力总控。
+- 让某个 editor capability 反向依赖 app、feature、service 层。
 - 在渲染组件里直接 import store、service、workflow、Tauri wrapper 或编辑器命令。
 - React 逐字符重渲染编辑器。
 - Mermaid 同步渲染。

@@ -1,5 +1,5 @@
-import type { MarkdownDecorationRange } from './decorationTypes';
-import { iterateLines } from './decorationTypes';
+import type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
+import { iterateLines } from '../markdown/markdownDecorationTypes';
 
 const HEADING_PATTERN = /^(#{1,6})\s+\S/;
 

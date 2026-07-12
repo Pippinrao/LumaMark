@@ -17,6 +17,7 @@ export function StatusBar({
     <footer className="lm-status-bar">
       <span role="status">{labels.status}</span>
       <span className="lm-status-spacer" />
+      <span>{labels.statistics}</span>
       {workspaceName ? <span>{workspaceName}</span> : null}
       {currentFileName ? <span>{currentFileName}</span> : null}
       {dirty ? <span>{labels.dirtyIndicator}</span> : null}

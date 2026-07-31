@@ -26,6 +26,46 @@ const editorBudgetsMs: Record<
 };
 
 describe('large Markdown editor responsiveness baseline', () => {
+  it('bounds initial editor creation and input before large document samples', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    let editor: ReturnType<typeof createEditorApi> | undefined;
+
+    try {
+      const warmupDoc = '# Performance warm-up\n\nInitial editor content.';
+      const loadStartedAt = performance.now();
+      editor = createEditorApi({
+        doc: warmupDoc,
+        parent,
+      });
+      const loadDurationMs = performance.now() - loadStartedAt;
+      const insert = '\nWarm tail input.';
+      const inputStartedAt = performance.now();
+
+      editor.view.dispatch({
+        changes: {
+          from: editor.view.state.doc.length,
+          insert,
+        },
+        selection: {
+          anchor: editor.view.state.doc.length + insert.length,
+        },
+      });
+      const inputDurationMs = performance.now() - inputStartedAt;
+
+      process.stdout.write(
+        `[perf:editor-initial] default document: load ${loadDurationMs.toFixed(2)} ms, input ${inputDurationMs.toFixed(2)} ms (budgets load <300 ms, input <16 ms)\n`,
+      );
+
+      expect(editor.getDocumentText()).toContain('Warm tail input.');
+      expect(loadDurationMs).toBeLessThan(300);
+      expect(inputDurationMs).toBeLessThan(16);
+    } finally {
+      editor?.destroy();
+      parent.remove();
+    }
+  });
+
   it.each(largeMarkdownFixturePaths)(
     'loads and edits $name without freezing',
     async ({ name, path }) => {

@@ -161,6 +161,58 @@ describe('Mermaid input latency baseline', () => {
     }
   });
 
+  it('bounds the cold active Mermaid input path before steady-state samples', () => {
+    const doc = [
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+      '',
+      'after',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const editor = createEditorApi({
+      doc,
+      extensions: [mermaidPreviewExtension({ scheduler })],
+      parent,
+    });
+
+    try {
+      const editButton = parent.querySelector<HTMLButtonElement>(
+        '.lm-mermaid-edit-source',
+      );
+      expect(editButton).not.toBeNull();
+      editButton?.click();
+
+      const insert = '\n  B --> C';
+      const insertPosition = editor.view.state.selection.main.to;
+      const startedAt = performance.now();
+
+      editor.view.dispatch({
+        changes: { from: insertPosition, insert },
+        selection: { anchor: insertPosition + insert.length },
+        userEvent: 'input.mermaid',
+      });
+
+      const durationMs = performance.now() - startedAt;
+
+      process.stdout.write(
+        `[perf:mermaid-active-input-cold] small document: ${durationMs.toFixed(2)} ms (budget <16 ms)\n`,
+      );
+
+      expect(editor.getDocumentText()).toContain('B --> C');
+      expect(durationMs).toBeLessThan(16);
+    } finally {
+      editor.destroy();
+      parent.remove();
+    }
+  });
+
   it.each(largeMarkdownFixturePaths)(
     'keeps active Mermaid input local inside $name',
     async ({ name, path }) => {

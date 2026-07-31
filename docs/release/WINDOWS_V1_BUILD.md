@@ -33,7 +33,7 @@
 - `pnpm test:live-assets`：公网 PNG/SVG 和 Rust 真实下载缓存测试通过。
 - `pnpm quality:web-build`
 - `pnpm test:e2e:production`：生产 bundle 启动和懒加载 Mermaid 回归通过。
-- `pnpm perf:bench`：6 个测试文件、21 项独立性能基准通过。
+- `pnpm perf:bench`：6 个测试文件、23 项独立性能基准通过。
 - `pnpm release:packaged-webview`：Release 构建、真实文件保存、中文输入、任务复选框可访问性、Mermaid active-save 和显示模式往返全部通过。
 - `pnpm release:verify-artifacts`：0.2.0 exe、MSI、NSIS 均存在并生成 SHA-256 清单。
 - `pnpm release:installer-smoke:plan`：确认 NSIS 路径、临时安装目录、无需管理员权限及 3 秒启动计划。

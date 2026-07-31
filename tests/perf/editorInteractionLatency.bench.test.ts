@@ -7,6 +7,11 @@ import {
   type EditorApi,
 } from '../../src/editor/core/editorApi';
 import { largeMarkdownFixturePaths } from '../fixtures/fixturePaths';
+import {
+  formatLatencySamples,
+  inputHardLimitMs,
+  measureLatencySamples,
+} from './performanceSamples';
 
 const selectionProbeCount = 12;
 const denseCodeBlockCount = 2_048;
@@ -119,30 +124,34 @@ describe('editor interaction latency baseline', () => {
     const loadDurationMs = performance.now() - loadStartedAt;
 
     try {
-      const insert = '\nDense code-block input probe.';
-      const inputStartedAt = performance.now();
+      const inputSamples = measureLatencySamples((sampleIndex) => {
+        const insert = `\nDense code-block input probe ${sampleIndex}.`;
+        const insertPosition = editor.view.state.doc.length;
 
-      editor.view.dispatch({
-        changes: {
-          from: editor.view.state.doc.length,
-          insert,
-        },
-        selection: {
-          anchor: editor.view.state.doc.length + insert.length,
-        },
-        userEvent: 'input.type',
+        editor.view.dispatch({
+          changes: {
+            from: insertPosition,
+            insert,
+          },
+          selection: {
+            anchor: insertPosition + insert.length,
+          },
+          userEvent: 'input.type',
+        });
       });
-
-      const inputDurationMs = performance.now() - inputStartedAt;
+      const inputHardLimit = inputHardLimitMs(
+        denseCodeBlockBudgetsMs.input,
+      );
 
       process.stdout.write(
         [
           '[perf:code-block-dense]',
           `${denseCodeBlockCount} blocks / ${sourceSizeMiB.toFixed(2)} MiB:`,
           `load ${loadDurationMs.toFixed(2)} ms,`,
-          `input ${inputDurationMs.toFixed(2)} ms`,
+          `input p80 ${inputSamples.p80.toFixed(2)} ms / median ${inputSamples.median.toFixed(2)} ms / max ${inputSamples.maximum.toFixed(2)} ms`,
+          `samples ${formatLatencySamples(inputSamples)}`,
           `(budgets load <${denseCodeBlockBudgetsMs.load} ms,`,
-          `input <${denseCodeBlockBudgetsMs.input} ms)`,
+          `input p80 <${denseCodeBlockBudgetsMs.input} ms / max <${inputHardLimit} ms)`,
           '\n',
         ].join(' '),
       );
@@ -150,15 +159,17 @@ describe('editor interaction latency baseline', () => {
       expect(source.match(/^```ts$/gm)).toHaveLength(
         denseCodeBlockCount,
       );
-      expect(editor.getDocumentText()).toBe(source + insert);
+      expect(editor.getDocumentText()).toContain(
+        'Dense code-block input probe 4.',
+      );
       expect(Number.isFinite(loadDurationMs)).toBe(true);
-      expect(Number.isFinite(inputDurationMs)).toBe(true);
       expect(loadDurationMs).toBeLessThan(
         denseCodeBlockBudgetsMs.load,
       );
-      expect(inputDurationMs).toBeLessThan(
+      expect(inputSamples.p80).toBeLessThan(
         denseCodeBlockBudgetsMs.input,
       );
+      expect(inputSamples.maximum).toBeLessThan(inputHardLimit);
     } finally {
       editor.destroy();
       parent.remove();

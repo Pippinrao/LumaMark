@@ -10,46 +10,46 @@
 - 平台：Windows，本地开发工作树
 - 命令：`pnpm perf:bench`
 - 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、selection-only dispatch、显示模式往返、代码块密集文档，以及简单/复杂 Mermaid pending render 与 active-edit 输入 dispatch
-- 运行口径：`pnpm test` 排除 `tests/perf/**`，性能基准必须通过 `pnpm perf:bench` 单独串行执行。大纲面板 benchmark 会先预热一次极小渲染；大文档编辑器 benchmark 会先测量极小默认文档的创建与同形尾部输入，并分别执行 `< 300 ms`、`< 16 ms` 冷路径预算，再销毁编辑器，模拟应用先创建默认编辑器的生命周期，避免把测试环境的 React/CodeMirror/jsdom 首次初始化成本计入目标样本且不让初始化退化逃逸。Mermaid active-edit 另有一个预算 `< 16 ms` 的小文档冷路径用例，随后 1/5/10MB 稳态预算仍保持 `< 16/50/100 ms`。
+- 运行口径：`pnpm test` 排除 `tests/perf/**`，性能基准必须通过 `pnpm perf:bench` 单独串行执行。大纲面板 benchmark 会先预热一次极小渲染。输入与默认编辑器创建固定采集 5 个样本、保留首样本并输出全部数值；默认 editor 首次输入、Mermaid 冷路径和 pending-render 的每个样本都使用独立 editor/activation/render 生命周期。既有主预算约束 P80（第 4 个有序样本，最多允许 1 次超过主预算），最大值按 `max(50 ms, 2 × 主预算)` 约束；默认编辑器创建还要求首样本和 P80 `< 300 ms`、最大值 `< 600 ms`，详细决策见 [ADR 0007](../decisions/0007-stable-performance-sampling.md)。Mermaid 1/5/10MB active-edit P80 预算仍保持 `< 16/50/100 ms`；pending-render 的 P80 与最大值都必须 `< 50 ms`。
 
 ## 自动化门禁
 
 | 路径 | 预算 | 当前结果 | 结论 |
 |---|---:|---:|---|
-| 读取 `large-1mb.md` | < 300 ms | 2.13 ms | 通过 |
-| 读取 `large-5mb.md` | < 1000 ms | 5.91 ms | 通过 |
-| 读取 `large-10mb.md` | < 2000 ms | 11.32 ms | 通过 |
-| 文件动作打开 `large-1mb.md` | < 300 ms | 76.97 ms | 通过 |
-| 文件动作打开 `large-5mb.md` | < 1000 ms | 113.22 ms | 通过 |
-| 文件动作打开 `large-10mb.md` | < 2000 ms | 179.67 ms | 通过 |
-| 打开后大纲刷新 `large-1mb.md` | < 50 ms | 7.13 ms | 通过 |
-| 打开后大纲刷新 `large-5mb.md` | < 150 ms | 25.00 ms | 通过 |
-| 打开后大纲刷新 `large-10mb.md` | < 300 ms | 50.82 ms | 通过 |
-| 大纲面板初始渲染 `large-1mb.md` | < 60 ms | 23 / 799 项，20.48 ms | 通过 |
-| 大纲面板初始渲染 `large-5mb.md` | < 60 ms | 23 / 3953 项，8.17 ms | 通过 |
-| 大纲面板初始渲染 `large-10mb.md` | < 60 ms | 23 / 7892 项，9.44 ms | 通过 |
-| 默认小文档首次编辑器创建 | < 300 ms | 104.20 ms | 通过 |
-| 默认小文档首次尾部输入 dispatch | < 16 ms | 7.42 ms | 通过 |
-| 编辑器载入 `large-1mb.md` | < 300 ms | 30.05 ms | 通过 |
-| 编辑器载入 `large-5mb.md` | < 1000 ms | 50.85 ms | 通过 |
-| 编辑器载入 `large-10mb.md` | < 2000 ms | 73.32 ms | 通过 |
-| 1MB 尾部输入 dispatch | < 16 ms | 3.67 ms | 通过 |
-| 5MB 尾部输入 dispatch | < 50 ms | 2.40 ms | 通过 |
-| 10MB 尾部输入 dispatch | < 100 ms | 2.17 ms | 通过 |
-| Mermaid 渲染 pending 时普通输入 dispatch | < 50 ms | 3.51 ms | 通过 |
-| 1MB 文档 12 次 selection-only dispatch | < 100 ms | 21.11 ms（平均 1.76 ms） | 通过 |
-| 5MB 文档 12 次 selection-only dispatch | < 120 ms | 11.04 ms（平均 0.92 ms） | 通过 |
-| 10MB 文档 12 次 selection-only dispatch | < 160 ms | 9.08 ms（平均 0.76 ms） | 通过 |
-| 1MB 文档 source/live-preview 模式往返 | < 150 ms | 24.73 ms | 通过 |
-| 5MB 文档 source/live-preview 模式往返 | < 300 ms | 21.64 ms | 通过 |
-| 10MB 文档 source/live-preview 模式往返 | < 600 ms | 28.30 ms | 通过 |
-| 2048 个 fenced blocks（0.46 MiB）载入 | < 300 ms | 27.13 ms | 通过 |
-| 2048 个 fenced blocks 尾部输入 dispatch | < 16 ms | 4.38 ms | 通过 |
-| 复杂 Mermaid pending 时主文档输入 dispatch | < 50 ms | 180 节点 / 17,348 bytes，3.50 ms | 通过 |
-| 小文档首次 Mermaid active-edit 输入 dispatch | < 16 ms | 5.42 ms | 通过 |
-| 1MB 文档 Mermaid active-edit 输入 dispatch | < 16 ms | 3.62 ms | 通过 |
-| 5MB 文档 Mermaid active-edit 输入 dispatch | < 50 ms | 4.63 ms | 通过 |
-| 10MB 文档 Mermaid active-edit 输入 dispatch | < 100 ms | 2.67 ms | 通过 |
+| 读取 `large-1mb.md` | < 300 ms | 1.99 ms | 通过 |
+| 读取 `large-5mb.md` | < 1000 ms | 5.71 ms | 通过 |
+| 读取 `large-10mb.md` | < 2000 ms | 14.59 ms | 通过 |
+| 文件动作打开 `large-1mb.md` | < 300 ms | 75.29 ms | 通过 |
+| 文件动作打开 `large-5mb.md` | < 1000 ms | 104.94 ms | 通过 |
+| 文件动作打开 `large-10mb.md` | < 2000 ms | 177.25 ms | 通过 |
+| 打开后大纲刷新 `large-1mb.md` | < 50 ms | 7.04 ms | 通过 |
+| 打开后大纲刷新 `large-5mb.md` | < 150 ms | 23.55 ms | 通过 |
+| 打开后大纲刷新 `large-10mb.md` | < 300 ms | 49.41 ms | 通过 |
+| 大纲面板初始渲染 `large-1mb.md` | < 60 ms | 23 / 799 项，23.62 ms | 通过 |
+| 大纲面板初始渲染 `large-5mb.md` | < 60 ms | 23 / 3953 项，19.66 ms | 通过 |
+| 大纲面板初始渲染 `large-10mb.md` | < 60 ms | 23 / 7892 项，11.33 ms | 通过 |
+| 默认小文档首次编辑器创建 | 首样本 < 300 ms；P80 < 300 ms；最大值 < 600 ms | 首样本 98.51 ms；P80 16.79 ms；中位数 14.46 ms；最大值 98.51 ms；样本 [98.51, 10.39, 13.22, 14.46, 16.79] | 通过 |
+| 默认小文档首次尾部输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 1.49 ms；中位数 1.46 ms；最大值 6.84 ms；样本 [6.84, 1.26, 1.46, 1.18, 1.49] | 通过 |
+| 编辑器载入 `large-1mb.md` | < 300 ms | 58.07 ms | 通过 |
+| 编辑器载入 `large-5mb.md` | < 1000 ms | 54.90 ms | 通过 |
+| 编辑器载入 `large-10mb.md` | < 2000 ms | 79.19 ms | 通过 |
+| 1MB 尾部输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 2.05 ms；中位数 1.63 ms；最大值 3.14 ms；样本 [3.14, 2.05, 1.63, 1.49, 1.55] | 通过 |
+| 5MB 尾部输入 dispatch | P80 < 50 ms；最大值 < 100 ms | P80 1.27 ms；中位数 1.18 ms；最大值 2.22 ms；样本 [2.22, 1.27, 1.16, 1.09, 1.18] | 通过 |
+| 10MB 尾部输入 dispatch | P80 < 100 ms；最大值 < 200 ms | P80 1.21 ms；中位数 1.19 ms；最大值 1.54 ms；样本 [1.54, 1.19, 1.21, 1.19, 1.16] | 通过 |
+| Mermaid 渲染 pending 时普通输入 dispatch | P80 < 50 ms；最大值 < 50 ms | P80 0.74 ms；中位数 0.55 ms；最大值 3.31 ms；样本 [3.31, 0.74, 0.55, 0.46, 0.53] | 通过 |
+| 1MB 文档 12 次 selection-only dispatch | < 100 ms | 22.50 ms（平均 1.88 ms） | 通过 |
+| 5MB 文档 12 次 selection-only dispatch | < 120 ms | 10.94 ms（平均 0.91 ms） | 通过 |
+| 10MB 文档 12 次 selection-only dispatch | < 160 ms | 9.05 ms（平均 0.75 ms） | 通过 |
+| 1MB 文档 source/live-preview 模式往返 | < 150 ms | 23.44 ms | 通过 |
+| 5MB 文档 source/live-preview 模式往返 | < 300 ms | 20.83 ms | 通过 |
+| 10MB 文档 source/live-preview 模式往返 | < 600 ms | 31.52 ms | 通过 |
+| 2048 个 fenced blocks（0.46 MiB）载入 | < 300 ms | 24.86 ms | 通过 |
+| 2048 个 fenced blocks 尾部输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 1.97 ms；中位数 1.35 ms；最大值 4.03 ms；样本 [4.03, 1.97, 1.35, 1.19, 1.21] | 通过 |
+| 复杂 Mermaid pending 时主文档输入 dispatch | P80 < 50 ms；最大值 < 50 ms | 180 节点 / 17,348 bytes；P80 0.74 ms；中位数 0.62 ms；最大值 2.64 ms；样本 [2.64, 0.62, 0.60, 0.56, 0.74] | 通过 |
+| 小文档首次 Mermaid active-edit 输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 2.08 ms；中位数 1.85 ms；最大值 2.84 ms；样本 [2.84, 2.08, 1.85, 1.74, 1.51] | 通过 |
+| 1MB 文档 Mermaid active-edit 输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 2.23 ms；中位数 2.12 ms；最大值 2.44 ms；样本 [2.44, 2.23, 2.12, 2.06, 1.86] | 通过 |
+| 5MB 文档 Mermaid active-edit 输入 dispatch | P80 < 50 ms；最大值 < 100 ms | P80 2.02 ms；中位数 1.94 ms；最大值 7.35 ms；样本 [2.02, 1.84, 1.94, 1.75, 7.35] | 通过 |
+| 10MB 文档 Mermaid active-edit 输入 dispatch | P80 < 100 ms；最大值 < 200 ms | P80 1.63 ms；中位数 1.62 ms；最大值 1.74 ms；样本 [1.74, 1.61, 1.63, 1.62, 1.62] | 通过 |
 | Web 首屏入口 JS chunk | < 120 KiB | 15.05 KiB | 通过 |
 | Web 任意 JS chunk | < 700 KiB | 最大 664.41 KiB，gzip 146.38 KiB，Mermaid 动态依赖 | 通过 |
 
@@ -57,7 +57,7 @@
 
 - 1MB、5MB 和 10MB 的自动化性能门禁通过，覆盖读取、应用文件动作打开、打开后大纲刷新、虚拟化大纲面板初始渲染、编辑器载入和尾部输入 dispatch。
 - 10MB 文件满足当前自动化 “不冻结” 门禁：可通过文件动作打开、完成 debounce 后大纲刷新、只初始渲染 23 / 7892 个大纲项、创建编辑器并完成一次尾部输入。
-- Mermaid 渲染通过 scheduler 异步执行；pending render 下普通输入 dispatch 仍低于 50 ms。active-edit 首次输入由独立 `< 16 ms` 冷路径约束，预热后的 1/5/10MB 输入保持近似常数时间且分别通过 `< 16/50/100 ms` 预算。
+- Mermaid 渲染通过 scheduler 异步执行；pending render 下普通与复杂输入均在 5 个独立 render 生命周期上执行 P80/最大值 `< 50 ms` 门禁。active-edit 冷路径在 5 个独立 activation 上执行 P80 `< 16 ms`、最大值 `< 50 ms` 门禁；同一文档内的 1/5/10MB 连续输入保持近似常数时间且 P80 分别通过 `< 16/50/100 ms` 预算。
 - Parity Reliability 增补门禁证明：selection-only 更新不会修改文档，显示模式往返保持 selection；代码块密集文档沿用 1MB 输入的 `< 16 ms` 严格预算；复杂 Mermaid 长任务 pending 时主 `EditorApi` 文档立即接收输入，且不会为块外输入启动第二个渲染任务。
 - Web 构建已通过 `pnpm quality:web-build` 门禁：首屏入口从大 vendor 包中拆出，React、CodeMirror、UI 依赖和 Mermaid 重依赖分组加载。CodeMirror 启动核心与 Lezer 基础包保持为一个 600.41 KiB 的拓扑完整 chunk，代码语言包继续按需加载；禁止用任意 `maxSize` 再拆这个核心组，因为会破坏循环模块的初始化顺序并造成生产白屏。最大 chunk 是 Mermaid 动态渲染链路中的 `vscode-languageserver-types` / Langium 等上游解析依赖，不进入首屏入口。
 - Mermaid 重依赖的体积分组会形成循环输出 chunk，因此 Rolldown 输出启用 `strictExecutionOrder`。`pnpm test:e2e:production` 在实际 `dist/` 上触发 Mermaid 动态 import 并要求 SVG 成功、无 `pageerror` 或非预期 console error；`pnpm release:packaged-webview` 再对真实 release WebView 与 Rust 文件写入验证 active-save。两项功能门禁都不能由“构建成功”或 chunk 体积预算替代。

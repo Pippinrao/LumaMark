@@ -22,7 +22,7 @@
 - `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
 - `pnpm typecheck`
 - `pnpm lint`
-- `pnpm test`：64 个测试文件、601 项测试通过。
+- `pnpm test`：65 个测试文件、605 项测试通过。
 - `pnpm test:fixtures`：2 个测试文件、6 项 round-trip 测试通过。
 - `pnpm download:markdown-corpus` 和 `pnpm test:markdown-corpus`：解析 6 个语料文件、646,256 bytes。
 - `cargo check --manifest-path src-tauri/Cargo.toml`

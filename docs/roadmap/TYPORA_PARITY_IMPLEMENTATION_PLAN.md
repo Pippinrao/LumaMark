@@ -168,7 +168,7 @@ YAML Front Matter、脚注、`[toc]` 和 Callout 在完整能力实现前只要�
 - Windows Tauri 实测真实中文 IME、剪贴板、Mermaid active-save 与 Narrator/NVDA 最小路径。
 - 1 MB、5 MB、10 MB 文档继续满足现有打开与输入预算。
 - 新增 selection-only、模式切换、代码块密集和真实复杂 Mermaid 长任务数据。
-- 性能基准独立串行执行；未经决策记录不得提高既有预算。
+- 性能基准独立串行执行；既有主预算不提高，5 样本 P80 与最大值门禁按 [ADR 0007](../decisions/0007-stable-performance-sampling.md) 执行；后续改变预算或统计口径仍须新的决策记录。
 - 完成一次真实自用反馈整理，并将阻断问题关联到可复现证据。
 
 里程碑只有在数据损坏、IME、撤销、active-save 阻断问题归零，且所有适用质量门禁均有新鲜通过输出后退出。

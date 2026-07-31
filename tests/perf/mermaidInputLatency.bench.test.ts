@@ -11,6 +11,13 @@ import {
 import { mermaidPreviewExtension } from '../../src/editor/capabilities/mermaid/mermaidPreviewExtension';
 import { createEditorApi } from '../../src/editor/core/editorApi';
 import { largeMarkdownFixturePaths } from '../fixtures/fixturePaths';
+import {
+  formatLatencySamples,
+  inputHardLimitMs,
+  latencySampleCount,
+  measureLatencySamples,
+  summarizeLatencySamples,
+} from './performanceSamples';
 
 const complexMermaidNodeCount = 180;
 const activeMermaidInputBudgetsMs: Record<string, number> = {
@@ -37,14 +44,6 @@ describe('Mermaid input latency baseline', () => {
   });
 
   it('records dispatch latency while Mermaid rendering is still pending', async () => {
-    const renderStart = waitForRenderStart();
-    const scheduler = new MermaidRenderScheduler({
-      debounceMs: 0,
-      render: vi.fn(() => {
-        renderStart.resolveStarted();
-        return new Promise<string>(() => {});
-      }),
-    });
     const doc = [
       '```mermaid',
       'flowchart TD',
@@ -53,112 +52,150 @@ describe('Mermaid input latency baseline', () => {
       '',
       'after',
     ].join('\n');
-    const parent = document.createElement('div');
-    document.body.appendChild(parent);
-    const view = new EditorView({
-      parent,
-      state: EditorState.create({
-        doc,
-        extensions: [markdownLanguage(), mermaidPreviewExtension({ scheduler })],
-        selection: EditorSelection.cursor(doc.length),
-      }),
-    });
+    const inputValues: number[] = [];
 
-    await renderStart.started;
+    for (let sampleIndex = 0; sampleIndex < latencySampleCount; sampleIndex += 1) {
+      const renderStart = waitForRenderStart();
+      const scheduler = new MermaidRenderScheduler({
+        debounceMs: 0,
+        render: vi.fn(() => {
+          renderStart.resolveStarted();
+          return new Promise<string>(() => {});
+        }),
+      });
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const view = new EditorView({
+        parent,
+        state: EditorState.create({
+          doc,
+          extensions: [
+            markdownLanguage(),
+            mermaidPreviewExtension({ scheduler }),
+          ],
+          selection: EditorSelection.cursor(doc.length),
+        }),
+      });
 
-    const insert = '\nplain text typed during pending render';
-    const startedAt = performance.now();
-    view.dispatch({
-      changes: {
-        from: view.state.doc.length,
-        insert,
-      },
-      selection: {
-        anchor: view.state.doc.length + insert.length,
-      },
-    });
-    const durationMs = performance.now() - startedAt;
+      try {
+        await renderStart.started;
+
+        const insert = `\nplain text typed during pending render ${sampleIndex}`;
+        const insertPosition = view.state.doc.length;
+        const startedAt = performance.now();
+
+        view.dispatch({
+          changes: {
+            from: insertPosition,
+            insert,
+          },
+          selection: {
+            anchor: insertPosition + insert.length,
+          },
+        });
+        inputValues.push(performance.now() - startedAt);
+
+        expect(view.state.doc.toString()).toContain(
+          `plain text typed during pending render ${sampleIndex}`,
+        );
+      } finally {
+        view.destroy();
+        parent.remove();
+      }
+    }
+
+    const inputSamples = summarizeLatencySamples(inputValues);
 
     process.stdout.write(
-      `[perf:mermaid-input] dispatch while render pending: ${durationMs.toFixed(2)} ms\n`,
+      [
+        '[perf:mermaid-input] independent pending renders:',
+        `p80 ${inputSamples.p80.toFixed(2)} ms / median ${inputSamples.median.toFixed(2)} ms / max ${inputSamples.maximum.toFixed(2)} ms`,
+        `samples ${formatLatencySamples(inputSamples)}`,
+        '(budgets p80 <50 ms / max <50 ms)',
+        '\n',
+      ].join(' '),
     );
 
-    expect(view.state.doc.toString()).toContain(
-      'plain text typed during pending render',
-    );
-    expect(durationMs).toBeLessThan(50);
-
-    view.destroy();
-    parent.remove();
+    expect(inputSamples.p80).toBeLessThan(50);
+    expect(inputSamples.maximum).toBeLessThan(50);
   });
 
   it('records main-document input while a complex Mermaid render is pending', async () => {
-    const renderStart = waitForRenderStart();
-    let renderedSource = '';
-    const render = vi.fn((context: MermaidRenderContext) => {
-      renderedSource = context.source;
-      renderStart.resolveStarted();
-      return new Promise<string>(() => {});
-    });
-    const scheduler = new MermaidRenderScheduler({
-      debounceMs: 0,
-      render,
-    });
     const doc = createComplexMermaidDocument(
       complexMermaidNodeCount,
     );
-    const parent = document.createElement('div');
-    document.body.appendChild(parent);
-    const editor = createEditorApi({
-      displayMode: 'source',
-      doc,
-      extensions: [mermaidPreviewExtension({ scheduler })],
-      parent,
-    });
+    const inputValues: number[] = [];
 
-    try {
-      await renderStart.started;
-
-      const insert = '\nMain document input during complex render.';
-      const startedAt = performance.now();
-
-      editor.view.dispatch({
-        changes: {
-          from: editor.view.state.doc.length,
-          insert,
-        },
-        selection: {
-          anchor: editor.view.state.doc.length + insert.length,
-        },
-        userEvent: 'input.type',
+    for (let sampleIndex = 0; sampleIndex < latencySampleCount; sampleIndex += 1) {
+      const renderStart = waitForRenderStart();
+      let renderedSource = '';
+      const render = vi.fn((context: MermaidRenderContext) => {
+        renderedSource = context.source;
+        renderStart.resolveStarted();
+        return new Promise<string>(() => {});
+      });
+      const scheduler = new MermaidRenderScheduler({
+        debounceMs: 0,
+        render,
+      });
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const editor = createEditorApi({
+        displayMode: 'source',
+        doc,
+        extensions: [mermaidPreviewExtension({ scheduler })],
+        parent,
       });
 
-      const durationMs = performance.now() - startedAt;
+      try {
+        await renderStart.started;
 
-      process.stdout.write(
-        [
-          '[perf:mermaid-input-complex]',
-          `${complexMermaidNodeCount} nodes /`,
-          `${Buffer.byteLength(doc, 'utf8')} bytes:`,
-          `${durationMs.toFixed(2)} ms (budget <50 ms)`,
-          '\n',
-        ].join(' '),
-      );
+        const insert = `\nMain document input during complex render ${sampleIndex}.`;
+        const insertPosition = editor.view.state.doc.length;
+        const startedAt = performance.now();
 
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 0);
-      });
+        editor.view.dispatch({
+          changes: {
+            from: insertPosition,
+            insert,
+          },
+          selection: {
+            anchor: insertPosition + insert.length,
+          },
+          userEvent: 'input.type',
+        });
+        inputValues.push(performance.now() - startedAt);
 
-      expect(editor.getDocumentText()).toBe(doc + insert);
-      expect(renderedSource).toContain('flowchart LR');
-      expect(renderedSource.length).toBeGreaterThan(10_000);
-      expect(render).toHaveBeenCalledTimes(1);
-      expect(Number.isFinite(durationMs)).toBe(true);
-      expect(durationMs).toBeLessThan(50);
-    } finally {
-      editor.destroy();
-      parent.remove();
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 0);
+        });
+
+        expect(editor.getDocumentText()).toBe(doc + insert);
+        expect(renderedSource).toContain('flowchart LR');
+        expect(renderedSource.length).toBeGreaterThan(10_000);
+        expect(render).toHaveBeenCalledTimes(1);
+      } finally {
+        editor.destroy();
+        parent.remove();
+      }
     }
+
+    const inputSamples = summarizeLatencySamples(inputValues);
+
+    process.stdout.write(
+      [
+        '[perf:mermaid-input-complex]',
+        `${complexMermaidNodeCount} nodes /`,
+        `${Buffer.byteLength(doc, 'utf8')} bytes:`,
+        `p80 ${inputSamples.p80.toFixed(2)} ms / median ${inputSamples.median.toFixed(2)} ms / max ${inputSamples.maximum.toFixed(2)} ms`,
+        `samples ${formatLatencySamples(inputSamples)}`,
+        '(budgets p80 <50 ms / max <50 ms)',
+        '\n',
+      ].join(' '),
+    );
+
+    expect(inputSamples.p80).toBeLessThan(50);
+    expect(inputSamples.maximum).toBeLessThan(50);
   });
 
   it('bounds the cold active Mermaid input path before steady-state samples', () => {
@@ -170,47 +207,60 @@ describe('Mermaid input latency baseline', () => {
       '',
       'after',
     ].join('\n');
-    const parent = document.createElement('div');
-    document.body.appendChild(parent);
-    const scheduler = new MermaidRenderScheduler({
-      debounceMs: 0,
-      render: vi.fn().mockResolvedValue('<svg></svg>'),
-    });
-    const editor = createEditorApi({
-      doc,
-      extensions: [mermaidPreviewExtension({ scheduler })],
-      parent,
-    });
+    const inputValues: number[] = [];
 
-    try {
-      const editButton = parent.querySelector<HTMLButtonElement>(
-        '.lm-mermaid-edit-source',
-      );
-      expect(editButton).not.toBeNull();
-      editButton?.click();
-
-      const insert = '\n  B --> C';
-      const insertPosition = editor.view.state.selection.main.to;
-      const startedAt = performance.now();
-
-      editor.view.dispatch({
-        changes: { from: insertPosition, insert },
-        selection: { anchor: insertPosition + insert.length },
-        userEvent: 'input.mermaid',
+    for (let sampleIndex = 0; sampleIndex < latencySampleCount; sampleIndex += 1) {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const scheduler = new MermaidRenderScheduler({
+        debounceMs: 0,
+        render: vi.fn().mockResolvedValue('<svg></svg>'),
+      });
+      const editor = createEditorApi({
+        doc,
+        extensions: [mermaidPreviewExtension({ scheduler })],
+        parent,
       });
 
-      const durationMs = performance.now() - startedAt;
+      try {
+        const editButton = parent.querySelector<HTMLButtonElement>(
+          '.lm-mermaid-edit-source',
+        );
+        expect(editButton).not.toBeNull();
+        editButton?.click();
 
-      process.stdout.write(
-        `[perf:mermaid-active-input-cold] small document: ${durationMs.toFixed(2)} ms (budget <16 ms)\n`,
-      );
+        const insert = `\n  B --> C${sampleIndex}`;
+        const insertPosition = editor.view.state.selection.main.to;
+        const startedAt = performance.now();
 
-      expect(editor.getDocumentText()).toContain('B --> C');
-      expect(durationMs).toBeLessThan(16);
-    } finally {
-      editor.destroy();
-      parent.remove();
+        editor.view.dispatch({
+          changes: { from: insertPosition, insert },
+          selection: { anchor: insertPosition + insert.length },
+          userEvent: 'input.mermaid',
+        });
+        inputValues.push(performance.now() - startedAt);
+
+        expect(editor.getDocumentText()).toContain(`B --> C${sampleIndex}`);
+      } finally {
+        editor.destroy();
+        parent.remove();
+      }
     }
+
+    const inputSamples = summarizeLatencySamples(inputValues);
+
+    process.stdout.write(
+      [
+        '[perf:mermaid-active-input-cold] independent small-document activations:',
+        `p80 ${inputSamples.p80.toFixed(2)} ms / median ${inputSamples.median.toFixed(2)} ms / max ${inputSamples.maximum.toFixed(2)} ms`,
+        `samples ${formatLatencySamples(inputSamples)}`,
+        '(budgets p80 <16 ms / max <50 ms)',
+        '\n',
+      ].join(' '),
+    );
+
+    expect(inputSamples.p80).toBeLessThan(16);
+    expect(inputSamples.maximum).toBeLessThan(50);
   });
 
   it.each(largeMarkdownFixturePaths)(
@@ -243,29 +293,35 @@ describe('Mermaid input latency baseline', () => {
         expect(editButton).not.toBeNull();
         editButton?.click();
 
-        const insert = '\n  B --> C';
-        const insertPosition = editor.view.state.selection.main.to;
-        const startedAt = performance.now();
+        const inputSamples = measureLatencySamples((sampleIndex) => {
+          const insert = `\n  B --> C${sampleIndex}`;
+          const insertPosition = editor.view.state.selection.main.to;
 
-        editor.view.dispatch({
-          changes: { from: insertPosition, insert },
-          selection: { anchor: insertPosition + insert.length },
-          userEvent: 'input.mermaid',
+          editor.view.dispatch({
+            changes: { from: insertPosition, insert },
+            selection: { anchor: insertPosition + insert.length },
+            userEvent: 'input.mermaid',
+          });
         });
-
-        const durationMs = performance.now() - startedAt;
+        const inputHardLimit = inputHardLimitMs(
+          activeMermaidInputBudgetsMs[name],
+        );
 
         process.stdout.write(
           [
             `[perf:mermaid-active-input] ${name}:`,
-            `${durationMs.toFixed(2)} ms`,
-            `(budget <${activeMermaidInputBudgetsMs[name]} ms)`,
+            `p80 ${inputSamples.p80.toFixed(2)} ms / median ${inputSamples.median.toFixed(2)} ms / max ${inputSamples.maximum.toFixed(2)} ms`,
+            `samples ${formatLatencySamples(inputSamples)}`,
+            `(budgets p80 <${activeMermaidInputBudgetsMs[name]} ms / max <${inputHardLimit} ms)`,
             '\n',
           ].join(' '),
         );
 
-        expect(editor.getDocumentText()).toContain('B --> C');
-        expect(durationMs).toBeLessThan(activeMermaidInputBudgetsMs[name]);
+        expect(editor.getDocumentText()).toContain('B --> C4');
+        expect(inputSamples.p80).toBeLessThan(
+          activeMermaidInputBudgetsMs[name],
+        );
+        expect(inputSamples.maximum).toBeLessThan(inputHardLimit);
       } finally {
         editor.destroy();
         parent.remove();

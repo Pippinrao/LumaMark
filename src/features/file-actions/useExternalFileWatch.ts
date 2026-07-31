@@ -197,7 +197,7 @@ export function useExternalFileWatch({
         }
 
         const editor = editorRef.current;
-        if (!editor || editor.getText() === latest.data.text) {
+        if (!editor || editor.serializeText() === latest.data.text) {
           return;
         }
 
@@ -262,6 +262,7 @@ export function useExternalFileWatch({
       if (event.kind === 'removed') {
         diskReadRequestRef.current += 1;
         setConflict(null);
+        editorRef.current?.markUnsaved();
         if (!state.getState().dirty) {
           state.setDirty(true);
         }
@@ -313,7 +314,7 @@ export function useExternalFileWatch({
 
         const editor = editorRef.current;
 
-        if (!editor || result.data.text === editor.getText()) {
+        if (!editor || result.data.text === editor.serializeText()) {
           return;
         }
 
@@ -411,7 +412,7 @@ export function useExternalFileWatch({
       return;
     }
 
-    if (editor.getText() !== result.data.text) {
+    if (editor.serializeText() !== result.data.text) {
       editor.loadText(result.data.text, { preserveView: true });
     }
     state.setDirty(false);

@@ -39,6 +39,50 @@ describe('useAppEditorCommands', () => {
     document.body.textContent = '';
   });
 
+  it('keeps a stable display-mode toggle synchronized with the ready editor', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc: '# Display mode',
+      parent,
+    });
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+
+    act(() => {
+      result.current.onEditorReady(editor);
+    });
+    const toggleDisplayMode = result.current.toggleDisplayMode;
+
+    expect(result.current.editorDisplayMode).toBe('source');
+    expect(editor.getDisplayMode()).toBe('source');
+
+    act(() => {
+      result.current.toggleDisplayMode();
+    });
+
+    expect(result.current.toggleDisplayMode).toBe(toggleDisplayMode);
+    expect(result.current.editorDisplayMode).toBe('livePreview');
+    expect(editor.getDisplayMode()).toBe('livePreview');
+
+    act(() => {
+      result.current.setDisplayMode('source');
+    });
+
+    expect(result.current.editorDisplayMode).toBe('source');
+    expect(editor.getDisplayMode()).toBe('source');
+
+    act(() => {
+      toggleDisplayMode();
+    });
+
+    expect(result.current.editorDisplayMode).toBe('livePreview');
+    expect(editor.getDisplayMode()).toBe('livePreview');
+
+    unmount();
+    editor.destroy();
+  });
+
   it('inserts native local image drops with their original paths by default', async () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

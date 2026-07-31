@@ -88,8 +88,8 @@ This is [an example][id] reference-style link.
 
 | ID | 行为点 | Typora 事实摘要（一句） | 出处 | LumaMark | 理由（一句） | 阶段 |
 |---|---|---|---|---|---|---|
-| link-01 | 行内链接语法 | [text](url) 与可选 title | support | align | V1 含链接 | V1 |
-| link-02 | 引用式链接 | [text][id] + 定义行 | support | align | V1 基础 Markdown | V1 |
+| link-01 | 行内链接语法 | `[text](url)` 与可选 title | support | align | V1 含链接 | V1 |
+| link-02 | 引用式链接 | `[text][id]` + 定义行 | support | align | V1 基础 Markdown | V1 |
 | link-03 | 内部锚点链接 | #heading 跳转 | support | defer | 大纲跳转有；文档内 Ctrl+Click 锚点 Parity 打磨 | Parity |
 | link-04 | 自动 URL | 裸 URL / <> 可成链 | support | defer | 非 V1 必达自动链接 | Parity |
 | link-05 | 单击展开编辑 | 单击展开 `[text](url)` 源码 | both | align | V1 span 编辑模型 | V1 |

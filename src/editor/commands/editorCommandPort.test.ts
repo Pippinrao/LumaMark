@@ -7,6 +7,21 @@ import {
 } from './editorCommandPort';
 
 describe('editor command port', () => {
+  it('separates normalized editor text from exact serialized source', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = '\uFEFFfirst\r\nsecond\rthird\n';
+    const editor = createEditorApi({ doc: source, parent });
+    const documentPort = createEditorDocumentPort(editor);
+
+    expect(documentPort.getText()).toBe('first\nsecond\nthird\n');
+    expect(documentPort.serializeText()).toBe(source);
+    expect(documentPort.captureSnapshot().serializedText).toBe(source);
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('opens the built-in search panel through the command port', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

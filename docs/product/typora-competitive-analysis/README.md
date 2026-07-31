@@ -2,6 +2,12 @@
 
 本目录用于导航 LumaMark 对照 Typora 公开行为基线形成的 18 份专题竞争分析，并约束这些报告的职责、证据边界和维护方式。
 
+## Parity Reliability 快照说明（2026-07-27）
+
+本目录专题正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵是 **2026-07-12 分析快照**，保留用于历史取证，不能脱离专题顶部较新的实施更新来判断当前能力。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+
+本轮已对段落、引用、列表、行内 span、脚注、水平线、YAML Front Matter、`[toc]` 和 Callout 补充 2026-07-27 实施更新。其中脚注、YAML、`[toc]` 与 Callout 目前只有 protected-source 安全降级，完整能力仍分别处于 Next 或 Later，不能标记为已实现。
+
 ## 用途
 
 - 为产品、UX、编辑器实现和验收人员提供按专题查找当前差距的入口。

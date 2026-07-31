@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
+import { undo } from '@codemirror/commands';
+import { EditorSelection } from '@codemirror/state';
 import type { CommandResult } from '../../services/tauri/invokeCommand';
+import {
+  createEditorApi,
+  type EditorApi,
+} from '../../editor/core/editorApi';
+import { isDocumentDirty } from '../../editor/core/createEditorState';
 import {
   createFileActions,
   type FileActionState,
@@ -32,7 +39,104 @@ function createState(initial?: Partial<FileActionState>) {
   };
 }
 
+function withExactSnapshotMethods<
+  T extends Pick<
+    EditorApi,
+    'focus' | 'getDocumentText' | 'loadDocument' | 'markDocumentSaved'
+  >,
+>(
+  editor: T,
+): T &
+  Pick<
+    EditorApi,
+    | 'captureDocumentSnapshot'
+    | 'isDocumentSnapshotCurrent'
+    | 'markDocumentUnsaved'
+  > {
+  return {
+    ...editor,
+    captureDocumentSnapshot: () => ({
+      serializedText: editor.getDocumentText(),
+    }),
+    isDocumentSnapshotCurrent: (snapshot) =>
+      snapshot.serializedText === editor.getDocumentText(),
+    markDocumentUnsaved: vi.fn(),
+  };
+}
+
 describe('file actions', () => {
+  it('saves an immutable exact editor snapshot while newer input stays dirty', async () => {
+    let finishWrite: (() => void) | undefined;
+    let writtenText = '';
+    const writePending = new Promise<void>((resolve) => {
+      finishWrite = resolve;
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '\uFEFF# Saved\r\nfirst\rsecond\n',
+      parent,
+    });
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+      dirtyRevision: 1,
+    });
+    editor.view.dispatch({
+      changes: {
+        from: editor.view.state.doc.length,
+        insert: 'snapshot',
+      },
+    });
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn(),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn(),
+        writeText: vi.fn(async (path, text) => {
+          writtenText = text;
+          await writePending;
+
+          return {
+            ok: true as const,
+            data: {
+              byteLength: Buffer.byteLength(text, 'utf8'),
+              path,
+            },
+          };
+        }),
+      },
+      editor,
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    const save = actions.saveCurrentFile();
+    await vi.waitFor(() => {
+      expect(writtenText).not.toBe('');
+    });
+    editor.view.dispatch({
+      changes: {
+        from: editor.view.state.doc.length,
+        insert: ' newer',
+      },
+    });
+    state.setDirty(true);
+    finishWrite?.();
+    await save;
+
+    expect(writtenText).toBe('\uFEFF# Saved\r\nfirst\rsecond\nsnapshot');
+    expect(isDocumentDirty(editor.view.state)).toBe(true);
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.view.state.doc.toString()).toBe(
+      '# Saved\nfirst\nsecond\nsnapshot',
+    );
+    expect(isDocumentDirty(editor.view.state)).toBe(false);
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('loads migrated markdown back into the editor after a successful save', async () => {
     const loadDocument = vi.fn();
     const actions = createFileActions({
@@ -40,7 +144,14 @@ describe('file actions', () => {
         readText: vi.fn(), showOpenDialog: vi.fn(), showSaveDialog: vi.fn(),
         writeText: vi.fn().mockResolvedValue({ ok: true, data: { byteLength: 30, path: 'E:/docs/note.md' } }),
       },
-      editor: { focus: vi.fn(), getDocumentText: vi.fn(() => '![Draft](lumamark-draft://draft-1/image-001.png)'), loadDocument },
+      editor: withExactSnapshotMethods({
+        focus: vi.fn(),
+        getDocumentText: vi.fn(
+          () => '![Draft](lumamark-draft://draft-1/image-001.png)',
+        ),
+        loadDocument,
+        markDocumentSaved: vi.fn(),
+      }),
       prepareTextForSave: async () => '![Draft](note.assets/image-001.png)',
       recentFiles: { addRecentFile: vi.fn() },
       state: createState({ currentFile: { name: 'note.md', path: 'E:/docs/note.md' }, dirty: true }),
@@ -48,7 +159,105 @@ describe('file actions', () => {
 
     await actions.saveCurrentFile();
 
-    expect(loadDocument).toHaveBeenCalledWith('![Draft](note.assets/image-001.png)');
+    expect(loadDocument).toHaveBeenCalledWith(
+      '![Draft](note.assets/image-001.png)',
+      { preserveView: true, resetHistory: false },
+    );
+  });
+
+  it('maps the real editor selection through a draft image save transform', async () => {
+    const source = [
+      '![Draft](lumamark-draft://draft-1/image-001.png)',
+      'TARGET paragraph',
+    ].join('\n');
+    const prepared = [
+      '![Draft](note.assets/image-001.png)',
+      'TARGET paragraph',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: source, parent });
+    const sourceTarget = source.indexOf('TARGET');
+    const preparedTarget = prepared.indexOf('TARGET');
+    editor.view.dispatch({
+      selection: EditorSelection.range(sourceTarget, sourceTarget + 6),
+    });
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+    });
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn(),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn(),
+        writeText: vi.fn().mockResolvedValue({
+          ok: true,
+          data: { byteLength: prepared.length, path: 'E:/docs/note.md' },
+        }),
+      },
+      editor,
+      prepareTextForSave: async () => prepared,
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    try {
+      await actions.saveCurrentFile();
+
+      expect(editor.view.state.selection.main).toEqual(
+        EditorSelection.range(preparedTarget, preparedTarget + 6),
+      );
+      expect(editor.view.state.sliceDoc(preparedTarget, preparedTarget + 6)).toBe(
+        'TARGET',
+      );
+      expect(state.getState().dirty).toBe(false);
+    } finally {
+      editor.destroy();
+      parent.remove();
+    }
+  });
+
+  it('returns a recoverable error when save preparation fails', async () => {
+    const writeText = vi.fn();
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+    });
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn(),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn(),
+        writeText,
+      },
+      editor: withExactSnapshotMethods({
+        focus: vi.fn(),
+        getDocumentText: vi.fn(() => '# unsaved'),
+        loadDocument: vi.fn(),
+        markDocumentSaved: vi.fn(),
+      }),
+      prepareTextForSave: async () => {
+        throw new Error('asset.finalize_failed');
+      },
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    const result = await actions.saveCurrentFile();
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: 'file.prepare_failed',
+        details: expect.any(Error),
+        message: 'asset.finalize_failed',
+        recoverable: true,
+      },
+    });
+    expect(writeText).not.toHaveBeenCalled();
+    expect(state.getState().dirty).toBe(true);
+    expect(state.getState().lastFileError?.code).toBe('file.prepare_failed');
   });
 
   it('creates an empty unsaved document without retaining the previous file context', () => {
@@ -56,6 +265,7 @@ describe('file actions', () => {
       focus: vi.fn(),
       getDocumentText: vi.fn(),
       loadDocument: vi.fn(),
+      markDocumentSaved: vi.fn(),
       setDocumentContext: vi.fn(),
     };
     const state = createState({
@@ -74,7 +284,7 @@ describe('file actions', () => {
         showSaveDialog: vi.fn(),
         writeText: vi.fn(),
       },
-      editor,
+      editor: withExactSnapshotMethods(editor),
       recentFiles: { addRecentFile: vi.fn() },
       state,
     });
@@ -97,6 +307,7 @@ describe('file actions', () => {
       focus: vi.fn(),
       getDocumentText: vi.fn(() => '# unsaved'),
       loadDocument: vi.fn(),
+      markDocumentSaved: vi.fn(),
     };
     const state = createState({
       currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
@@ -122,7 +333,7 @@ describe('file actions', () => {
         showSaveDialog: vi.fn(),
         writeText,
       },
-      editor,
+      editor: withExactSnapshotMethods(editor),
       recentFiles: { addRecentFile: vi.fn() },
       state,
     });
@@ -145,6 +356,7 @@ describe('file actions', () => {
       focus: vi.fn(),
       getDocumentText: vi.fn(() => '# saved'),
       loadDocument: vi.fn(),
+      markDocumentSaved: vi.fn(),
     };
     const state = createState({
       currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
@@ -171,7 +383,7 @@ describe('file actions', () => {
           },
         }),
       },
-      editor,
+      editor: withExactSnapshotMethods(editor),
       recentFiles: { addRecentFile },
       state,
     });
@@ -192,10 +404,12 @@ describe('file actions', () => {
   });
 
   it('keeps dirty state when the document changes while save is in flight', async () => {
+    const markDocumentSaved = vi.fn();
     const editor = {
       focus: vi.fn(),
       getDocumentText: vi.fn(() => '# first snapshot'),
       loadDocument: vi.fn(),
+      markDocumentSaved,
     };
     const state = createState({
       currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
@@ -220,7 +434,7 @@ describe('file actions', () => {
           };
         }),
       },
-      editor,
+      editor: withExactSnapshotMethods(editor),
       recentFiles: { addRecentFile: vi.fn() },
       state,
     });
@@ -230,6 +444,9 @@ describe('file actions', () => {
     expect(result.ok).toBe(true);
     expect(state.getState().dirty).toBe(true);
     expect(state.getState().dirtyRevision).toBe(8);
+    expect(markDocumentSaved).toHaveBeenCalledWith({
+      serializedText: '# first snapshot',
+    });
   });
 
   it('does not replace newer editor text with a migrated save snapshot', async () => {
@@ -257,11 +474,12 @@ describe('file actions', () => {
           };
         }),
       },
-      editor: {
+      editor: withExactSnapshotMethods({
         focus: vi.fn(),
         getDocumentText: vi.fn(() => documentText),
         loadDocument,
-      },
+        markDocumentSaved: vi.fn(),
+      }),
       prepareTextForSave: async () => '![Draft](note.assets/image-001.png)',
       recentFiles: { addRecentFile: vi.fn() },
       state,
@@ -282,11 +500,12 @@ describe('file actions', () => {
         showSaveDialog: vi.fn(),
         writeText: vi.fn(),
       },
-      editor: {
+      editor: withExactSnapshotMethods({
         focus: vi.fn(),
         getDocumentText: vi.fn(() => '# draft'),
         loadDocument: vi.fn(),
-      },
+        markDocumentSaved: vi.fn(),
+      }),
       recentFiles: { addRecentFile: vi.fn() },
       state: createState(),
     });
@@ -308,6 +527,7 @@ describe('file actions', () => {
       focus: vi.fn(),
       getDocumentText: vi.fn(() => '# save as'),
       loadDocument: vi.fn(),
+      markDocumentSaved: vi.fn(),
     };
     const state = createState({
       dirty: true,
@@ -332,7 +552,7 @@ describe('file actions', () => {
         }),
         writeText,
       },
-      editor,
+      editor: withExactSnapshotMethods(editor),
       recentFiles: { addRecentFile },
       state,
     });
@@ -366,11 +586,12 @@ describe('file actions', () => {
         showSaveDialog: vi.fn(),
         writeText: vi.fn(),
       },
-      editor: {
+      editor: withExactSnapshotMethods({
         focus: vi.fn(),
         getDocumentText: vi.fn(),
         loadDocument: vi.fn(),
-      },
+        markDocumentSaved: vi.fn(),
+      }),
       recentFiles: { addRecentFile: vi.fn() },
       state,
     });
@@ -391,6 +612,7 @@ describe('file actions', () => {
       focus: vi.fn(),
       getDocumentText: vi.fn(),
       loadDocument: vi.fn(),
+      markDocumentSaved: vi.fn(),
     };
     const state = createState({ dirty: true });
     const addRecentFile = vi.fn();
@@ -409,7 +631,7 @@ describe('file actions', () => {
         showSaveDialog: vi.fn(),
         writeText: vi.fn(),
       },
-      editor,
+      editor: withExactSnapshotMethods(editor),
       recentFiles: { addRecentFile },
       state,
     });
@@ -436,6 +658,7 @@ describe('file actions', () => {
       focus: vi.fn(),
       getDocumentText: vi.fn(),
       loadDocument: vi.fn(),
+      markDocumentSaved: vi.fn(),
     };
     const state = createState({
       currentFile: { name: 'newer.md', path: 'E:/docs/newer.md' },
@@ -457,7 +680,7 @@ describe('file actions', () => {
         showSaveDialog: vi.fn(),
         writeText: vi.fn(),
       },
-      editor,
+      editor: withExactSnapshotMethods(editor),
       recentFiles: { addRecentFile },
       shouldApplyOpenResult: () => false,
       state,
@@ -493,11 +716,12 @@ describe('file actions', () => {
         showSaveDialog: vi.fn(),
         writeText: vi.fn(),
       },
-      editor: {
+      editor: withExactSnapshotMethods({
         focus: vi.fn(),
         getDocumentText: vi.fn(),
         loadDocument: vi.fn(),
-      },
+        markDocumentSaved: vi.fn(),
+      }),
       recentFiles: { addRecentFile: vi.fn() },
       shouldApplyOpenResult: () => false,
       state,

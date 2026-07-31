@@ -2,18 +2,20 @@ import { syntaxTree } from '@codemirror/language';
 import {
   type Extension,
   RangeSetBuilder,
-  StateField,
 } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
   EditorView,
+  ViewPlugin,
+  type ViewUpdate,
 } from '@codemirror/view';
 import type { MarkdownDecorationRange } from '../../markdown/markdownDecorationTypes';
 import { iterateLines } from '../../markdown/markdownDecorationTypes';
 
 const INLINE_CODE_PATTERN = /`[^`\n]+?`/g;
 const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})/;
+const VIEWPORT_BUFFER_LINES = 20;
 
 type ActiveCodeFence = {
   char: '`' | '~';
@@ -126,63 +128,107 @@ export function codeBlockSyntaxDecorationRange({
 }
 
 export function codeBlockPreviewExtension(): Extension {
-  return StateField.define<DecorationSet>({
-    create(state) {
-      return buildCodeBlockLineDecorations(state);
-    },
-    update(value, transaction) {
-      if (transaction.docChanged) {
-        return buildCodeBlockLineDecorations(transaction.state);
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+
+      constructor(view: EditorView) {
+        this.decorations = buildCodeBlockLineDecorations(view);
       }
 
-      return value.map(transaction.changes);
+      update(update: ViewUpdate) {
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          syntaxTree(update.startState) !== syntaxTree(update.state)
+        ) {
+          this.decorations = buildCodeBlockLineDecorations(update.view);
+        }
+      }
     },
-    provide: (field) => EditorView.decorations.from(field),
-  });
+    {
+      decorations: (plugin) => plugin.decorations,
+    },
+  );
 }
 
 function buildCodeBlockLineDecorations(
-  state: EditorView['state'],
+  view: EditorView,
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
+  const state = view.state;
 
-  syntaxTree(state).iterate({
-    enter(node) {
-      if (node.name !== 'FencedCode') {
-        return;
-      }
-
-      const firstLine = state.doc.lineAt(node.from);
-      const lastLine = state.doc.lineAt(Math.max(node.from, node.to - 1));
-
-      for (
-        let lineNumber = firstLine.number;
-        lineNumber <= lastLine.number;
-        lineNumber += 1
-      ) {
-        const line = state.doc.line(lineNumber);
-        const classes = ['lm-md-code-block-line'];
-
-        if (lineNumber === firstLine.number) {
-          classes.push('lm-md-code-block-start');
+  for (const visibleRange of bufferedVisibleRanges(view)) {
+    syntaxTree(state).iterate({
+      from: visibleRange.from,
+      to: visibleRange.to,
+      enter(node) {
+        if (node.name !== 'FencedCode') {
+          return;
         }
 
-        if (lineNumber === lastLine.number) {
-          classes.push('lm-md-code-block-end');
-        }
+        const firstLine = state.doc.lineAt(node.from);
+        const lastLine = state.doc.lineAt(Math.max(node.from, node.to - 1));
+        const firstVisibleLine = state.doc.lineAt(visibleRange.from).number;
+        const lastVisibleLine = state.doc.lineAt(visibleRange.to).number;
 
-        builder.add(
-          line.from,
-          line.from,
-          Decoration.line({
-            class: classes.join(' '),
-          }),
-        );
-      }
-    },
-  });
+        for (
+          let lineNumber = Math.max(firstLine.number, firstVisibleLine);
+          lineNumber <= Math.min(lastLine.number, lastVisibleLine);
+          lineNumber += 1
+        ) {
+          const line = state.doc.line(lineNumber);
+          const classes = ['lm-md-code-block-line'];
+
+          if (lineNumber === firstLine.number) {
+            classes.push('lm-md-code-block-start');
+          }
+
+          if (lineNumber === lastLine.number) {
+            classes.push('lm-md-code-block-end');
+          }
+
+          builder.add(
+            line.from,
+            line.from,
+            Decoration.line({
+              class: classes.join(' '),
+            }),
+          );
+        }
+      },
+    });
+  }
 
   return builder.finish();
+}
+
+function bufferedVisibleRanges(view: EditorView): { from: number; to: number }[] {
+  const ranges = view.visibleRanges.map(({ from, to }) => {
+    const firstLine = view.state.doc.lineAt(from).number;
+    const lastLine = view.state.doc.lineAt(to).number;
+
+    return {
+      from: view.state.doc.line(Math.max(1, firstLine - VIEWPORT_BUFFER_LINES)).from,
+      to: view.state.doc.line(
+        Math.min(view.state.doc.lines, lastLine + VIEWPORT_BUFFER_LINES),
+      ).to,
+    };
+  });
+
+  const mergedRanges: { from: number; to: number }[] = [];
+
+  for (const range of ranges) {
+    const previous = mergedRanges.at(-1);
+
+    if (previous && range.from <= previous.to) {
+      previous.to = Math.max(previous.to, range.to);
+    } else {
+      mergedRanges.push(range);
+    }
+  }
+
+  return mergedRanges;
 }
 
 function parseFence(text: string): Pick<ActiveCodeFence, 'char' | 'length'> | null {

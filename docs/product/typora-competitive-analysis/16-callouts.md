@@ -1,5 +1,12 @@
 # 1. Callouts / GitHub Style Alerts 竞争体验与实现差距分析
 
+> **Parity Reliability 实施更新（2026-07-27）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - protected-source 分析现识别 `> [!TYPE]` 形式并保护对应引用块，阻止通用引用与链接装饰误处理；单元与 UI 测试证明源码在 live preview 中保持可见。
+> - 这只是安全降级，不是 Callout 功能。类型化渲染、设置门控、创建入口、可访问交互与完整组合测试仍属 Later。
+
 ## 2. 用途、范围与非目标
 
 本文面向 LumaMark 的产品、编辑器与质量工程维护者，以 Typora 1.13.7 的公开 Callouts / GitHub Style Alerts 体验为基线，核对当前工作区中的真实代码、测试、fixture 与依赖锁定结果，形成可直接进入后续实现计划的差距、架构边界与验收门禁。本文只记录 `> [!TYPE]` 这一专题，不把规划文档写成已经交付的事实；代码、可执行测试和 fixture 的证据强度高于路线或差距规划。

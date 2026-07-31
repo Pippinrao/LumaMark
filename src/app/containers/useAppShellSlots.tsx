@@ -101,11 +101,17 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
           ariaLabel={model.labels.editor}
           contextMenuItems={model.editor.contextMenuItems}
           onAction={model.runAction}
-          onDocumentChanged={() => {
-            model.editor.markDocumentDirty();
-            model.recoveryDraft.scheduleRecoveryDraft();
-            model.documentStatistics.scheduleRefresh();
-            model.scheduleOutlineRefresh();
+          onDocumentChanged={(event) => {
+            model.editor.markDocumentDirty(event.dirty);
+            if (event.dirty) {
+              model.recoveryDraft.scheduleRecoveryDraft();
+            } else {
+              model.recoveryDraft.clearRecoveryDraft();
+            }
+            if (event.documentChanged) {
+              model.documentStatistics.scheduleRefresh();
+              model.scheduleOutlineRefresh();
+            }
           }}
           onEditorReady={model.editor.onReady}
           imageAssetResolver={model.editor.imageAssetResolver}

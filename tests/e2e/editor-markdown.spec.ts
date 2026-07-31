@@ -1,4 +1,48 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+async function replaceEditorSource(
+  page: Page,
+  source: string,
+): Promise<void> {
+  const editor = page.locator('.cm-content').first();
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+A`);
+  await page.keyboard.insertText(source);
+}
+
+async function switchEditorMode(
+  page: Page,
+  mode: 'livePreview' | 'source',
+): Promise<void> {
+  const rootClass =
+    mode === 'source'
+      ? '.lm-editor-source-mode'
+      : '.lm-editor-live-preview-mode';
+
+  if (await page.locator(rootClass).isVisible()) {
+    return;
+  }
+
+  await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
+  await page
+    .getByRole('menuitem', {
+      name: mode === 'source' ? '源码模式' : '实时预览',
+    })
+    .click();
+  await expect(page.locator(rootClass)).toBeVisible();
+}
+
+async function expectEditorSource(
+  page: Page,
+  source: string,
+): Promise<void> {
+  await switchEditorMode(page, 'source');
+  await expect(
+    page.locator('.lm-editor-source-mode .cm-line'),
+  ).toHaveText(source.split('\n'));
+}
 
 test('renders basic markdown visually and keeps task source editable', async ({
   page,
@@ -8,31 +52,30 @@ test('renders basic markdown visually and keeps task source editable', async ({
   const editor = page.locator('.cm-content').first();
   await editor.click();
   await page.keyboard.press('Control+A');
-  await page.keyboard.insertText(
-    [
-      '# 标题',
-      '',
-      '**粗体**',
-      '',
-      '> 引用内容',
-      '',
-      '- item',
-      '  - nested item',
-      '- [ ] task',
-      '',
-      '[Luma](https://example.com)',
-      '',
-      '![Tiny](data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==)',
-      '',
-      '---',
-      '',
-      '```js',
-      'const x = 1',
-      '```',
-      '',
-      'plain',
-    ].join('\n'),
-  );
+  const source = [
+    '# 标题',
+    '',
+    '**粗体**',
+    '',
+    '> 引用内容',
+    '',
+    '- item',
+    '  - nested item',
+    '- [ ] task',
+    '',
+    '[Luma](https://example.com)',
+    '',
+    '![Tiny](data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==)',
+    '',
+    '---',
+    '',
+    '```js',
+    'const x = 1',
+    '```',
+    '',
+    'plain',
+  ].join('\n');
+  await page.keyboard.insertText(source);
   await page.locator('.cm-line', { hasText: 'plain' }).click();
 
   await expect(page.locator('.lm-md-heading-1')).toContainText('标题');
@@ -48,15 +91,221 @@ test('renders basic markdown visually and keeps task source editable', async ({
   await expect(
     page.locator('.lm-md-code-block-line', { hasText: 'const x = 1' }),
   ).toBeVisible();
-  await expect(editor).toContainText('- [ ] task');
 
   await page.locator('.lm-md-task-checkbox').click();
-
-  await expect(editor).toContainText('- [x] task');
+  await expectEditorSource(page, source.replace('- [ ] task', '- [x] task'));
 
   await page.keyboard.press('Control+Z');
+  await expectEditorSource(page, source);
+});
 
-  await expect(editor).toContainText('- [ ] task');
+for (const { expected, key, name } of [
+  {
+    expected: 'plain\n\n',
+    key: 'Enter',
+    name: 'Enter creates a new paragraph',
+  },
+  {
+    expected: 'plain\n',
+    key: 'Shift+Enter',
+    name: 'Shift+Enter creates a soft line break',
+  },
+] as const) {
+  test(`${name} in an ordinary paragraph`, async ({ page }) => {
+    await page.goto('/');
+    await replaceEditorSource(page, 'plain');
+
+    await page.keyboard.press(key);
+
+    await expectEditorSource(page, expected);
+  });
+}
+
+test('Enter adds only one line break when the caret is already on an empty line', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await replaceEditorSource(page, 'before\n\nafter');
+  await page.keyboard.press(`${primaryModifier}+Home`);
+  await page.keyboard.press('ArrowDown');
+
+  await page.keyboard.press('Enter');
+
+  await expectEditorSource(page, 'before\n\n\nafter');
+});
+
+test('reveals only the current adjacent or nested inline owner', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const source = '**outer *内层* tail** and **second**';
+  await replaceEditorSource(page, source);
+  const line = page.locator('.cm-line').first();
+
+  await page.locator('.lm-md-emphasis', { hasText: '内层' }).click();
+  await expect(line).toHaveText(
+    '**outer *内层* tail** and second',
+  );
+
+  await page.locator('.lm-md-strong', { hasText: 'second' }).click();
+  await expect(line).toHaveText(
+    'outer 内层 tail and **second**',
+  );
+
+  await expectEditorSource(page, source);
+});
+
+for (const {
+  expectedAfterExit,
+  expectedContinuation,
+  initial,
+  name,
+} of [
+  {
+    expectedAfterExit: '- item\n- next\n\n',
+    expectedContinuation: '- item\n- next',
+    initial: '- item',
+    name: 'unordered list',
+  },
+  {
+    expectedAfterExit: '> quote\n> next\n\n',
+    expectedContinuation: '> quote\n> next',
+    initial: '> quote',
+    name: 'blockquote',
+  },
+] as const) {
+  test(`uses official continuation and exit behavior for ${name}`, async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await replaceEditorSource(page, initial);
+
+    await page.keyboard.press('Enter');
+    await page.keyboard.insertText('next');
+    await expectEditorSource(page, expectedContinuation);
+
+    await switchEditorMode(page, 'livePreview');
+    const editor = page.locator('.cm-content').first();
+    await editor.click();
+    await page.keyboard.press(`${primaryModifier}+End`);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+
+    await expectEditorSource(page, expectedAfterExit);
+  });
+}
+
+test('indents and unindents the current list item with Tab and Shift+Tab', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const flatList = '- parent\n- child';
+  const nestedList = '- parent\n  - child';
+  await replaceEditorSource(page, flatList);
+
+  await page.keyboard.press('Tab');
+  await expectEditorSource(page, nestedList);
+
+  await switchEditorMode(page, 'livePreview');
+  const editor = page.locator('.cm-content').first();
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+End`);
+  await page.keyboard.press('Shift+Tab');
+
+  await expectEditorSource(page, flatList);
+});
+
+for (const { key, name } of [
+  {
+    key: 'Space',
+    name: 'Space',
+  },
+  {
+    key: 'Enter',
+    name: 'Enter',
+  },
+] as const) {
+  test(`focuses a task checkbox with Tab and toggles it with ${name}`, async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await replaceEditorSource(page, '- [ ] task\n\nplain');
+    const editor = page.locator('.cm-content').first();
+    const checkbox = page.getByRole('checkbox', {
+      name: /切换任务完成状态|Toggle task completion/,
+    });
+    await expect(checkbox).toBeVisible();
+
+    await page.locator('.cm-line', { hasText: 'plain' }).click();
+    await expect(editor).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(checkbox).toBeFocused();
+
+    await page.keyboard.press(key);
+    await expect(checkbox).toBeChecked();
+    await expect(checkbox).toBeFocused();
+
+    await page.keyboard.press(key);
+    await expect(checkbox).not.toBeChecked();
+    await expect(checkbox).toBeFocused();
+    await expectEditorSource(page, '- [ ] task\n\nplain');
+  });
+}
+
+for (const { expected, initial, name } of [
+  {
+    expected: '- parent\n    - [x] nested task',
+    initial: '- parent\n    - [ ] nested task',
+    name: 'a deeply nested task',
+  },
+  {
+    expected: '> - [x] quoted task',
+    initial: '> - [ ] quoted task',
+    name: 'a task inside a blockquote',
+  },
+] as const) {
+  test(`toggles ${name} with Mod-Enter`, async ({ page }) => {
+    await page.goto('/');
+    await replaceEditorSource(page, initial);
+
+    await page.keyboard.press(`${primaryModifier}+Enter`);
+
+    await expectEditorSource(page, expected);
+  });
+}
+
+test('reveals the complete marker path for nested blockquote content', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await replaceEditorSource(
+    page,
+    '> > nested\n\n> - [ ] quoted task',
+  );
+
+  const nestedLine = page.locator('.cm-line', { hasText: 'nested' });
+  await nestedLine.click();
+  await expect(nestedLine).toHaveText('> > nested');
+
+  const quotedTaskLine = page.locator('.cm-line', {
+    hasText: 'quoted task',
+  });
+  await quotedTaskLine.click();
+  await expect(quotedTaskLine).toHaveText('> - [ ] quoted task');
+});
+
+test('creates one multi-paragraph blockquote from the paragraph menu', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await replaceEditorSource(page, 'first\n\nsecond');
+  await page.keyboard.press(`${primaryModifier}+A`);
+
+  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  await page.getByRole('menuitem', { name: '引用' }).click();
+
+  await expectEditorSource(page, '> first\n>\n> second');
 });
 
 test('keeps foundational markdown source available in source mode', async ({
@@ -201,24 +450,30 @@ test('toggles tasks with keyboard and ignores fenced code task literals', async 
 }) => {
   await page.goto('/');
 
-  const editor = page.locator('.cm-content').first();
-  await editor.click();
-  await page.keyboard.press('Control+A');
-  await page.keyboard.type(
+  await replaceEditorSource(
+    page,
     ['```md', '- [ ] literal', '```', '', '- [ ] task'].join('\n'),
   );
 
+  await page.keyboard.press('ArrowUp');
   await expect(page.locator('.lm-md-task-checkbox')).toHaveCount(1);
 
+  await page.locator('.cm-line').last().click();
+  await page.keyboard.press('End');
   await page.keyboard.press('Control+Enter');
+  await expectEditorSource(
+    page,
+    ['```md', '- [ ] literal', '```', '', '- [x] task'].join('\n'),
+  );
 
-  await expect(editor).toContainText('- [x] task');
-
+  await switchEditorMode(page, 'livePreview');
   await page.locator('.cm-line', { hasText: '- [ ] literal' }).click();
   await page.keyboard.press('Control+Enter');
-
-  await expect(editor).toContainText('- [ ] literal');
-  await expect(editor).not.toContainText('- [x] literal');
+  await expectEditorSource(
+    page,
+    ['```md', '- [ ] literal', '', '```', '', '- [x] task'].join('\n'),
+  );
+  await switchEditorMode(page, 'livePreview');
   await expect(page.locator('.lm-md-task-checkbox')).toHaveCount(1);
 });
 
@@ -557,6 +812,143 @@ test('switches between live preview and source mode without changing markdown so
   await expect(page.locator('.lm-md-heading-1')).not.toContainText('#');
   await expect(page.locator('.lm-md-strong')).toContainText('bold');
   await expect(page.locator('.lm-md-strong')).not.toContainText('**');
+});
+
+test('toggles display mode twice with Mod+/ without changing editor state', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/');
+
+  const editor = page.locator('.cm-content').first();
+  const scroller = page.locator('.cm-scroller').first();
+  const documentBeforeEdit = Array.from({ length: 140 }, (_, index) => {
+    if (index === 92) {
+      return 'viewport ANCHOR_SELECTION stays stable';
+    }
+
+    return `plain paragraph line ${String(index + 1).padStart(3, '0')}`;
+  }).join('\n');
+  const documentAfterEdit = `${documentBeforeEdit}!`;
+  const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+  const modeShortcut = `${primaryModifier}+/`;
+  const redoShortcut =
+    process.platform === 'darwin' ? 'Meta+Shift+Z' : 'Control+Y';
+
+  const readSourceFromClipboard = async () => {
+    await editor.click();
+    await page.keyboard.press(`${primaryModifier}+A`);
+    await page.keyboard.press(`${primaryModifier}+C`);
+
+    return page.evaluate(() =>
+      navigator.clipboard.readText().then((text) => text.replace(/\r\n/g, '\n')),
+    );
+  };
+  const readSelection = () =>
+    page.evaluate(() => globalThis.getSelection()?.toString() ?? '');
+  const readViewport = () =>
+    scroller.evaluate((node) => {
+      const scrollerBounds = node.getBoundingClientRect();
+      const firstVisibleLine = [
+        ...node.querySelectorAll<HTMLElement>('.cm-line'),
+      ].find((line) => {
+        const bounds = line.getBoundingClientRect();
+
+        return (
+          bounds.bottom > scrollerBounds.top &&
+          bounds.top < scrollerBounds.bottom
+        );
+      });
+      const firstVisibleBounds = firstVisibleLine?.getBoundingClientRect();
+
+      return {
+        firstVisibleText: firstVisibleLine?.textContent ?? null,
+        firstVisibleTop:
+          firstVisibleBounds === undefined
+            ? null
+            : firstVisibleBounds.top - scrollerBounds.top,
+        scrollTop: node.scrollTop,
+      };
+    });
+  const settleEditorLayout = () =>
+    page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+          });
+        }),
+    );
+
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+A`);
+  await page.keyboard.insertText(documentBeforeEdit);
+  await page.keyboard.press(`${primaryModifier}+End`);
+  await page.keyboard.insertText('!');
+  expect(await readSourceFromClipboard()).toBe(documentAfterEdit);
+
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+Home`);
+  for (let index = 0; index < 92; index += 1) {
+    await page.keyboard.press('ArrowDown');
+  }
+  await page.keyboard.press('Home');
+  for (let index = 0; index < 'viewport '.length; index += 1) {
+    await page.keyboard.press('ArrowRight');
+  }
+  for (let index = 0; index < 'ANCHOR_SELECTION'.length; index += 1) {
+    await page.keyboard.press('Shift+ArrowRight');
+  }
+  await expect.poll(readSelection).toBe('ANCHOR_SELECTION');
+  const initialViewport = await readViewport();
+  expect(initialViewport.scrollTop).toBeGreaterThan(0);
+  expect(initialViewport.firstVisibleText).not.toBeNull();
+  expect(initialViewport.firstVisibleTop).not.toBeNull();
+
+  await page.keyboard.press(modeShortcut);
+  await expect(page.locator('.lm-editor-source-mode')).toBeVisible();
+  await settleEditorLayout();
+
+  expect(await readSelection()).toBe('ANCHOR_SELECTION');
+  const sourceViewport = await readViewport();
+  expect(sourceViewport.firstVisibleText).toBe(
+    initialViewport.firstVisibleText,
+  );
+  expect(
+    Math.abs(sourceViewport.scrollTop - initialViewport.scrollTop),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      (sourceViewport.firstVisibleTop ?? 0) -
+        (initialViewport.firstVisibleTop ?? 0),
+    ),
+  ).toBeLessThanOrEqual(1);
+
+  await page.keyboard.press(modeShortcut);
+  await expect(page.locator('.lm-editor-live-preview-mode')).toBeVisible();
+  await settleEditorLayout();
+
+  expect(await readSelection()).toBe('ANCHOR_SELECTION');
+  const restoredViewport = await readViewport();
+  expect(restoredViewport.firstVisibleText).toBe(
+    initialViewport.firstVisibleText,
+  );
+  expect(
+    Math.abs(restoredViewport.scrollTop - initialViewport.scrollTop),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      (restoredViewport.firstVisibleTop ?? 0) -
+        (initialViewport.firstVisibleTop ?? 0),
+    ),
+  ).toBeLessThanOrEqual(1);
+  expect(await readSourceFromClipboard()).toBe(documentAfterEdit);
+
+  await page.keyboard.press(`${primaryModifier}+Z`);
+  expect(await readSourceFromClipboard()).toBe(documentBeforeEdit);
+  await page.keyboard.press(redoShortcut);
+  expect(await readSourceFromClipboard()).toBe(documentAfterEdit);
 });
 
 test('opens the built-in search panel and navigates to a Markdown match', async ({

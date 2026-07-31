@@ -269,6 +269,258 @@ describe('AppShell', () => {
     }
   });
 
+  it('refreshes a local image widget from a file-watch event without changing its markdown source', async () => {
+    let emitChange: ((event: FileWatchChangeEvent) => void) | undefined;
+    const documentPath = 'E:/notes/opened.md';
+    const imagePath = 'E:\\notes\\assets\\pic.png';
+    const markdown = ['![Local](./assets/pic.png)', '', 'after'].join('\n');
+    const replaceLocalImageTargets = vi.fn().mockResolvedValue({
+      ok: true,
+      data: undefined,
+    });
+    window.__LUMAMARK_E2E_FILE_WATCH__ = {
+      listen: vi.fn(async (listener) => {
+        emitChange = listener;
+        return () => undefined;
+      }),
+      replaceLocalImageTargets,
+      unwatchDocument: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+      watchDocument: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+    };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          byteLength: markdown.length,
+          path: documentPath,
+          text: markdown,
+        },
+      }),
+      showOpenDialog: vi.fn().mockResolvedValue({
+        ok: true,
+        data: documentPath,
+      }),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    };
+    window.__LUMAMARK_E2E_ASSET_COMMANDS__ = {
+      authorizeLocalImage: vi.fn().mockResolvedValue({
+        ok: true,
+        data: imagePath,
+      }),
+    };
+    (
+      window as Window & {
+        __TAURI_INTERNALS__?: {
+          convertFileSrc: (path: string) => string;
+        };
+      }
+    ).__TAURI_INTERNALS__ = {
+      convertFileSrc: (path) => `asset://localhost/${path}?size=full#preview`,
+    };
+
+    try {
+      render(
+        <I18nProvider>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+
+      await openFileFromMenu();
+      await waitFor(() => {
+        expect(useAppStore.getState().currentFile?.path).toBe(documentPath);
+      });
+      await waitFor(() => {
+        expect(
+          screen
+            .getByTestId('editor-host')
+            .querySelector<HTMLImageElement>('.lm-image-preview img')
+            ?.getAttribute('src'),
+        ).toBe(`asset://localhost/${imagePath}?size=full#preview`);
+      });
+      expect(replaceLocalImageTargets).toHaveBeenLastCalledWith([imagePath]);
+
+      await act(async () => {
+        emitChange?.({
+          fingerprint: 'sha256:image-7',
+          kind: 'image',
+          path: imagePath,
+          revision: 7,
+        });
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(
+          screen
+            .getByTestId('editor-host')
+            .querySelector<HTMLImageElement>('.lm-image-preview img')
+            ?.getAttribute('src'),
+        ).toBe(`asset://localhost/${imagePath}?size=full&lmv=7#preview`);
+      });
+
+      fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
+      await waitFor(() => {
+        expect(
+          document.querySelector('.lm-editor-source-mode'),
+        ).not.toBeNull();
+      });
+      expect(
+        screen.getByTestId('editor-host').querySelector('.cm-content')
+          ?.textContent,
+      ).toContain('![Local](./assets/pic.png)');
+    } finally {
+      delete window.__LUMAMARK_E2E_ASSET_COMMANDS__;
+      delete window.__LUMAMARK_E2E_FILE_COMMANDS__;
+      delete window.__LUMAMARK_E2E_FILE_WATCH__;
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+    }
+  });
+
+  it('leaves the current image widget untouched when an image event arrives late from the previous document', async () => {
+    let emitChange: ((event: FileWatchChangeEvent) => void) | undefined;
+    const firstPath = 'E:/notes/first.md';
+    const secondPath = 'E:/notes/second.md';
+    const firstImagePath = 'E:\\notes\\first\\old.png';
+    const secondImagePath = 'E:\\notes\\second\\current.png';
+    const firstMarkdown = '![Old](./first/old.png)';
+    const secondMarkdown = '![Current](./second/current.png)';
+    const authorizeLocalImage = vi.fn(
+      async ({ source }: { source: string }) => ({
+        ok: true as const,
+        data:
+          source === './first/old.png' ? firstImagePath : secondImagePath,
+      }),
+    );
+    window.__LUMAMARK_E2E_FILE_WATCH__ = {
+      listen: vi.fn(async (listener) => {
+        emitChange = listener;
+        return () => undefined;
+      }),
+      replaceLocalImageTargets: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+      unwatchDocument: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+      watchDocument: vi.fn().mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }),
+    };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            byteLength: firstMarkdown.length,
+            path: firstPath,
+            text: firstMarkdown,
+          },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            byteLength: secondMarkdown.length,
+            path: secondPath,
+            text: secondMarkdown,
+          },
+        }),
+      showOpenDialog: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, data: firstPath })
+        .mockResolvedValueOnce({ ok: true, data: secondPath }),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    };
+    window.__LUMAMARK_E2E_ASSET_COMMANDS__ = { authorizeLocalImage };
+    (
+      window as Window & {
+        __TAURI_INTERNALS__?: {
+          convertFileSrc: (path: string) => string;
+        };
+      }
+    ).__TAURI_INTERNALS__ = {
+      convertFileSrc: (path) => `asset://localhost/${path}`,
+    };
+
+    try {
+      render(
+        <I18nProvider>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+
+      await openFileFromMenu();
+      await waitFor(() => {
+        expect(
+          screen
+            .getByTestId('editor-host')
+            .querySelector<HTMLImageElement>('.lm-image-preview img')
+            ?.getAttribute('src'),
+        ).toBe(`asset://localhost/${firstImagePath}`);
+      });
+
+      await openFileFromMenu();
+      await waitFor(() => {
+        expect(useAppStore.getState().currentFile?.path).toBe(secondPath);
+      });
+      await waitFor(() => {
+        expect(
+          screen
+            .getByTestId('editor-host')
+            .querySelector<HTMLImageElement>('.lm-image-preview img')
+            ?.getAttribute('src'),
+        ).toBe(`asset://localhost/${secondImagePath}`);
+      });
+
+      const currentImage = screen
+        .getByTestId('editor-host')
+        .querySelector<HTMLImageElement>('.lm-image-preview img');
+      const authorizationCount = authorizeLocalImage.mock.calls.length;
+
+      await act(async () => {
+        emitChange?.({
+          fingerprint: 'sha256:old-image',
+          kind: 'image',
+          path: firstImagePath,
+          revision: 12,
+        });
+        await Promise.resolve();
+      });
+
+      expect(
+        screen
+          .getByTestId('editor-host')
+          .querySelector<HTMLImageElement>('.lm-image-preview img'),
+      ).toBe(currentImage);
+      expect(currentImage?.getAttribute('src')).toBe(
+        `asset://localhost/${secondImagePath}`,
+      );
+      expect(authorizeLocalImage).toHaveBeenCalledTimes(authorizationCount);
+    } finally {
+      delete window.__LUMAMARK_E2E_ASSET_COMMANDS__;
+      delete window.__LUMAMARK_E2E_FILE_COMMANDS__;
+      delete window.__LUMAMARK_E2E_FILE_WATCH__;
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+    }
+  });
+
   it('offers the user a localized choice to restore an unsaved recovery draft', async () => {
     const entries = new Map<string, string>();
     const storage: Storage = {
@@ -413,6 +665,51 @@ describe('AppShell', () => {
     await waitFor(() => {
       expect(useAppStore.getState().sidebarOpen).toBe(true);
     });
+  });
+
+  it('keeps the view menu synchronized while Mod+/ toggles editor display mode', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('.lm-editor-live-preview-mode')).not.toBeNull();
+    });
+
+    const viewMenu = screen.getByRole('menuitem', { name: '视图' });
+    viewMenu.focus();
+    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    expect(
+      await screen.findByRole('menuitem', { name: '源码模式' }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
+
+    await waitFor(() => {
+      expect(document.querySelector('.lm-editor-source-mode')).not.toBeNull();
+    });
+    viewMenu.focus();
+    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    expect(
+      await screen.findByRole('menuitem', { name: '实时预览' }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
+
+    await waitFor(() => {
+      expect(document.querySelector('.lm-editor-live-preview-mode')).not.toBeNull();
+    });
+    viewMenu.focus();
+    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    expect(
+      await screen.findByRole('menuitem', { name: '源码模式' }),
+    ).toBeInTheDocument();
   });
 
   it('lets the user opt in to copying inserted local images to document assets', async () => {
@@ -572,6 +869,13 @@ function createDeferred<T>() {
   });
 
   return { promise, resolve };
+}
+
+async function openFileFromMenu(): Promise<void> {
+  const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+  fileMenu.focus();
+  fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+  fireEvent.click(await screen.findByRole('menuitem', { name: /^打开文件/ }));
 }
 
 function captureProcessWarnings() {

@@ -23,6 +23,7 @@ export function useAppEditorCommands() {
   const imageAssets = useAppImageAssets(documentPortRef);
   const [editorDisplayMode, setEditorDisplayMode] =
     useState<EditorDisplayMode>('livePreview');
+  const editorDisplayModeRef = useRef<EditorDisplayMode>('livePreview');
   const [editorReady, setEditorReady] = useState(false);
   useEffect(() => {
     let disposed = false;
@@ -67,8 +68,10 @@ export function useAppEditorCommands() {
   const onEditorReady = useCallback((editor: EditorApi) => {
     documentPortRef.current = createEditorDocumentPort(editor);
     commandPortRef.current = createEditorCommandPort(editor);
+    const displayMode = editor.getDisplayMode();
+    editorDisplayModeRef.current = displayMode;
     setEditorReady(true);
-    setEditorDisplayMode(editor.getDisplayMode());
+    setEditorDisplayMode(displayMode);
 
     if (pendingFocusRef.current) {
       pendingFocusRef.current = false;
@@ -113,8 +116,19 @@ export function useAppEditorCommands() {
 
   const setDisplayMode = useCallback((mode: EditorDisplayMode) => {
     commandPortRef.current?.setDisplayMode(mode);
+    editorDisplayModeRef.current = mode;
     setEditorDisplayMode(mode);
   }, [setEditorDisplayMode]);
+
+  const toggleDisplayMode = useCallback(() => {
+    const mode =
+      editorDisplayModeRef.current === 'livePreview'
+        ? 'source'
+        : 'livePreview';
+    commandPortRef.current?.setDisplayMode(mode);
+    editorDisplayModeRef.current = mode;
+    setEditorDisplayMode(mode);
+  }, []);
 
   const undo = useCallback(() => {
     commandPortRef.current?.undo();
@@ -137,6 +151,7 @@ export function useAppEditorCommands() {
     refreshLocalImage: imageAssets.refreshLocalImage,
     selectPosition,
     setDisplayMode,
+    toggleDisplayMode,
     undo,
   };
 }

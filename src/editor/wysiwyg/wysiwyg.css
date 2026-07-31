@@ -215,26 +215,17 @@
 }
 
 .lm-md-task-checkbox {
-  appearance: none;
-  background: var(--lm-color-surface);
-  border: 1px solid var(--lm-color-border-subtle);
-  border-radius: 5px;
+  accent-color: var(--lm-color-accent);
   cursor: pointer;
   display: inline-block;
   height: 0.96rem;
   margin: 0 0.34rem 0 0;
   padding: 0;
-  position: relative;
   vertical-align: -0.12rem;
   width: 0.96rem;
 }
 
-.lm-md-task-checkbox[data-checked='true']::after {
-  color: var(--lm-color-accent);
-  content: '✓';
-  font-size: 0.8rem;
-  left: 0.14rem;
-  line-height: 0.96rem;
-  position: absolute;
-  top: -0.04rem;
+.lm-md-task-checkbox:focus-visible {
+  outline: 2px solid var(--lm-color-accent);
+  outline-offset: 2px;
 }

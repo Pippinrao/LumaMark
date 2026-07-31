@@ -1,5 +1,14 @@
 # 引用块竞争体验与实现差距分析
 
+> **Parity Reliability 实施更新（2026-07-31）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - 已用 characterization tests 固定 CodeMirror 官方引用续写、空引用退出和 Backspace 删除 marker 的行为，Playwright 覆盖续写与退出。
+> - 段落菜单现委托引用专用命令：多段转换会给空行写入结构性的 bare `>`，混合选区增加或移除一个共同外层并可精确还原，正反选区、行首边界、多选区和单次撤销均有回归测试。
+> - interaction context 会暴露活动结构通往外层引用的精确定界符路径；嵌套引用与引用内任务行能恢复完整 marker，同时不展开无关祖先行，并有 DOM 与 Playwright 证据。
+> - 复杂粘贴、引用内全部组合编辑及 Windows 原生 IME 仍是未闭合差距，不能把上述代表路径写成引用能力全面追平。
+
 ## 1. 用途、范围与非目标
 
 ### 用途

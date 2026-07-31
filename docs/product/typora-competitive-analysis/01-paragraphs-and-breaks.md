@@ -1,5 +1,12 @@
 # 段落与换行：Typora 竞争差距分析
 
+> **Parity Reliability 实施更新（2026-07-27）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - live preview 已接入共享段落 keymap：普通段落 Enter 以单个 transaction 创建 `\n\n`，Shift+Enter 创建 `\n`；光标已在空行时让默认行为只增加一个换行。单元测试与 Playwright 覆盖精确源码，命令在 composition、只读、结构块、跨块或混合结构多选区中不会误接管，并验证一次撤销可还原。
+> - 因而旧正文中的“普通段落 Enter 语义未实现”已过期；当前结论是代表性行为已实现并有自动化证据。Windows 原生中文 IME、粘贴与 hard break 的完整矩阵及全部 Beta 门禁仍未完成。
+
 ## 用途、范围与非目标
 
 本文用于把 Typora 1.13.7 的段落/换行基线与 LumaMark 当前可执行代码、自动化测试及 fixture 逐项对照，明确“代码中存在某种能力”和“真实体验已经追平 Typora”之间的边界，并给出可实施的改进与验收方案。分析快照日期为 2026-07-12。

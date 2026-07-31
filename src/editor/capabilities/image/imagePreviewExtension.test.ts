@@ -178,11 +178,46 @@ describe('image preview extension', () => {
 
     expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
     expect(parent.textContent).toContain('![Alt](data:image/png;base64,AA==)');
-    expect(view.state.selection.main.head).toBe(0);
+    expect(view.state.selection.main.head).toBe(2);
 
     view.destroy();
     parent.remove();
   });
+
+  it.each([
+    {
+      name: 'opening',
+      position: 0,
+    },
+    {
+      name: 'closing',
+      position: '![Alt](data:image/png;base64,AA==)'.length,
+    },
+  ])(
+    'keeps a caret on the $name boundary outside the active image owner',
+    ({ position }) => {
+      const doc = '![Alt](data:image/png;base64,AA==)';
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const view = new EditorView({
+        parent,
+        state: EditorState.create({
+          doc,
+          extensions: [
+            markdownLanguage(),
+            imagePreviewExtension({ documentPath: null }),
+          ],
+          selection: EditorSelection.cursor(position),
+        }),
+      });
+
+      expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+      expect(parent.textContent).not.toContain(doc);
+
+      view.destroy();
+      parent.remove();
+    },
+  );
 
   it('keeps the image preview visible while its active markdown line is editable', () => {
     const doc = ['![Alt](https://example.com/pic.png)', '', 'after'].join('\n');
@@ -446,6 +481,454 @@ describe('image preview extension', () => {
     expect(view.state.doc.toString()).toBe(doc);
     expect(refreshedImages[0]).not.toBe(initialImages[0]);
     expect(refreshedImages[1]).toBe(initialImages[1]);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('reuses discovered image blocks for selection-only updates without resyncing sources', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = ['![Alt](./assets/local.png)', '', 'after'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('after')),
+      }),
+    });
+
+    syncLocalSources.mockClear();
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('Alt')),
+    });
+
+    expect(syncLocalSources).not.toHaveBeenCalled();
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+    expect(parent.textContent).toContain('![Alt](./assets/local.png)');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('maps existing image previews across tail text edits without resyncing sources', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = [
+      '![Alt](./assets/local.png)',
+      '',
+      'after ```inline```',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+        selection: EditorSelection.cursor(doc.length),
+      }),
+    });
+    const preview = parent.querySelector('.lm-image-preview');
+
+    syncLocalSources.mockClear();
+    view.dispatch({
+      changes: { from: doc.length, insert: '!' },
+      selection: EditorSelection.cursor(doc.length + 1),
+    });
+
+    expect(syncLocalSources).not.toHaveBeenCalled();
+    expect(parent.querySelector('.lm-image-preview')).toBe(preview);
+    expect(view.state.doc.toString()).toBe(`${doc}!`);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('removes a cached image preview when an equal-length edit turns its parent into an HTML block', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = ['plain', '![Alt](./assets/local.png)'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+    syncLocalSources.mockClear();
+
+    view.dispatch({
+      changes: { from: 0, to: 'plain'.length, insert: '<div>' },
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: [],
+    });
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('discovers an image preview when an equal-length edit turns an HTML block back into a paragraph', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = ['<div>', '![Alt](./assets/local.png)'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+    syncLocalSources.mockClear();
+
+    view.dispatch({
+      changes: { from: 0, to: '<div>'.length, insert: 'plain' },
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: ['./assets/local.png'],
+    });
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('removes a cached image preview when an equal-length tag edit expands an HTML block', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = [
+      '<script>',
+      'x',
+      '</script>',
+      '![Alt](./x.png)',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+    syncLocalSources.mockClear();
+
+    view.dispatch({
+      changes: { from: 0, to: '<script>'.length, insert: '<xcript>' },
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: [],
+    });
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('discovers an image preview when an equal-length tag edit contracts an HTML block', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = [
+      '<xcript>',
+      'x',
+      '</script>',
+      '![Alt](./x.png)',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+    syncLocalSources.mockClear();
+
+    view.dispatch({
+      changes: { from: 0, to: '<xcript>'.length, insert: '<script>' },
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: ['./x.png'],
+    });
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('rediscovers and syncs image sources when image markdown changes', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'after',
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+      }),
+    });
+    const createdDoc = ['![Alt](./one.png)', '', 'after'].join('\n');
+
+    syncLocalSources.mockClear();
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: createdDoc },
+    });
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: ['./one.png'],
+    });
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+
+    const sourceFrom = view.state.doc.toString().indexOf('./one.png');
+    syncLocalSources.mockClear();
+    view.dispatch({
+      changes: {
+        from: sourceFrom,
+        to: sourceFrom + './one.png'.length,
+        insert: './two.png',
+      },
+    });
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: ['./two.png'],
+    });
+
+    syncLocalSources.mockClear();
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.toString().indexOf('after'),
+      },
+    });
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: [],
+    });
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('removes a cached image preview when an adjacent closing fence is invalidated', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = [
+      '```text',
+      'code',
+      '```',
+      '![Alt](./assets/local.png)',
+    ].join('\n');
+    const closingFenceFrom = doc.indexOf('```\n![Alt]');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+    syncLocalSources.mockClear();
+    view.dispatch({
+      changes: {
+        from: closingFenceFrom,
+        to: closingFenceFrom + 3,
+        insert: 'xxx',
+      },
+    });
+
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: [],
+    });
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('discovers an image preview when an adjacent closing fence is restored', () => {
+    const syncLocalSources = vi.fn();
+    const resolver = Object.assign(
+      vi.fn().mockResolvedValue({
+        kind: 'resolved',
+        src: 'asset://localhost/image.png',
+      }),
+      { syncLocalSources },
+    );
+    const doc = [
+      '```text',
+      'code',
+      'xxx',
+      '![Alt](./assets/local.png)',
+    ].join('\n');
+    const closingFenceFrom = doc.indexOf('xxx');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+          }),
+        ],
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).toBeNull();
+    syncLocalSources.mockClear();
+    view.dispatch({
+      changes: {
+        from: closingFenceFrom,
+        to: closingFenceFrom + 3,
+        insert: '```',
+      },
+    });
+
+    expect(syncLocalSources).toHaveBeenCalledTimes(1);
+    expect(syncLocalSources).toHaveBeenLastCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: ['./assets/local.png'],
+    });
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
 
     view.destroy();
     parent.remove();

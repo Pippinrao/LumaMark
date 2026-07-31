@@ -68,7 +68,7 @@ export function useRecoveryDraft({
 
     schedulerRef.current.schedule({
       filePath: currentFilePath,
-      text: editor.getText(),
+      text: editor.serializeText(),
     });
   }, [currentFilePath, editorRef]);
 
@@ -79,12 +79,17 @@ export function useRecoveryDraft({
       return;
     }
 
-    editor.loadText(pendingRecoveryDraft.text);
+    schedulerRef.current.cancel();
+    saveRecoveryDraft({
+      filePath: null,
+      text: pendingRecoveryDraft.text,
+    });
+    editor.loadText(pendingRecoveryDraft.text, { saved: false });
     editor.setContext({ path: null });
     onRestore();
-    clearPendingRecoveryDraft();
+    setPendingRecoveryDraft(null);
     editor.focus();
-  }, [clearPendingRecoveryDraft, editorRef, onRestore, pendingRecoveryDraft]);
+  }, [editorRef, onRestore, pendingRecoveryDraft]);
 
   return {
     clearRecoveryDraft: clearPendingRecoveryDraft,

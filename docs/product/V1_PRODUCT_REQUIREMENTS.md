@@ -1,5 +1,7 @@
 # V1 产品需求
 
+> **历史状态（Alpha 基线）：** 本文保留 Foundation / MarkText+ 阶段的 V1 范围与验收口径，不再作为当前执行计划，也不据后续实现追溯改写完成状态。当前范围、顺序和退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+
 ## V1 目标
 
 V1 的目标是做出一个可日常使用的 Typora-like Markdown 编辑器。

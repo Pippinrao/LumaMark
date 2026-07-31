@@ -1,5 +1,7 @@
 # 图片：Typora 竞品差距分析
 
+> **Parity Reliability 实施更新（2026-07-27）：** 下方主体保留为旧专题审计快照，其中“本地图片 watcher 未接到编辑器刷新入口”和 live preview DOM 必须包含完整隐藏源码的断言已经过期。当前文件 watcher revision 会进入图片 capability 的局部刷新入口；图片 owner 采用精确范围，selection 位于 owner 内才显示源码与下方预览，离开后恢复替换预览。拖放、粘贴、草稿迁移、远程缓存、本地图片磁盘刷新和源码模式精确 Markdown 均有浏览器/Rust 回归；保存转换继续通过精确序列化边界。完整图片选择器、策略持久化和事务回滚仍属于 Next，真实 Windows 系统剪贴板也未完成前台验证。当前范围以 [当前执行计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 与 [ADR 0003](../../decisions/0003-live-preview-assets-code-and-table-inline.md)、[ADR 0005](../../decisions/0005-external-file-and-image-watch.md) 为准。
+
 ## 2. 用途、范围与非目标
 
 本文用于回答一个严格限定的问题：截至当前工作树，LumaMark 的图片功能究竟有哪些可由代码、测试和 fixture 共同证明，用户从创建图片引用到预览、编辑、保存和处理错误时会经历什么，与 Typora 1.13.7 的完整图片体验还差什么。本文以 `docs/product/typora-baseline/07-images.md` 和其直接引用的 `00-live-preview-model.md` 为 Typora 体验基线，以当前 `src/`、`src-tauri/`、`tests/`、依赖清单和实际聚焦验证为 LumaMark 事实来源。
@@ -14,7 +16,7 @@ LumaMark 已经越过“只能显示 Markdown 源码”的阶段：CodeMirror �
 
 但这仍不等于 Typora 图片体验已经追平。当前预览只覆盖“图片语法占满整行”的子集，普通段落内图片、链接包裹图片不渲染；焦点态是“源码行加下方预览”，而不是已经证实的 Typora 精细内联展开；Format 菜单和命令面板只插入 `![image](url)` 模板，没有本地文件选择器，且没有 Typora 的 `Ctrl+Shift+I`；浏览器拖出的 URL/HTML 图片没有导入路径；没有图片右键删除、移动、复制、重命名或批量 Move/Copy All；没有 `typora-root-url`、`typora-copy-images-to`、任意目标目录、`./` 前缀与 URL 转义偏好。复制到 assets 的设置只在 Zustand 内存 store 中，重启持久化没有证据。图片错误最终复用通用文件错误提示，不能向用户给出针对性的恢复动作。
 
-新鲜验证进一步限制了结论：图片输入 Playwright 9 项通过，Rust `asset_service` 20 项通过；9 个聚焦 Vitest 文件共 80 项全部通过。本地图片 revision 刷新入口及其控制器测试已经存在，但 `useAppDocumentModel` 创建文件工作流时没有把 `onLocalImageChanged` 接到该入口，默认回调仍为空操作，所以“本地图片在磁盘变化后自动刷新”当前只能判为部分实现。Playwright 使用注入的文件/asset 命令替身，证明浏览器层编排，不证明真实 Tauri 拖放、IPC、磁盘写入与 WebView asset protocol 的完整桌面链路。
+新鲜验证进一步限制了结论：图片输入 Playwright、Rust `asset_service`、图片 capability 与 fixture 门禁均有通过记录。本地图片 revision 刷新入口及其控制器测试已经存在，但 `useAppDocumentModel` 创建文件工作流时没有把 `onLocalImageChanged` 接到该入口，默认回调仍为空操作，所以“本地图片在磁盘变化后自动刷新”当前只能判为部分实现。2026-07-22 已把图片 preview 的 selection-only 与普通尾部编辑从全树发现/同步路径中移出，并用围栏增删双向测试保护缓存失效；这只收窄编辑热路径风险，不等于建立了图片数量、解码、滚动和内存专项性能门禁。Playwright 仍使用注入的文件/asset 命令替身，证明浏览器层编排，不证明真实 Tauri 拖放、IPC、磁盘写入与 WebView asset protocol 的完整桌面链路。
 
 ## 4. Typora 功能与完整体验基线
 
@@ -65,8 +67,9 @@ Typora 接受手写 `![alt](src "title")`，也提供 Windows/Linux `Ctrl+Shift+
 13. **本地图片磁盘变更刷新：部分实现。** `imagePreviewExtension.ts:337-361` 同步本地来源，`assetCommands.ts:383-399,468-475` 维护 watch target 与 revision URL，`useAppEditorCommands.ts:185-207` 暴露 `refreshLocalImage`，对应 `useAppEditorCommands.test.tsx:237-280` 本轮通过。但 `useAppDocumentModel.ts:78-86` 创建 `useFileWorkflow` 时未传 `onLocalImageChanged`，而 `useFileWorkflow.ts:60-64` 的默认回调为空操作；文件监视事件尚未在真实 app 编排中触发 editor refresh，因此不能声称端到端体验可靠。
 14. **错误与 i18n：部分实现。** `imagePreviewExtension.ts:284-337,382-412` 有下载中、相对路径不可用、缓存失败和加载失败的中英文 caption；`i18n.test.ts:73-78` 要求图片 key 双语齐全。插入失败在 `useAppEditorCommands.ts:195-200` 被写成 `asset.image_insert_failed`，但 `FileErrorNotice.tsx:10-23` 将未知 code 统一映射到通用操作失败，缺少图片类型、大小、权限、缓存等恢复指导。
 15. **fixture 与源码 round-trip：部分实现。** `links-images.md`、`remote-images.md`、`live-preview-rich.md` 被 `markdownFixtureManifest.ts` 登记；`roundTrip.test.ts:8-72` 对清单文件执行打开—保存—字节比较。本轮该测试包含在 9 个全部通过的聚焦 Vitest 文件中，但 fixture 仍缺 title/空格路径/括号/破图/草稿冲突/HTML 对齐等系统矩阵。
+16. **普通编辑热路径控制：部分实现。** `imagePreviewExtension.ts` 缓存已发现的图片块；selection-only 只在光标进入/离开缓存块时更新，普通尾部文本变更映射旧 block/decorations 并保留 widget。old/new 变更行命中真实 `Image` 或 fenced-code `CodeMark` 时保守重新发现，测试覆盖图片创建/修改/删除、相邻 closing fence 双向变化及 inline triple-backtick 不误触。尚无 100/500/1000 图片节点、真实解码、滚动 FPS 与内存基准。
 
-本轮实际验证：`pnpm exec playwright test tests/e2e/editor-image-input.spec.ts` 为 9/9 通过；`cargo test asset_service --lib` 为 20/20 通过；覆盖三个图片 capability 测试、asset commands、本地 drop、app editor controller、file actions、Tauri asset protocol 与 fixture round-trip 的 9 个聚焦 Vitest 文件为 80/80 通过。没有运行默认忽略的公网测试，也没有运行图片视觉报告、真实打包 Tauri E2E 或性能基准。
+验证边界：历史聚焦记录中 `editor-image-input.spec.ts` 为 9/9、Rust `asset_service` 为 20/20；2026-07-22 全量前端单测与 Rust 单测另行新鲜重跑，图片增量缓存回归包含在全量门禁中。默认忽略的公网测试仍未运行，也没有执行图片专属视觉报告、真实 Tauri 图片拖放/粘贴/asset protocol E2E 或图片专项性能基准。
 
 ## 6. 当前真实体验路径
 
@@ -240,6 +243,7 @@ Typora 接受手写 `![alt](src "title")`，也提供 Windows/Linux `Ctrl+Shift+
 7. SVG 虽受扩展名和基础 XML 起始检查，但 SVG 主动内容、WebView 隔离与 CSP 的完整安全评审不在现有测试证据中。
 8. 远程 cache、草稿和 assets 的清理/配额没有实现证据；长时间写作可能积累磁盘占用。
 9. 设置未持久化意味着测试中的 checkbox 成功只代表当前会话状态，不代表重启体验。
+10. 2026-07-22 的真实 Tauri 人机工学链路覆盖文件、保存点、恢复、代码块和通用 10MB 输入，没有执行图片拖放、剪贴板位图、远程缓存或外部图片替换；因此“真 Tauri 图片端到端”继续保持证据不足。
 
 ## 13. 证据索引
 

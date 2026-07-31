@@ -1,5 +1,7 @@
 # 08：代码块竞品分析
 
+> **Parity Reliability 实施更新（2026-07-27）：** 下方主体保留为旧专题审计快照。当前代码块 decoration 与退出行为已迁移到共享 editing context，并补齐逐键围栏、关闭围栏退出、未闭合围栏及 YAML/Setext 安全降级回归；不再新增独立“活动行”特例。独立性能门禁覆盖 2048 个 fenced blocks（0.46 MiB），本轮载入 23.86 ms、尾部输入 4.19 ms，分别低于 300 ms 与 16 ms 预算。专用创建入口、完整未知语言/粘贴/真实 IME 和长期滚动体验仍未追平，代码块创建入口继续属于 Next。当前范围以 [当前执行计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 和 [ADR 0006](../../decisions/0006-parity-reliability-editor-contracts.md) 为准。
+
 ## 1. 用途、范围与非目标
 
 本文用于判断 LumaMark 普通 Markdown 代码块相对 Typora 1.13.7 的真实完成度，并把“仓库中已有代码”与“用户体验已经追平”严格分开。范围包括 GFM fenced code block、info string、语法高亮、创建与编辑、阅读态与源码模式、键盘、鼠标、粘贴、保存、异常输入、源码保真和性能风险。
@@ -8,9 +10,9 @@
 
 ## 2. 执行摘要
 
-LumaMark 的代码块能力不是空壳：CodeMirror 6 Markdown 语言服务负责 fenced code 解析，官方 `@codemirror/language-data` 与 JavaScript 语言包提供语言识别和高亮；独立 `codeBlock` capability 提供逐行块面装饰、段落菜单所调用的包装命令、末尾围栏后的退出处理；中英文菜单、source/live preview 切换、未编辑 UTF-8 fixture 的原字节 round-trip 和三条真实浏览器编辑路径均有证据。本次复核实际运行的 6 个 Vitest 文件共 101 个测试以及 3 个代码块 Playwright 用例均通过。这些通过结果只证明被断言的路径，不等于未知语言、粘贴、IME、可访问性或专项性能已经追平。
+LumaMark 的代码块能力不是空壳：CodeMirror 6 Markdown 语言服务负责 fenced code 解析，官方 `@codemirror/language-data` 与 JavaScript 语言包提供语言识别和高亮；独立 `codeBlock` capability 提供可视区块面装饰、段落菜单所调用的包装命令，以及基于真实 CodeMirror transaction 与语法节点的末尾围栏退出处理；中英文菜单、source/live preview 切换和未编辑 UTF-8 fixture 的原字节 round-trip 均有自动化证据。2026-07-22 又在真实 Tauri WebView2 中逐键验证了 opening fence、closing fence 后 Enter、正文输入及 `Ctrl+Z`/`Ctrl+Y` 往返。这些结果只证明被执行的路径，不等于未知语言、复杂粘贴、IME、可访问性或代码块密集滚动已经追平。
 
-但当前只能判为“基础功能存在、体验部分追平”。Typora 的核心感觉来自完整闭环：` ``` `+Return 直接进入代码块、`Ctrl+Shift+K` 快捷创建、非焦点隐藏围栏并保留高亮、焦点内稳定编辑、源码模式显示完整原文、粘贴与保存不破坏字节。LumaMark 已覆盖其中的渲染、焦点编辑、源码模式和未编辑 fixture 保存主干，却没有注册代码块快捷键，命令面板也没有代码块入口；同时没有对真实 ` ``` `+Return 创建路径、语言修改、未知语言、未闭合围栏、块内多行粘贴、IME、撤销重做和复制语义形成专题验收。代码块 decoration 还会在每次文档变化时遍历整棵语法树，现有大文档基准不是代码块密集场景，不能证明该热路径满足长期性能目标。
+但当前只能判为“基础功能存在、体验部分追平”。Typora 的核心感觉来自完整闭环：` ``` `+Return 直接进入代码块、`Ctrl+Shift+K` 快捷创建、非焦点隐藏围栏并保留高亮、焦点内稳定编辑、源码模式显示完整原文、粘贴与保存不破坏字节。LumaMark 已覆盖其中的渲染、焦点编辑、源码模式、末尾退出和未编辑 fixture 保存主干，却没有注册代码块快捷键，命令面板也没有代码块入口；真实 ` ``` `+Return 的自动闭合/初始落点、语言修改、未知语言、未闭合围栏、块内多行粘贴、IME 和复制语义仍未形成专题验收。原先每次文档变化遍历整棵语法树的 decoration 路径已改为 `ViewPlugin` 的可视区加缓冲更新，但尚无代码块密集文档的滚动 FPS、内存和输入 P95 门禁，因此只能把性能差距从“证据不足”收窄到“部分实现”。
 
 结论：用户已经能通过菜单把选区包成 fenced block，也能打开、阅读、编辑并切换源码模式；未编辑 UTF-8 fixture 另有原字节写回证据。但若以 Typora-like 的无摩擦创建、焦点切换细节和边界稳定性为标准，当前状态为“部分实现”，优先级应放在创建入口、交互状态机与专项回归，而不是重写解析器或自研高亮引擎。
 
@@ -51,18 +53,18 @@ Typora 1.13.7 的公开基线是 GFM 围栏代码块，不把经典四空格缩�
 7. **段落菜单和底层包装命令：已实现。** `src/features/commands/createCommandModels.ts:233-253` 在“段落”菜单加入 `codeBlock`；`src/shared/i18n/locales/en.json:87` 和 `zh-CN.json:87` 提供双语标签。`codeBlockCommands.ts:32-51` 用三反引号包装选区，无选区时插入 `code` 默认正文并选中它；两组单元测试分别在 `codeBlockCommands.test.ts:57-75` 和 `markdownFormatCommands.test.ts:206-213` 验证结果。
 8. **命令面板代码块入口：未实现。** `src/features/commands/createCommandModels.ts:35-150` 构造命令面板模型，但没有 `codeBlock`/“Code Block”项目；因此底层命令存在不能推导出命令面板可发现或可执行该能力。
 9. **Typora 快捷键：未实现。** `src/editor/commands/markdownFormatKeymap.ts:4-36` 仅注册粗体、斜体和六级标题，没有 `Mod-Shift-k` 或等价代码块绑定；命令模型中的代码块菜单项也没有 shortcut 字段。仓库定点检索未发现其它 `Ctrl+Shift+K` 注册。
-10. **真实 ` ``` `+Return 创建：证据不足。** CodeMirror/Lezer 能解析已存在或未闭合 fence，但当前代码块测试主要用 `insertText` 一次注入完整文档或直接执行包装命令，没有从普通段落逐键输入三个反引号再按 Return 的断言，也没有自动补闭合 fence、光标落点或退出规则的专题契约。
-11. **末尾围栏后的退出：部分实现。** `createCodeBlockCapability.ts:10-36` 通过 transaction filter 检测“文档以闭合 fence 结束且随后纯追加文本”，自动在追加内容前插入换行；`codeBlockCommands.ts:12-29` 识别三反引号或波浪线 closing fence。`editor-markdown.spec.ts:156-197` 验证 Enter 和 ArrowDown 后能在块外输入。不过该过滤器覆盖所有末尾纯追加 transaction，尚无多行粘贴、IME、undo/redo、程序化追加或用户原本想留在末尾行的专项测试。
+10. **真实 ` ``` `+Return 创建：证据不足。** 真实 Tauri 逐键输入已证明 ` ```ts ` opening fence 不再被误判为 closing fence、不会把 `ts` 拆到下一行；但这没有证明 Typora 式自动补闭合 fence、首次 Return 后光标落点或一次 undo 撤销整个创建动作，因此本项仍不能升级。
+11. **末尾围栏后的退出：部分实现。** `createCodeBlockCapability.ts` 只接受真实键入/Enter transaction，要求单一尾部插入、非 composition/paste/programmatic load，并用 old/new syntax tree 的 `CodeMark` 区分 opening 与最终 closing fence。测试调用真实 `insertNewlineAndIndent`、`history()`、`undo` 和 `redo`；真实 Tauri WebView2 中 Enter 在最终 fence 后产生预期空行，`Ctrl+Z`/`Ctrl+Y` 精确往返。IME 组合提交仍未实机验证，所以状态保持“部分实现”。
 12. **源码模式与撤销历史：已实现。** `editorApi.ts:151-161` 用 Compartment 重配置模式，不替换文档；`editorApi.test.ts:129-162` 断言两次模式切换文本不变并能撤销此前编辑；`editor-markdown.spec.ts:90-110` 验证 source mode 可见完整 ` ```js `。
 13. **未编辑 fixture 保存保真：已实现。** `tests/fixtures/markdown/code-blocks.md:5-31` 覆盖 ts/json/bash 三种 fence、空行与四空格缩进样本；manifest 在 `markdownFixtureManifest.ts:37-39` 登记 `commonmark:code`。`roundTrip.test.ts:8-72` 把 UTF-8 fixture 解码为文本，经 mock 文件命令调用前端 `saveCurrentFile` 后再按 UTF-8 写出并比较原始字节；本次实际运行包含该 fixture 并通过。它不证明编辑后只改一个字节、非 UTF-8 编码、真实 Tauri IO 或换行策略的全部路径。
 14. **未知语言、未闭合 fence 和粘贴：证据不足。** 代码路径暗示未知语言返回 `null` 后仍由 Markdown 解析器保留块；辅助收集函数也会把未闭合 fence 延伸到文末，但主运行时没有对应断言。没有代码块专项测试证明多行粘贴、制表符、CRLF、尾随空格、未知 info string 与未闭合 fence 在编辑和保存全链路都稳定。
-15. **专项性能保障：证据不足。** `tests/perf/editorLargeDocument.bench.test.ts:28-67` 测量通用 1/5/10MB 文档加载与末尾输入，但 `codeBlockDecorations.ts:149-183` 每次 docChanged 都遍历整棵语法树并为全部 fenced code 行重建 decoration；没有代码块密集、超长代码行、频繁输入或 viewport 滚动基准。
+15. **专项性能保障：部分实现。** `codeBlockDecorations.ts` 已从全文 `StateField` 改为 `ViewPlugin`，只处理 `visibleRanges` 及固定 20 行缓冲；聚焦测试覆盖滚动进入新视口、删除围栏清理旧 class、selection-only、stale decoration 与大文档不调用全文 `Text.toString()`。真实 Tauri 10MB 通用文档的尾部输入明显下降，但样本不是代码块密集文档，也没有超长代码行、连续输入、脚本滚动 FPS 或内存门禁。
 
 ## 5. 当前真实体验路径
 
-当前可靠路径是：用户在 live preview 打开含 fenced code 的 Markdown，CodeMirror 解析 info string；js/ts 等直接映射使用已安装语言，其它已登记语言可通过 `LanguageDescription` 按需加载，未知语言返回 `null`。code-block capability 为整块每行添加表面 class，通用 WYSIWYG 层在光标离开 fence 行后隐藏 `CodeMark`/`CodeInfo`，代码内容保留字面并显示已有语言支持产生的 token 高亮。用户点击代码正文行即可直接编辑；输入 transaction 更新同一 CodeMirror 文档并重建代码块行 decoration。用户也可从“段落 → 代码块”执行包装命令，把选区变成三反引号围栏，但当前命令面板没有这一入口。文档以 closing fence 结束时，Enter 或向下后输入会被过滤器推到新的一行，从而离开代码块。切换源码模式后 live-preview capability 被卸载，完整 fence、info string 和正文仍在同一文档、同一撤销历史中。保存时文件动作读取编辑器原文；现有 round-trip 只证明未编辑 UTF-8 fixture 可经前端 file action 原字节写回。
+当前可靠路径是：用户在 live preview 打开含 fenced code 的 Markdown，CodeMirror 解析 info string；js/ts 等直接映射使用已安装语言，其它已登记语言可通过 `LanguageDescription` 按需加载，未知语言返回 `null`。code-block capability 只为当前可视区及缓冲行添加块面 class，通用 WYSIWYG 层在光标离开 fence 行后隐藏 `CodeMark`/`CodeInfo`，代码内容保留字面并显示已有语言支持产生的 token 高亮。用户点击代码正文行即可直接编辑；输入 transaction 更新同一 CodeMirror 文档。用户也可从“段落 → 代码块”执行包装命令，把选区变成三反引号围栏，但当前命令面板没有这一入口。文档以 closing fence 结束时，真实 Enter 会被限定的 transaction filter 推到块外新行；粘贴、IME composition、程序化载入和多变更 transaction 不走这条转换。切换源码模式后 live-preview capability 被卸载，完整 fence、info string 和正文仍在同一文档、同一撤销历史中。保存时文件动作读取编辑器原文；现有 fixture round-trip 证明未编辑 UTF-8 样本可经前端 file action 原字节写回。
 
-不可靠或尚未证明的路径包括：通过命令面板或键盘快捷键创建；从空段落逐键 ` ``` `+Return 后的自动闭合和光标落点；点击或修改语言标识；未知语言回退视觉；未闭合 fence 恢复；向块内粘贴含 fence/CRLF/tab 的多行代码；焦点跨首行、正文、末行移动时的显隐一致性；代码块内 IME、跨行选区和 undo/redo；编辑后仅预期字节变化的真实文件保存；代码块密集大文档的输入与滚动性能。
+不可靠或尚未证明的路径包括：通过命令面板或键盘快捷键创建；从空段落逐键 ` ``` `+Return 后的自动闭合和光标落点；点击或修改语言标识；未知语言回退视觉；未闭合 fence 恢复；向块内粘贴含 fence/CRLF/tab 的多行代码；焦点跨首行、正文、末行移动时的显隐一致性；代码块内真实 IME 与跨行选区；编辑后仅预期字节变化的代码块专属文件保存；代码块密集大文档的输入、滚动与内存性能。
 
 ## 6. 逐项差距矩阵
 
@@ -73,11 +75,11 @@ Typora 1.13.7 的公开基线是 GFM 围栏代码块，不把经典四空格缩�
 | 未知语言降级 | 部分实现 | 中 | 代码路径可降级无高亮，但没有真实视觉与保存回归 | `codeLanguageForInfo` 返回 `null`；无专项测试 |
 | 阅读态块面与围栏隐藏 | 已实现 | 低 | 离焦可读性接近 Typora-like 基线 | 行级 decoration、CSS、WYSIWYG 单测 |
 | 焦点内直接编辑 | 部分实现 | 中 | 正文行可编辑，但首尾 fence/info/跨行焦点细节未锁定 | E2E 仅点击正文行 |
-| ` ``` `+Return 创建 | 证据不足 | 高 | 用户最自然的创建路径可能缺自动闭合或落点一致性 | 无逐键输入测试 |
+| ` ``` `+Return 创建 | 证据不足 | 高 | opening fence 误判已实机排除，但自动闭合和首次落点仍未证明 | 真实 Tauri 逐键 ` ```ts ` 通过；无自动闭合/首次 Return 契约 |
 | `Ctrl+Shift+K` 创建 | 未实现 | 高 | Typora 迁移用户快捷操作失效 | keymap 无绑定，菜单无 shortcut |
 | 菜单创建与选区包装 | 已实现 | 低 | 可用鼠标或命令入口创建基础 fence | 命令代码、双语菜单、两组单测 |
 | 命令面板创建 | 未实现 | 中 | 键盘优先用户无法从命令面板发现或执行代码块创建 | `createCommandPaletteModels` 无代码块项目 |
-| 退出最终代码块 | 部分实现 | 中 | Enter/向下可退出，但通用追加过滤器可能干扰粘贴或撤销 | transaction filter；3 条 E2E 中 2 条退出用例 |
+| 退出最终代码块 | 部分实现 | 中 | Enter、undo/redo 已锁定且 paste/compose/load 被排除；真实 IME 提交仍未证明 | 真实 transaction/history 测试；Tauri WebView2 Enter + `Ctrl+Z/Ctrl+Y` |
 | 代码内 Markdown 字面化 | 已实现 | 低 | 伪标题、伪任务不会错误渲染或可操作 | WYSIWYG 排除单测与 task E2E |
 | 源码模式完整 fence | 已实现 | 低 | 可检查和编辑真实 Markdown | display mode 代码、unit/E2E |
 | 未编辑 UTF-8 fixture round-trip | 已实现 | 低 | 当前语料经前端 file action 保存无无关字节变化 | `code-blocks.md` + `roundTrip.test.ts` |
@@ -86,16 +88,16 @@ Typora 1.13.7 的公开基线是 GFM 围栏代码块，不把经典四空格缩�
 | 未闭合/超长/嵌套 fence | 证据不足 | 中 | 异常文件的恢复与边界可能不稳定 | 辅助正则存在，主路径无断言 |
 | 缩进代码兼容 | 证据不足 | 低 | fixture 能保存，但 Typora 阅读态对齐与 LumaMark 呈现均未专项验证 | fixture 仅有四空格样本 |
 | 键盘、鼠标、IME、选区、undo 综合稳定 | 部分实现 | 高 | 基础点击编辑可用，复杂写作仍可能跳光标或产生意外 transaction | 单点 E2E；缺组合态矩阵 |
-| 代码块专项性能 | 证据不足 | 高 | 代码密集大文档可能因全树重建出现输入或滚动卡顿 | 全树 decoration；仅通用 perf |
+| 代码块专项性能 | 部分实现 | 高 | 普通编辑不再全树重建，但代码密集滚动、长行和内存仍无法量化 | viewport `ViewPlugin` + 聚焦回归；仅有通用 10MB Tauri 测量 |
 | 可访问语义 | 证据不足 | 中 | 屏幕阅读器能否识别代码区域、语言和阅读顺序未证明 | 未发现代码块 ARIA/role 专项实现或测试 |
 
 ## 7. 根因与架构影响
 
-第一，当前实现把“解析与显示”做得比“创建与交互契约”完整。成熟 CodeMirror 语言链路天然解决了 fence、info string 与 token 高亮，但产品级创建仍只有段落菜单可达的通用包装命令和一个末尾追加过滤器；快捷键与命令面板没有复用同一入口，也缺少明确的 code-block editing state machine，因此真实键入、自动闭合、退出、粘贴和撤销之间的优先级没有统一契约。
+第一，当前实现把“解析与显示”做得比“创建与交互契约”完整。成熟 CodeMirror 语言链路天然解决了 fence、info string 与 token 高亮，末尾退出也已从宽泛追加规则收窄为真实 transaction/语法节点契约；但产品级创建仍只有段落菜单可达的通用包装命令，快捷键与命令面板没有复用同一入口，自动闭合与初始落点也没有统一 command。
 
 第二，焦点模型沿用了通用“活动行”规则，而 Typora-like 代码块是多行块级对象。活动行足以隐藏当前行标记，却不能自然表达“正文聚焦时是否显示 info string”“跨行选区如何处理”“点击边框落到哪里”等块级状态。若继续把例外堆进通用 WYSIWYG 文件，会扩大编辑器热路径并模糊 capability 边界。
 
-第三，`codeBlockPreviewExtension` 的 StateField 在每次 docChanged 时遍历整棵 syntax tree、逐行重建所有 fenced code decoration。架构上它位于正确的 `editor/capabilities/code-block` 层，但算法边界仍需改为 viewport/changed-range 感知，否则代码块密集的大文档会把普通输入成本与文档总规模绑定。
+第三，原 `StateField` 全树遍历已替换为 `ViewPlugin` 的 viewport + 20 行缓冲，普通尾部输入不再为不可见代码块逐行重建 decoration。剩余风险转为代码块密集视口、快速滚动、超长行与首次语言包加载；这些仍需专项基准，不能由通用 10MB 文档外推。
 
 第四，保存层没有代码块私有模型，这是正确方向：Markdown 仍是唯一事实来源，菜单、键盘、粘贴都应产生 CodeMirror transaction，文件服务只读取最终源文。后续不能为了视觉追平引入 React store 持有代码全文，也不能将代码块转换成 React 富文本节点。
 
@@ -119,14 +121,14 @@ Typora 1.13.7 的公开基线是 GFM 围栏代码块，不把经典四空格缩�
 
 ### 性能
 
-避免继续让当前 `StateField` 在每次 `docChanged` 时全树重建。可执行方案二选一并以基准决定：改为 `ViewPlugin`，仅为 `visibleRanges` 加固定行数缓冲构建行 decoration，并在 `docChanged`/`viewportChanged` 时更新；或保留 `StateField`，先 `map(transaction.changes)`，再只重算语法树变化覆盖的 fenced block 范围并合并 `RangeSet`。两种方案都必须验证滚动进入先前不可见代码块时装饰完整、闭合/删除 fence 后旧装饰被清理。语言支持保持按需加载，不把 language-data 的所有实现同步打入启动热路径。性能报告分别测量启动、1/5/10MB 打开、代码块内单字符输入、连续 200 次输入、脚本化滚动、峰值内存和首次语言高亮；记录 p50/p95、处理的语法节点/行数和长任务数，基准必须单独串行运行，不能与 E2E、构建或 typecheck 并行。
+保持当前 `ViewPlugin` 的 `visibleRanges` + 20 行缓冲边界，不得回退到每次 `docChanged` 全树重建。现有回归继续验证滚动进入先前不可见代码块时装饰完整、闭合/删除 fence 后旧 class 被清理；下一步应加入访问行数/节点数计数和代码块密集 fixture，判断是否还需在可视区内部做 changed-range 合并。语言支持保持按需加载，不把 language-data 的所有实现同步打入启动热路径。性能报告分别测量启动、1/5/10MB 打开、代码块内单字符输入、连续 200 次输入、脚本化滚动、峰值内存和首次语言高亮；记录 p50/p95、处理的语法节点/行数和长任务数，基准必须单独串行运行，不能与 E2E、构建或 typecheck 并行。
 
 ## 9. P0/P1/P2 分阶段计划
 
 ### P0
 
 - 锁定 ` ``` `+Return、段落菜单、命令面板、`Ctrl+Shift+K`、Enter/ArrowDown 退出的统一 transaction 契约。
-- 收窄末尾 transaction filter，补粘贴、IME、undo/redo 和 programmatic load 防回归。
+- 末尾 transaction filter 的粘贴、undo/redo、programmatic load 防回归已完成；补真实中文 IME composition 端到端。
 - 补未知语言、未闭合 fence、波浪线/长 fence、CRLF、尾随空格与代码内 fence fixture，并确保 open → edit → save 无无关 diff。
 - 建立代码块密集 1/5/10MB 独立性能基准，先测量现状再决定增量 decoration 方案。
 
@@ -135,7 +137,7 @@ Typora 1.13.7 的公开基线是 GFM 围栏代码块，不把经典四空格缩�
 - 完成块级焦点模型：正文、info string、首尾 fence、跨行选区和鼠标落点均可预测。
 - 增加可本地化、可访问的语言查看/修改入口；未知语言无损降级。
 - 补 live preview ↔ source 的光标/滚动/undo 连续性 E2E，以及亮暗主题视觉快照。
-- 将 code-block decoration 改为 viewport 或 changed-range 感知，并以独立 perf 预算验收。
+- viewport decoration 已落地；补代码块密集滚动、长行、连续输入与内存的独立 perf 预算。
 
 ### P2
 
@@ -233,4 +235,7 @@ Typora 1.13.7 的公开基线是 GFM 围栏代码块，不把经典四空格缩�
 - 已定点检索并复读本文证据索引中的 `src`、`tests`、`docs`、`package.json` 与 `pnpm-lock.yaml`；检索时排除 `node_modules` 和 `large-*.md` 正文。
 - 实际运行 `pnpm exec vitest run src/editor/capabilities/code-block/codeBlockCommands.test.ts src/editor/markdown/markdownLanguage.test.ts src/editor/wysiwyg/markdownDecorations.test.ts src/editor/commands/markdownFormatCommands.test.ts tests/fixtures/roundTrip.test.ts tests/fixtures/fixtureCoverage.test.ts`：6 个测试文件、101 个测试通过。
 - 实际运行 `pnpm exec playwright test tests/e2e/editor-markdown.spec.ts --grep "fenced code block|final fenced code block"`：Chromium 3 个用例通过。
-- 本文是纯文档分析，没有修改生产代码或测试，因此未执行 TDD；功能状态只依据已读取代码、已有测试与本次实际运行结果。
+- 2026-07-12 初版是纯文档分析；2026-07-22 增量复核已按 TDD 修改代码与测试，因此本条不再用于描述当前工作树。
+- 2026-07-22 增量复核实际启动 Tauri 开发版 WebView2：逐键 ` ```ts ` 未再被拆行；完整 fenced block 的最终 Enter 产生预期块外空行，真实 `Ctrl+Z`/`Ctrl+Y` 精确往返。截图与样本属于本地测试产物，不纳入源码仓库。
+- 同轮聚焦测试使用真实 `insertNewlineAndIndent`、CodeMirror `history()`/`undo`/`redo`，并覆盖 paste、composition、程序化载入、多变更 transaction、opening/closing 反引号与波浪线；viewport decoration 测试覆盖滚动、旧 class 清理和大文档全文物化回归。
+- 尚未执行真实中文/日文 IME、屏幕阅读器、代码块密集滚动 FPS 或代码块专属 open → edit → save → byte diff；这些项目仍保持“证据不足”或“部分实现”。

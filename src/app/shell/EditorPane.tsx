@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { EditorApi } from '../../editor/core/editorApi';
+import type { EditorDocumentChangedHandler } from '../../editor/core/editorEvents';
 import type {
   ImageAssetResolver,
   ImageImportErrorHandler,
@@ -23,7 +24,7 @@ type EditorPaneProps = {
   ariaLabel: string;
   contextMenuItems: ShellContextMenuItem[];
   onAction: (action: ShellActionId) => void;
-  onDocumentChanged: () => void;
+  onDocumentChanged: EditorDocumentChangedHandler;
   onEditorReady: (editor: EditorApi) => void;
   imageAssetResolver?: ImageAssetResolver;
   imageImportErrorHandler?: ImageImportErrorHandler;

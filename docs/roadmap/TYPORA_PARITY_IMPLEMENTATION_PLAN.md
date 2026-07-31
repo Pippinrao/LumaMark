@@ -1,0 +1,217 @@
+# Typora Parity 核心体验改进计划
+
+> **状态：当前执行计划**
+>
+> 本文是 LumaMark 当前唯一的实施路线事实来源。Foundation 与 MarkText+ 已形成技术基线；当前里程碑进入 **Parity Reliability Foundation**，目标是让已有能力达到可长期日用的 Typora-like 可靠性，而不是继续按专题堆叠功能。
+
+## 用途与范围
+
+本文把已批准的产品方向转成可验证的执行顺序、质量门禁和退出条件。它约束当前里程碑的编辑器交互、源码序列化、代表性 Markdown 行为和验证工作。
+
+实施状态必须以当前代码、测试输出和变更记录为证据。本文不是完成情况台账，不追溯补填历史 TDD 步骤，也不以勾选框代替验证结果。历史 Alpha 设计和任务拆分见 [V1 版本设计](../product/V1_VERSION_DESIGN.md) 与 [V1 落地实施计划](V1_IMPLEMENTATION_PLAN.md)。
+
+## 本里程碑结果
+
+完成本里程碑时，现有编辑能力应同时满足：
+
+- Markdown 源文件仍是唯一真实数据，保存不会无意改写 BOM、换行、尾随空格或无关文本。
+- 焦点、选区、首个可见文档位置和像素偏移在显示模式切换与受控文本转换中保持稳定。
+- 中文 IME 组合输入、撤销重做和跨文件历史互不破坏。
+- 行内标记只在对应 span 被编辑时展开，块级结构只展开当前最小结构。
+- Mermaid 编辑直接修改主 CodeMirror 文档，并进入同一撤销栈；保存、另存为、恢复和关闭读取的始终是最新正文。
+- 数据损坏、IME、撤销和 active-save 阻断问题为零，才可进入 Beta 候选评估。
+
+体验对标以 Typora 1.13.7 Windows 为公开行为基线；源码保真、安全与性能采用更严格的 LumaMark 合同。相关架构决策见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
+
+## 非目标
+
+本里程碑不包含：
+
+- 数学公式、脚注、TOC、Callout 等完整新能力。
+- 任意 HTML、iframe、全局 CSP 放宽或不受控嵌入。
+- 插件、AI、云同步或生态系统建设。
+- macOS/Linux 深度打磨。
+- 绑定发布日期、版本号或以削弱质量预算换取退出。
+
+YAML Front Matter、脚注、`[toc]` 和 Callout 在完整能力实现前只要求安全降级：源码保持可见，不得误呈现为其他语义。
+
+## 必须先守住的编辑器合同
+
+### 共享交互上下文
+
+- `editor/interaction` 从 CodeMirror `EditorState` 与语法树派生 `EditorInteractionContext`。
+- 上下文包含 composition 状态、每个选区所在的最小 block、inline span、delimiter 和受保护源码范围。
+- 上下文随 transaction 映射和增量重算，不进入 React store，不让 feature 或 shell 持有 Markdown 全文。
+- 标题、列表、引用、代码围栏和行内标记都消费同一上下文；不得新增彼此冲突的“活动行”特例。
+
+### 精确源码格式
+
+- CodeMirror 内部持有规范化 `Text`；`DocumentSourceFormat` 独立保存 UTF-8 BOM、末尾换行、主换行格式和逐行换行覆盖。
+- 未修改行保留原 LF、CRLF 或 CR。新插入换行沿用邻近格式，无法推断时回退到文档主格式。
+- 保存点直接捕获当前 `Text` 与格式状态；保存边界执行精确序列化，禁止静默全文件归一化。
+- 受控保存转换只允许产生必要的最小 CodeMirror changes，并与 selection/scroll 映射处于同一 transaction。
+
+### 单一主编辑器
+
+- 主 CodeMirror `EditorView` 是正文、输入、选区和撤销历史的唯一所有者。
+- Mermaid 激活时，主编辑器显示围栏源码，预览位于块下方；不得创建持有待提交正文的嵌套 `EditorView`。
+- 任何编辑态保存路径必须直接读取主文档，不依赖 blur、关闭弹层或额外 flush。
+
+## Now：Parity Reliability Foundation
+
+以下阶段按顺序推进。前一阶段的阻断门禁未通过前，不在其上叠加新的编辑模型改造。
+
+### 阶段 0：收敛当前可靠性改动
+
+**预期结果：** 现有未提交可靠性工作形成一个可独立验证的稳定基线。
+
+实施范围：
+
+- 收敛保存串行化、保存点、恢复草稿、跨文件撤销隔离与外部文件变化处理。
+- 收敛代码块、图片和 Mermaid 的增量更新路径。
+- 将本地图片 watcher 接到编辑器图片刷新入口。
+- 保留当前工作树中的既有变更，避免与下一阶段交互模型改造交叉重写。
+
+图片与 draft finalize 边界见 [ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)，恢复草稿见 [ADR 0004](../decisions/0004-local-recovery-drafts.md)，外部文件和图片 watcher 见 [ADR 0005](../decisions/0005-external-file-and-image-watch.md)。
+
+退出证据：
+
+- typecheck、lint、常规测试、E2E、Rust 测试和生产构建均以新鲜输出通过。
+- 性能门禁单独串行运行，结果不与构建或 E2E 的资源竞争混用。
+- 独立代码审查未发现数据损坏、跨文件历史污染或 watcher 生命周期阻断问题。
+
+### 阶段 1：统一交互与显示模式合同
+
+**预期结果：** 所有 Markdown 可视化行为基于同一最小编辑范围，输入法和视图状态可预测。
+
+实施范围：
+
+- 建立并测试 `EditorInteractionContext` 的 block、inline span、delimiter、selection 与 composition 派生。
+- 行内标记仅在光标或选区进入相应 span 时展开；块级标记仅展开当前最小结构。
+- IME composition 期间映射已有 decoration，不重建候选文本附近的 replacement；composition 结束后增量重算。
+- `Mod-/` 切换源码/实时预览模式，并保持选区、撤销历史、首个可见文档位置和像素偏移。
+- 明确 keymap 优先级，使结构块命令、composition 和跨块选区不被普通段落命令吞掉。
+
+退出证据：
+
+- 单元测试覆盖多选区、嵌套/相邻 span、转义、多反引号和 composition 生命周期。
+- 集成与 Playwright 测试证明模式切换前后 selection、undo 和 scroll anchor 不漂移。
+- Windows Tauri 真实中文 IME 路径无候选文本闪烁、丢字或错误展开。
+
+### 阶段 2：完成精确源码序列化
+
+**预期结果：** 编辑器可在规范化内部文本模型上工作，同时按原始字节意图保存。
+
+实施范围：
+
+- 加载时解析 BOM、末尾换行与每行 LF/CRLF/CR，并建立可随 transaction 映射的 `DocumentSourceFormat`。
+- 为插入、删除、拆行和合行定义换行格式继承规则。
+- 将 `EditorDocumentPort` 的快照、保存点与序列化语义绑定到当前 CodeMirror `Text` 和格式状态。
+- 建立真实 `EditorView → production prepareTextForSave → write → reopen → byte diff` 验证链路。
+- 仅在稀疏、受控的保存转换路径使用 `@codemirror/merge` 生成最小 changes；超出精确映射保证时显式降级并暴露证据。
+
+退出证据：
+
+- Fixture 覆盖 LF、CRLF、CR、混合换行、BOM、尾随空格、无末尾换行及结构嵌套。
+- 未修改文档 round-trip 字节完全一致；修改后的所有无关字节 diff 为 0。
+- 保存点不再重新解析调用方字符串，也不依赖 mock 返回原 fixture 作为核心保真证据。
+
+### 阶段 3：交付代表性行为切片
+
+**预期结果：** 共享合同在高频和高风险语法上得到端到端验证，后续能力可按同一模式推广。
+
+#### 段落
+
+- 普通段落 Enter 以单个 transaction 创建 `\n\n` 新段落。
+- Shift+Enter 创建单换行；已经位于空行时只增加一个换行。
+- 结构块、composition 和跨块选区由更高优先级合同处理。
+
+#### 行内 span
+
+- 粗体、斜体、删除线、行内代码与链接只展开当前 span。
+- 覆盖嵌套、相邻、多反引号、转义、多选区和中文输入。
+
+#### 列表与引用
+
+- 先用 characterization tests 固定 CodeMirror 的续写、退出与 Backspace 现状，再添加最小差异行为。
+- 补齐列表 Tab/Shift+Tab、多段引用空行、混合选区和键盘可操作的任务 checkbox。
+
+#### 代码块、标题与水平线
+
+- 迁移到共享 interaction context。
+- 覆盖逐键创建、退出、未闭合围栏和 YAML/Setext 歧义。
+- 禁止新增仅服务单一装饰器的活动行判断。
+
+#### Mermaid
+
+- 编辑态只使用主 `EditorView`，源码可见且预览置于块下方。
+- 每次输入立即进入主文档与统一 undo 栈。
+- 保存、另存为、恢复草稿和关闭路径在编辑态读取最新正文。
+
+#### 安全降级
+
+- YAML Front Matter、脚注、`[toc]` 与 Callout 保持可见源码。
+- 通用装饰器不得把它们误判为水平线、标题、普通链接或引用。
+
+退出证据：
+
+- 每个 transaction 都有精确 before/after 单元测试。
+- 集成测试覆盖结构命令优先级、Mermaid active-save、恢复草稿与外部文件冲突。
+- Playwright 覆盖 Enter/Shift+Enter、span 展开、列表/引用续写、`Mod-/`、任务键盘操作和保存重开。
+
+### 阶段 4：系统验证与真实自用
+
+**预期结果：** 可靠性合同在真实 Windows 桌面环境与长期文档负载下成立。
+
+验证范围：
+
+- Windows Tauri 实测真实中文 IME、剪贴板、Mermaid active-save 与 Narrator/NVDA 最小路径。
+- 1 MB、5 MB、10 MB 文档继续满足现有打开与输入预算。
+- 新增 selection-only、模式切换、代码块密集和真实复杂 Mermaid 长任务数据。
+- 性能基准独立串行执行；未经决策记录不得提高既有预算。
+- 完成一次真实自用反馈整理，并将阻断问题关联到可复现证据。
+
+里程碑只有在数据损坏、IME、撤销、active-save 阻断问题归零，且所有适用质量门禁均有新鲜通过输出后退出。
+
+## 质量与证据矩阵
+
+| 层级 | 必须证明的行为 |
+| --- | --- |
+| 单元测试 | interaction context、composition、keymap 优先级、换行格式映射、每个 Markdown transaction 的精确 before/after |
+| 集成测试 | 模式切换、selection/scroll 保持、Mermaid active-save、恢复草稿、外部文件冲突 |
+| 保真 fixture | LF/CRLF/CR、混合换行、BOM、尾随空格、无末尾换行、同行多 span、未闭合语法、结构嵌套 |
+| Playwright | Enter/Shift+Enter、span 展开、列表/引用、`Mod-/`、任务键盘操作、保存重开 |
+| Windows Tauri | 中文 IME、剪贴板、Mermaid 编辑态保存、Narrator/NVDA 最小路径 |
+| 独立性能门禁 | 1/5/10 MB 打开与输入、selection-only、模式切换、代码块密集、复杂 Mermaid 长任务 |
+
+完整命令与完成定义遵循 [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.md) 和 [质量策略](../quality/QUALITY_STRATEGY.md)。性能事实与预算以 `docs/performance/` 下对应基准文档为准。
+
+## Next：Typora Migration Completeness
+
+当前里程碑退出后，按依赖顺序推进：
+
+1. 完整链接工作流。
+2. 图片选择器、策略持久化与事务回滚。
+3. 代码块创建入口。
+4. 表格行列、对齐和粘贴合同。
+5. 用固定迁移语料评估 KaTeX 与 MathJax，形成 ADR 后先实现块级数学。
+6. 建立共享增量 heading identity，供 Outline、内部锚点和 TOC 复用。
+7. 在 heading identity 稳定后实现 YAML、脚注、查找替换、导出、设置和快捷键闭环。
+
+这些项目在进入 Now 前只保持能力边界、依赖顺序与验收方向，不提前固化逐任务实现细节。
+
+## Later：平台与生态
+
+- Callout、受限 HTML/嵌入与高级图表。
+- 更新器和 macOS/Linux 深度打磨。
+- 插件、AI 与生态能力。
+
+Later 只表达战略方向，不构成近期承诺。任意 HTML、iframe 或全局 CSP 放宽若未来进入范围，必须另行完成安全评审和决策记录。
+
+## 维护规则
+
+- 本文是当前唯一执行计划；当前里程碑范围或顺序改变时直接更新本文。
+- [演进计划](EVOLUTION_PLAN.md) 只维护阶段定位和 Now/Next/Later 摘要，不复制这里的任务细节。
+- 产品目标变化更新产品主文档；架构合同变化更新 [详细架构](../architecture/DETAILED_ARCHITECTURE.md) 和对应 ADR。
+- 不把测试运行结果、临时调查记录或逐日进度写入本文。
+- 若提高性能预算、改变保存/源码保真策略、恢复嵌套编辑器或替换编辑器核心，必须先新增或修订 ADR。

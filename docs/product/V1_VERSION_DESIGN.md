@@ -1,5 +1,7 @@
 # V1 版本设计
 
+> **历史状态（Alpha 基线）：** 本文冻结为 Foundation / MarkText+ 阶段的产品与架构切片记录，不再作为当前执行计划，也不根据后续实现追溯改写完成状态。当前范围、顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+
 日期：2026-07-05
 
 ## 版本口径

@@ -1,5 +1,12 @@
 # 1. LumaMark 脚注（Footnotes）竞品差距分析
 
+> **Parity Reliability 实施更新（2026-07-27）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - protected-source 分析现能识别脚注引用与定义，并阻止通用链接装饰误处理；单元与 UI 测试证明这些源码在 live preview 中保持可见。
+> - 这只是安全降级，不是脚注功能。语义解析、编号、阅读态部件、悬停/导航及完整 fixture 仍在共享 heading identity 之后的 Next 阶段。
+
 ## 2. 用途、范围与非目标
 
 本文用于回答一个严格限定的问题：LumaMark 当前对 MultiMarkdown 风格脚注的真实支持程度，与 Typora 1.13.7 的公开脚注体验相比还差什么，以及应如何在不牺牲 Markdown 源码保真、编辑器响应速度和长期架构边界的前提下补齐。

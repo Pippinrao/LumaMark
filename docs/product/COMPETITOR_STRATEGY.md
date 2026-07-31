@@ -1,5 +1,7 @@
 # 竞品策略与历史债务
 
+> **当前阶段更新（2026-07-27）：** Foundation / MarkText+ 已形成 Alpha 技术基线，当前不是继续堆专题 P0，而是按“薄内核 + 代表切片”收敛 Parity Reliability。实施顺序和退出门禁统一见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+
 ## 总体判断
 
 LumaMark 的竞品策略不是简单复制现有工具，而是吸收成熟体验，避开历史债务。

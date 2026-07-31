@@ -18,6 +18,7 @@ export type CommandActionId =
   | 'saveAs'
   | 'setLivePreviewMode'
   | 'setSourceMode'
+  | 'toggleDisplayMode'
   | 'toggleLanguage'
   | 'toggleSidebar'
   | 'toggleTheme'

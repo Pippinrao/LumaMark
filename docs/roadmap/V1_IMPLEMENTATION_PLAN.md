@@ -1,5 +1,7 @@
 # V1 落地实施计划
 
+> **历史状态（Alpha 基线）：** 本文保留 Foundation / MarkText+ 阶段最初的任务拆解与未完成 checkbox，不再作为当前执行计划，也不事后伪造逐项 TDD 完成记录。当前范围、顺序与退出门禁见 [Typora Parity 核心体验改进计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: 使用 `test-driven-development`、`verification-before-completion`，并按任务粒度使用 `subagent-driven-development` 或 `executing-plans` 执行。所有任务必须遵守根目录 `AGENTS.md` 和 `DEVELOPMENT_PROCESS.md`。步骤使用 checkbox 语法追踪。
 
 **目标：** 将 LumaMark V1 设计落地为一个可日常试用的 Typora-like Markdown 编辑器基线，覆盖打开、编辑、WYSIWYG、Mermaid、保存、中文/英文、性能基准和 Windows 可用构建。

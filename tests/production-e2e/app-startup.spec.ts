@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('boots the production bundle without a blank window', async ({ page }) => {
+test('boots the production bundle and loads the lazy Mermaid renderer', async ({
+  page,
+}) => {
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   page.on('console', (message) => {
@@ -13,6 +15,18 @@ test('boots the production bundle without a blank window', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByTestId('app-shell')).toBeVisible();
+  const editor = page.locator('.cm-content');
+  await editor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.insertText(
+    ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'After diagram'].join(
+      '\n',
+    ),
+  );
+  await page.locator('.cm-line', { hasText: 'After diagram' }).click();
+
+  await expect(page.locator('.lm-mermaid-svg svg')).toBeVisible();
+  await expect(page.locator('.lm-mermaid-error')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });

@@ -67,9 +67,11 @@ test('drops an image into a saved document, preserves raw markdown, and renders 
     element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
   });
 
-  await expect(editor).toContainText('![drop.png](note.assets/image-001.png)');
-  await editor.press('Enter');
-  await editor.press('ArrowDown');
+  await page.getByRole('menuitem', { name: /View|视图/ }).click();
+  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
+  await expect(editor.locator('.cm-line')).toHaveText('![drop.png](note.assets/image-001.png)');
+  await page.getByRole('menuitem', { name: /View|视图/ }).click();
+  await page.getByRole('menuitem', { name: /Live Preview|实时预览/ }).click();
 
   const image = page.getByRole('img', { name: 'drop.png' });
   await expect(image).toBeVisible();
@@ -92,8 +94,12 @@ test('pastes an image into a saved document and persists a local asset reference
     element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer }));
   });
 
-  await expect(editor).toContainText('![paste.jpg](note.assets/image-001.jpg)');
-  await editor.press('Enter');
+  await page.getByRole('menuitem', { name: /View|视图/ }).click();
+  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
+  await expect(editor.locator('.cm-line')).toHaveText('![paste.jpg](note.assets/image-001.jpg)');
+  await page.getByRole('menuitem', { name: /View|视图/ }).click();
+  await page.getByRole('menuitem', { name: /Live Preview|实时预览/ }).click();
+
   const image = page.getByRole('img', { name: 'paste.jpg' });
   await expect(image).toBeVisible();
   await expect.poll(() => image.evaluate((node) => {
@@ -257,8 +263,13 @@ test('pastes an image into an unsaved document and renders its draft asset', asy
     transfer.items.add(new File([new Uint8Array([137, 80, 78, 71])], 'draft.png', { type: 'image/png' }));
     element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer }));
   });
-  await expect(editor).toContainText('![draft.png](lumamark-draft://draft-');
-  await editor.press('Enter');
+
+  await page.getByRole('menuitem', { name: /View|视图/ }).click();
+  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
+  await expect(editor.locator('.cm-line')).toContainText('![draft.png](lumamark-draft://draft-');
+  await page.getByRole('menuitem', { name: /View|视图/ }).click();
+  await page.getByRole('menuitem', { name: /Live Preview|实时预览/ }).click();
+
   await expect(page.getByRole('img', { name: 'draft.png' })).toBeVisible();
 });
 
@@ -271,12 +282,13 @@ test('migrates an unsaved draft image to document assets on first save', async (
     transfer.items.add(new File([new Uint8Array([137, 80, 78, 71])], 'first-save.png', { type: 'image/png' }));
     element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer }));
   });
-  await expect(editor).toContainText('lumamark-draft://');
+
+  await page.getByRole('menuitem', { name: /View|视图/ }).click();
+  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
+  await expect(editor.locator('.cm-line')).toContainText('lumamark-draft://');
   await page.getByRole('menuitem', { name: /File|文件/ }).click();
   await page.getByRole('menuitem', { name: /Save As|另存为/ }).click();
   await expect(page.locator('.lm-editor-title')).toHaveText('note.md');
-  await page.getByRole('menuitem', { name: /View|视图/ }).click();
-  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
-  await expect(editor).toContainText('![first-save.png](note.assets/image-001.png)');
-  await expect(editor).not.toContainText('lumamark-draft://');
+  await expect(editor.locator('.cm-line')).toHaveText('![first-save.png](note.assets/image-001.png)');
+  await expect(editor.locator('.cm-line')).not.toContainText('lumamark-draft://');
 });

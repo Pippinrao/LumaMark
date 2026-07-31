@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { redo, undo } from '@codemirror/commands';
 import { openSearchPanel, searchPanelOpen } from '@codemirror/search';
 import { EditorView } from '@codemirror/view';
 import { createEditorState } from './createEditorState';
@@ -43,6 +44,45 @@ describe('createEditorState', () => {
       type: 'documentChanged',
     });
     expect(JSON.stringify(events)).not.toContain('Updated body');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('reports clean when undo returns to the saved document and dirty when redo leaves it', () => {
+    const events: EditorDocumentChangedEvent[] = [];
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: createEditorState({
+        doc: '# Saved\n',
+        onDocumentChanged: (event) => events.push(event),
+      }),
+    });
+
+    view.dispatch({ changes: { from: view.state.doc.length, insert: 'draft' } });
+    expect(undo(view)).toBe(true);
+    expect(redo(view)).toBe(true);
+
+    expect(events.map((event) => event.dirty)).toEqual([true, false, true]);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('does not compare document text for a selection-only update', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: createEditorState({ doc: '# Saved\n' }),
+    });
+    const eqSpy = vi.spyOn(view.state.doc, 'eq');
+
+    view.dispatch({ selection: { anchor: 1 } });
+
+    expect(eqSpy).not.toHaveBeenCalled();
 
     view.destroy();
     parent.remove();

@@ -1,73 +1,226 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { createFileActions } from '../../src/features/file-actions/fileActions';
-import { markdownFixturePaths } from './fixturePaths';
+import { describe, expect, it, vi } from 'vitest';
+import { createEditorApi } from '../../src/editor/core/editorApi';
+import {
+  createFileActions,
+  type FileActionState,
+} from '../../src/features/file-actions/fileActions';
+import { finalizeAllDraftImages } from '../../src/services/assets/assetCommands';
+import type { FileCommandClient } from '../../src/services/files/fileCommandClient';
+import {
+  largeMarkdownFixtureNames,
+  markdownFixturePaths,
+} from './fixturePaths';
+
+const exactSourceCases = [
+  {
+    name: 'utf8-bom-crlf-no-final-newline.md',
+    source: Buffer.from('\uFEFF# BOM\r\n\r\nBody', 'utf8'),
+  },
+  {
+    name: 'mixed-line-endings.md',
+    source: Buffer.from('first\r\nsecond\rthird\nfourth\r\n', 'utf8'),
+  },
+  {
+    name: 'lf-trailing-spaces-no-final-newline.md',
+    source: Buffer.from('first  \nsecond\t', 'utf8'),
+  },
+] as const;
+
+function createState(path: string, name: string) {
+  let value: FileActionState = {
+    currentFile: { name, path },
+    dirty: false,
+    dirtyRevision: 0,
+    lastFileError: null,
+  };
+
+  return {
+    getState: () => value,
+    setCurrentFile: (currentFile: FileActionState['currentFile']) => {
+      value = { ...value, currentFile };
+    },
+    setDirty: (dirty: boolean) => {
+      value = {
+        ...value,
+        dirty,
+        dirtyRevision: dirty
+          ? value.dirtyRevision + 1
+          : value.dirtyRevision,
+      };
+    },
+    setLastFileError: (
+      lastFileError: FileActionState['lastFileError'],
+    ) => {
+      value = { ...value, lastFileError };
+    },
+  };
+}
+
+function createFileClient(): FileCommandClient {
+  return {
+    readText: async (path) => {
+      const source = await readFile(path);
+
+      return {
+        ok: true,
+        data: {
+          byteLength: source.byteLength,
+          path,
+          text: source.toString('utf8'),
+        },
+      };
+    },
+    showOpenDialog: vi.fn(),
+    showSaveDialog: vi.fn(),
+    writeText: async (path, text) => {
+      await writeFile(path, text, 'utf8');
+
+      return {
+        ok: true,
+        data: {
+          byteLength: Buffer.byteLength(text, 'utf8'),
+          path,
+        },
+      };
+    },
+  };
+}
 
 describe('markdown fixture round-trip', () => {
-  it.each(markdownFixturePaths)(
-    'preserves the exact source bytes for $name',
-    async ({ name, path }) => {
-      const source = await readFile(path);
-      const tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-round-trip-'));
-      const tempPath = join(tempDirectory, name);
+  it('changes one line without changing unrelated mixed line-ending bytes', async () => {
+    const source = Buffer.from(
+      '\uFEFFfirst\r\nsecond\rthird\nfourth',
+      'utf8',
+    );
+    const expected = Buffer.from(
+      '\uFEFFfirst\r\nSECOND\rthird\nfourth',
+      'utf8',
+    );
+    const tempDirectory = await mkdtemp(
+      join(tmpdir(), 'lumamark-round-trip-edit-'),
+    );
+    const tempPath = join(tempDirectory, 'mixed-edit.md');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc: '',
+      parent,
+    });
+    const actions = createFileActions({
+      commands: createFileClient(),
+      editor,
+      prepareTextForSave: async (path, text) =>
+        finalizeAllDraftImages({ documentPath: path, text }),
+      recentFiles: { addRecentFile: () => undefined },
+      state: createState(tempPath, 'mixed-edit.md'),
+    });
 
-      const sourceText = source.toString('utf8');
-      const actions = createFileActions({
-        commands: {
-          readText: async () => ({
-            ok: true,
-            data: {
-              byteLength: source.byteLength,
-              path: tempPath,
-              text: sourceText,
-            },
-          }),
-          showOpenDialog: async () => ({ ok: true, data: tempPath }),
-          showSaveDialog: async () => ({ ok: true, data: tempPath }),
-          writeText: async (path, text) => {
-            await writeFile(path, text, 'utf8');
-
-            return {
-              ok: true,
-              data: {
-                byteLength: Buffer.byteLength(text, 'utf8'),
-                path,
-              },
-            };
-          },
-        },
-        editor: {
-          focus: () => undefined,
-          getDocumentText: () => sourceText,
-          loadDocument: () => undefined,
-        },
-        recentFiles: {
-          addRecentFile: () => undefined,
-        },
-        state: {
-          getState: () => ({
-            currentFile: { name, path: tempPath },
-            dirty: true,
-            dirtyRevision: 0,
-            lastFileError: null,
-          }),
-          setCurrentFile: () => undefined,
-          setDirty: () => undefined,
-          setLastFileError: () => undefined,
+    try {
+      await writeFile(tempPath, source);
+      await actions.openFile(tempPath);
+      const second = editor.view.state.doc.toString().indexOf('second');
+      editor.view.dispatch({
+        changes: {
+          from: second,
+          insert: 'SECOND',
+          to: second + 'second'.length,
         },
       });
 
-      try {
-        const saveResult = await actions.saveCurrentFile();
-        const roundTripped = await readFile(tempPath);
+      const saveResult = await actions.saveCurrentFile();
+      const saved = await readFile(tempPath);
+      await actions.openFile(tempPath);
 
-        expect(saveResult.ok).toBe(true);
-        expect(Buffer.compare(roundTripped, source)).toBe(0);
+      expect(saveResult.ok).toBe(true);
+      expect(Buffer.compare(saved, expected)).toBe(0);
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(
+        expected.toString('utf8'),
+      );
+    } finally {
+      editor.destroy();
+      parent.remove();
+      await rm(tempDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it(
+    'passes exact bytes through a real EditorView, save preparation, write, and reopen',
+    async () => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const editor = createEditorApi({
+        displayMode: 'source',
+        doc: '',
+        parent,
+      });
+      const largeFixtureNames = new Set<string>(largeMarkdownFixtureNames);
+      const fileCases = await Promise.all(
+        markdownFixturePaths
+          .filter(({ name }) => !largeFixtureNames.has(name))
+          .map(async ({ name, path }) => ({
+            name,
+            source: await readFile(path),
+          })),
+      );
+
+      try {
+        for (const { name, source } of [...fileCases, ...exactSourceCases]) {
+          const tempDirectory = await mkdtemp(
+            join(tmpdir(), 'lumamark-round-trip-'),
+          );
+          const tempPath = join(tempDirectory, name);
+          const prepareTextForSave = vi.fn(
+            async (path: string, text: string) =>
+              finalizeAllDraftImages({
+                documentPath: path,
+                text,
+              }),
+          );
+          await writeFile(tempPath, source);
+          const actions = createFileActions({
+            commands: createFileClient(),
+            editor,
+            prepareTextForSave,
+            recentFiles: {
+              addRecentFile: () => undefined,
+            },
+            state: createState(tempPath, name),
+          });
+
+          try {
+            const openResult = await actions.openFile(tempPath);
+            const saveResult = await actions.saveCurrentFile();
+            const roundTripped = await readFile(tempPath);
+            const reopenResult = await actions.openFile(tempPath);
+
+            expect(openResult.ok, `${name}: open`).toBe(true);
+            expect(saveResult.ok, `${name}: save`).toBe(true);
+            expect(reopenResult.ok, `${name}: reopen`).toBe(true);
+            expect(prepareTextForSave, `${name}: prepare`).toHaveBeenCalledWith(
+              tempPath,
+              source.toString('utf8'),
+            );
+            expect(
+              Buffer.compare(roundTripped, source),
+              `${name}: byte diff`,
+            ).toBe(0);
+            expect(
+              editor.captureDocumentSnapshot().serializedText,
+              `${name}: reopened editor source`,
+            ).toBe(source.toString('utf8'));
+          } finally {
+            await rm(tempDirectory, { recursive: true, force: true });
+          }
+        }
       } finally {
-        await rm(tempDirectory, { recursive: true, force: true });
+        editor.destroy();
+        parent.remove();
       }
     },
+    120_000,
   );
 });

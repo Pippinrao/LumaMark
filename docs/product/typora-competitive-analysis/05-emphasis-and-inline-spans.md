@@ -1,5 +1,12 @@
 # 强调与行内 Span 竞争差距分析
 
+> **Parity Reliability 实施更新（2026-07-27）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - `EditorInteractionContext` 现按每个选区派生最小 inline owner 与 delimiter，live preview 只展开当前粗体、斜体、删除线、行内代码或链接 span；嵌套、相邻、多反引号、转义、多选区、链接目标/标题和 composition 映射均有单元测试，Playwright 覆盖相邻与嵌套 owner。
+> - 旧“按活动行统一展开”的结论已过期；格式命令完整度、剪贴板、Windows 原生中文 IME，以及高亮、上下标等扩展能力仍不属于已追平范围。
+
 ## 用途、范围与非目标
 
 本文把 Typora 1.13.7 的强调与行内 span 公开体验基线，同当前工作区内 LumaMark 的实际代码、自动化测试、fixture 与依赖逐项对照，用于确定产品验收口径、编辑器边界和后续实现顺序。状态只允许使用“已实现 / 部分实现 / 未实现 / 证据不足”，严重度只允许使用“阻断 / 高 / 中 / 低”。规划文档和目标描述不能证明功能存在；本文的 LumaMark 结论以可定位的运行时代码、测试和 fixture 为准。

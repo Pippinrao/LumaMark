@@ -21,6 +21,7 @@
   "editor.search.onLine": "on line",
   "editor.search.replacedMatchOnLine": "replaced match on line $",
   "editor.search.replacedMatches": "replaced $ matches",
+  "editor.task.toggle": "Toggle task completion",
   "window.controls": "Window controls",
   "window.minimize": "Minimize window",
   "window.maximize": "Maximize window",

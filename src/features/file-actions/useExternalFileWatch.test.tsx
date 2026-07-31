@@ -1,6 +1,7 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EditorDocumentPort } from '../../editor/commands/editorCommandPort';
+import type { EditorDocumentSnapshot } from '../../editor/core/editorApi';
 import type {
   FileWatchChangeEvent,
   FileWatchClient,
@@ -10,6 +11,33 @@ import {
   areWatchedPathsEqual,
   useExternalFileWatch,
 } from './useExternalFileWatch';
+
+type TestEditorDocumentPort = Omit<
+  EditorDocumentPort,
+  'captureSnapshot' | 'isSnapshotCurrent' | 'serializeText'
+> &
+  Partial<
+    Pick<
+      EditorDocumentPort,
+      'captureSnapshot' | 'isSnapshotCurrent' | 'serializeText'
+    >
+  >;
+
+function withSnapshotMethods(
+  editor: TestEditorDocumentPort,
+): EditorDocumentPort {
+  return {
+    ...editor,
+    captureSnapshot:
+      editor.captureSnapshot ??
+      (() => ({ serializedText: editor.getText() })),
+    isSnapshotCurrent:
+      editor.isSnapshotCurrent ??
+      ((snapshot: EditorDocumentSnapshot) =>
+        snapshot.serializedText === editor.getText()),
+    serializeText: editor.serializeText ?? editor.getText,
+  };
+}
 
 describe('useExternalFileWatch', () => {
   afterEach(() => {
@@ -74,6 +102,8 @@ describe('useExternalFileWatch', () => {
           focus: vi.fn(),
           getText: vi.fn(() => '# Initially opened'),
           loadText,
+          markSaved: vi.fn(),
+          markUnsaved: vi.fn(),
           setContext: vi.fn(),
         }}
         fileWatch={createFileWatchClient({
@@ -96,6 +126,55 @@ describe('useExternalFileWatch', () => {
     expect(loadText).toHaveBeenCalledWith('# Changed during watch', {
       preserveView: true,
     });
+  });
+
+  it('compares watcher reads with exact serialized source instead of normalized editor text', async () => {
+    const path = 'E:/notes/crlf.md';
+    const loadText = vi.fn();
+    let model: ReturnType<typeof useExternalFileWatch> | undefined;
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          byteLength: 15,
+          path,
+          text: '# First\r\nSecond',
+        },
+      }),
+      showOpenDialog: vi.fn(),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    };
+
+    render(
+      <ExternalFileWatchHarness
+        editor={{
+          focus: vi.fn(),
+          getText: vi.fn(() => '# First\nSecond'),
+          loadText,
+          markSaved: vi.fn(),
+          markUnsaved: vi.fn(),
+          serializeText: vi.fn(() => '# First\r\nSecond'),
+          setContext: vi.fn(),
+        }}
+        fileWatch={createFileWatchClient({
+          watchDocument: vi.fn().mockResolvedValue({
+            ok: true,
+            data: { fingerprint: 'sha256:after-watch' },
+          }),
+        })}
+        onModel={(value) => {
+          model = value;
+        }}
+        state={createState()}
+      />,
+    );
+
+    await act(async () => {
+      await model?.replaceWatchedDocument(path, 'sha256:opened');
+    });
+
+    expect(loadText).not.toHaveBeenCalled();
   });
 
   it('does not reread the document when the open and watch fingerprints match', async () => {
@@ -174,6 +253,8 @@ describe('useExternalFileWatch', () => {
           focus: vi.fn(),
           getText: vi.fn(() => '# Initially opened'),
           loadText,
+          markSaved: vi.fn(),
+          markUnsaved: vi.fn(),
           setContext: vi.fn(),
         }}
         fileWatch={fileWatch}
@@ -224,6 +305,8 @@ describe('useExternalFileWatch', () => {
           loadText: (text) => {
             editorText = text;
           },
+          markSaved: vi.fn(),
+          markUnsaved: vi.fn(),
           setContext: vi.fn(),
         }}
         fileWatch={createFileWatchClient({
@@ -272,19 +355,23 @@ function ExternalFileWatchHarness({
   onModel,
   state,
 }: {
-  editor?: EditorDocumentPort;
+  editor?: TestEditorDocumentPort;
   fileWatch: FileWatchClient;
   onModel?: (model: ReturnType<typeof useExternalFileWatch>) => void;
   state: ReturnType<typeof createState>;
 }) {
   const model = useExternalFileWatch({
     editorRef: {
-      current: editor ?? {
-        focus: vi.fn(),
-        getText: vi.fn(),
-        loadText: vi.fn(),
-        setContext: vi.fn(),
-      } satisfies EditorDocumentPort,
+      current: withSnapshotMethods(
+        editor ?? {
+          focus: vi.fn(),
+          getText: vi.fn(),
+          loadText: vi.fn(),
+          markSaved: vi.fn(),
+          markUnsaved: vi.fn(),
+          setContext: vi.fn(),
+        },
+      ),
     },
     fileWatch,
     onDocumentBecameSafe: vi.fn(),

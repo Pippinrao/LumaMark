@@ -15,6 +15,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 700,
     rolldownOptions: {
       output: {
+        // Mermaid contains static import cycles across its diagram modules. Keep
+        // their source execution order when the size-based vendor group splits.
+        strictExecutionOrder: true,
         codeSplitting: {
           groups: [
             {

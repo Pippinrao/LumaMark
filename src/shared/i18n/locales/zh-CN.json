@@ -21,6 +21,7 @@
   "editor.search.onLine": "所在行号为",
   "editor.search.replacedMatchOnLine": "已替换第 $ 行的匹配",
   "editor.search.replacedMatches": "已替换 $ 处匹配",
+  "editor.task.toggle": "切换任务完成状态",
   "window.controls": "窗口控制",
   "window.minimize": "最小化窗口",
   "window.maximize": "最大化窗口",

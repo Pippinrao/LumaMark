@@ -1,4 +1,3 @@
-import { syntaxTree } from '@codemirror/language';
 import {
   EditorSelection,
   type EditorState,
@@ -18,26 +17,21 @@ import type {
   ImageAssetResolution,
   ImageAssetResolver,
 } from '../../core/editorDisplayMode';
+import {
+  collectImageBlocksInRanges,
+  type ImageBlock,
+} from './imageBlockDetection';
+import {
+  changedRangesAffectImageBlocks,
+  imageBlockPositionsChanged,
+  imageSelectionStateChanged,
+  mapImageBlocks,
+  selectionIntersectsBlock,
+} from './imageChangeDetection';
 import './image.css';
 
-type DocumentRange = {
-  from: number;
-  to: number;
-};
-
-type MarkdownSyntaxNode = {
-  from: number;
-  to: number;
-  getChild: (type: string) => MarkdownSyntaxNode | null;
-};
-
-export type ImageBlock = {
-  alt: string;
-  blockId: string;
-  from: number;
-  source: string;
-  to: number;
-};
+export { collectImageBlocksInRanges } from './imageBlockDetection';
+export type { ImageBlock } from './imageBlockDetection';
 
 export type ImagePreviewContext = {
   documentPath: string | null;
@@ -45,6 +39,7 @@ export type ImagePreviewContext = {
 };
 
 type ImageDecorationState = {
+  blocks: readonly ImageBlock[];
   decorations: DecorationSet;
 };
 
@@ -58,36 +53,6 @@ export function imagePreviewExtension(
   context: ImagePreviewContext = { documentPath: null },
 ): Extension {
   return imageDecorationsField(context);
-}
-
-export function collectImageBlocksInRanges(
-  state: EditorState,
-  ranges: readonly DocumentRange[],
-): ImageBlock[] {
-  const blocks: ImageBlock[] = [];
-  const seen = new Set<string>();
-
-  for (const range of ranges) {
-    syntaxTree(state).iterate({
-      from: range.from,
-      to: range.to,
-      enter(node) {
-        if (node.name !== 'Image') {
-          return;
-        }
-
-        const block = imageBlockFromNode(state, node.node);
-        if (!block || seen.has(block.blockId)) {
-          return;
-        }
-
-        seen.add(block.blockId);
-        blocks.push(block);
-      },
-    });
-  }
-
-  return blocks.sort((left, right) => left.from - right.from);
 }
 
 export function resolveMarkdownImageSource({
@@ -115,56 +80,74 @@ export function resolveMarkdownImageSource({
   };
 }
 
-function imageBlockFromNode(
-  state: EditorState,
-  node: MarkdownSyntaxNode,
-): ImageBlock | null {
-  const sourceNode = node.getChild('URL');
-
-  if (!sourceNode) {
-    return null;
-  }
-
-  const raw = state.doc.sliceString(node.from, node.to);
-  const line = state.doc.lineAt(node.from);
-  const lineText = state.doc.sliceString(line.from, line.to);
-
-  if (lineText.trim() !== raw || node.to > line.to) {
-    return null;
-  }
-
-  const altMatch = raw.match(/^!\[(?<alt>(?:\\.|(?!\]).)*)\]/);
-  const source = state.doc.sliceString(sourceNode.from, sourceNode.to).trim();
-
-  return {
-    alt: unescapeMarkdownAlt(altMatch?.groups?.alt ?? ''),
-    blockId: `${line.from}:${line.to}`,
-    from: line.from,
-    source,
-    to: line.to,
-  };
-}
-
 function imageDecorationsField(context: ImagePreviewContext): Extension {
   return StateField.define<ImageDecorationState>({
     create(state) {
+      const blocks = discoverImageBlocks(state, context);
+
       return {
-        decorations: buildImageDecorations(state, context),
+        blocks,
+        decorations: buildImageDecorations(state, context, blocks),
       };
     },
     update(value, transaction) {
       const shouldRefresh = transaction.effects.some((effect) =>
         effect.is(refreshImagePreviews),
       );
-      if (transaction.docChanged || transaction.selection || shouldRefresh) {
+
+      if (transaction.docChanged) {
+        if (changedRangesAffectImageBlocks(transaction)) {
+          const blocks = discoverImageBlocks(transaction.state, context);
+
+          return {
+            blocks,
+            decorations: buildImageDecorations(
+              transaction.state,
+              context,
+              blocks,
+            ),
+          };
+        }
+
+        const blocks = mapImageBlocks(value.blocks, transaction.changes);
+        const shouldRebuildDecorations =
+          shouldRefresh ||
+          imageBlockPositionsChanged(value.blocks, blocks) ||
+          imageSelectionStateChanged(
+            transaction.startState,
+            value.blocks,
+            transaction.state,
+            blocks,
+          );
+
         return {
-          decorations: buildImageDecorations(transaction.state, context),
+          blocks,
+          decorations: shouldRebuildDecorations
+            ? buildImageDecorations(transaction.state, context, blocks)
+            : value.decorations.map(transaction.changes),
         };
       }
 
-      return {
-        decorations: value.decorations.map(transaction.changes),
-      };
+      if (
+        shouldRefresh ||
+        imageSelectionStateChanged(
+          transaction.startState,
+          value.blocks,
+          transaction.state,
+          value.blocks,
+        )
+      ) {
+        return {
+          blocks: value.blocks,
+          decorations: buildImageDecorations(
+            transaction.state,
+            context,
+            value.blocks,
+          ),
+        };
+      }
+
+      return value;
     },
     provide: (field) =>
       EditorView.decorations.from(field, (value) => value.decorations),
@@ -174,12 +157,9 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
 function buildImageDecorations(
   state: EditorState,
   context: ImagePreviewContext,
+  blocks: readonly ImageBlock[],
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const blocks = collectImageBlocksInRanges(state, [
-    { from: 0, to: state.doc.length },
-  ]);
-  syncLocalImageSources(context, blocks);
 
   for (const block of blocks) {
     const revision =
@@ -212,14 +192,16 @@ function buildImageDecorations(
   return builder.finish();
 }
 
-function selectionIntersectsBlock(state: EditorState, block: ImageBlock): boolean {
-  return state.selection.ranges.some((range) => {
-    if (range.empty) {
-      return range.from >= block.from && range.from <= block.to;
-    }
+function discoverImageBlocks(
+  state: EditorState,
+  context: ImagePreviewContext,
+): readonly ImageBlock[] {
+  const blocks = collectImageBlocksInRanges(state, [
+    { from: 0, to: state.doc.length },
+  ]);
+  syncLocalImageSources(context, blocks);
 
-    return range.from < block.to && range.to > block.from;
-  });
+  return blocks;
 }
 
 class ImageBlockWidget extends WidgetType {
@@ -247,7 +229,9 @@ class ImageBlockWidget extends WidgetType {
     wrapper.addEventListener('mousedown', (event) => {
       event.preventDefault();
       view.dispatch({
-        selection: EditorSelection.cursor(this.block.from),
+        selection: EditorSelection.cursor(
+          Math.min(this.block.from + 2, this.block.to - 1),
+        ),
         scrollIntoView: true,
       });
       view.focus();
@@ -405,14 +389,6 @@ function isAbsolutePath(path: string): boolean {
 
 function isDraftImageSource(source: string): boolean {
   return source.startsWith('lumamark-draft://');
-}
-
-function unescapeMarkdownAlt(alt: string): string {
-  return alt.replace(/\\(.)/g, (match, character: string) =>
-    character === '\\' || character === '[' || character === ']'
-      ? character
-      : match,
-  );
 }
 
 function resolveRelativePath(documentPath: string, source: string): string {

@@ -4,11 +4,13 @@
 
 LumaMark 的路线采用“近细远粗”的规划方式。
 
-- **近期细化**：Foundation 和 MarkText+ 阶段要写到可执行、可验证。
-- **中期定方向**：Typora Parity 阶段保留目标和能力范围，不提前锁死具体实现。
+- **近期细化**：当前 Parity Reliability Foundation 由唯一的 [当前执行计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)写到可执行、可验证。
+- **中期定方向**：Typora Migration Completeness 保留依赖顺序和能力边界，在进入 Now 前不锁死实现任务。
 - **远期留弹性**：World-Class 和生态方向只保留主题，不做过细承诺。
 
 原因很简单：编辑器产品的真实判断来自原型、性能数据和用户试用。远期计划写得过细，会制造假确定性，并增加返工。
+
+Foundation 与 MarkText+ 已形成 Alpha 技术基线，其历史范围保留在 [V1 版本设计](../product/V1_VERSION_DESIGN.md) 和 [V1 落地实施计划](V1_IMPLEMENTATION_PLAN.md)。本文只维护阶段定位与 Now/Next/Later，不复制当前实施细节。
 
 ## 总体路径
 
@@ -31,7 +33,7 @@ LumaMark 的演进路线分为四个层级：
 
 目标：建立可持续开发的项目地基，证明默认架构可行。
 
-预计周期：1-3 周。
+**状态：** 已形成技术基线；以下内容作为历史阶段定义保留。
 
 ### 核心产出
 
@@ -67,7 +69,7 @@ LumaMark 的演进路线分为四个层级：
 
 目标：快速超过 MarkText 的流畅性、现代感和源码可信度，形成可试用 Alpha。
 
-预计周期：6-10 周。
+**状态：** 已形成 Alpha 能力基线；可靠性缺口并入当前 Parity Reliability Foundation 收敛。
 
 ### 核心产出
 
@@ -134,7 +136,7 @@ LumaMark 的演进路线分为四个层级：
 
 ### 阶段退出条件
 
-只有满足以下条件，才能进入 Typora Parity 细化规划：
+历史阶段定义要求满足以下条件后再进入 Typora Parity 细化规划。当前已转入可靠性收敛不等于追溯宣称每项完成；缺失证据直接纳入当前计划：
 
 - MarkText+ 核心路径经过自动化验证。
 - 性能基准数据稳定。
@@ -146,23 +148,16 @@ LumaMark 的演进路线分为四个层级：
 
 目标：追平 Typora 的核心日常写作体验。
 
-本阶段暂不展开过细任务。进入本阶段前，需要根据 MarkText+ 阶段的真实验证结果重新细化。
+**状态：当前阶段。** 第一子阶段是 Parity Reliability Foundation：先统一源码保真、焦点、输入和撤销合同，再将合同推广到代表性 Markdown 行为。完整范围、顺序和退出门禁只在 [当前执行计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)维护。
 
 ### 方向范围
 
 优先方向：
 
-- 图片体验。
-- 链接体验。
-- 表格体验。
-- 数学公式。
-- 查找和替换。
-- 工作区搜索。
-- 自动保存和恢复。
-- 导出。
-- 设置中心。
-- 快捷键体系。
-- Windows 安装和更新。
+- 当前：源码格式、interaction context、IME、撤销、模式切换与 Mermaid 单主文档模型。
+- 当前代表切片：段落、行内 span、列表与引用、代码块、标题、水平线和安全降级。
+- 后续迁移完整性：链接、图片、代码块入口、表格和经 ADR 选型后的块级数学。
+- 后续产品闭环：共享 heading identity、TOC、YAML、脚注、查找替换、导出、设置和快捷键。
 
 ### 规划原则
 
@@ -178,6 +173,7 @@ LumaMark 的演进路线分为四个层级：
 - 图片、表格、链接、公式没有明显日常使用缺口。
 - 保存仍然不产生无关 diff。
 - 性能基准没有明显退化。
+- 数据损坏、IME、撤销和 active-save 阻断问题为零。
 
 ## 阶段 3：World-Class
 
@@ -227,51 +223,40 @@ LumaMark 的演进路线分为四个层级：
 
 ### Now
 
-- 固化项目规则和产品文档。
-- 初始化项目脚手架。
-- 建立测试、E2E、fixture 和性能基准。
-- 接入 CodeMirror 6。
-- 实现最小 Markdown 编辑闭环。
+- 收敛已有保存、恢复、外部变更、图片 watcher 与增量渲染可靠性改动。
+- 建立共享 editing context、精确 `DocumentSourceFormat` 和单主 `EditorView` 合同。
+- 用段落、行内 span、列表/引用、代码块/标题/水平线和 Mermaid 代表切片验证合同。
+- 完成真实保存重开、Windows 中文 IME、可访问性、独立性能门禁和自用反馈。
+
+详细任务、顺序与退出证据见 [Typora Parity 核心体验改进计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；核心架构合同见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 
 ### Next
 
-- Typora-like 基础 WYSIWYG。
-- 文件树和大纲。
-- Mermaid 异步渲染。
-- i18n 和主题。
-- 保存源码保真。
-- 大文档性能测试。
-- Windows 可试用构建。
+- 完整链接工作流。
+- 图片选择器、策略持久化和事务回滚。
+- 代码块创建入口与表格行列、对齐、粘贴合同。
+- 以固定迁移语料评估 KaTeX/MathJax，形成 ADR 后先做块级数学。
+- 建立共享增量 heading identity，再推进 Outline、内部锚点、TOC、YAML、脚注、查找替换、导出、设置与快捷键闭环。
 
 ### Later
 
-- 追平 Typora 日常体验。
-- 根据真实反馈选择创新主题。
-- 扩展跨平台和生态能力。
+- Callout、受限 HTML/嵌入、高级图表和更新器。
+- macOS/Linux 深度打磨。
+- 根据真实反馈选择插件、AI 和生态方向。
+- 任意 HTML、iframe 或全局 CSP 放宽不构成近期承诺。
 
-## 近期里程碑
+## 阶段状态与当前里程碑
 
-### M0：可运行骨架
+### 历史 Alpha 基线
 
-- 应用启动。
-- 编辑器显示。
-- 基础测试跑通。
+M0 可运行骨架、M1 可编辑 Markdown 与 M2 可日常试用 Alpha 的原始定义保留在历史 [V1 落地实施计划](V1_IMPLEMENTATION_PLAN.md)。这些历史 checkbox 不用于推断当前完成状态。
 
-### M1：可编辑 Markdown
+### 当前：Parity Reliability Foundation
 
-- 打开、编辑、保存。
-- 基础 Markdown 视觉效果。
-- 源码 round-trip 通过。
-
-### M2：可日常试用 Alpha
-
-- 文件树。
-- 大纲。
-- Mermaid。
-- 主题。
-- i18n。
-- 大文档不冻结。
-- Windows 开发构建可用。
+- 以“薄内核 + 代表切片”完成可靠性收敛。
+- 保持 Markdown 字节意图、IME、选区、scroll 和统一 undo 合同。
+- 退出前完成自动化门禁、Windows 实测和真实自用。
+- 数据损坏、IME、撤销与 Mermaid active-save 阻断问题必须归零。
 
 ## 主要风险
 

@@ -115,8 +115,12 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
     'V1 E2E Title',
   );
   await expect(page.getByRole('button', { name: 'V1 E2E Title' })).toBeVisible();
-  await page.locator('.lm-md-task-checkbox').last().click();
-  await expect(editor).toContainText('- [x] verified task');
+  await page.locator('.cm-line', { hasText: 'V1 E2E Title' }).click();
+  const verifiedTaskCheckbox = page
+    .locator('.cm-line', { hasText: 'verified task' })
+    .locator('.lm-md-task-checkbox');
+  await verifiedTaskCheckbox.click();
+  await expect(verifiedTaskCheckbox).toBeChecked();
 
   await page.keyboard.press('Control+S');
   await expect(page.getByRole('status')).toHaveText('Saved');

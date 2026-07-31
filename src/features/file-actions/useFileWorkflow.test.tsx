@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom/vitest';
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import type { RefObject } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EditorDocumentPort } from '../../editor/commands/editorCommandPort';
+import type { EditorDocumentSnapshot } from '../../editor/core/editorApi';
 import type { FileCommandClient } from '../../services/files/fileCommandClient';
 import type { FileWatchClient } from '../../services/file-watch/fileWatchClient';
 import type { FileWatchChangeEvent } from '../../services/file-watch/fileWatchClient';
@@ -14,6 +15,43 @@ type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T) => void;
 };
+
+type TestEditorDocumentPort = Omit<
+  EditorDocumentPort,
+  'captureSnapshot' | 'isSnapshotCurrent' | 'serializeText'
+> &
+  Partial<
+    Pick<
+      EditorDocumentPort,
+      'captureSnapshot' | 'isSnapshotCurrent' | 'serializeText'
+    >
+  >;
+
+function withSnapshotMethods(
+  editor: TestEditorDocumentPort,
+): EditorDocumentPort {
+  return {
+    ...editor,
+    captureSnapshot:
+      editor.captureSnapshot ??
+      (() => ({ serializedText: editor.getText() })),
+    isSnapshotCurrent:
+      editor.isSnapshotCurrent ??
+      ((snapshot: EditorDocumentSnapshot) =>
+        snapshot.serializedText === editor.getText()),
+    serializeText: editor.serializeText ?? editor.getText,
+  };
+}
+
+function withSnapshotEditorRef(
+  editorRef: RefObject<TestEditorDocumentPort | null>,
+): RefObject<EditorDocumentPort | null> {
+  return {
+    get current() {
+      return editorRef.current ? withSnapshotMethods(editorRef.current) : null;
+    },
+  };
+}
 
 function createDeferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
@@ -96,7 +134,7 @@ function WorkflowHarness({
   status,
 }: {
   editorReady?: boolean;
-  editorRef: RefObject<EditorDocumentPort | null>;
+  editorRef: RefObject<TestEditorDocumentPort | null>;
   fileWatch?: FileWatchClient;
   onLocalImageChanged?: (event: FileWatchChangeEvent) => void;
   onWorkflow: (workflow: FileWorkflow) => void;
@@ -108,7 +146,7 @@ function WorkflowHarness({
   onWorkflow(
     useFileWorkflow({
       editorReady,
-      editorRef,
+      editorRef: withSnapshotEditorRef(editorRef),
       fileWatch,
       onLocalImageChanged,
       onDocumentBecameSafe,
@@ -122,6 +160,37 @@ function WorkflowHarness({
 }
 
 describe('useFileWorkflow', () => {
+  it('advances the dirty revision for every dirty editor transaction', () => {
+    const state = createState({ dirty: true, dirtyRevision: 4 });
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: vi.fn(),
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey: vi.fn() }}
+      />,
+    );
+
+    workflowRef.current?.markDocumentDirty(true);
+    workflowRef.current?.markDocumentDirty(true);
+
+    expect(state.getState().dirtyRevision).toBe(6);
+  });
+
   afterEach(() => {
     delete window.__LUMAMARK_E2E_FILE_COMMANDS__;
   });
@@ -151,6 +220,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: vi.fn(),
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -193,6 +264,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: vi.fn(() => '# Opened'),
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -256,6 +329,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: () => editorText,
             loadText,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -334,6 +409,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: () => editorText,
             loadText,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -422,6 +499,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: () => editorText,
             loadText,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -512,6 +591,8 @@ describe('useFileWorkflow', () => {
             loadText: (text) => {
               editorText = text;
             },
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -584,6 +665,7 @@ describe('useFileWorkflow', () => {
       }),
     });
     const state = createState();
+    const markUnsaved = vi.fn();
     const workflowRef: { current: FileWorkflow | null } = { current: null };
 
     render(
@@ -595,6 +677,8 @@ describe('useFileWorkflow', () => {
             loadText: (text) => {
               editorText = text;
             },
+            markSaved: vi.fn(),
+            markUnsaved,
             setContext: vi.fn(),
           },
         }}
@@ -622,6 +706,7 @@ describe('useFileWorkflow', () => {
 
     expect(editorText).toBe('# Opened');
     expect(state.getState().dirty).toBe(true);
+    expect(markUnsaved).toHaveBeenCalledTimes(1);
     expect(state.getState().lastFileError?.code).toBe('file.not_found');
   });
 
@@ -656,6 +741,8 @@ describe('useFileWorkflow', () => {
             loadText: (text) => {
               editorText = text;
             },
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -702,6 +789,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: vi.fn(),
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -774,6 +863,8 @@ describe('useFileWorkflow', () => {
             loadText: (text) => {
               editorText = text;
             },
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -864,6 +955,8 @@ describe('useFileWorkflow', () => {
             loadText: (text) => {
               editorText = text;
             },
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -947,6 +1040,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: () => '# Saved',
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -965,6 +1060,135 @@ describe('useFileWorkflow', () => {
     });
 
     expect(fileWatch.watchDocument).toHaveBeenCalledWith('E:/notes/saved.md');
+  });
+
+  it('keeps recovery and unsaved status when the document changes while save installs its watcher', async () => {
+    const pendingWatch = createDeferred<
+      Awaited<ReturnType<FileWatchClient['watchDocument']>>
+    >();
+    const fileWatch = createFileWatchClient({
+      watchDocument: vi.fn(() => pendingWatch.promise),
+    });
+    const onDocumentBecameSafe = vi.fn();
+    const setStatusKey = vi.fn();
+    const state = createState({
+      currentFile: { name: 'saved.md', path: 'E:/notes/saved.md' },
+      dirty: true,
+    });
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({
+      writeText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { byteLength: 7, path: 'E:/notes/saved.md' },
+      }),
+    });
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => '# Saved',
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={fileWatch}
+        onDocumentBecameSafe={onDocumentBecameSafe}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey }}
+      />,
+    );
+
+    const pendingSave = workflowRef.current?.save();
+    await waitFor(() => expect(fileWatch.watchDocument).toHaveBeenCalled());
+
+    act(() => {
+      workflowRef.current?.markDocumentDirty(true);
+    });
+
+    await act(async () => {
+      pendingWatch.resolve({
+        ok: true,
+        data: { fingerprint: 'sha256:saved' },
+      });
+      await pendingSave;
+    });
+
+    expect(state.getState().dirty).toBe(true);
+    expect(onDocumentBecameSafe).not.toHaveBeenCalled();
+    expect(setStatusKey).not.toHaveBeenCalledWith('status.saved');
+  });
+
+  it('keeps recovery and unsaved status when the document changes while Save As installs its watcher', async () => {
+    const pendingWatch = createDeferred<
+      Awaited<ReturnType<FileWatchClient['watchDocument']>>
+    >();
+    const fileWatch = createFileWatchClient({
+      watchDocument: vi.fn(() => pendingWatch.promise),
+    });
+    const onDocumentBecameSafe = vi.fn();
+    const setStatusKey = vi.fn();
+    const state = createState({ dirty: true });
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({
+      showSaveDialog: vi.fn().mockResolvedValue({
+        ok: true,
+        data: 'E:/notes/saved-as.md',
+      }),
+      writeText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { byteLength: 7, path: 'E:/notes/saved-as.md' },
+      }),
+    });
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => '# Saved',
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={fileWatch}
+        onDocumentBecameSafe={onDocumentBecameSafe}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey }}
+      />,
+    );
+
+    const pendingSaveAs = workflowRef.current?.saveAs();
+    await waitFor(() => expect(fileWatch.watchDocument).toHaveBeenCalled());
+
+    act(() => {
+      workflowRef.current?.markDocumentDirty(true);
+    });
+
+    await act(async () => {
+      pendingWatch.resolve({
+        ok: true,
+        data: { fingerprint: 'sha256:saved-as' },
+      });
+      await pendingSaveAs;
+    });
+
+    expect(state.getState().dirty).toBe(true);
+    expect(onDocumentBecameSafe).not.toHaveBeenCalled();
+    expect(setStatusKey).not.toHaveBeenCalledWith('status.saved');
   });
 
   it('keeps Unix file path comparisons case-sensitive', async () => {
@@ -993,6 +1217,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: () => '# Opened',
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -1057,6 +1283,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: () => '# Opened',
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -1118,6 +1346,8 @@ describe('useFileWorkflow', () => {
             focus,
             getText: vi.fn(),
             loadText: loadDocument,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: setDocumentContext,
           },
         }}
@@ -1165,7 +1395,189 @@ describe('useFileWorkflow', () => {
     expect(addRecentFile).not.toHaveBeenCalled();
   });
 
-  it('ignores an older save failure after a newer save succeeds', async () => {
+  it('does not clear recovery or overwrite ready status when an open becomes stale while watch starts', async () => {
+    const pendingWatch = createDeferred<
+      Awaited<ReturnType<FileWatchClient['watchDocument']>>
+    >();
+    const fileWatch = createFileWatchClient({
+      watchDocument: vi.fn(() => pendingWatch.promise),
+    });
+    const onDocumentBecameSafe = vi.fn();
+    const setStatusKey = vi.fn();
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({
+      readText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          byteLength: 8,
+          path: 'E:/docs/older.md',
+          text: '# Older',
+        },
+      }),
+    });
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: vi.fn(() => '# Older'),
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={fileWatch}
+        onDocumentBecameSafe={onDocumentBecameSafe}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={createState()}
+        status={{ setStatusKey }}
+      />,
+    );
+
+    const pendingOpen = workflowRef.current?.openPath('E:/docs/older.md');
+    await waitFor(() => expect(fileWatch.watchDocument).toHaveBeenCalled());
+
+    act(() => {
+      workflowRef.current?.createNewDocument();
+    });
+
+    await act(async () => {
+      pendingWatch.resolve({
+        ok: true,
+        data: { fingerprint: 'sha256:older' },
+      });
+      await pendingOpen;
+    });
+
+    expect(onDocumentBecameSafe).toHaveBeenCalledTimes(1);
+    expect(setStatusKey).toHaveBeenLastCalledWith('status.ready');
+  });
+
+  it('does not clear recovery or overwrite an open failure after a stale save watch resolves', async () => {
+    const pendingWatch = createDeferred<
+      Awaited<ReturnType<FileWatchClient['watchDocument']>>
+    >();
+    const fileWatch = createFileWatchClient({
+      watchDocument: vi.fn(() => pendingWatch.promise),
+    });
+    const onDocumentBecameSafe = vi.fn();
+    const setStatusKey = vi.fn();
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({
+      readText: vi.fn().mockResolvedValue({
+        ok: false,
+        error: {
+          code: 'file.not_found',
+          message: 'Missing newer document.',
+          recoverable: true,
+        },
+      }),
+      writeText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { byteLength: 7, path: 'E:/docs/saved.md' },
+      }),
+    });
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: vi.fn(() => '# Saved'),
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={fileWatch}
+        onDocumentBecameSafe={onDocumentBecameSafe}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={createState({
+          currentFile: { name: 'saved.md', path: 'E:/docs/saved.md' },
+          dirty: true,
+        })}
+        status={{ setStatusKey }}
+      />,
+    );
+
+    const pendingSave = workflowRef.current?.save();
+    await waitFor(() => expect(fileWatch.watchDocument).toHaveBeenCalled());
+
+    await act(async () => {
+      await workflowRef.current?.openPath('E:/docs/missing.md');
+    });
+    expect(setStatusKey).toHaveBeenLastCalledWith('status.openFailed');
+
+    await act(async () => {
+      pendingWatch.resolve({
+        ok: true,
+        data: { fingerprint: 'sha256:saved' },
+      });
+      await pendingSave;
+    });
+
+    expect(onDocumentBecameSafe).not.toHaveBeenCalled();
+    expect(setStatusKey).toHaveBeenLastCalledWith('status.openFailed');
+  });
+
+  it('reports a recoverable save failure without clearing the dirty state', async () => {
+    const state = createState({
+      currentFile: { name: 'draft.md', path: 'E:/docs/draft.md' },
+      dirty: true,
+    });
+    const setStatusKey = vi.fn();
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({
+      writeText: vi.fn().mockResolvedValue({
+        ok: false,
+        error: {
+          code: 'file.io_error',
+          message: 'The document could not be saved.',
+          recoverable: true,
+        },
+      }),
+    });
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: vi.fn(() => '# Unsaved'),
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey }}
+      />,
+    );
+
+    await act(async () => {
+      await workflowRef.current?.save();
+    });
+
+    expect(state.getState().dirty).toBe(true);
+    expect(state.getState().lastFileError?.code).toBe('file.io_error');
+    expect(setStatusKey).toHaveBeenLastCalledWith('status.saveFailed');
+  });
+
+  it('continues with a queued newer save after an older save fails', async () => {
     const firstWrite = createDeferred<CommandResult<{
       byteLength: number;
       path: string;
@@ -1198,6 +1610,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: vi.fn(() => '# draft'),
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -1220,14 +1634,6 @@ describe('useFileWorkflow', () => {
     const newerSave = workflow.save();
 
     await act(async () => {
-      secondWrite.resolve({
-        ok: true,
-        data: { byteLength: 7, path: 'E:/docs/draft.md' },
-      });
-      await newerSave;
-    });
-
-    await act(async () => {
       firstWrite.resolve({
         ok: false,
         error: {
@@ -1239,9 +1645,109 @@ describe('useFileWorkflow', () => {
       await olderSave;
     });
 
+    await act(async () => {
+      secondWrite.resolve({
+        ok: true,
+        data: { byteLength: 7, path: 'E:/docs/draft.md' },
+      });
+      await newerSave;
+    });
+
     expect(state.getState().dirty).toBe(false);
     expect(state.getState().lastFileError).toBeNull();
     expect(setStatusKey).toHaveBeenLastCalledWith('status.saved');
+  });
+
+  it('serializes saves so an older write cannot overwrite the latest snapshot', async () => {
+    const firstWrite = createDeferred<CommandResult<{
+      byteLength: number;
+      path: string;
+    }>>();
+    const secondWrite = createDeferred<CommandResult<{
+      byteLength: number;
+      path: string;
+    }>>();
+    const writes: string[] = [];
+    let documentText = '# Older snapshot';
+    const markSaved = vi.fn();
+    const state = createState({
+      currentFile: { name: 'draft.md', path: 'E:/docs/draft.md' },
+      dirty: true,
+    });
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn(),
+      showOpenDialog: vi.fn(),
+      showSaveDialog: vi.fn(),
+      writeText: vi
+        .fn((_path: string, text: string) => {
+          writes.push(text);
+          return writes.length === 1 ? firstWrite.promise : secondWrite.promise;
+        }),
+    } satisfies FileCommandClient;
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => documentText,
+            loadText: vi.fn(),
+            markSaved,
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey: vi.fn() }}
+      />,
+    );
+
+    const firstSave = workflowRef.current?.save();
+    documentText = '# Latest snapshot';
+    state.setDirty(true);
+    const latestSave = workflowRef.current?.save();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(writes).toEqual(['# Older snapshot']);
+
+    await act(async () => {
+      firstWrite.resolve({
+        ok: true,
+        data: { byteLength: 16, path: 'E:/docs/draft.md' },
+      });
+      await firstSave;
+    });
+
+    expect(writes).toEqual(['# Older snapshot', '# Latest snapshot']);
+
+    await act(async () => {
+      secondWrite.resolve({
+        ok: true,
+        data: { byteLength: 17, path: 'E:/docs/draft.md' },
+      });
+      await latestSave;
+    });
+
+    expect(writes.at(-1)).toBe('# Latest snapshot');
+    expect(
+      markSaved.mock.calls.map(([snapshot]) => snapshot.serializedText),
+    ).toEqual([
+      '# Older snapshot',
+      '# Latest snapshot',
+    ]);
+    expect(markSaved).toHaveBeenLastCalledWith({
+      serializedText: '# Latest snapshot',
+    });
+    expect(state.getState().dirty).toBe(false);
   });
 
   it('does not start a save while a file open is in progress', async () => {
@@ -1274,6 +1780,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: vi.fn(() => '# draft'),
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -1355,6 +1863,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: vi.fn(),
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}
@@ -1397,7 +1907,9 @@ describe('useFileWorkflow', () => {
   });
 
   it('keeps an open request pending until the editor port becomes available', async () => {
-    const editorRef: RefObject<EditorDocumentPort | null> = { current: null };
+    const editorRef: RefObject<TestEditorDocumentPort | null> = {
+      current: null,
+    };
     const loadText = vi.fn();
     const setStatusKey = vi.fn();
     const workflowRef: { current: FileWorkflow | null } = { current: null };
@@ -1452,6 +1964,8 @@ describe('useFileWorkflow', () => {
       focus: vi.fn(),
       getText: vi.fn(),
       loadText,
+      markSaved: vi.fn(),
+      markUnsaved: vi.fn(),
       setContext: vi.fn(),
     };
     view.rerender(
@@ -1476,7 +1990,9 @@ describe('useFileWorkflow', () => {
   });
 
   it('cancels a queued open when the workflow unmounts', async () => {
-    const editorRef: RefObject<EditorDocumentPort | null> = { current: null };
+    const editorRef: RefObject<TestEditorDocumentPort | null> = {
+      current: null,
+    };
     const loadText = vi.fn();
     const workflowRef: { current: FileWorkflow | null } = { current: null };
 
@@ -1520,6 +2036,8 @@ describe('useFileWorkflow', () => {
       focus: vi.fn(),
       getText: vi.fn(),
       loadText,
+      markSaved: vi.fn(),
+      markUnsaved: vi.fn(),
       setContext: vi.fn(),
     };
 
@@ -1554,6 +2072,8 @@ describe('useFileWorkflow', () => {
             focus: vi.fn(),
             getText: vi.fn(() => '# draft'),
             loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
             setContext: vi.fn(),
           },
         }}

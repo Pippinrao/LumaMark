@@ -2,6 +2,8 @@
 
 日期：2026-07-12
 
+更新：2026-07-27（图片 watcher 接通 editor refresh 与迟到事件隔离）
+
 ## 背景
 
 LumaMark 过去只在打开文件时读取磁盘。其他程序修改 Markdown 或替换本地图片后，编辑器仍显示旧内容，必须重新打开文件或重启。保存又使用原子替换，不同编辑器可能产生 write、truncate、rename 或 delete/create 事件组合，因此不能依赖单一事件类型，也不能静默覆盖用户尚未保存的输入。
@@ -17,6 +19,13 @@ LumaMark 过去只在打开文件时读取磁盘。其他程序修改 Markdown �
 - 本地图片变化只更新对应 source 的运行时预览 revision、重新授权该路径，并给 asset URL 增加 cache-busting 参数；Rust 授权结果和前端 revision key 都必须折叠 `.` / `..`、统一路径分隔符，并在 Windows 下按大小写不敏感比较，避免同一文件因路径拼写不同而漏刷新。其他本地/远程 widget 保持不变，Markdown 源码和图片引用保持逐字不变。远程 HTTP 图片使用既有缓存生命周期，不加入磁盘 watcher。
 - 文档切换、引用集合变化和窗口卸载会替换或清理监听目标；generation 防止旧文档事件覆盖新文档。
 
+### 2026-07-27 实现更新
+
+- `file-watch://changed` 的 `kind: image` 事件已接到 app 层 `refreshLocalImage({ path, revision })`，随后依次更新同源 revision store、失效 resolver path、调用 `EditorDocumentPort.refreshImages(path)` 并派发 image capability refresh effect。
+- resolver 与 revision store 使用同一 `normalizeLocalPathKey`；重新解析后的 asset URL 携带同源 `lmv=<revision>`。图片 widget identity 包含 source revision，因此命中图片替换 DOM，其他 widget 保持等价复用，Markdown 正文、dirty 和 undo 不变。
+- 前端用单调 watch revision 丢弃旧事件；文档读回再用 generation、request id 与当前 path 三重校验隔离迟到结果。图片 target 同步使用串行 queue + generation，切换文档时清空旧授权/失效集合，旧 target 更新不能覆盖新引用集合。
+- 浏览器单元/集成测试验证 event→resolver→editor effect、cache-busting 和迟到结果丢弃；Rust 测试验证真实 watcher、原子替换与 fingerprint。browser mock 仍不能替代 Windows Tauri 的真实图片替换实测，退出边界见 [当前执行计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+
 ## 被否决方案
 
 - 仅在重新聚焦窗口时重新读取：不能及时刷新图片，也无法可靠覆盖后台长时间编辑和原子保存。
@@ -29,6 +38,7 @@ LumaMark 过去只在打开文件时读取磁盘。其他程序修改 Markdown �
 - 新增 Rust 依赖 `notify-debouncer-full`；监听、hash 和事件发送位于 Rust service，Tauri command 保持薄入口。
 - 每次变更会在线程 worker 中重新读取对应目标；范围限制为一个当前文档和其本地图片，且经过 200ms 合并，不进入输入热路径。多图片 target 更新串行收敛到最新集合，文档 target 与图片 target 分别拥有生命周期。
 - Playwright 在 Web command/event 边界验证交互；真实 watcher、原子替换和公网图片缓存分别由 Rust 集成测试验证，不能把 browser mock 标记为完整桌面 E2E。
+- editor refresh 是无 doc change 的定点失效信号，并遵守 [ADR 0006](0006-parity-reliability-editor-contracts.md) 的单主 `EditorView` 和源码所有权合同。
 
 ## 回滚或复审条件
 

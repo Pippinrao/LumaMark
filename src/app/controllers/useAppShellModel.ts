@@ -126,14 +126,11 @@ export function useAppShellModel() {
     saveAs: () => {
       void document.fileWorkflow.saveAs();
     },
-    setLivePreviewMode: () => {
-      editor.setDisplayMode('livePreview');
-    },
-    setSourceMode: () => {
-      editor.setDisplayMode('source');
-    },
+    setLivePreviewMode: () => editor.setDisplayMode('livePreview'),
+    setSourceMode: () => editor.setDisplayMode('source'),
     shortcuts,
     t,
+    toggleDisplayMode: editor.toggleDisplayMode,
     toggleLanguage: settings.toggleLanguage,
     toggleFocusMode,
     toggleSidebar,

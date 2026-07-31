@@ -1,12 +1,32 @@
+import { history, undo } from '@codemirror/commands';
 import { EditorSelection, EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { type DecorationSet, EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
+import { MermaidBlockWidget } from './MermaidBlockWidget';
 import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import {
   collectMermaidBlocksInRanges,
   mermaidPreviewExtension,
 } from './mermaidPreviewExtension';
+
+const collectMermaidBlocksSpy = vi.hoisted(() => vi.fn());
+
+vi.mock('./mermaidBlockDetection', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('./mermaidBlockDetection')
+  >();
+
+  return {
+    ...actual,
+    collectMermaidBlocksInRanges: (
+      ...args: Parameters<typeof actual.collectMermaidBlocksInRanges>
+    ) => {
+      collectMermaidBlocksSpy(...args);
+      return actual.collectMermaidBlocksInRanges(...args);
+    },
+  };
+});
 
 function createView(doc: string, scheduler: MermaidRenderScheduler) {
   const parent = document.createElement('div');
@@ -15,12 +35,51 @@ function createView(doc: string, scheduler: MermaidRenderScheduler) {
     parent,
     state: EditorState.create({
       doc,
-      extensions: [markdownLanguage(), mermaidPreviewExtension({ scheduler })],
+      extensions: [
+        markdownLanguage(),
+        history(),
+        mermaidPreviewExtension({ scheduler }),
+      ],
       selection: EditorSelection.cursor(doc.length),
     }),
   });
 
   return { parent, view };
+}
+
+function mermaidDecorationSet(view: EditorView): DecorationSet {
+  for (const source of view.state.facet(EditorView.decorations)) {
+    const decorations = typeof source === 'function' ? source(view) : source;
+    let includesMermaidWidget = false;
+
+    decorations.between(0, view.state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof MermaidBlockWidget) {
+        includesMermaidWidget = true;
+      }
+    });
+
+    if (includesMermaidWidget) {
+      return decorations;
+    }
+  }
+
+  throw new Error('Expected a Mermaid decoration set.');
+}
+
+function mermaidWidgets(view: EditorView): MermaidBlockWidget[] {
+  const widgets: MermaidBlockWidget[] = [];
+
+  mermaidDecorationSet(view).between(
+    0,
+    view.state.doc.length,
+    (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof MermaidBlockWidget) {
+        widgets.push(decoration.spec.widget);
+      }
+    },
+  );
+
+  return widgets;
 }
 
 describe('mermaidPreviewExtension', () => {
@@ -29,10 +88,6 @@ describe('mermaidPreviewExtension', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
-
-  function ensureRangeMeasurement() {
-    Range.prototype.getClientRects ??= () => [] as unknown as DOMRectList;
-  }
 
   it('collects only mermaid blocks that intersect requested ranges', () => {
     const doc = [
@@ -98,6 +153,175 @@ describe('mermaidPreviewExtension', () => {
       'MERMAID',
       'mermaid {theme: "neutral"}',
     ]);
+  });
+
+  it('does not recollect or recreate mermaid widgets for a selection-only transaction', () => {
+    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join(
+      '\n',
+    );
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    const initialDecorations = mermaidDecorationSet(view);
+    const initialWidget = mermaidWidgets(view)[0];
+    collectMermaidBlocksSpy.mockClear();
+
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+
+    expect(collectMermaidBlocksSpy).not.toHaveBeenCalled();
+    expect(mermaidDecorationSet(view)).toBe(initialDecorations);
+    expect(mermaidWidgets(view)[0]).toBe(initialWidget);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('maps existing widgets without recollecting after a non-mermaid edit at the document end', () => {
+    const tail = Array.from({ length: 2_000 }, (_, index) => `plain ${index}`).join(
+      '\n',
+    );
+    const doc = [
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+      '',
+      tail,
+    ].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    const initialWidget = mermaidWidgets(view)[0];
+    collectMermaidBlocksSpy.mockClear();
+
+    view.dispatch({ changes: { from: doc.length, insert: '!' } });
+
+    expect(collectMermaidBlocksSpy).toHaveBeenCalledTimes(1);
+    expect(collectMermaidBlocksSpy.mock.calls[0][1]).toEqual([
+      { from: doc.length, to: doc.length + 1 },
+    ]);
+    expect(mermaidWidgets(view)[0]).toBe(initialWidget);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('creates a preview when a non-mermaid fence is edited into mermaid', () => {
+    const doc = ['```text', 'flowchart TD', '  A --> B', '```'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+
+    expect(parent.querySelector('.lm-mermaid-preview')).toBeNull();
+
+    view.dispatch({
+      changes: {
+        from: doc.indexOf('text'),
+        insert: 'mermaid',
+        to: doc.indexOf('text') + 'text'.length,
+      },
+    });
+
+    expect(parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps widget actions aligned after text is inserted before a mermaid block', () => {
+    const doc = [
+      'before',
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+      'after',
+    ].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+
+    view.dispatch({ changes: { from: 0, insert: 'new\n' } });
+    parent.querySelector<HTMLButtonElement>('.lm-mermaid-delete')?.click();
+
+    expect(view.state.doc.toString()).toBe(['new', 'before', 'after'].join('\n'));
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('removes a preview when an earlier closing fence is edited open', () => {
+    const doc = [
+      '```md',
+      'code',
+      '```',
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+    ].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    const closingFenceFrom = doc.indexOf('```', '```md'.length);
+
+    expect(parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+
+    view.dispatch({
+      changes: {
+        from: closingFenceFrom,
+        insert: 'abc',
+        to: closingFenceFrom + 3,
+      },
+    });
+
+    expect(parent.querySelector('.lm-mermaid-preview')).toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('creates a preview when an earlier edit closes the surrounding fence', () => {
+    const doc = [
+      '```md',
+      'code',
+      'abc',
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+    ].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    const closingFenceFrom = doc.indexOf('abc');
+
+    expect(parent.querySelector('.lm-mermaid-preview')).toBeNull();
+
+    view.dispatch({
+      changes: {
+        from: closingFenceFrom,
+        insert: '```',
+        to: closingFenceFrom + 3,
+      },
+    });
+
+    expect(parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
   });
 
   it('renders a mermaid preview widget without changing source text', async () => {
@@ -222,11 +446,7 @@ describe('mermaidPreviewExtension', () => {
       'Mermaid 渲染失败',
     );
     expect(parent.querySelector('.lm-mermaid-edit-source')).not.toBeNull();
-    expect(
-      parent.querySelector<HTMLElement>('.lm-mermaid-editor')?.hidden,
-    ).toBe(false);
-    expect(parent.querySelector('.lm-mermaid-editor .cm-content')?.textContent)
-      .toContain('broken');
+    expect(parent.querySelector('.lm-mermaid-editor')).toBeNull();
 
     view.destroy();
     parent.remove();
@@ -263,11 +483,7 @@ describe('mermaidPreviewExtension', () => {
     expect(parent.querySelectorAll('.lm-mermaid-preview[data-status="success"]')).toHaveLength(1);
     expect(parent.querySelectorAll('.lm-mermaid-preview[data-status="error"]')).toHaveLength(1);
     expect(parent.querySelector('.lm-mermaid-edit-source')).not.toBeNull();
-    expect(
-      parent.querySelector<HTMLElement>(
-        '.lm-mermaid-preview[data-status="error"] .lm-mermaid-editor',
-      )?.hidden,
-    ).toBe(false);
+    expect(parent.querySelector('.lm-mermaid-editor')).toBeNull();
     expect(view.state.doc.toString()).toBe(doc);
 
     view.destroy();
@@ -303,12 +519,335 @@ describe('mermaidPreviewExtension', () => {
     parent.remove();
   });
 
-  it('opens an inline mermaid editor that writes changes back to the fenced block', async () => {
+  it('reveals the fenced source in the main editor when edit is requested', async () => {
+    vi.useFakeTimers();
+    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
+    const contentFrom = doc.indexOf('flowchart TD');
+    const contentTo = doc.indexOf('\n```', contentFrom);
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+
+    expect(parent.querySelector('.lm-mermaid-editor')).toBeNull();
+    expect(view.contentDOM.textContent).toContain('flowchart TD');
+    expect(view.state.selection.main.from).toBe(contentFrom);
+    expect(view.state.selection.main.to).toBe(contentTo);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('moves source editing from one mermaid block to another', async () => {
+    vi.useFakeTimers();
+    const doc = [
+      '```mermaid',
+      'flowchart TD',
+      '```',
+      '',
+      '```mermaid',
+      'sequenceDiagram',
+      '```',
+    ].join('\n');
+    const secondContentFrom = doc.indexOf('sequenceDiagram');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+
+    parent
+      .querySelectorAll<HTMLButtonElement>('.lm-mermaid-edit-source')[0]
+      ?.click();
+    parent
+      .querySelectorAll<HTMLButtonElement>('.lm-mermaid-edit-source')[1]
+      ?.click();
+
+    expect(view.state.selection.main.from).toBe(secondContentFrom);
+    expect(view.contentDOM.textContent).toContain('sequenceDiagram');
+    expect(view.contentDOM.textContent).not.toContain('flowchart TD');
+    expect(parent.querySelectorAll('.lm-mermaid-preview-editing')).toHaveLength(
+      1,
+    );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('writes each source edit directly into the main document and one undo restores it', async () => {
+    vi.useFakeTimers();
+    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
+    const replacement = ['flowchart TD', '  A --> C'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    view.dispatch({
+      ...view.state.replaceSelection(replacement),
+      userEvent: 'input.mermaid',
+    });
+
+    expect(view.state.doc.toString()).toContain('A --> C');
+    expect(view.state.doc.toString()).not.toContain('A --> B');
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('does not replay stale mermaid coordinates after the document is replaced', async () => {
+    vi.useFakeTimers();
+    const doc = ['before', '```mermaid', 'flowchart TD', '```', 'after'].join('\n');
+    const replacementDocument = ['# Other document', '', 'untouched'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    expect(parent.querySelector('.lm-mermaid-editor')).toBeNull();
+    view.dispatch({
+      ...view.state.replaceSelection('flowchart TD\n  A --> C'),
+      userEvent: 'input.mermaid',
+    });
+    view.dispatch({
+      changes: {
+        from: 0,
+        insert: replacementDocument,
+        to: view.state.doc.length,
+      },
+    });
+    await vi.runAllTimersAsync();
+
+    expect(view.state.doc.toString()).toBe(replacementDocument);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('places the live preview after the main-editor source while editing', async () => {
     vi.useFakeTimers();
     const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
     const scheduler = new MermaidRenderScheduler({
       debounceMs: 0,
       render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+
+    const closingFence = [...view.contentDOM.querySelectorAll('.cm-line')]
+      .find((line) => line.textContent === '```');
+    const preview = parent.querySelector('.lm-mermaid-preview');
+    expect(closingFence).toBeDefined();
+    expect(preview).not.toBeNull();
+    expect(
+      closingFence && preview
+        ? closingFence.compareDocumentPosition(preview) &
+            Node.DOCUMENT_POSITION_FOLLOWING
+        : 0,
+    ).not.toBe(0);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps failed source editable in the main editor', async () => {
+    vi.useFakeTimers();
+    const doc = ['```mermaid', 'broken', '```', '', 'after'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockRejectedValue(new Error('bad syntax')),
+    });
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    await vi.runAllTimersAsync();
+
+    expect(view.contentDOM.textContent).toContain('broken');
+    expect(view.state.selection.main.from).toBe(doc.indexOf('broken'));
+    expect(view.state.selection.main.to).toBe(
+      doc.indexOf('broken') + 'broken'.length,
+    );
+    expect(parent.querySelector('.lm-mermaid-preview[data-status="error"]'))
+      .not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('rebuilds when an equal-length HTML block boundary hides or reveals a following mermaid fence', () => {
+    const mermaid = ['```mermaid', 'flowchart TD', '```'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const visibleDoc = ['plain', mermaid].join('\n');
+    const visible = createView(visibleDoc, scheduler);
+
+    expect(visible.parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+    visible.view.dispatch({
+      changes: { from: 0, insert: '<div>', to: 'plain'.length },
+    });
+    expect(visible.parent.querySelector('.lm-mermaid-preview')).toBeNull();
+    visible.view.destroy();
+    visible.parent.remove();
+
+    const hiddenDoc = ['<div>', mermaid].join('\n');
+    const hidden = createView(hiddenDoc, scheduler);
+    expect(hidden.parent.querySelector('.lm-mermaid-preview')).toBeNull();
+    hidden.view.dispatch({
+      changes: { from: 0, insert: 'plain', to: '<div>'.length },
+    });
+    expect(hidden.parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+    hidden.view.destroy();
+    hidden.parent.remove();
+  });
+
+  it('rebuilds when an equal-length HTML block kind changes its parsing span', () => {
+    const mermaid = ['```mermaid', 'flowchart TD', '```'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const visibleDoc = ['<pre>', '</pre>', mermaid].join('\n');
+    const visible = createView(visibleDoc, scheduler);
+
+    expect(visible.parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+    visible.view.dispatch({
+      changes: { from: 0, insert: '<div>', to: '<pre>'.length },
+    });
+    expect(visible.parent.querySelector('.lm-mermaid-preview')).toBeNull();
+    visible.view.destroy();
+    visible.parent.remove();
+
+    const hiddenDoc = ['<div>', '</pre>', mermaid].join('\n');
+    const hidden = createView(hiddenDoc, scheduler);
+    expect(hidden.parent.querySelector('.lm-mermaid-preview')).toBeNull();
+    hidden.view.dispatch({
+      changes: { from: 0, insert: '<pre>', to: '<div>'.length },
+    });
+    expect(hidden.parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+    hidden.view.destroy();
+    hidden.parent.remove();
+  });
+
+  it('rebuilds when a blockquote fence changes the span containing a mermaid fence', () => {
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const visibleDoc = [
+      '> ````md',
+      '> code',
+      '> ````',
+      '> ```mermaid',
+      '> flowchart TD',
+      '> ```',
+    ].join('\n');
+    const visibleClosingFence = visibleDoc.indexOf(
+      '> ````',
+      '> ````md'.length,
+    );
+    const visible = createView(visibleDoc, scheduler);
+
+    expect(visible.parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+    visible.view.dispatch({
+      changes: {
+        from: visibleClosingFence + 2,
+        insert: 'xxxx',
+        to: visibleClosingFence + 6,
+      },
+    });
+    expect(visible.parent.querySelector('.lm-mermaid-preview')).toBeNull();
+    visible.view.destroy();
+    visible.parent.remove();
+
+    const hiddenDoc = [
+      '> ````md',
+      '> code',
+      '> xxxx',
+      '> ```mermaid',
+      '> flowchart TD',
+      '> ```',
+    ].join('\n');
+    const hiddenClosingFence = hiddenDoc.indexOf('> xxxx');
+    const hidden = createView(hiddenDoc, scheduler);
+    expect(hidden.parent.querySelector('.lm-mermaid-preview')).toBeNull();
+    hidden.view.dispatch({
+      changes: {
+        from: hiddenClosingFence + 2,
+        insert: '````',
+        to: hiddenClosingFence + 6,
+      },
+    });
+    expect(hidden.parent.querySelector('.lm-mermaid-preview')).not.toBeNull();
+    hidden.view.destroy();
+    hidden.parent.remove();
+  });
+
+  it('maps a block after ordinary preceding input without rescanning or rerendering it', async () => {
+    vi.useFakeTimers();
+    const doc = ['before', '', '```mermaid', 'flowchart TD', '```', '', 'after'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const requestSpy = vi.spyOn(scheduler, 'request');
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+    const initialWidget = mermaidWidgets(view)[0];
+    requestSpy.mockClear();
+    collectMermaidBlocksSpy.mockClear();
+
+    view.dispatch({
+      changes: { from: 'before'.length, insert: '!' },
+      userEvent: 'input.type',
+    });
+    await vi.runAllTimersAsync();
+
+    expect(collectMermaidBlocksSpy).toHaveBeenCalledTimes(1);
+    expect(collectMermaidBlocksSpy.mock.calls[0][1]).toEqual([
+      { from: 'before'.length, to: 'before'.length + 1 },
+    ]);
+    expect(mermaidWidgets(view)[0]).toBe(initialWidget);
+    expect(requestSpy).not.toHaveBeenCalled();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('updates the live preview from source already stored in the main document', async () => {
+    vi.useFakeTimers();
+    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
+    const render = vi.fn().mockResolvedValue('<svg></svg>');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render,
     });
 
     const { parent, view } = createView(doc, scheduler);
@@ -316,39 +855,123 @@ describe('mermaidPreviewExtension', () => {
     parent
       .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
       ?.click();
-    ensureRangeMeasurement();
-    const editorContent = parent.querySelector<HTMLElement>(
-      '.lm-mermaid-editor .cm-content',
-    );
-
-    if (!editorContent) {
-      throw new Error('Expected inline Mermaid editor to open.');
-    }
-
-    editorContent.focus();
-    editorContent.textContent = ['flowchart TD', '  A --> C'].join('\n');
-    editorContent.dispatchEvent(
-      new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
-    );
-    await vi.runAllTimersAsync();
-
-    expect(view.state.doc.toString()).toBe(doc);
-    editorContent.dispatchEvent(
-      new FocusEvent('focusout', {
-        bubbles: true,
-        relatedTarget: document.body,
-      }),
-    );
-    await vi.runAllTimersAsync();
+    view.dispatch({
+      ...view.state.replaceSelection('flowchart TD\n  A --> C'),
+      userEvent: 'input.mermaid',
+    });
 
     expect(view.state.doc.toString()).toContain('A --> C');
-    expect(view.state.doc.toString()).toContain('```mermaid');
+    await vi.runAllTimersAsync();
+
+    expect(render).toHaveBeenLastCalledWith(
+      expect.objectContaining({ source: 'flowchart TD\n  A --> C' }),
+    );
+    expect(parent.querySelector('.lm-mermaid-preview[data-status="success"]'))
+      .not.toBeNull();
 
     view.destroy();
     parent.remove();
   });
 
-  it('keeps the inline mermaid editor mounted while validating invalid edits', async () => {
+  it('rebuilds only the active Mermaid block while its source changes', () => {
+    const doc = [
+      '# Before',
+      '',
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+      '',
+      'ordinary text',
+      '',
+      '```mermaid',
+      'sequenceDiagram',
+      '  A->>B: hello',
+      '```',
+      '',
+      '# After',
+    ].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    const inactiveWidget = mermaidWidgets(view)[1];
+    collectMermaidBlocksSpy.mockClear();
+
+    view.dispatch({
+      ...view.state.replaceSelection('flowchart TD\n  A --> C'),
+      userEvent: 'input.mermaid',
+    });
+
+    const scannedRanges = collectMermaidBlocksSpy.mock.calls.flatMap(
+      (call) => call[1],
+    );
+    expect(scannedRanges.length).toBeGreaterThan(0);
+    expect(scannedRanges).not.toContainEqual({
+      from: 0,
+      to: view.state.doc.length,
+    });
+    expect(mermaidWidgets(view)[1]).toBe(inactiveWidget);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('rebuilds all Mermaid blocks when one transaction changes active and inactive sources', () => {
+    const doc = [
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+      '',
+      '```mermaid',
+      'sequenceDiagram',
+      '  A->>B: hello',
+      '```',
+    ].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const { parent, view } = createView(doc, scheduler);
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    const inactiveWidget = mermaidWidgets(view)[1];
+    const activeInsertPosition = view.state.selection.main.to;
+    const inactiveInsertPosition = view.state.doc
+      .toString()
+      .indexOf('hello') + 'hello'.length;
+    collectMermaidBlocksSpy.mockClear();
+
+    view.dispatch({
+      changes: [
+        { from: activeInsertPosition, insert: '\n  B --> C' },
+        { from: inactiveInsertPosition, insert: ' world' },
+      ],
+      userEvent: 'input.mermaid',
+    });
+
+    const scannedRanges = collectMermaidBlocksSpy.mock.calls.flatMap(
+      (call) => call[1],
+    );
+    expect(scannedRanges).toContainEqual({
+      from: 0,
+      to: view.state.doc.length,
+    });
+    expect(mermaidWidgets(view)[1]).not.toBe(inactiveWidget);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps main-editor source active while validating an invalid edit', async () => {
     vi.useFakeTimers();
     const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
     const scheduler = new MermaidRenderScheduler({
@@ -367,31 +990,16 @@ describe('mermaidPreviewExtension', () => {
     parent
       .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
       ?.click();
-    ensureRangeMeasurement();
-
-    const editorHost = parent.querySelector<HTMLElement>('.lm-mermaid-editor');
-    const editorContent = parent.querySelector<HTMLElement>(
-      '.lm-mermaid-editor .cm-content',
-    );
-
-    if (!editorHost || !editorContent) {
-      throw new Error('Expected inline Mermaid editor to open.');
-    }
-
-    editorContent.focus();
-    editorContent.textContent = 'not valid mermaid';
-    editorContent.dispatchEvent(
-      new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
-    );
+    view.dispatch({
+      ...view.state.replaceSelection('not valid mermaid'),
+      userEvent: 'input.mermaid',
+    });
     await vi.runAllTimersAsync();
 
-    expect(parent.querySelector<HTMLElement>('.lm-mermaid-editor')).toBe(
-      editorHost,
-    );
-    expect(editorHost.hidden).toBe(false);
+    expect(parent.querySelector('.lm-mermaid-editor')).toBeNull();
     expect(parent.querySelector('.lm-mermaid-preview-editing')).not.toBeNull();
-    expect(view.state.selection.main.from).toBe(doc.length);
-    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.contentDOM.textContent).toContain('not valid mermaid');
+    expect(view.state.doc.toString()).toContain('not valid mermaid');
     expect(parent.querySelector('.lm-mermaid-error')?.textContent).toContain(
       'Mermaid 渲染失败',
     );
@@ -400,18 +1008,12 @@ describe('mermaidPreviewExtension', () => {
     parent.remove();
   });
 
-  it('keeps the inline mermaid editor mounted when the parent selection changes', async () => {
+  it('returns to preview-only mode when the main selection leaves the block', async () => {
     vi.useFakeTimers();
     const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
     const scheduler = new MermaidRenderScheduler({
       debounceMs: 0,
-      render: vi.fn(async ({ source }) => {
-        if (source.includes('not valid')) {
-          throw new Error('bad syntax');
-        }
-
-        return '<svg></svg>';
-      }),
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
     });
 
     const { parent, view } = createView(doc, scheduler);
@@ -419,116 +1021,70 @@ describe('mermaidPreviewExtension', () => {
     parent
       .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
       ?.click();
-    ensureRangeMeasurement();
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('after')),
+    });
 
-    const editorHost = parent.querySelector<HTMLElement>('.lm-mermaid-editor');
-    const editorContent = parent.querySelector<HTMLElement>(
-      '.lm-mermaid-editor .cm-content',
-    );
+    expect(parent.querySelector('.lm-mermaid-preview-editing')).toBeNull();
+    expect(view.contentDOM.textContent).not.toContain('flowchart TD');
+    expect(view.state.doc.toString()).toBe(doc);
 
-    if (!editorHost || !editorContent) {
-      throw new Error('Expected inline Mermaid editor to open.');
-    }
+    view.destroy();
+    parent.remove();
+  });
 
-    editorContent.focus();
-    editorContent.textContent = 'not valid mermaid';
-    editorContent.dispatchEvent(
-      new InputEvent('input', { bubbles: true, inputType: 'insertText' }),
-    );
+  it('returns to preview-only mode when Escape is pressed', async () => {
+    vi.useFakeTimers();
+    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+
+    const { parent, view } = createView(doc, scheduler);
     await vi.runAllTimersAsync();
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        key: 'Escape',
+      }),
+    );
+
+    expect(parent.querySelector('.lm-mermaid-preview-editing')).toBeNull();
+    expect(view.contentDOM.textContent).not.toContain('flowchart TD');
+    expect(view.state.doc.toString()).toBe(doc);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('maps the active source and selection through ordinary input before the block', async () => {
+    vi.useFakeTimers();
+    const doc = ['before', '', '```mermaid', 'flowchart TD', '```', '', 'after'].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+
+    const { parent, view } = createView(doc, scheduler);
+    await vi.runAllTimersAsync();
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+    const selectionBefore = view.state.selection.main;
 
     view.dispatch({
-      selection: EditorSelection.cursor(0),
-    });
-    await vi.runAllTimersAsync();
-
-    expect(parent.querySelector<HTMLElement>('.lm-mermaid-editor')).toBe(
-      editorHost,
-    );
-    expect(editorHost.hidden).toBe(false);
-    expect(parent.querySelector('.lm-mermaid-editor .cm-content')?.textContent)
-      .toContain('not valid mermaid');
-
-    view.destroy();
-    parent.remove();
-  });
-
-  it('closes the inline mermaid editor after focus leaves the preview widget', async () => {
-    vi.useFakeTimers();
-    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
-    const scheduler = new MermaidRenderScheduler({
-      debounceMs: 0,
-      render: vi.fn().mockResolvedValue('<svg></svg>'),
+      changes: { from: 'before'.length, insert: '!' },
+      userEvent: 'input.type',
     });
 
-    const { parent, view } = createView(doc, scheduler);
-    await vi.runAllTimersAsync();
-    parent
-      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
-      ?.click();
-    ensureRangeMeasurement();
-
-    const editorHost = parent.querySelector<HTMLElement>('.lm-mermaid-editor');
-    const editorContent = parent.querySelector<HTMLElement>(
-      '.lm-mermaid-editor .cm-content',
-    );
-
-    if (!editorHost || !editorContent) {
-      throw new Error('Expected inline Mermaid editor to open.');
-    }
-
-    editorContent.dispatchEvent(
-      new FocusEvent('focusout', {
-        bubbles: true,
-        relatedTarget: document.body,
-      }),
-    );
-    await vi.runAllTimersAsync();
-
-    expect(editorHost.hidden).toBe(true);
-    expect(parent.querySelector('.lm-mermaid-preview-editing')).toBeNull();
-
-    view.destroy();
-    parent.remove();
-  });
-
-  it('keeps the inline mermaid editor open when focus moves to a preview action', async () => {
-    vi.useFakeTimers();
-    const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```', '', 'after'].join('\n');
-    const scheduler = new MermaidRenderScheduler({
-      debounceMs: 0,
-      render: vi.fn().mockResolvedValue('<svg></svg>'),
-    });
-
-    const { parent, view } = createView(doc, scheduler);
-    await vi.runAllTimersAsync();
-    parent
-      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
-      ?.click();
-    ensureRangeMeasurement();
-
-    const editorHost = parent.querySelector<HTMLElement>('.lm-mermaid-editor');
-    const editorContent = parent.querySelector<HTMLElement>(
-      '.lm-mermaid-editor .cm-content',
-    );
-    const deleteButton = parent.querySelector<HTMLButtonElement>(
-      '.lm-mermaid-delete',
-    );
-
-    if (!editorHost || !editorContent || !deleteButton) {
-      throw new Error('Expected inline Mermaid editor and actions to exist.');
-    }
-
-    editorContent.dispatchEvent(
-      new FocusEvent('focusout', {
-        bubbles: true,
-        relatedTarget: deleteButton,
-      }),
-    );
-    await vi.runAllTimersAsync();
-
-    expect(editorHost.hidden).toBe(false);
     expect(parent.querySelector('.lm-mermaid-preview-editing')).not.toBeNull();
+    expect(view.contentDOM.textContent).toContain('flowchart TD');
+    expect(view.state.selection.main.from).toBe(selectionBefore.from + 1);
+    expect(view.state.selection.main.to).toBe(selectionBefore.to + 1);
 
     view.destroy();
     parent.remove();

@@ -1,12 +1,386 @@
-import { undo } from '@codemirror/commands';
+import { redo, undo } from '@codemirror/commands';
 import { startCompletion } from '@codemirror/autocomplete';
 import { openSearchPanel } from '@codemirror/search';
 import { EditorSelection } from '@codemirror/state';
 import { describe, expect, it, vi } from 'vitest';
 import { createEditorApi } from './editorApi';
 import { importFiles } from '../capabilities/image/imageInputExtension';
+import { isDocumentDirty } from './createEditorState';
+import { parseDocumentSource } from './documentSourceFormat';
 
 describe('editorApi', () => {
+  it('keeps adjacent inserted logical line endings distinct after serialization', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '\uFEFFa\nb\r\nc\r\nd\ne\nf\ng\rh\ni',
+      parent,
+    });
+
+    editor.view.dispatch({
+      changes: {
+        from: 15,
+        insert: 'x\n\ny',
+      },
+    });
+    const normalizedText = editor.view.state.doc.toString();
+    const serializedText = editor.captureDocumentSnapshot().serializedText;
+
+    expect(parseDocumentSource(serializedText).text).toBe(normalizedText);
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.captureDocumentSnapshot().serializedText).toBe(
+      '\uFEFFa\nb\r\nc\r\nd\ne\nf\ng\rh\ni',
+    );
+    expect(redo(editor.view)).toBe(true);
+    expect(
+      parseDocumentSource(
+        editor.captureDocumentSnapshot().serializedText,
+      ).text,
+    ).toBe(normalizedText);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('restores the original mixed line ending after deleting it and undoing', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = '\uFEFFone\r\ntwo\rthree\nfour';
+    const editor = createEditorApi({ doc: source, parent });
+    const firstLineEnding = editor.view.state.doc.line(1).to;
+
+    editor.view.dispatch({
+      changes: {
+        from: firstLineEnding,
+        to: firstLineEnding + 1,
+      },
+    });
+    expect(editor.captureDocumentSnapshot().serializedText).toBe(
+      '\uFEFFonetwo\rthree\nfour',
+    );
+    expect(isDocumentDirty(editor.view.state)).toBe(true);
+
+    expect(undo(editor.view)).toBe(true);
+
+    expect(editor.captureDocumentSnapshot().serializedText).toBe(source);
+    expect(isDocumentDirty(editor.view.state)).toBe(false);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it.each([
+    {
+      insertAt: (editor: ReturnType<typeof createEditorApi>) =>
+        editor.view.state.doc.line(1).to,
+      name: 'before',
+    },
+    {
+      insertAt: (editor: ReturnType<typeof createEditorApi>) =>
+        editor.view.state.doc.line(2).from,
+      name: 'after',
+    },
+  ])(
+    'keeps one exact marker per newline when inserting $name an existing newline',
+    ({ insertAt }) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const editor = createEditorApi({
+        doc: 'left\r\nright\rthird',
+        parent,
+      });
+
+      editor.view.dispatch({
+        changes: {
+          from: insertAt(editor),
+          insert: '\n',
+        },
+      });
+
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(
+        'left\r\n\r\nright\rthird',
+      );
+
+      editor.destroy();
+      parent.remove();
+    },
+  );
+
+  it.each([
+    {
+      at: 4,
+      expected: 'a\nbb\r\rc\nd\ne',
+      insert: '\n',
+      name: 'immediately before local CR',
+      source: 'a\nbb\rc\nd\ne',
+    },
+    {
+      at: 5,
+      expected: 'a\nbb\r\rc\nd\ne',
+      insert: '\n',
+      name: 'immediately after local CR',
+      source: 'a\nbb\rc\nd\ne',
+    },
+    {
+      at: 4,
+      expected: 'a\nbb\r\n\r\nc\nd\ne',
+      insert: '\n',
+      name: 'immediately before local CRLF',
+      source: 'a\nbb\r\nc\nd\ne',
+    },
+    {
+      at: 5,
+      expected: 'a\nbb\r\n\r\nc\nd\ne',
+      insert: '\n',
+      name: 'immediately after local CRLF',
+      source: 'a\nbb\r\nc\nd\ne',
+    },
+    {
+      at: 5,
+      expected: 'a\nbb\r\n\r\n\r\n\nc\nd\ne',
+      insert: '\n\n\n',
+      name: 'multi-line paste between local CRLF and LF',
+      source: 'a\nbb\r\nc\nd\ne',
+    },
+    {
+      at: 3,
+      expected: 'a\r\nb\r\nd\nx\ny',
+      insert: '\n',
+      name: 'equal-distance replacement preferring the previous CRLF',
+      source: 'a\r\nbcd\nx\ny',
+      to: 4,
+    },
+  ])(
+    'uses the closest preserved line ending for $name',
+    ({ at, expected, insert, source, to = at }) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const editor = createEditorApi({ doc: source, parent });
+
+      editor.view.dispatch({
+        changes: {
+          from: at,
+          insert,
+          to,
+        },
+      });
+
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(expected);
+
+      editor.destroy();
+      parent.remove();
+    },
+  );
+
+  it.each([
+    {
+      insert: 'x',
+      lineEnding: 'CR',
+      source: 'a\nb\r',
+      expected: 'a\nbx',
+    },
+    {
+      insert: 'x',
+      lineEnding: 'CRLF',
+      source: 'a\nb\r\n',
+      expected: 'a\nbx',
+    },
+    {
+      insert: 'x\n',
+      lineEnding: 'CR',
+      source: 'a\nb\r',
+      expected: 'a\nbx\n',
+    },
+    {
+      insert: 'x\n',
+      lineEnding: 'CRLF',
+      source: 'a\nb\r\n',
+      expected: 'a\nbx\n',
+    },
+    {
+      insert: '\n',
+      lineEnding: 'CR',
+      source: 'a\nb\r',
+      expected: 'a\nb\n',
+    },
+    {
+      insert: '\n',
+      lineEnding: 'CRLF',
+      source: 'a\nb\r\n',
+      expected: 'a\nb\n',
+    },
+  ])(
+    'drops a replaced non-dominant $lineEnding override for insert $insert and restores it through history',
+    ({ expected, insert, source }) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const editor = createEditorApi({ doc: source, parent });
+
+      editor.view.dispatch({
+        changes: {
+          from: 3,
+          insert,
+          to: 4,
+        },
+      });
+      const savedSnapshot = editor.captureDocumentSnapshot();
+      expect(savedSnapshot.serializedText).toBe(expected);
+      editor.markDocumentSaved(savedSnapshot);
+      expect(isDocumentDirty(editor.view.state)).toBe(false);
+
+      expect(undo(editor.view)).toBe(true);
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(source);
+      expect(isDocumentDirty(editor.view.state)).toBe(true);
+
+      expect(redo(editor.view)).toBe(true);
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(expected);
+      expect(isDocumentDirty(editor.view.state)).toBe(false);
+
+      editor.destroy();
+      parent.remove();
+    },
+  );
+
+  it('tracks the saved snapshot across undo and redo', () => {
+    const dirtyStates: boolean[] = [];
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '# Initial\n',
+      onDocumentChanged: (event) => dirtyStates.push(event.dirty),
+      parent,
+    });
+
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: 'saved' },
+    });
+    editor.markDocumentSaved(editor.captureDocumentSnapshot());
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: ' draft' },
+    });
+    expect(undo(editor.view)).toBe(true);
+    expect(redo(editor.view)).toBe(true);
+
+    expect(dirtyStates).toEqual([true, false, true, false, true]);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('keeps a restored unsaved document dirty when undo returns to its restored text', () => {
+    const dirtyStates: boolean[] = [];
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '# Initial\n',
+      onDocumentChanged: (event) => dirtyStates.push(event.dirty),
+      parent,
+    });
+
+    editor.loadDocument('# Recovered\n', { saved: false });
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: 'draft' },
+    });
+    expect(undo(editor.view)).toBe(true);
+
+    expect(editor.getDocumentText()).toBe('# Recovered\n');
+    expect(dirtyStates.at(-1)).toBe(true);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('keeps CRLF serialization while using normalized editor text', () => {
+    const dirtyStates: boolean[] = [];
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '# Initial',
+      onDocumentChanged: (event) => dirtyStates.push(event.dirty),
+      parent,
+    });
+
+    editor.loadDocument('# First\r\nSecond');
+    expect(editor.getDocumentText()).toBe('# First\nSecond');
+    expect(editor.captureDocumentSnapshot().serializedText).toBe(
+      '# First\r\nSecond',
+    );
+    expect(dirtyStates.at(-1)).toBe(false);
+
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: ' saved' },
+    });
+    editor.markDocumentSaved(editor.captureDocumentSnapshot());
+    expect(dirtyStates.at(-1)).toBe(false);
+
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: ' draft' },
+    });
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.getDocumentText()).toBe('# First\nSecond saved');
+    expect(dirtyStates.at(-1)).toBe(false);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('keeps a missing disk document dirty after edit and undo', () => {
+    const dirtyStates: boolean[] = [];
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '# Saved',
+      onDocumentChanged: (event) => dirtyStates.push(event.dirty),
+      parent,
+    });
+
+    editor.markDocumentUnsaved();
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: ' draft' },
+    });
+    expect(undo(editor.view)).toBe(true);
+
+    expect(editor.getDocumentText()).toBe('# Saved');
+    expect(dirtyStates.at(-1)).toBe(true);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('does not undo into the previous document after loading another document', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '# Document A', parent });
+
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: ' edited' },
+    });
+    editor.loadDocument('# Document B');
+
+    expect(undo(editor.view)).toBe(false);
+    expect(editor.getDocumentText()).toBe('# Document B');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('does not undo into the previous document after loading a new empty document', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '# Existing', parent });
+
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: ' edited' },
+    });
+    editor.loadDocument('');
+
+    expect(undo(editor.view)).toBe(false);
+    expect(editor.getDocumentText()).toBe('');
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('loads, reads, focuses, and destroys the editor document', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

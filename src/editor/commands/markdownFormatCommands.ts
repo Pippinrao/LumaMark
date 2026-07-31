@@ -1,6 +1,7 @@
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { createEditorCapabilityCommands } from '../capabilities';
+import { toggleBlockquote } from './blockquoteCommands';
 
 export type MarkdownFormatCommand =
   | 'bold'
@@ -65,7 +66,7 @@ export function applyMarkdownFormatCommand(
         /^(\s{0,3})((?:[-*+]|\d+[.)])\s+\[[ xX]\](?:\s+)?)(?=\S|$)/,
       );
     case 'quote':
-      return prefixSelectedLines(view, '> ', /^(\s*)(>\s?)/);
+      return toggleBlockquote(view);
     case 'codeBlock':
       return createEditorCapabilityCommands(view).wrapCodeBlock();
     case 'table':

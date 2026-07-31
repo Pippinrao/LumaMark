@@ -44,7 +44,15 @@ export type FileActions = {
 
 type CreateFileActionsOptions = {
   commands?: FileCommandClient;
-  editor: Pick<EditorApi, 'focus' | 'getDocumentText' | 'loadDocument'> &
+  editor: Pick<
+    EditorApi,
+    | 'captureDocumentSnapshot'
+    | 'focus'
+    | 'isDocumentSnapshotCurrent'
+    | 'loadDocument'
+    | 'markDocumentSaved'
+    | 'markDocumentUnsaved'
+  > &
     Partial<Pick<EditorApi, 'setDocumentContext'>>;
   recentFiles: RecentFilesAdapter;
   prepareTextForSave?: (path: string, text: string) => Promise<string>;
@@ -52,6 +60,8 @@ type CreateFileActionsOptions = {
   shouldApplySaveResult?: () => boolean;
   state: FileActionStateAdapter;
 };
+
+type CommandFailure = Extract<CommandResult<never>, { ok: false }>;
 
 const defaultCommands: FileCommandClient = {
   readText: readTextFile,
@@ -64,11 +74,13 @@ function commandError(
   code: string,
   message: string,
   recoverable = true,
-): CommandResult<never> {
+  details?: unknown,
+): CommandFailure {
   return {
     ok: false,
     error: {
       code,
+      ...(details === undefined ? {} : { details }),
       message,
       recoverable,
     },
@@ -136,8 +148,27 @@ export function createFileActions({
       );
     }
 
-    const originalText = editor.getDocumentText();
-    const text = await prepareTextForSave(targetPath, originalText);
+    const originalSnapshot = editor.captureDocumentSnapshot();
+    const originalText = originalSnapshot.serializedText;
+    let text: string;
+
+    try {
+      text = await prepareTextForSave(targetPath, originalText);
+    } catch (error) {
+      const result = commandError(
+        'file.prepare_failed',
+        error instanceof Error
+          ? error.message
+          : 'The document could not be prepared for saving.',
+        true,
+        error,
+      );
+      if (shouldApplySaveResult()) {
+        state.setLastFileError(result.error);
+      }
+      return result;
+    }
+
     const result = await commands.writeText(targetPath, text);
 
     if (!shouldApplySaveResult()) {
@@ -151,10 +182,18 @@ export function createFileActions({
 
     const documentUnchanged =
       state.getState().dirtyRevision === saveStartedAtRevision &&
-      editor.getDocumentText() === originalText;
+      editor.isDocumentSnapshotCurrent(originalSnapshot);
 
     if (text !== originalText && documentUnchanged) {
-      editor.loadDocument(text);
+      editor.loadDocument(text, {
+        preserveView: true,
+        resetHistory: false,
+      });
+      editor.markDocumentSaved(editor.captureDocumentSnapshot());
+    } else if (text === originalText) {
+      editor.markDocumentSaved(originalSnapshot);
+    } else {
+      editor.markDocumentUnsaved();
     }
 
     const currentFile = fileMetadataFromPath(result.data.path);

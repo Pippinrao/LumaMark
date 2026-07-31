@@ -25,6 +25,7 @@ LumaMark 的路线是“先复刻，再创新”：
 ## 文档入口
 
 - [项目文档地图](docs/README.md)
+- [当前 Typora Parity 实施计划](docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
 - [Agent 工作契约](AGENTS.md)
 - [AI 开发流程](DEVELOPMENT_PROCESS.md)
 
@@ -41,4 +42,4 @@ LumaMark 的路线是“先复刻，再创新”：
 
 ## 当前状态
 
-当前项目处于立项和架构规划阶段。核心项目规则、开发流程、产品定位、技术架构和演进计划已经固化为文档。
+Foundation 与 MarkText+ 已形成 Alpha 技术基线；当前进入 Parity Reliability Foundation，优先收敛源码保真、输入法、撤销、焦点和 active-save 可靠性。当前范围与退出门禁以 [Typora Parity 核心体验改进计划](docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。

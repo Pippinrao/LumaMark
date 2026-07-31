@@ -2,6 +2,48 @@
 
 本文件记录 LumaMark V1 alpha 在 Windows 上的构建方式、产物和发布缺口。
 
+> **历史记录：** 下列分支、版本号、文件大小与 SHA-256 只描述对应 Alpha 构建，不能当作当前工作树的发布产物。Parity Reliability 只有在当前执行计划的自动化门禁、Windows 实测和真实自用退出条件全部满足后，才具备 Beta 候选资格；一次本地 `pnpm build` 成功不等于已发布。
+
+## 0.2.0 NSIS-only Release
+
+- 日期：2026-08-01
+- 平台：Windows x64
+- 分支：`v1-implementation`
+- 发布范围：GitHub Release 只上传 NSIS 安装器；本地同时生成 exe 和 MSI，仅用于现有产物一致性门禁。
+
+最终发布产物：
+
+| 产物 | 路径 | 大小 | SHA-256 |
+|---|---|---:|---|
+| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.2.0_x64-setup.exe` | 4,654,352 bytes | `cf990ae5c7f9b35ccaae8f8dba2d455079a6e54f408df2fee69115ec515ca1ae` |
+
+新鲜自动化验证：
+
+- `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm test`：64 个测试文件、601 项测试通过。
+- `pnpm test:fixtures`：2 个测试文件、6 项 round-trip 测试通过。
+- `pnpm download:markdown-corpus` 和 `pnpm test:markdown-corpus`：解析 6 个语料文件、646,256 bytes。
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml`：81 项 Rust 测试通过。
+- `pnpm quality:v1-ux-prototype`：2 项通过。
+- `pnpm quality:v1-ux-screenshots`：生成 6 张审查截图，且在 `NODE_OPTIONS=--throw-deprecation` 下无 warning。
+- `pnpm test:e2e`：131 项 Playwright 测试通过。
+- `pnpm test:live-assets`：公网 PNG/SVG 和 Rust 真实下载缓存测试通过。
+- `pnpm quality:web-build`
+- `pnpm test:e2e:production`：生产 bundle 启动和懒加载 Mermaid 回归通过。
+- `pnpm perf:bench`：6 个测试文件、21 项独立性能基准通过。
+- `pnpm release:packaged-webview`：Release 构建、真实文件保存、中文输入、任务复选框可访问性、Mermaid active-save 和显示模式往返全部通过。
+- `pnpm release:verify-artifacts`：0.2.0 exe、MSI、NSIS 均存在并生成 SHA-256 清单。
+- `pnpm release:installer-smoke:plan`：确认 NSIS 路径、临时安装目录、无需管理员权限及 3 秒启动计划。
+
+Windows 桌面真人式抽检使用本轮新编译的 Release exe，并采用隔离的临时 WebView2 数据目录；验证了中英文 Markdown 输入、引用内和普通任务复选框、点击与空格复切、源码/所见即所得往返、Mermaid 渲染、系统另存为对话框和真实文件落盘。保存后的 13 行 Markdown 对标题、引用任务、普通任务、完成任务、Mermaid 与中文文本的断言全部通过；测试文件和临时 WebView2 数据随后已清理，现有正式安装窗口未被修改。
+
+NSIS 包体使用 7-Zip 24.08 识别为 NSIS 3 Unicode/LZMA 并通过完整性测试；解出的 `lumamark.exe` 为 13,838,336 bytes，FileVersion 和 ProductVersion 均为 `0.2.0`，且可启动 WebView2 调试端点、无 stderr。由于本机已经存在并正在运行 `C:\Users\pippin\AppData\Local\LumaMark` 正式安装，安全脚本拒绝覆盖同一 HKCU 安装/卸载注册表；本轮没有执行宿主机上的静默安装→卸载 smoke，也不把包体解压与 payload 启动等同于该路径已通过。
+
+本版本仍未代码签名，Windows SmartScreen 和发布者信任提示属于已知分发风险。
+
 ## 构建环境
 
 - 日期：2026-07-05

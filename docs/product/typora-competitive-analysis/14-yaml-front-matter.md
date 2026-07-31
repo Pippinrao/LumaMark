@@ -1,5 +1,12 @@
 # YAML Front Matter 竞品体验差距分析
 
+> **Parity Reliability 实施更新（2026-07-27）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - protected-source 分析现保护由文首 `---` 开始、以 `---` 或 `...` 闭合的 YAML 区域，并抑制通用水平线与 Setext 标题装饰；单元/UI 测试覆盖源码可见性，selection-only 更新会复用语法树级分析缓存。
+> - 这只是歧义安全降级，不是 YAML Front Matter 功能。YAML 解析、元数据 UI、校验及 `typora-root-url`/`typora-copy-images-to` 工作流仍在 Next。
+
 ## 1. 用途、范围与非目标
 
 本文用于判断 LumaMark 在 YAML Front Matter 专题上，哪些只是底层文本能力已经存在，哪些已经形成用户可感知的 Typora-like 体验，并给出可执行的补齐顺序与验证方案。分析对象是 Typora 1.13.7 基线与当前仓库工作树，不把路线图、规划表或“计划对齐”当成实现证据。

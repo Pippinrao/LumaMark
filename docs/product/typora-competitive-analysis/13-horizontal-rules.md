@@ -1,5 +1,12 @@
 # 1. LumaMark 与 Typora 水平线（Horizontal Rules）竞品分析
 
+> **Parity Reliability 实施更新（2026-07-27）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - 标题 marker 已消费共享 block context；水平线与标题装饰共同消费 protected-source ranges。由 `---`/`...` 闭合的文首 YAML 因而不会再被误装饰成水平线或 Setext 标题，并有 UI 回归测试。
+> - 这不等于水平线已完整迁移到共享活动结构模型；其焦点编辑、删除、变体、原生 IME 与源码保真矩阵仍未全面追平。
+
 ## 2. 用途、范围与非目标
 
 本文用于判断 LumaMark 的水平线能力究竟处于“功能存在”还是“体验追平”阶段，并为后续实现、验收与回归提供可执行依据。范围限定为 Markdown thematic break / horizontal rule：通过 `***`、`---` 等源码创建，live preview 中的阅读态与焦点编辑态，源码模式，键盘、鼠标、粘贴、菜单、命令面板、保存、撤销以及与 Setext 标题和 YAML Front Matter 的边界。

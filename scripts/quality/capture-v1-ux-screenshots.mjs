@@ -1,12 +1,16 @@
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const host = '127.0.0.1';
 const port = 4180;
 const baseUrl = `http://${host}:${port}`;
 const prototypePath = '/docs/product/prototypes/v1-apple-file-mode/';
 const screenshotDir = 'test-results/v1-ux-screenshots';
+const viteCliPath = fileURLToPath(
+  new URL('./bin/vite.js', import.meta.resolve('vite/package.json')),
+);
 
 const states = [
   {
@@ -82,11 +86,11 @@ async function startServer() {
   }
 
   const child = spawn(
-    'pnpm',
-    ['exec', 'vite', '--host', host, '--port', String(port)],
+    process.execPath,
+    [viteCliPath, '--host', host, '--port', String(port)],
     {
-      shell: true,
       stdio: 'ignore',
+      windowsHide: true,
     },
   );
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CommandHandlerMap } from '../../features/commands/commandTypes';
 
 type GlobalShortcutHandlers = Pick<
@@ -12,19 +12,32 @@ type GlobalShortcutHandlers = Pick<
   | 'save'
   | 'saveAs'
   | 'table'
+  | 'toggleDisplayMode'
   | 'toggleFocusMode'
   | 'toggleSidebar'
 >;
 
 export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
+  const handlersRef = useRef(handlers);
+
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
+
+      const currentHandlers = handlersRef.current;
+
       if (event.key === 'Escape') {
         if (globalThis.document.querySelector('[role="dialog"]')) {
           return;
         }
 
-        handlers.exitFocusMode();
+        currentHandlers.exitFocusMode();
         return;
       }
 
@@ -34,41 +47,56 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
         event.key.toLowerCase() === 'f'
       ) {
         event.preventDefault();
-        handlers.toggleFocusMode();
+        currentHandlers.toggleFocusMode();
         return;
       }
 
       if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        handlers.openCommandPalette();
+        currentHandlers.openCommandPalette();
         return;
       }
 
       if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 'n') {
         event.preventDefault();
-        handlers.newDocument();
+        currentHandlers.newDocument();
         return;
       }
 
       if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 'o') {
         event.preventDefault();
-        handlers.openFile();
+        currentHandlers.openFile();
         return;
       }
 
       if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 's') {
         event.preventDefault();
         if (event.shiftKey) {
-          handlers.saveAs();
+          currentHandlers.saveAs();
         } else {
-          handlers.save();
+          currentHandlers.save();
         }
         return;
       }
 
       if (isPrimaryModifierPressed(event) && event.key === '\\') {
         event.preventDefault();
-        handlers.toggleSidebar();
+        currentHandlers.toggleSidebar();
+        return;
+      }
+
+      if (
+        isPrimaryModifierPressed(event) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key === '/'
+      ) {
+        if (shouldIgnoreDisplayModeShortcut(event.target)) {
+          return;
+        }
+
+        event.preventDefault();
+        currentHandlers.toggleDisplayMode();
         return;
       }
 
@@ -78,19 +106,19 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
 
       if (event.key.toLowerCase() === 't') {
         event.preventDefault();
-        handlers.table();
+        currentHandlers.table();
         return;
       }
 
       if (event.key.toLowerCase() === 'c') {
         event.preventDefault();
-        handlers.copyTable();
+        currentHandlers.copyTable();
         return;
       }
 
       if (event.key === 'Backspace') {
         event.preventDefault();
-        handlers.deleteTable();
+        currentHandlers.deleteTable();
       }
     };
 
@@ -99,9 +127,24 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [handlers]);
+  }, []);
 }
 
 function isPrimaryModifierPressed(event: KeyboardEvent): boolean {
   return /Mac/i.test(navigator.userAgent) ? event.metaKey : event.ctrlKey;
+}
+
+function shouldIgnoreDisplayModeShortcut(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (
+    target.closest('[role="dialog"]') ||
+    target.closest('input, textarea, select')
+  ) {
+    return true;
+  }
+
+  return target.isContentEditable && !target.closest('.cm-content');
 }

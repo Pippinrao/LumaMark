@@ -15,6 +15,8 @@ LumaMark 计划大量使用 AI 构建。AI 可以显著提升产出速度，但�
 
 详细执行规则见根目录 [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.md)。
 
+当前 Parity Reliability 的专题门禁、真实 Windows 路径和里程碑退出条件见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。本文件维护长期质量分层，不复制当前任务清单。
+
 ## 质量目标
 
 LumaMark 的质量体系要做到：
@@ -153,7 +155,7 @@ AI agent 必须遵守：
 - fixture round-trip。
 - Rust check/test。
 - Playwright E2E。
-- 生产构建启动白屏回归。
+- 生产构建启动与 Mermaid 动态 import 渲染回归。
 - 远程图片确定性 mock 与独立真实公网缓存集成测试。
 - Web 构建 chunk 预算。
 - 单独执行的性能基准。
@@ -161,6 +163,8 @@ AI agent 必须遵守：
 仓库还必须维护 `.github/workflows/windows-release-build.yml`，作为手动发布构建门禁，用于在 GitHub Windows runner 上生成并上传 release exe、MSI 和 NSIS 产物。
 
 任何用于 V1 发布判断的手动发布构建，都必须先运行 `pnpm release:verify-artifacts`，生成包含大小和 SHA-256 的 `lumamark-windows-artifacts.json`，并将该 manifest 作为 GitHub artifact 保留。`docs/release/WINDOWS_V1_BUILD.md` 必须记录 workflow run 链接、提交哈希、结论和 artifact 清单。没有可追溯 run 证据和 artifact manifest 时，不得把 GitHub runner 发布构建视为已验证。
+
+Windows 本地候选包还必须运行 `pnpm release:packaged-webview`：从真实临时 Markdown 文件进入 release WebView，要求 Mermaid SVG 成功、主 CodeMirror 编辑态立即保存、Unicode 输入、`Mod-/` 往返及任务 checkbox 可访问名称通过。该自动化使用 WebView2 CDP，只证明应用内 DOM、键盘事件和真实 Rust 文件写入；它不能替代中文 IME 候选窗、系统剪贴板或 Narrator/NVDA 的前台人工检查。
 
 ## 手动测试策略
 

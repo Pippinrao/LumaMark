@@ -1,6 +1,6 @@
 # 架构策略
 
-详细模块边界、数据流和技术选型见 [详细架构设计与技术选型](DETAILED_ARCHITECTURE.md)。本文件只保留高层原则。
+详细模块边界、数据流和技术选型见 [详细架构设计与技术选型](DETAILED_ARCHITECTURE.md)。本文件只保留高层原则。Parity Reliability 的共享交互、源码格式与单主编辑器合同见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 
 ## 架构目标
 
@@ -94,12 +94,14 @@ Tauri 桌面壳
 - 基础语法高亮。
 - Markdown WYSIWYG decorations。
 - Mermaid 等块级 widget 的挂载点。
+- `EditorInteractionContext` 和 `DocumentSourceFormat` 等与正文同步映射的编辑器状态。
 
 边界：
 
 - 不用富文本 AST 作为主存储。
 - 不绕过 CodeMirror 自己实现光标、选区和输入。
 - 不在 CodeMirror 外层硬套虚拟滚动。
+- 不为 Mermaid 或其他复杂块创建持有待提交正文、选区或独立 undo 栈的第二个 `EditorView`。
 
 ### Rust Core
 
@@ -131,10 +133,11 @@ LumaMark 不采用“富文本 AST 主存储 -> 保存时 stringify Markdown”�
 
 - Markdown 源文件是 source of truth。
 - CodeMirror 文本模型持有源文。
+- CodeMirror 内部规范化 `Text`，同时映射 BOM、末尾换行和逐行换行格式；保存边界精确序列化。
 - Lezer/Markdown parser 生成语法信息。
 - decorations 隐藏或弱化 Markdown 符号。
 - widgets 渲染 Mermaid、公式、图片预览等复杂块。
-- 保存直接基于源文。
+- 保存直接基于 editor snapshot；受控转换只能产生必要的最小 changes，不能静默全文件归一化。
 
 这种策略可以降低源码保真风险。
 
@@ -163,6 +166,7 @@ Mermaid 是高性能风险点，必须异步。
 要求：
 
 - 识别 fenced code block。
+- 激活块时在主 `EditorView` 中显示围栏源码，预览置于块下方；编辑立即进入统一 undo 栈。
 - 不在输入同步路径渲染。
 - 使用任务队列。
 - 支持取消过期任务。

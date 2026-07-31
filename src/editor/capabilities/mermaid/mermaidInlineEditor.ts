@@ -1,60 +1,103 @@
+import { EditorSelection, type Extension } from '@codemirror/state';
+import { type EditorView, keymap } from '@codemirror/view';
 import {
-  defaultKeymap,
-  history,
-  historyKeymap,
-} from '@codemirror/commands';
-import { EditorState } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
-import { mermaidLanguageExtension } from './mermaidLanguageService';
+  collectMermaidBlocksInRanges,
+  type AbsoluteMermaidBlock,
+} from './mermaidBlockDetection';
+import {
+  activeMermaidBlock,
+  setActiveMermaidBlockEffect,
+} from './mermaidEditingState';
 
-type CreateMermaidInlineEditorOptions = {
-  doc: string;
-  onChange: (content: string) => void;
-  onEscape: () => void;
-  onFocusIn: () => void;
-  parent: HTMLElement;
-};
+export function beginMermaidSourceEditing(
+  view: EditorView,
+  widget: HTMLElement,
+  fallbackBlock: AbsoluteMermaidBlock,
+): boolean {
+  const block = resolveCurrentMermaidBlock(view, widget, fallbackBlock);
+  if (!block) {
+    return false;
+  }
 
-export function createMermaidInlineEditor({
-  doc,
-  onChange,
-  onEscape,
-  onFocusIn,
-  parent,
-}: CreateMermaidInlineEditorOptions): EditorView {
-  const editor = new EditorView({
-    parent,
-    state: EditorState.create({
-      doc,
-      extensions: [
-        history(),
-        EditorView.lineWrapping,
-        mermaidLanguageExtension(),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            onChange(update.state.doc.toString());
-          }
-        }),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
-      ],
+  view.dispatch({
+    effects: setActiveMermaidBlockEffect.of({
+      from: block.from,
+      to: block.to,
     }),
+    selection: EditorSelection.range(block.contentFrom, block.contentTo),
   });
+  view.focus();
 
-  editor.dom.addEventListener('focusin', onFocusIn);
-  editor.dom.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') {
-      return;
+  return true;
+}
+
+export function mermaidSourceEditingKeymap(): Extension {
+  return keymap.of([
+    {
+      key: 'Escape',
+      run(view) {
+        if (!activeMermaidBlock(view.state)) {
+          return false;
+        }
+
+        view.dispatch({
+          effects: setActiveMermaidBlockEffect.of(null),
+        });
+        view.focus();
+        return true;
+      },
+    },
+  ]);
+}
+
+export function resolveCurrentMermaidBlock(
+  view: EditorView,
+  widget: HTMLElement,
+  fallbackBlock: AbsoluteMermaidBlock,
+): AbsoluteMermaidBlock | null {
+  if (view.dom.contains(widget)) {
+    const widgetPosition = view.posAtDOM(widget);
+    const nearbyMatch = collectMermaidBlocksInRanges(
+      view.state,
+      [{
+        from: Math.max(0, widgetPosition - 1),
+        to: Math.min(view.state.doc.length, widgetPosition + 1),
+      }],
+    ).find(
+      (block) => block.from <= widgetPosition && block.to >= widgetPosition,
+    );
+
+    if (nearbyMatch) {
+      return nearbyMatch;
     }
+  }
 
-    event.preventDefault();
-    onEscape();
-  });
-  editor.contentDOM.addEventListener('input', () => {
-    const stateContent = editor.state.doc.toString();
-    onChange(stateContent && stateContent !== doc
-      ? stateContent
-      : editor.contentDOM.textContent ?? '');
-  });
+  const active = activeMermaidBlock(view.state);
 
-  return editor;
+  if (active) {
+    const activeMatch = collectMermaidBlocksInRanges(
+      view.state,
+      [{ from: active.from, to: active.to }],
+    ).find((block) => block.from <= active.to && block.to >= active.from);
+
+    if (activeMatch) {
+      return activeMatch;
+    }
+  }
+
+  const fallbackFrom = Math.max(0, Math.min(
+    fallbackBlock.from,
+    view.state.doc.length,
+  ));
+  const fallbackTo = Math.max(fallbackFrom, Math.min(
+    fallbackBlock.to,
+    view.state.doc.length,
+  ));
+
+  return collectMermaidBlocksInRanges(
+    view.state,
+    [{ from: fallbackFrom, to: fallbackTo }],
+  ).find(
+    (block) => block.from <= fallbackTo && block.to >= fallbackFrom,
+  ) ?? null;
 }

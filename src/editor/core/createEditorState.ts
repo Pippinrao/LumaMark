@@ -5,7 +5,14 @@ import {
 } from '@codemirror/commands';
 import { autocompletion } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-import { Compartment, EditorState, type Extension } from '@codemirror/state';
+import {
+  Compartment,
+  EditorState,
+  StateEffect,
+  StateField,
+  Text,
+  type Extension,
+} from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 import type { AppLanguage } from '../../shared/i18n';
@@ -25,6 +32,13 @@ import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
 } from './editorEvents';
+import {
+  documentSourceFormatExtension,
+  documentSourceFormatField,
+  documentSourceFormatsEqual,
+  parseDocumentSource,
+  type DocumentSourceFormat,
+} from './documentSourceFormat';
 
 export type CreateEditorStateOptions = {
   doc?: string;
@@ -37,6 +51,66 @@ export type CreateEditorStateOptions = {
 };
 
 export const editorSearchPhrasesCompartment = new Compartment();
+export const editorHistoryCompartment = new Compartment();
+export type DocumentSavepoint = {
+  readonly doc: Text;
+  readonly sourceFormat: DocumentSourceFormat;
+};
+export const setDocumentSavepoint =
+  StateEffect.define<DocumentSavepoint | null>();
+type DocumentSavepointState = {
+  dirty: boolean;
+  savepoint: DocumentSavepoint | null;
+};
+
+export function captureDocumentSavepoint(
+  state: EditorState,
+): DocumentSavepoint {
+  return {
+    doc: state.doc,
+    sourceFormat: state.field(documentSourceFormatField),
+  };
+}
+
+export const documentSavepointField = StateField.define<DocumentSavepointState>({
+  create: (state) => ({
+    dirty: false,
+    savepoint: captureDocumentSavepoint(state),
+  }),
+  update: (value, transaction) => {
+    let savepoint = value.savepoint;
+    let savepointChanged = false;
+
+    for (const effect of transaction.effects) {
+      if (effect.is(setDocumentSavepoint)) {
+        savepoint = effect.value;
+        savepointChanged = true;
+      }
+    }
+
+    const sourceFormatChanged =
+      transaction.startState.field(documentSourceFormatField) !==
+      transaction.state.field(documentSourceFormatField);
+
+    if (!transaction.docChanged && !sourceFormatChanged && !savepointChanged) {
+      return value;
+    }
+
+    const dirty =
+      savepoint === null ||
+      !transaction.state.doc.eq(savepoint.doc) ||
+      !documentSourceFormatsEqual(
+        transaction.state.field(documentSourceFormatField),
+        savepoint.sourceFormat,
+      );
+
+    return { dirty, savepoint };
+  },
+});
+
+export function isDocumentDirty(state: EditorState): boolean {
+  return state.field(documentSavepointField).dirty;
+}
 
 export function createEditorState(
   options: CreateEditorStateOptions = {},
@@ -50,6 +124,7 @@ export function createEditorState(
     onDocumentChanged,
     onFocusChanged,
   } = options;
+  const parsedDocument = parseDocumentSource(doc);
   let docVersion = 0;
 
   const documentChangeListener = EditorView.updateListener.of((update) => {
@@ -58,14 +133,20 @@ export function createEditorState(
       transactionCount: update.transactions.length,
     });
 
-    if (!update.docChanged) {
+    const dirty = isDocumentDirty(update.state);
+    const dirtyChanged = dirty !== isDocumentDirty(update.startState);
+
+    if (!update.docChanged && !dirtyChanged) {
       return;
     }
 
-    docVersion += 1;
+    if (update.docChanged) {
+      docVersion += 1;
+    }
     onDocumentChanged?.({
       type: 'documentChanged',
-      dirty: true,
+      dirty,
+      documentChanged: update.docChanged,
       docVersion,
       documentLength: update.state.doc.length,
       transactionCount: metric.transactionCount,
@@ -95,17 +176,20 @@ export function createEditorState(
     : [];
 
   return EditorState.create({
-    doc,
+    doc: parsedDocument.text,
     extensions: [
+      EditorState.allowMultipleSelections.of(true),
       markdownLanguage(),
       markdownSyntaxHighlighting(),
+      documentSourceFormatExtension(parsedDocument.format),
       editorDisplayModeCompartment.of(
         editorDisplayModeExtension(displayMode, documentContext),
       ),
       editorSearchPhrasesCompartment.of(
         EditorState.phrases.of(getEditorSearchPhrases(language)),
       ),
-      history(),
+      documentSavepointField,
+      editorHistoryCompartment.of(history()),
       autocompletion(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,

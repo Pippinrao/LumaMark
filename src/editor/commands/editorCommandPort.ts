@@ -5,14 +5,23 @@ import {
 import { redo, undo } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import { createEditorCapabilityCommands } from '../capabilities';
-import type { EditorApi, LoadDocumentOptions } from '../core/editorApi';
+import type {
+  EditorApi,
+  EditorDocumentSnapshot,
+  LoadDocumentOptions,
+} from '../core/editorApi';
 import type { EditorDisplayMode } from '../core/editorDisplayMode';
 
 export type EditorDocumentPort = {
+  captureSnapshot: () => EditorDocumentSnapshot;
   focus: () => void;
   getText: () => string;
+  isSnapshotCurrent: (snapshot: EditorDocumentSnapshot) => boolean;
   loadText: (text: string, options?: LoadDocumentOptions) => void;
+  markSaved: (snapshot: EditorDocumentSnapshot) => void;
+  markUnsaved: () => void;
   refreshImages?: (path: string) => void;
+  serializeText: () => string;
   setContext: NonNullable<EditorApi['setDocumentContext']>;
 };
 
@@ -35,14 +44,24 @@ export type EditorCommandPort = {
 
 export function createEditorDocumentPort(editor: EditorApi): EditorDocumentPort {
   return {
+    captureSnapshot: () => editor.captureDocumentSnapshot(),
     focus: () => editor.focus(),
     getText: () => editor.getDocumentText(),
+    isSnapshotCurrent: (snapshot) =>
+      editor.isDocumentSnapshotCurrent(snapshot),
     loadText: (text, options) => {
       editor.loadDocument(text, options);
+    },
+    markSaved: (snapshot) => {
+      editor.markDocumentSaved(snapshot);
+    },
+    markUnsaved: () => {
+      editor.markDocumentUnsaved();
     },
     refreshImages: (path) => {
       createEditorCapabilityCommands(editor.view).refreshImages(path);
     },
+    serializeText: () => editor.getSerializedDocumentText(),
     setContext: (context) => {
       editor.setDocumentContext(context);
     },

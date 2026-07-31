@@ -102,6 +102,10 @@
   background: color-mix(in srgb, var(--lm-color-surface) 90%, #fce8e6);
 }
 
+.cm-content .lm-mermaid-preview-editing {
+  margin-top: var(--lm-space-3);
+}
+
 .cm-content .lm-mermaid-svg:empty {
   display: none;
 }
@@ -114,26 +118,4 @@
 .cm-content .lm-mermaid-svg {
   padding: var(--lm-space-6);
   overflow: auto;
-}
-
-.cm-content .lm-mermaid-editor {
-  margin: var(--lm-space-3) var(--lm-space-4) var(--lm-space-4);
-  overflow: hidden;
-  border: 1px solid var(--lm-color-border-subtle);
-  border-radius: var(--lm-radius-2);
-  background: var(--lm-color-surface);
-  text-align: left;
-}
-
-.cm-content .lm-mermaid-editor[hidden] {
-  display: none;
-}
-
-.cm-content .lm-mermaid-editor .cm-editor {
-  min-height: 138px;
-}
-
-.cm-content .lm-mermaid-editor .cm-content {
-  font-family: var(--lm-font-mono);
-  font-size: 0.88rem;
 }

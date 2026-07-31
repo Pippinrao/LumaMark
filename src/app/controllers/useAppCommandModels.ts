@@ -61,6 +61,7 @@ type UseAppCommandModelsOptions = {
     insert: string;
   };
   t: (key: string) => string;
+  toggleDisplayMode: () => void;
   toggleLanguage: () => void;
   toggleFocusMode: () => void;
   toggleSidebar: () => void;
@@ -90,6 +91,7 @@ export function useAppCommandModels({
   setSourceMode,
   shortcuts,
   t,
+  toggleDisplayMode,
   toggleLanguage,
   toggleFocusMode,
   toggleSidebar,
@@ -123,6 +125,7 @@ export function useAppCommandModels({
       saveAs,
       setLivePreviewMode,
       setSourceMode,
+      toggleDisplayMode,
       toggleLanguage,
       toggleFocusMode,
       toggleSidebar,
@@ -146,6 +149,7 @@ export function useAppCommandModels({
     saveAs,
     setLivePreviewMode,
     setSourceMode,
+    toggleDisplayMode,
     toggleLanguage,
     toggleFocusMode,
     toggleSidebar,

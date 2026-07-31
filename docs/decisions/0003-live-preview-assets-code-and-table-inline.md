@@ -4,6 +4,8 @@
 
 更新：2026-07-12（补充本地图片授权与插入策略）
 
+更新：2026-07-27（接通本地图片定点刷新与保存前草稿图片 finalize）
+
 ## 背景
 
 V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同时继续遵守源码保真、成熟组件优先和 editor capability 边界。远程图片如果直接使用网络 URL，离线和跨平台稳定性较弱；如果自动改写 Markdown，又会破坏用户源码意图。代码块需要常见语言语法高亮，但不应替换 CodeMirror。表格交互已经由 `codemirror-markdown-tables` 承担，不能回退到自研整表编辑器。
@@ -26,6 +28,13 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 代码块整块预览只使用 CodeMirror 行级 decoration。禁止在通用 WYSIWYG 链路中对 `FencedCode` 施加跨多行 mark decoration，因为跨行 mark 上的 padding、border 或 line-height 会破坏光标定位、选区和背景对齐。
 - 表格仍以 `codemirror-markdown-tables` 为整表交互核心；LumaMark 只补 inactive cell 的 inline Markdown 薄渲染层。该薄层必须使用 sibling overlay 呈现视觉预览，保留 `.tbl-cell-view` 源码 DOM 给成熟组件负责选区和编辑。默认显示 overlay、隐藏源码视觉；鼠标 hover 或 focus 时隐藏 overlay、露出源码符号，点击后进入 cell editor 编辑原 Markdown。
 
+### 2026-07-27 实现更新
+
+- 本地图片引用由 `ImageAssetResolver.syncLocalSources` 同步为 watcher targets。图片事件把规范化 path 对应的 revision 写入 resolver、失效旧授权缓存，再通过 `EditorDocumentPort.refreshImages(path)` 向 image capability 派发刷新 effect。
+- decoration 会重建图片 widget 候选，但 widget identity 包含对应 source 的 revision；只有命中该 path 的图片获得新 asset URL（`lmv=<revision>`），无关 widget 复用，Markdown source 不发生 transaction。
+- 首次保存前，file workflow 从 editor 的精确序列化快照调用 `finalizeAllDraftImages`，按文档中首次出现顺序迁移各 draft batch 并替换 `lumamark-draft://` 引用。只有文件写入成功且原快照仍是当前文档时，转换文本才以最小 CodeMirror changes 映射回主文档并标记保存点；失败时不把占位替换提交到正文，并保留 dirty。
+- 当前 finalize 会先原子复制目标图片，再写 Markdown 文件；若图片迁移成功而后续文档写入失败，可能留下未被文档引用的 asset 文件。这不是完整文件系统事务，图片策略持久化与事务回滚仍属于 [当前计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)的 Next 阶段。精确快照与最小 changes 合同见 [ADR 0006](0006-parity-reliability-editor-contracts.md)。
+
 ## 被否决方案
 
 - 自动把远程图片链接改写成本地相对路径：离线更彻底，但会主动修改用户 Markdown 源码。
@@ -41,12 +50,15 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - asset protocol scope 从全局 `**/*` 收紧为按成功打开或保存过的文档目录动态授权。打开多个文档会累计这些目录的 scope；Tauri 当前 scope API 没有对应的允许模式移除接口，因此如果未来需要在关闭文档时回收访问权，应改用受当前文档上下文验证的自定义 asset 服务。
 - 未保存文档不创建文档旁远程图片缓存；UI 显示可本地化提示。
 - 本地文件插入设置是低频应用状态，不进入 CodeMirror 文档状态或输入热路径；切换设置不会重建编辑器。
+- watcher revision 只影响运行时 resolver 与 widget identity；不会修改图片引用、dirty 状态或撤销历史。
 - 代码块预览不再把整段 fenced code 包成跨行 mark；视觉表面由 `.lm-md-code-block-line` 行级类承担，避免改变 CodeMirror 行盒模型。
 - 表格 inline 渲染当前覆盖 mature table widget 能稳定承载的 inactive cell 内容；overlay 预览层不能改写 `.tbl-cell-view.innerHTML`，否则会破坏 `codemirror-markdown-tables` 的 selectionchange、cell editor 同步和后续源码更新。
 
 ## 回滚或复审条件
 
 - 图片缓存破坏源码保真、产生不可控目录污染，或下载路径带来安全风险。
+- 图片 watcher 刷新导致无关 widget 重建、源码变化、undo 记录或可测量输入延迟。
+- 草稿图片迁移的孤立 asset 文件不可接受，或需要跨图片与 Markdown 写入的原子回滚。
 - 动态 asset scope 无法满足多文档或关闭文档后的最小权限要求，需要改用自定义受控 asset protocol。
 - 远程图片并发量、取消策略或下载进度需求超过当前 blocking worker + 去重模型的承载范围，需要引入可取消任务注册表或流式下载器。
 - 受控 resolver 所依赖的 `ureq::unversioned` 扩展 API 在后续 `ureq` 小版本升级时出现兼容性变化，或出现无法在不阻塞 command 线程的前提下保证取消与并发去重。

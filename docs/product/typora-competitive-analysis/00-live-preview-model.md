@@ -1,16 +1,18 @@
 # Live Preview 交互模型竞品分析
 
+> **Parity Reliability 实施更新（2026-07-27）：** 下方主体保留为 2026-07-22 以前的横切审计快照，其中关于“整行全部展开”、缺少 `Mod-/`、fixture 只返回原字符串和 composition 无统一合同的描述不再代表当前工作树。当前 `editor/interaction` 按每个 selection 派生最小 block、inline owner 与 delimiter；行内标记只在 selection 进入对应 owner 时展开，composition 期间映射已有 decoration 并在结束后增量重算。`Mod-/` 已在同一主 `EditorView` 上往返并保持文档、selection、undo 与 scroll snapshot；`DocumentSourceFormat` 与真实 `EditorView → prepareTextForSave → write → reopen → byte diff` 门禁保护 BOM、混合 LF/CRLF/CR 和无关字节。真实 Windows 中文 IME 候选窗、系统剪贴板和 Narrator/NVDA 仍未验证，因此不能据此宣称整体 Typora parity。当前合同与退出条件以 [ADR 0006](../../decisions/0006-parity-reliability-editor-contracts.md) 和 [当前执行计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。
+
 ## 用途、范围与非目标
 
 本文把 Typora 1.13.7 的横切 live preview 交互基线，与 LumaMark 当前仓库中可以由代码、测试、fixture 和依赖清单证明的能力逐项对照，为后续实现排期和验收提供事实依据。范围包括同视图阅读/编辑模型、焦点与源码符号显隐、源码模式、键盘和鼠标路径、复制粘贴、保存、错误边界、源码保真、可访问性与性能。Typora 事实以 `docs/product/typora-baseline/00-live-preview-model.md` 为准；规划文档没有被当成 LumaMark 已实现证据。
 
-本文不设计某一种 Markdown 语法的全部细节，不把图片、表格、Mermaid 等专题能力的存在等同于完整 live preview 追平，也不修改代码、测试、依赖或文档索引。仓库处于多人并行修改状态，本文记录的是本次静态检索时可见的事实；文中提到的测试均指测试文件所声明的覆盖，不代表本次运行过测试。
+本文不设计某一种 Markdown 语法的全部细节，不把图片、表格、Mermaid 等专题能力的存在等同于完整 live preview 追平，也不修改 Typora 基线事实。2026-07-22 的增量复核同时使用静态代码、全量自动化和真实 Tauri WebView2 操作；未实际执行的原生 IME、系统文件对话框、屏幕阅读器与跨平台行为继续明确标为证据不足。
 
 ## 执行摘要
 
-LumaMark 已实现 live preview 的核心骨架：CodeMirror 6 持有唯一 Markdown 文本；默认模式是 `livePreview`；同一个 `EditorView` 通过 `Compartment.reconfigure` 在 live preview 与 source 间切换；基础 heading、emphasis、blockquote、list、link、inline code、horizontal rule 等由语法树 decoration 呈现，代码块、图片、表格、Mermaid 则以 capability 扩展接入。单元测试文件证明模式切换不改变文本并保留撤销历史，E2E 文件声明验证菜单切换、源码标记恢复和若干阅读态视觉效果，fixture round-trip 文件声明对 file action 写出的既有 fixture 做逐字节检查。因此，“同视图编辑”“源码是真实数据”“可进入完整源码模式”这些功能已存在；但该 round-trip 用例的 editor 是返回固定源码的 stub，并未证明真实 EditorView 经打开、聚焦、模式切换或 decoration 后仍端到端逐字节保真。
+LumaMark 已实现 live preview 的核心骨架：CodeMirror 6 持有唯一 Markdown 文本；默认模式是 `livePreview`；同一个 `EditorView` 通过 `Compartment.reconfigure` 在 live preview 与 source 间切换；基础 heading、emphasis、blockquote、list、link、inline code、horizontal rule 等由语法树 decoration 呈现，代码块、图片、表格、Mermaid 则以 capability 扩展接入。单元测试证明模式切换不改变文本并保留撤销历史，浏览器 E2E 验证菜单切换、源码标记恢复和若干阅读态视觉效果，fixture round-trip 对 file action 写出的既有 fixture 做逐字节检查。真实 Tauri WebView2 又完成了文件打开、键盘编辑、保存、撤销、重做、重开、恢复草稿、跨文件历史隔离、CRLF 源文回退和外部删除冲突路径。因此，“同视图编辑”“源码是真实数据”“可进入完整源码模式”和基础文件交互已经存在；但完整 fixture 字节 round-trip、原生 IME、系统 dialog 与辅助技术仍没有等价实机证据。
 
-但功能存在不等于体验追平。LumaMark 通用显隐判定是“选区 head 所在行”，并非 Typora 的“当前块”和“光标进入具体 span”模型：光标落在一行中的普通区域，也会让该行所有受控标记露出；跨行块和嵌套 span 缺少精确展开策略。源码模式只有菜单入口，未发现 Typora 对应的 `Ctrl+/`/`Command+/` 全局快捷键或状态栏入口。模式重配置理论上不替换文档，但没有代码或测试明确锁定滚动锚点。默认 CodeMirror Enter 行为也没有被转换成 Typora 的“一次 Return 落盘为空行分段”，Shift+Enter、IME 组合态、跨模式选区、复制为 HTML/Markdown/纯文本和 Smart Paste 均缺少横切验收证据。结论是：LumaMark 已实现可用的 live preview 基础，整体状态为“部分实现”，距离 Typora 级稳定、可预测、细粒度的编辑体验仍有高优先级缺口。
+但功能存在不等于体验追平。LumaMark 通用显隐判定仍是“选区 head 所在行”，并非 Typora 的“当前块”和“光标进入具体 span”模型：光标落在一行中的普通区域，也会让该行所有受控标记露出；跨行块和嵌套 span 缺少精确展开策略。源码模式只有菜单入口，未发现 Typora 对应的 `Ctrl+/`/`Command+/` 全局快捷键或状态栏入口。模式切换滚动锚点、默认 Enter/Shift+Enter 段落契约、IME 组合态、跨模式复杂选区、复制为 HTML/Markdown/纯文本和 Smart Paste 仍缺横切实机验收。结论仍是“部分实现”：保存点/历史可靠性和若干大文档热路径已修复，但 Typora 级细粒度焦点模型与平台输入体验尚未追平。
 
 ## Typora 功能与体验基线
 
@@ -72,9 +74,17 @@ Typora 对 IME 精确时序、跨模式共享 undo 的 GUI 细节以及复制为
 
 ## 当前真实体验路径
 
-用户启动应用后进入默认 live preview 的 CodeMirror 单视图。输入 Markdown 会直接更新 `state.doc`，语法树和 viewport decoration 把基础语法排成阅读样式；把光标移到另一行后，上一行受支持的结构标记被替换为空的 aria-hidden widget。用户点击任意目标行时，该行内受控标记恢复源码显示，任务 checkbox、表格、图片、代码块和 Mermaid 可能进入各自 capability 的交互路径。这里描述的是代码可推出的默认路径，不等同于本轮实际启动应用后的体验确认。
+### 2026-07-22 真实 Tauri WebView2 复核
 
-需要查看完整源码时，用户打开“视图”菜单并选择“源码模式”；同一 EditorView 移除 live preview extensions，完整标记重新出现。用户再次从菜单选择“实时预览”即可返回，已有单元测试文件声明文本和 undo 栈保留。当前没有可证明的 `Ctrl+/` 快捷路径，也没有状态栏模式按钮。打开新文件时内容和光标加载到开头且滚动归零；保存时直接读取 CodeMirror 文本，经可选 asset 准备步骤后写入文件。现有 fixture 测试只锁定“固定 editor 文本→file action→写出字节”的一致性；真实 EditorView 的 open→零编辑 save、模式切换后 save 与 asset 迁移分支仍缺端到端逐字节门禁。
+- 真实 Rust IPC 打开 UTF-8 Markdown，键盘输入 `PostFixSavepoint-20260722`，`Ctrl+S` 后标题从 dirty 变 clean；`Ctrl+Z` 回到 dirty 且标记消失，`Ctrl+Y` 回到 clean 且标记只出现一次，恢复草稿为空；重载没有恢复弹窗，重开磁盘文件仍只有一个标记。
+- 注入恢复草稿后选择恢复，继续输入一个字符再撤销，正文精确回到恢复文本但标题仍为未保存，恢复草稿仍存在；这验证了“恢复内容不是已保存基线”。独立浏览器 E2E 进一步锁定恢复后不编辑直接 reload 仍会再次提供该草稿，只有成功保存或明确丢弃才可清除。打开文件 A 后再打开 B，`Ctrl+Z` 不会回到 A，证明加载文档会隔离历史。
+- 对真实 CRLF 样本执行打开、输入、撤销，编辑器内部回到归一化文本且磁盘保持原 22 字节、2 对 CRLF、SHA-256 `0028AD3356845178FA8952D01BD48CF3372AB2B44004671C890D0C6648B3641D`；未保存该样本，因此没有把“CRLF 编辑后保存保真”冒充为已验证。
+- 打开临时文件后在磁盘上将其移走，Rust watcher 把文档标为 dirty；继续输入再撤销至原内存文本后仍保持 dirty 和恢复草稿，随后把文件恢复并核对 SHA-256。该路径证明外部删除不会因 undo 回到旧文本而被错误标成已保存。
+- 明暗主题、侧栏折叠、专注模式、真实代码块 Enter/undo/redo 与 10MB 文档打开/尾部输入均在同一 Tauri WebView2 中执行。原生中文 IME、Windows 文件 dialog、NVDA/屏幕阅读器和 macOS/Linux 没有实际执行，不能据此下结论。
+
+用户启动应用后进入默认 live preview 的 CodeMirror 单视图。输入 Markdown 会直接更新 `state.doc`，语法树和 viewport decoration 把基础语法排成阅读样式；把光标移到另一行后，上一行受支持的结构标记被替换为空的 aria-hidden widget。用户点击任意目标行时，该行内受控标记恢复源码显示，任务 checkbox、表格、图片、代码块和 Mermaid 进入各自 capability 的交互路径。应用壳、主题、侧栏、专注模式和基础编辑路径已在真实 Tauri WebView2 中确认；每个专题控件仍以各自证据边界为准。
+
+需要查看完整源码时，用户打开“视图”菜单并选择“源码模式”；同一 EditorView 移除 live preview extensions，完整标记重新出现。用户再次从菜单选择“实时预览”即可返回，单元测试锁定文本和 undo 栈保留。当前没有可证明的 `Ctrl+/` 快捷路径，也没有状态栏模式按钮。打开新文件会明确重置历史并建立保存点；恢复草稿建立 unsaved 基线；保存成功才把当前 `Text` 标为保存点，外部删除则清除保存点。fixture 测试继续锁定字节写出，真实 Tauri 小文件另证明 open → edit → save → undo/redo → reopen 主链，但模式切换后保存、asset 迁移和整套 fixture 的真实逐字节门禁仍缺失。
 
 这条路径已经能工作，但焦点体验是行级近似：点击粗体所在行的链接外普通文字，同一行中粗体和链接标记都可能展开；Typora 期望光标进入具体 span 才展开相关源码。普通 Enter、复制粘贴、IME 与模式切换滚动仍主要依赖 CodeMirror/浏览器默认行为，缺少产品级契约和端到端门禁。
 
@@ -101,10 +111,10 @@ Typora 对 IME 精确时序、跨模式共享 undo 的 GUI 细节以及复制为
 | Smart Paste 与纯文本粘贴 | 未实现 | 中 | 从网页/办公软件粘贴无法可靠保留或剥离语义 | 非图片粘贴交回默认，未见 HTML 转 Markdown 流程 |
 | 图片剪贴板导入 | 已实现 | 低 | 图片可落为 Markdown 引用 | `imageInputExtension.ts:180-218` 及对应 E2E |
 | 保存直接读取源码 | 已实现 | 低 | 基础保存不依赖渲染 DOM | `fileActions.ts:126-169` 从 editor port 取文本后写出 |
-| 真实 EditorView round-trip | 部分实现 | 高 | stub 字节测试存在，但尚不能排除打开、预览交互或 asset 分支引入无关 diff | `roundTrip.test.ts:8-72` 未实例化 EditorView |
+| 真实 EditorView round-trip | 部分实现 | 高 | 真实 Tauri 小文件主链通过；整套 fixture、模式切换和 asset 分支仍未做字节级实机矩阵 | 真实 WebView2 open/edit/save/undo/redo/reopen；`roundTrip.test.ts` 仍使用 editor stub |
 | 不完整/嵌套 Markdown 边界 | 部分实现 | 高 | 解析变化时标记可能闪烁或范围判断失准 | Lezer 提供结构基础，但横切测试样本有限 |
 | 可访问的隐藏/交互语义 | 部分实现 | 高 | `aria-hidden` checkbox 且不可 Tab 聚焦，屏幕阅读器无法操作 | `TaskCheckboxWidget` 设置 `aria-hidden=true`、`tabIndex=-1` |
-| 大文档 live preview 性能 | 部分实现 | 高 | 已有加载/输入预算，但滚动与选区重算风险未锁定 | `editorLargeDocument.bench.test.ts:28-67` |
+| 大文档 live preview 性能 | 部分实现 | 高 | 自动化预算和真实 10MB 输入均有证据，但滚动 FPS、IME、长时间编辑与内存仍未锁定 | 串行 `perf:bench`；真实 Tauri WebView2 10MB CDP/键盘测量 |
 
 ## 根因与架构影响
 
@@ -196,7 +206,7 @@ Typora 对 IME 精确时序、跨模式共享 undo 的 GUI 细节以及复制为
 - 保持现有 1MB 输入 16ms 目标，并为 selection decoration 重算、模式切换和滚动长任务设预算；性能命令不得与 E2E、构建等并行。
 - 记录 visible range 内 node 数、decoration 数和最长 transaction，避免只看平均值掩盖卡顿尖峰。
 
-本文是纯文档分析，本次没有运行上述测试；这些条目是可执行验收计划，不是通过声明。
+以上条目是尚未全部完成的验收计划，不是通过声明。2026-07-22 本轮实际执行了全量单元/E2E、真实 Tauri 文件与大文档链路；未执行的 IME、系统 dialog、辅助技术和跨平台项仍按本节计划验收。
 
 ## 风险与未核实项
 

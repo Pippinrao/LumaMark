@@ -1,6 +1,7 @@
 export type EditorDocumentChangedEvent = {
   type: 'documentChanged';
-  dirty: true;
+  dirty: boolean;
+  documentChanged: boolean;
   docVersion: number;
   documentLength: number;
   transactionCount: number;

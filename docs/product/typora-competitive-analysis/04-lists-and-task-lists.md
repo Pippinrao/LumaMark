@@ -1,5 +1,13 @@
 # 列表与任务列表竞争差距分析
 
+> **Parity Reliability 实施更新（2026-07-31）**
+>
+> 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+>
+> - characterization tests 已固定 CodeMirror 官方无序、有序、任务和嵌套列表的续写、退出与 Backspace 行为；列表专用 Tab/Shift+Tab 复用官方 `indentMore`/`indentLess`，并有精确 transaction、组合态/只读拒绝、单次撤销及 Playwright 证据。
+> - 任务 checkbox 现为可聚焦的原生控件，具备可动态重配的本地化可访问名称和只读禁用态；DOM 更新会保留控件身份与焦点，连续 Space 或 Enter 切换已有 DOM 与 Playwright 回归。
+> - 点击、Enter 与 `Mod-Enter` 统一通过 Lezer `ListItem → Task → TaskMarker` 路径，只替换 `[ ]` / `[x]` / `[X]` 内的状态字符；深层嵌套、引用内任务、围栏排除、选区稳定与单次撤销均有自动化证据。混合选区菜单转换、重编号、复杂粘贴及原生 IME 仍未全面追平。
+
 ## 用途、范围与非目标
 
 本文把 Typora 1.13.7 的公开列表体验基线与当前工作区中的 LumaMark 实现逐项对照，服务于产品验收、编辑器架构判断和后续测试设计。结论只认源码、自动化测试、fixture、依赖锁定与已记录的 Typora Support/本机观测证据；路线图、V1 设计和架构规划只能说明目标，不能证明功能已经存在。

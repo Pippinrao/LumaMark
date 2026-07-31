@@ -29,7 +29,7 @@ export type FileWorkflow = {
   externalConflict: ExternalFileConflict | null;
   fileOpening: boolean;
   keepCurrentContent: () => void;
-  markDocumentDirty: () => void;
+  markDocumentDirty: (dirty: boolean) => void;
   openFromDialog: () => Promise<void>;
   openPath: (path: string) => Promise<void>;
   reloadFromDisk: () => Promise<void>;
@@ -71,6 +71,7 @@ export function useFileWorkflow({
   const [fileOpening, setFileOpening] = useState(false);
   const fileOpeningRef = useRef(false);
   const operationIdRef = useRef(0);
+  const activeSaveRef = useRef<Promise<void> | null>(null);
   const editorReadyWaitersRef = useRef(new Set<() => void>());
 
   useEffect(() => {
@@ -108,12 +109,24 @@ export function useFileWorkflow({
     });
   }, [editorRef]);
 
-  const markDocumentDirty = useCallback(() => {
-    const currentState = state.getState();
+  const enqueueSave = useCallback((operation: () => Promise<void>) => {
+    const activeSave = activeSaveRef.current;
+    const nextSave = activeSave
+      ? activeSave.then(operation, operation)
+      : operation();
+    activeSaveRef.current = nextSave;
+    const clearActiveSave = () => {
+      if (activeSaveRef.current === nextSave) {
+        activeSaveRef.current = null;
+      }
+    };
+    void nextSave.then(clearActiveSave, clearActiveSave);
 
-    if (!currentState.dirty) {
-      state.setDirty(true);
-    }
+    return nextSave;
+  }, []);
+
+  const markDocumentDirty = useCallback((dirty: boolean) => {
+    state.setDirty(dirty);
   }, [state]);
 
   const externalFileWatch = useExternalFileWatch({
@@ -144,9 +157,12 @@ export function useFileWorkflow({
     return createFileActions({
       commands: resolveFileCommandClient(),
       editor: {
+        captureDocumentSnapshot: editor.captureSnapshot,
         focus: editor.focus,
-        getDocumentText: editor.getText,
+        isDocumentSnapshotCurrent: editor.isSnapshotCurrent,
         loadDocument: editor.loadText,
+        markDocumentSaved: editor.markSaved,
+        markDocumentUnsaved: editor.markUnsaved,
         setDocumentContext: editor.setContext,
       },
       recentFiles,
@@ -191,6 +207,9 @@ export function useFileWorkflow({
           result.data.path,
           result.data.fingerprint,
         );
+        if (!isCurrentRequest()) {
+          return;
+        }
         onDocumentBecameSafe();
         status.setStatusKey('status.opened');
       } else if (!result.ok) {
@@ -243,6 +262,9 @@ export function useFileWorkflow({
             result.data.path,
             result.data.fingerprint,
           );
+          if (!isCurrentRequest()) {
+            return;
+          }
           onDocumentBecameSafe();
           status.setStatusKey('status.opened');
         } else {
@@ -278,64 +300,120 @@ export function useFileWorkflow({
     status.setStatusKey('status.ready');
   }, [createActions, onDocumentBecameSafe, replaceWatchedDocument, status]);
 
-  const save = useCallback(async () => {
+  const save = useCallback(() => {
     if (fileOpeningRef.current) {
-      return;
+      return Promise.resolve();
     }
 
-    const requestId = ++operationIdRef.current;
+    const requestId = operationIdRef.current;
     const isCurrentRequest = () => requestId === operationIdRef.current;
-    const actions = createActions(undefined, isCurrentRequest);
+    return enqueueSave(async () => {
+      if (!isCurrentRequest() || fileOpeningRef.current) {
+        return;
+      }
 
-    if (!actions) {
-      return;
-    }
+      const actions = createActions(undefined, isCurrentRequest);
 
-    const result = state.getState().currentFile
-      ? await actions.saveCurrentFile()
-      : await actions.saveFileAs();
+      if (!actions) {
+        return;
+      }
 
-    if (isCurrentRequest() && result.ok && result.data && !state.getState().dirty) {
-      await replaceWatchedDocument(
-        result.data.path,
-        result.data.fingerprint,
-      );
-      onDocumentBecameSafe();
-      status.setStatusKey('status.saved');
-    }
+      const result = state.getState().currentFile
+        ? await actions.saveCurrentFile()
+        : await actions.saveFileAs();
+
+      if (!isCurrentRequest()) {
+        return;
+      }
+
+      if (!result.ok) {
+        status.setStatusKey('status.saveFailed');
+        return;
+      }
+
+      const savedState = state.getState();
+      if (result.data && !savedState.dirty) {
+        const savedRevision = savedState.dirtyRevision;
+        await replaceWatchedDocument(
+          result.data.path,
+          result.data.fingerprint,
+        );
+        if (!isCurrentRequest()) {
+          return;
+        }
+        const watchedState = state.getState();
+        if (
+          watchedState.dirty ||
+          watchedState.dirtyRevision !== savedRevision
+        ) {
+          return;
+        }
+        onDocumentBecameSafe();
+        status.setStatusKey('status.saved');
+      }
+    });
   }, [
     createActions,
+    enqueueSave,
     onDocumentBecameSafe,
     replaceWatchedDocument,
     state,
     status,
   ]);
 
-  const saveAs = useCallback(async () => {
+  const saveAs = useCallback(() => {
     if (fileOpeningRef.current) {
-      return;
+      return Promise.resolve();
     }
 
-    const requestId = ++operationIdRef.current;
+    const requestId = operationIdRef.current;
     const isCurrentRequest = () => requestId === operationIdRef.current;
-    const actions = createActions(undefined, isCurrentRequest);
+    return enqueueSave(async () => {
+      if (!isCurrentRequest() || fileOpeningRef.current) {
+        return;
+      }
 
-    if (!actions) {
-      return;
-    }
+      const actions = createActions(undefined, isCurrentRequest);
 
-    const result = await actions.saveFileAs();
+      if (!actions) {
+        return;
+      }
 
-    if (isCurrentRequest() && result.ok && result.data && !state.getState().dirty) {
-      await replaceWatchedDocument(
-        result.data.path,
-        result.data.fingerprint,
-      );
-      onDocumentBecameSafe();
-      status.setStatusKey('status.saved');
-    }
+      const result = await actions.saveFileAs();
+
+      if (!isCurrentRequest()) {
+        return;
+      }
+
+      if (!result.ok) {
+        status.setStatusKey('status.saveFailed');
+        return;
+      }
+
+      const savedState = state.getState();
+      if (result.data && !savedState.dirty) {
+        const savedRevision = savedState.dirtyRevision;
+        await replaceWatchedDocument(
+          result.data.path,
+          result.data.fingerprint,
+        );
+        if (!isCurrentRequest()) {
+          return;
+        }
+        const watchedState = state.getState();
+        if (
+          watchedState.dirty ||
+          watchedState.dirtyRevision !== savedRevision
+        ) {
+          return;
+        }
+        onDocumentBecameSafe();
+        status.setStatusKey('status.saved');
+      }
+    });
   }, [
     createActions,
+    enqueueSave,
     onDocumentBecameSafe,
     replaceWatchedDocument,
     state,

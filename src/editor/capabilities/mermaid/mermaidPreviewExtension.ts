@@ -1,25 +1,24 @@
 import {
-  type EditorState,
   type Extension,
-  RangeSetBuilder,
   StateEffect,
   StateField,
 } from '@codemirror/state';
-import {
-  Decoration,
-  type DecorationSet,
-  EditorView,
-  ViewPlugin,
-} from '@codemirror/view';
+import { type DecorationSet, EditorView, ViewPlugin } from '@codemirror/view';
 import mermaidPackage from 'mermaid/package.json';
-import {
-  MermaidRenderScheduler,
-} from './mermaidRenderScheduler';
+import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import { renderWithMermaid } from './mermaidRenderAdapter';
+import { changedRangesRequireMermaidRebuild } from './mermaidChangeDetection';
 import {
-  collectMermaidBlocksInRanges,
-} from './mermaidBlockDetection';
-import { MermaidBlockWidget } from './MermaidBlockWidget';
+  activeMermaidBlock,
+  mermaidEditingStateField,
+} from './mermaidEditingState';
+import { mermaidSourceEditingKeymap } from './mermaidInlineEditor';
+import {
+  buildMermaidDecorations,
+  canRebuildActiveMermaidRange,
+  changesTouchRange,
+  rebuildActiveMermaidRange,
+} from './mermaidDecorations';
 import './mermaid.css';
 
 export type MermaidPreviewExtensionOptions = {
@@ -38,6 +37,8 @@ export function mermaidPreviewExtension(
   const scheduler = options.scheduler ?? getDefaultScheduler();
 
   return [
+    mermaidEditingStateField,
+    mermaidSourceEditingKeymap(),
     mermaidDecorationsField(scheduler, options),
     mermaidThemeObserver(),
   ];
@@ -73,54 +74,79 @@ function mermaidDecorationsField(
   scheduler: MermaidRenderScheduler,
   options: MermaidPreviewExtensionOptions,
 ): Extension {
+  const decorationContext = () => ({
+    defaultMermaidVersion: DEFAULT_MERMAID_VERSION,
+    options,
+    scheduler,
+    theme: currentMermaidTheme(),
+  });
+  const rebuildAll = (state: Parameters<typeof buildMermaidDecorations>[0]) =>
+    buildMermaidDecorations(state, decorationContext());
+
   return StateField.define<DecorationSet>({
     create(state) {
-      return buildMermaidDecorations(state, scheduler, options);
+      return rebuildAll(state);
     },
     update(value, transaction) {
+      if (transaction.effects.some((effect) => effect.is(mermaidThemeChangedEffect))) {
+        return rebuildAll(transaction.state);
+      }
+
+      const previousActiveBlock = activeMermaidBlock(transaction.startState);
+      const activeBlock = activeMermaidBlock(transaction.state);
+
+      if (Boolean(previousActiveBlock) !== Boolean(activeBlock)) {
+        return rebuildAll(transaction.state);
+      }
+
       if (
-        transaction.docChanged ||
-        transaction.selection ||
-        transaction.effects.some((effect) => effect.is(mermaidThemeChangedEffect))
+        !transaction.docChanged &&
+        previousActiveBlock &&
+        activeBlock &&
+        (
+          previousActiveBlock.from !== activeBlock.from ||
+          previousActiveBlock.to !== activeBlock.to
+        )
       ) {
-        return buildMermaidDecorations(transaction.state, scheduler, options);
+        return rebuildAll(transaction.state);
+      }
+
+      if (!transaction.docChanged) {
+        return value;
+      }
+
+      if (
+        previousActiveBlock &&
+        changesTouchRange(
+          transaction,
+          previousActiveBlock.from,
+          previousActiveBlock.to,
+        )
+      ) {
+        if (
+          activeBlock &&
+          canRebuildActiveMermaidRange(transaction, previousActiveBlock)
+        ) {
+          return rebuildActiveMermaidRange(
+            value,
+            transaction,
+            previousActiveBlock,
+            activeBlock,
+            decorationContext(),
+          );
+        }
+
+        return rebuildAll(transaction.state);
+      }
+
+      if (changedRangesRequireMermaidRebuild(value, transaction)) {
+        return rebuildAll(transaction.state);
       }
 
       return value.map(transaction.changes);
     },
     provide: (field) => EditorView.decorations.from(field),
   });
-}
-
-function buildMermaidDecorations(
-  state: EditorState,
-  scheduler: MermaidRenderScheduler,
-  options: MermaidPreviewExtensionOptions,
-): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
-  const theme = currentMermaidTheme();
-
-  for (const block of collectMermaidBlocksInRanges(
-    state,
-    [{ from: 0, to: state.doc.length }],
-  )) {
-    builder.add(
-      block.from,
-      block.to,
-      Decoration.replace({
-        block: true,
-        widget: new MermaidBlockWidget(
-          block,
-          scheduler,
-          options,
-          theme,
-          DEFAULT_MERMAID_VERSION,
-        ),
-      }),
-    );
-  }
-
-  return builder.finish();
 }
 
 function getDefaultScheduler(): MermaidRenderScheduler {

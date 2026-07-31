@@ -1,5 +1,7 @@
 # 1. LumaMark 与 Typora Mermaid 及图表专题竞品分析
 
+> **Parity Reliability 实施更新（2026-07-27）：** 下方主体保留为 2026-07-12 的专题审计快照，其中关于嵌套 `EditorView`、`pendingContent`、active-save 缺口和旧测试数量的描述不再代表当前工作树。当前实现由主 CodeMirror `EditorView` 独占 Mermaid 正文与 undo；激活编辑时显示主文档围栏源码并把预览置于块下方，输入立即进入统一文档。真实 `dist/` 测试已触发 Mermaid 动态 import，Windows packaged WebView 已验证真实临时文件的 SVG、编辑态立即保存、Unicode 输入、`Mod-/` 往返和任务 checkbox 可访问名称。生产 Mermaid 分包必须启用 Rolldown `strictExecutionOrder`，以避免体积分组形成的循环 chunk 在初始化前执行。真实复杂图主线程 long task、中文 IME 候选窗、系统剪贴板和 Narrator/NVDA 仍未关闭，因此本更新不把 Mermaid 或整个里程碑表述为完全追平。当前执行范围和退出门禁以 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 与 [ADR 0006](../../decisions/0006-parity-reliability-editor-contracts.md) 为准。
+
 ## 2. 用途、范围与非目标
 
 本文用于回答一个严格限定的问题：截至当前工作树，LumaMark 的 Mermaid 与图表能力有哪些真实实现，用户实际会经历怎样的创建、阅读、编辑、保存与失败路径，以及这些能力距离 Typora 1.13.7 的公开体验基线还有多远。判断以代码、自动化测试、fixture、锁文件和本次新鲜验证为主；产品规划和架构规划只用于解释目标与边界，不能单独证明功能已经存在。
@@ -10,9 +12,9 @@
 
 ## 3. 执行摘要
 
-LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识别 `mermaid` 围栏，用官方 Mermaid 11.16.0 动态渲染 SVG；预览提供显式“编辑源码”和“删除”按钮；编辑时有补全、基础诊断、实时重渲染；失败块会局部显示错误并保持文档其余部分可编辑；源码模式恢复完整围栏；fixture 原文本经保存写出路径可以保持字节完全一致，但这不等于真实打开链路的完整 round-trip。本次专题单元、调度、语言服务、fixture 覆盖与保存字节保真共 51 项通过，完整 Mermaid E2E 37 项通过，性能样例记录 pending mock render 期间一次普通输入 dispatch 为 3.72 ms。
+LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识别 `mermaid` 围栏，用官方 Mermaid 11.16.0 动态渲染 SVG；预览提供显式“编辑源码”和“删除”按钮；编辑时有补全、基础诊断、实时重渲染；失败块会局部显示错误并保持文档其余部分可编辑；源码模式恢复完整围栏；fixture 原文本经保存写出路径可以保持字节完全一致，但这不等于真实打开链路的完整 round-trip。2026-07-22 的增量复核又锁定了 selection-only 不扫描、普通变更映射旧 decoration、changed-range 局部发现，以及围栏增删的双向失效；全量单测与浏览器 E2E 的新鲜结果见本文验证记录。
 
-但“功能存在”不等于“体验追平”。最主要差距有四项。第一，Typora 横切 live preview 基线要求当前块进入可编辑态、离开后回到预览；图表专题的精确进入手势仍未实机核实，不能断言一定是光标自动触发。LumaMark 的测试则明确固定为光标或选区进入块时仍隐藏源码并保持替换预览，用户必须悬停后点击编辑按钮，至少尚未追平“当前块可直接编辑”的交互模型。第二，inline editor 使用独立 CodeMirror 和待提交缓冲，正文只在关闭或 widget 销毁时写回主文档；仓库没有“inline editor 仍打开时直接保存”的自动化证据，因此保存最新编辑和统一撤销历史仍有高风险。第三，120 ms debounce、64 项缓存和 generation 丢弃只能避免部分重复与旧结果回写；真实 `mermaid.render` 仍在浏览器主线程执行，已启动任务不可中止，现有性能测试又使用永不完成的 mock Promise，不能证明复杂图渲染期间输入不卡顿。第四，Typora 的 Diagrams 开关、`sequence`/`flow`、右键复制/导出、深度主题配置等产品表面尚未提供。
+但“功能存在”不等于“体验追平”。最主要差距有四项。第一，Typora 横切 live preview 基线要求当前块进入可编辑态、离开后回到预览；图表专题的精确进入手势仍未实机核实，不能断言一定是光标自动触发。LumaMark 的测试则明确固定为光标或选区进入块时仍隐藏源码并保持替换预览，用户必须悬停后点击编辑按钮，至少尚未追平“当前块可直接编辑”的交互模型。第二，inline editor 使用独立 CodeMirror 和待提交缓冲，正文只在关闭或 widget 销毁时写回主文档；仓库没有“inline editor 仍打开时直接保存”的自动化证据，因此保存最新编辑和统一撤销历史仍有高风险。第三，普通 selection 和不相关编辑不再无条件全文扫描，但真实 `mermaid.render` 仍在浏览器主线程执行，已启动任务不可中止，现有专项性能测试仍使用永不完成的 mock Promise，不能证明复杂图渲染期间输入不卡顿。第四，Typora 的 Diagrams 开关、`sequence`/`flow`、右键复制/导出、深度主题配置等产品表面尚未提供。
 
 综合结论：LumaMark 的 Mermaid 核心功能状态为“部分实现”，已明显超过原型，但尚不能表述为 Typora 体验追平。优先级应先解决焦点编辑与保存一致性，再补真实主线程性能证据，之后扩展设置、导出和兼容围栏。
 
@@ -74,6 +76,7 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 3. **官方包动态加载且强制 strict。** `mermaidRenderAdapter.ts:7-33` 动态 import Mermaid，覆盖 `securityLevel: 'strict'`，关闭 `startOnLoad`，按应用明暗主题初始化并调用官方 `render`。SVG 随后在 `MermaidBlockWidget.ts:194-201` 通过 `innerHTML` 注入；安全边界依赖 strict 配置与 Mermaid/DOMPurify 上游。
 4. **主题重渲染已实现。** `mermaidPreviewExtension.ts:46-69,135-139` 观察根节点 `data-theme`，主题变化触发 decoration 重建；`MermaidWidget.test.ts:555` 起的测试验证会请求新渲染。
 5. **真实主线程隔离未实现。** scheduler 的异步边界是 `setTimeout` 加 Promise；`renderWithMermaid` 仍在窗口线程调用 `mermaid.render`，没有 worker 或可中止的渲染执行体。取消只能清 timer 或忽略旧结果，无法停止已经开始的布局计算。
+6. **普通编辑更新粒度已收窄，但不是完整性能闭环。** `mermaidPreviewExtension.ts` 对主题变化完整重建；selection-only 直接复用现有集合；普通文档变化先映射旧 decoration，仅在变更触碰旧块、前方长度位移、old/new 围栏上下文或 changed range 产生 Mermaid 块时重建。`mermaidChangeDetection.ts` 将判定从公开 extension 中拆出，`MermaidWidget.test.ts` 覆盖围栏创建/删除、等长替换、前方位移和 selection-only。真实 Tauri 10MB 通用文档的 CDP profile 中，Lezer/Mermaid 全树访问热点明显下降；但样本没有执行复杂 Mermaid 布局，不能升级“真实 Mermaid 主线程性能门禁”。
 
 ### 5.4 编辑、删除、错误与可访问性
 
@@ -101,7 +104,7 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 ## 6. 当前真实体验路径
 
 1. 用户在 live preview 主编辑器键入或粘贴完整 ` ```mermaid ` fenced block。没有设置开关、插入菜单或专用快捷键。
-2. 一旦语法树识别出完整围栏，extension 会扫描文档中的 Mermaid 块，用一个 preview widget 替换整个 source range。即使主编辑器光标或选区位于该块，预览仍保持，源码不会自动展开；这是 `MermaidWidget.test.ts:131-184` 明确锁定的当前行为。
+2. 一旦语法树识别出完整围栏，extension 会为 Mermaid 块建立 preview widget 并替换整个 source range。后续纯 selection 变化复用现有 decoration；不相关文本编辑映射旧集合，围栏/块相关变更才保守重建。即使主编辑器光标或选区位于该块，预览仍保持，源码不会自动展开；这是 `MermaidWidget.test.ts` 明确锁定的当前行为。
 3. 首次渲染显示本地化 loading 状态。120 ms 后动态加载/调用 Mermaid；相同 source、theme、config、version 可命中内存缓存。成功时显示 SVG，失败时显示通用错误并自动打开源码编辑区。
 4. 用户用鼠标 hover 或键盘聚焦 preview 后看到编辑、删除图标。点击编辑会打开嵌套 CodeMirror，预览位于源码编辑器下方；输入触发补全、基础 lint 和重新渲染。Escape 或焦点移出成功 preview 会关闭编辑器，错误状态则保持打开。
 5. inline editor 输入期间，SVG 使用待提交文本渲染，但主 Markdown 文档尚未立即更新。焦点离开、Escape、widget 重建或销毁后，待提交内容才替换原 fenced block 的正文范围。删除按钮会删除整个块并顺带处理一侧换行。
@@ -122,8 +125,8 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 | 编辑中立即写回唯一 Markdown 真相 | 部分实现 | 高 | 打开 inline editor 时保存可能遗漏末次输入，撤销历史也可能分裂 | `MermaidBlockWidget.ts:154-162,235-250`；缺少 active-save 测试 |
 | debounce 与缓存 | 已实现 | 低 | 降低重复渲染和快速输入抖动 | scheduler/cache 代码及单元测试 |
 | 可中止真实渲染 | 未实现 | 高 | 复杂旧图仍可能占用主线程，快速修改会浪费计算 | `renderWithMermaid` 直接调用官方 render；cancel 只丢结果 |
-| 全文/全树扫描控制 | 未实现 | 高 | 任意选区变化都可能重新遍历全文，长文档多图时影响输入与滚动 | `mermaidPreviewExtension.ts:80-86,103-106` |
-| 真实 Mermaid 主线程性能门禁 | 部分实现 | 高 | 3.72 ms 样例不能覆盖复杂图布局长任务 | perf 测试 `26-80` 使用永不完成 mock render |
+| 全文/全树扫描控制 | 部分实现 | 高 | selection 和不相关编辑已避免全树重建；块相关变更仍保守重建全部 Mermaid widget | `mermaidChangeDetection.ts`；围栏双向/等长/位移回归；真实 10MB CDP profile |
+| 真实 Mermaid 主线程性能门禁 | 部分实现 | 高 | 通用 10MB 输入改善不能覆盖复杂图布局长任务 | perf 测试仍使用永不完成 mock render；无真实复杂图 long-task 门禁 |
 | 多 Mermaid 图种 | 已实现 | 低 | 当前 27 个 required 与 2 个扩展样例可渲染 | `mermaidSamples.ts`；本次完整 E2E 37/37 通过 |
 | Mermaid 11.13+ 新图种 | 部分实现 | 中 | Venn 已有真实 E2E；Ishikawa 只有补全词条，不能证明当前渲染链路可用 | 锁定 11.16.0；`venn` sample/E2E；`mermaidLanguageService.ts:52-53` |
 | Diagrams 总开关 | 未实现 | 中 | 用户无法把 Mermaid 围栏按普通代码块阅读，也无法统一关闭高成本渲染 | settings/app 定点检索无入口 |
@@ -147,7 +150,7 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 1. **当前块模型选择错误。** preview extension 对每个 Mermaid block 无条件使用整块 `Decoration.replace`，selection 变化只触发同样的重建，没有“当前块显示 source、非当前块显示 preview”的分支。这不是按钮样式问题，而是 live preview 状态模型与 Typora 基线不同。
 2. **嵌套编辑器制造双状态。** inline CodeMirror 拥有独立 doc、selection、composition 和 history；`pendingContent` 又在 widget 内暂存，主文档直到 flush 才更新。它直接影响保存、撤销、IME、焦点、widget 重建和源码唯一真相。`mermaidEditingState.ts:1-13` 还是按绝对 offset 的模块级全局 Set，多编辑器、多窗口、块前方插入或文档切换时可能残留或错配。
 3. **渲染异步与计算隔离被混为一谈。** `setTimeout` 能把调用移出当前输入事务，Promise 能异步回传结果，但 Mermaid 的解析、布局与 SVG 生成仍可能在同一 UI 线程执行。generation 解决的是结果竞态，不解决 CPU 抢占。
-4. **更新粒度过粗。** 任何 docChanged 或 selection 事务都对 `[0, doc.length]` 遍历 syntax tree，并重建所有 Mermaid decorations。长文档、多图、频繁光标移动会把 Mermaid capability 带入热路径，违背 capability 自身应限制影响面的目标。
+4. **更新粒度已部分修复。** selection-only 与不相关文本编辑已不再无条件遍历 `[0, doc.length]`；old/new 围栏上下文、旧块相交、前方长度位移和 changed-range 新块由独立 helper 保守判定。块相关变化仍会重建全部 Mermaid widget，尚未做到按块/viewport 合并，也没有 100 图滚动和内存证据。
 5. **产品表面尚未接入 feature/service 层。** 当前 capability 只拥有 editor 内部 extension，没有 settings facade、command port、context-menu action 或 export/clipboard service，因此 Diagrams 开关、插入入口和导出能力自然缺失。把这些继续塞入 widget 会违反架构边界，应由 `features/settings`、`features/commands` 与 `services` 协作。
 6. **诊断没有统一 i18n/error contract。** language service 使用自建浅规则和硬编码英文；render adapter 抛出的真实错误在 widget 层被丢弃。结果是错误可隔离，但不可解释、不可定位，也难以稳定测试不同语言。
 
@@ -156,7 +159,7 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 ### 9.1 模块归属与数据流
 
 - `editor/capabilities/mermaid/mermaidPreviewExtension.ts` 负责基于主 EditorState 推导三态：非当前块为 preview，当前块为 source-editing，渲染失败块为 source + error。当前块应直接编辑主 CodeMirror 文档，避免复制出第二份 Markdown 状态。
-- `mermaidBlockDetection.ts` 继续负责语法树识别，但输入应改为 transaction changed ranges、selection 相关块和 visibleRanges；维护按 block identity 的轻量索引，不能在每次光标移动时扫描全文。
+- `mermaidBlockDetection.ts` 继续负责语法树识别；当前 transaction changed ranges 与 selection-only 复用已经落地。下一步维护按 block identity/viewport 的轻量索引，把围栏或块相关变更从“重建全部 Mermaid widget”继续收窄到受影响块。
 - `MermaidBlockWidget.ts` 收缩为纯预览生命周期和状态展示；移除 `pendingContent`、模块级 offset Set 及嵌套 history。若保留“源码+预览同时显示”的增强入口，nested editor 也必须通过同步 transaction bridge 每次写回主 doc，并共享明确的 undo group，不能在保存前留未提交副本。
 - `services/render-jobs` 提供通用但轻量的任务生命周期接口：queued/running/succeeded/failed/stale、取消 token、测量字段；Mermaid capability 只传 source/config/theme/version 和接收结果，不让 React store 持有 SVG 或 Markdown 全文。
 - `features/settings` 管理 Diagrams 开关与持久化；`editorDisplayModeCompartment` 或独立 Mermaid compartment 接收配置 effect，做到热更新，关闭时退化为普通 fenced code block。
@@ -191,7 +194,7 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 
 1. 改成“当前块直接编辑主文档、非当前块显示 preview”，消除光标进入仍隐藏 source 的行为差距。
 2. 移除或严格桥接 inline editor 的待提交副本，保证 active edit 下 `Ctrl+S`、Save As、窗口关闭恢复与 undo/redo 都读取最新 DSL。
-3. 把 block 收集改为 changed-range/selection/viewport 增量路径，停止每次 selection 全文扫描。
+3. selection 与普通 changed-range 增量路径已落地；继续把块相关全量重建收窄到受影响 block/viewport，并用访问计数门禁锁定。
 4. 建立真实 Mermaid render 性能基准：复杂 flowchart、sequence、C4、多图并发、连续快速修改；记录 UI 线程 long task、输入延迟、滚动和内存，不再只测 mock pending Promise。
 5. 为 IME、caret、selection、undo、active-save、错误恢复补集成与 E2E 门禁。
 
@@ -261,6 +264,9 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 - `pnpm exec vitest run src/editor/capabilities/mermaid/MermaidWidget.test.ts src/editor/capabilities/mermaid/mermaidRenderScheduler.test.ts src/editor/capabilities/mermaid/mermaidLanguageService.test.ts tests/fixtures/fixtureCoverage.test.ts tests/fixtures/roundTrip.test.ts`：2026-07-12 本轮新鲜执行退出码 0，5 个文件、51 项通过。
 - `pnpm exec playwright test tests/e2e/mermaid.spec.ts`：2026-07-12 本轮新鲜完整执行退出码 0，单 worker 串行 37/37 通过，用时 43.0 秒。本轮没有出现失败；该结果只证明本次运行，不外推长期无偶发失败。
 - `pnpm exec vitest run tests/perf/mermaidInputLatency.bench.test.ts --no-file-parallelism`：2026-07-12 本轮新鲜执行退出码 0，1/1 通过，记录 3.72 ms；测试使用 mock pending render，结论范围仅限 dispatch 样例。
+- `pnpm test -- --run`：2026-07-22 在锁定依赖上新鲜执行，56 个文件、385 项全部通过；包含 Mermaid changed-range、围栏双向失效和架构边界回归。
+- 两次隔离 `node_modules/.vite` 后的冷缓存全量 Web E2E：readiness 分别为 30.618 秒和 30.922 秒，最终 116/116 通过；该结果包含现有 Mermaid 浏览器用例，但仍不是 packaged WebView 的复杂 Mermaid 专项。
+- `pnpm perf:bench`：2026-07-23 对最终工作树独立串行执行，5 个文件、13 项通过；Mermaid pending mock dispatch 为 3.14 ms。真实 Tauri 10MB CDP 测量证明普通输入热路径下降，但未执行真实复杂图布局，不能关闭主线程渲染风险。
 
 ## 12. 风险与未核实项
 
@@ -268,9 +274,9 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 2. LumaMark 在 inline editor 保持打开时保存、Save As、窗口关闭、恢复草稿的最新内容一致性未测试，且代码存在延迟 flush 证据；通用 fixture 门禁也只验证保存写出，没有覆盖真实 open → EditorState → save。
 3. 中文 IME、跨主/嵌套 editor undo、跨模式 undo、选择复制、屏幕阅读器、触控与多窗口未覆盖。
 4. `%%{init}%%` 可能由 Mermaid 11.16.0 直接支持，但本地没有兼容、安全和主题优先级测试，因此保持证据不足。
-5. 现有性能测试没有运行真实 Mermaid 计算，也没有测长任务、滚动、100 图扫描和内存；动态 import 只优化首屏包加载，不等于渲染不阻塞。
-6. E2E 运行在 Web harness，不覆盖 Tauri packaged WebView 的文件、剪贴板、GPU、字体和平台差异；本轮一次 37/37 通过也不能证明长期无偶发失败。
-7. 当前仓库存在大量未提交的他人改动，本报告描述的是 2026-07-12 当前工作树快照，不代表某个已发布 tag；本文未修改或回滚这些改动。
+5. 现有 Mermaid 专项性能测试没有运行真实 Mermaid 计算，也没有测复杂图长任务、100 图滚动和内存；2026-07-22 的真实 Tauri 10MB CDP profile 只证明通用编辑热路径改善，不能外推为渲染不阻塞。
+6. Mermaid 功能 E2E 仍运行在 Web harness；2026-07-22 虽补了真实 Tauri WebView2 通用文件与大文档链路，但没有在 packaged WebView 中执行复杂 Mermaid 创建/渲染/编辑，因此平台字体、GPU 与剪贴板差异仍未覆盖。
+7. 本报告已在 2026-07-22 对当前工作树增量复核；它不代表某个已发布 tag。所有状态升级只依据本轮读取代码、自动化或真实 Tauri 观测，不把规划当成完成证据。
 
 ## 13. 证据索引
 
@@ -286,7 +292,7 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 - `package.json:30-61`；`pnpm-lock.yaml:83-85,2165-2166,4954-4975`：Mermaid 11.16.0 依赖事实。
 - `src/editor/core/editorDisplayMode.ts:37-52`；`src/editor/capabilities/index.ts:20-39`；`createMermaidCapability.ts:4-8`：live preview 实际接线。
 - `src/editor/capabilities/mermaid/mermaidBlockDetection.ts:30-103`：围栏检测。
-- `src/editor/capabilities/mermaid/mermaidPreviewExtension.ts:35-139`：state field、全文 decoration 重建、主题观察、120 ms scheduler。
+- `src/editor/capabilities/mermaid/mermaidPreviewExtension.ts`、`mermaidChangeDetection.ts`：state field、主题观察、120 ms scheduler，以及 selection/changed-range/围栏上下文增量判定。
 - `src/editor/capabilities/mermaid/mermaidRenderScheduler.ts:38-145`；`mermaidCache.ts:12-67`：调度、generation、缓存。
 - `src/editor/capabilities/mermaid/mermaidRenderAdapter.ts:7-33`：strict config、dynamic import、真实 render 调用。
 - `src/editor/capabilities/mermaid/MermaidBlockWidget.ts:48-302`：preview lifecycle、错误、inline edit、flush、删除。
@@ -297,7 +303,7 @@ LumaMark 已经具备可用的 Mermaid 核心闭环：live preview 模式会识�
 
 ### 测试与 fixture
 
-- `src/editor/capabilities/mermaid/MermaidWidget.test.ts:37-583`：检测、source 不变、焦点仍预览、错误隔离、按钮、编辑、删除、主题。
+- `src/editor/capabilities/mermaid/MermaidWidget.test.ts`、`mermaidChangeDetection.test.ts`：检测、source 不变、焦点仍预览、错误隔离、按钮、编辑、删除、主题，以及 selection-only、普通变更映射、围栏双向失效与 changed-range 判定。
 - `mermaidRenderScheduler.test.ts:17-284`；`mermaidLanguageService.test.ts:9-84`：缓存/竞态与补全/诊断。
 - `tests/e2e/mermaid.spec.ts:34-339`：异步输入、编辑删除、caret、错误、多图种、gallery 与 source mode。
 - `tests/e2e/v1-workflow.spec.ts:6-19,105-135,164-175`：打开、保存、重载、主题、Mermaid 与源码模式工作流。

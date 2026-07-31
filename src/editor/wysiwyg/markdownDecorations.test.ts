@@ -1,12 +1,27 @@
-import { EditorSelection, EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+} from '@codemirror/state';
+import { EditorView, runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import {
   collectMarkdownDecorationRanges,
   markdownWysiwygExtension,
+  selectMarkdownDecorationUpdateMode,
 } from './markdownDecorations';
 import { markdownLanguage } from '../markdown/markdownLanguage';
 import { toggleTaskListAtSelection } from './taskListCommands';
+import {
+  mermaidEditingStateField,
+  setActiveMermaidBlockEffect,
+} from '../capabilities/mermaid/mermaidEditingState';
+
+function visibleLineTexts(parent: HTMLElement): string[] {
+  return [...parent.querySelectorAll('.cm-line')].map(
+    (line) => line.textContent ?? '',
+  );
+}
 
 describe('markdown WYSIWYG decorations', () => {
   it('marks heading lines with level-specific ranges', () => {
@@ -265,6 +280,376 @@ describe('markdown WYSIWYG decorations', () => {
 });
 
 describe('markdown WYSIWYG extension', () => {
+  it('installs ordinary paragraph editing in the live-preview extension', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'plain',
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(5),
+      }),
+    });
+
+    expect(
+      runScopeHandlers(
+        view,
+        new KeyboardEvent('keydown', { key: 'Enter' }),
+        'editor',
+      ),
+    ).toBe(true);
+    expect(view.state.doc.toString()).toBe('plain\n\n');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('maps decorations throughout composition and rebuilds on settlement', () => {
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: true,
+        requiresRebuild: true,
+        wasComposing: false,
+      }),
+    ).toBe('map');
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: true,
+        requiresRebuild: false,
+        wasComposing: true,
+      }),
+    ).toBe('map');
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        requiresRebuild: false,
+        wasComposing: true,
+      }),
+    ).toBe('rebuild');
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        requiresRebuild: true,
+        wasComposing: false,
+      }),
+    ).toBe('rebuild');
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        requiresRebuild: false,
+        wasComposing: false,
+      }),
+    ).toBe('keep');
+  });
+
+  it('reveals only the inline owner touched by the caret on the same line', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '**first** and **second**';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('first') + 1),
+      }),
+    });
+
+    expect(parent.textContent).toContain('**first**');
+    expect(parent.textContent).not.toContain('**second**');
+    expect(parent.textContent).toContain('second');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('reveals nested inline owners but not an adjacent owner', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '**outer *中文* tail** and ``code`span`` and *other*';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('中文') + 1),
+      }),
+    });
+
+    expect(parent.textContent).toContain('**outer *中文* tail**');
+    expect(parent.textContent).not.toContain('``code`span``');
+    expect(parent.textContent).not.toContain('*other*');
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('code') + 1),
+    });
+    expect(parent.textContent).toContain('``code`span``');
+    expect(parent.textContent).not.toContain('**outer *中文* tail**');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps adjacent owners hidden at their shared caret boundary', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '**a**_b_';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(5),
+      }),
+    });
+
+    expect(parent.textContent).toBe('ab');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('reveals link destination and title only for the active link owner', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '[first](one.test "one") and [second](two.test "two")';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('one.test') + 1),
+      }),
+    });
+
+    expect(parent.textContent).toContain('[first](one.test "one")');
+    expect(parent.textContent).not.toContain('two.test');
+    expect(parent.textContent).not.toContain('"two"');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('merges active inline owners from multiple selections', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '**first** plain *second* plain ~~third~~';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          EditorState.allowMultipleSelections.of(true),
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+        ],
+        selection: EditorSelection.create([
+          EditorSelection.cursor(doc.indexOf('first') + 1),
+          EditorSelection.cursor(doc.indexOf('second') + 1),
+        ]),
+      }),
+    });
+
+    expect(parent.textContent).toContain('**first**');
+    expect(parent.textContent).toContain('*second*');
+    expect(parent.textContent).not.toContain('~~third~~');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('reveals all delimiters owned by the current multi-line structure', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const cases = [
+      {
+        cursor: 'Title',
+        doc: 'Title\n---\n\nplain',
+        expected: ['Title', '---'],
+      },
+      {
+        cursor: 'continuation',
+        doc: '- item\n  continuation\n\nplain',
+        expected: ['- item'],
+      },
+      {
+        cursor: 'second',
+        doc: '> first\n> second\n\nplain',
+        expected: ['> first', '> second'],
+      },
+      {
+        cursor: 'const',
+        doc: '```ts\nconst x = 1\n```\n\nplain',
+        expected: ['```ts', 'const x = 1', '```'],
+      },
+    ] as const;
+
+    for (const item of cases) {
+      const host = document.createElement('div');
+      parent.appendChild(host);
+      const view = new EditorView({
+        parent: host,
+        state: EditorState.create({
+          doc: item.doc,
+          extensions: [markdownLanguage(), markdownWysiwygExtension()],
+          selection: EditorSelection.cursor(
+            item.doc.indexOf(item.cursor) + 1,
+          ),
+        }),
+      });
+
+      expect(visibleLineTexts(host)).toEqual(
+        expect.arrayContaining([...item.expected]),
+      );
+      view.destroy();
+      host.remove();
+    }
+
+    parent.remove();
+  });
+
+  it.each([
+    {
+      cursor: 'nested',
+      doc: '> > nested',
+      expectedLine: '> > nested',
+      name: 'nested blockquote',
+    },
+    {
+      cursor: 'quoted task',
+      doc: '> - [ ] quoted task',
+      expectedLine: '> - [ ] quoted task',
+      name: 'task list inside a blockquote',
+    },
+  ] as const)(
+    'reveals the complete structural marker path for $name',
+    ({ cursor, doc, expectedLine }) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const view = new EditorView({
+        parent,
+        state: EditorState.create({
+          doc,
+          extensions: [markdownLanguage(), markdownWysiwygExtension()],
+          selection: EditorSelection.cursor(doc.indexOf(cursor) + 1),
+        }),
+      });
+
+      expect(visibleLineTexts(parent)).toContain(expectedLine);
+
+      view.destroy();
+      parent.remove();
+    },
+  );
+
+  it('reveals a complete and consistent quote path around an active fenced code block', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '> ```ts\n> code\n> ```';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('code') + 1),
+      }),
+    });
+
+    expect(visibleLineTexts(parent)).toEqual(doc.split('\n'));
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps both Mermaid fences and info visible for the active block', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const mermaidSource = '```mermaid\ngraph TD\n```';
+    const doc = `${mermaidSource}\n\noutside`;
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+          mermaidEditingStateField,
+        ],
+        selection: EditorSelection.create([
+          EditorSelection.range(
+            doc.indexOf('graph') + 1,
+            doc.indexOf('outside') + 1,
+          ),
+        ]),
+      }),
+    });
+
+    view.dispatch({
+      effects: setActiveMermaidBlockEffect.of({
+        from: 0,
+        to: mermaidSource.length,
+      }),
+    });
+
+    expect(visibleLineTexts(parent)).toEqual(
+      expect.arrayContaining(mermaidSource.split('\n')),
+    );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it.each([
+    {
+      doc: '---\ntitle: LumaMark\n---\n# Heading\n\nplain',
+      forbiddenSelector:
+        '.lm-md-horizontal-rule, .lm-md-heading-2',
+      name: 'YAML front matter',
+      protectedSource: '---\ntitle: LumaMark\n---',
+    },
+    {
+      doc: '[^note]: source\ntext[^note]\n\nplain',
+      forbiddenSelector: '.lm-md-link',
+      name: 'footnotes',
+      protectedSource: '[^note]: source\ntext[^note]',
+    },
+    {
+      doc: '[toc]\n\nplain',
+      forbiddenSelector: '.lm-md-link',
+      name: 'a standalone TOC marker',
+      protectedSource: '[toc]',
+    },
+    {
+      doc: '> [!NOTE]\n> source remains visible\n\nplain',
+      forbiddenSelector: '.lm-md-blockquote, .lm-md-link',
+      name: 'a callout',
+      protectedSource: '> [!NOTE]\n> source remains visible',
+    },
+  ])(
+    'keeps protected source visible without generic decoration for $name',
+    ({ doc, forbiddenSelector, protectedSource }) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const view = new EditorView({
+        parent,
+        state: EditorState.create({
+          doc,
+          extensions: [markdownLanguage(), markdownWysiwygExtension()],
+          selection: EditorSelection.cursor(doc.indexOf('plain')),
+        }),
+      });
+
+      expect(visibleLineTexts(parent)).toEqual(
+        expect.arrayContaining(protectedSource.split('\n')),
+      );
+      expect(parent.querySelector(forbiddenSelector)).toBeNull();
+
+      view.destroy();
+      parent.remove();
+    },
+  );
+
   it('rehides markdown marks when the cursor leaves the active line', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
@@ -293,13 +678,13 @@ describe('markdown WYSIWYG extension', () => {
   it('adds stable line classes for unordered and task list preview rows', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
-    const doc = ['- item', '- [ ] task'].join('\n');
+    const doc = ['- item', '- [ ] task', '', 'plain'].join('\n');
     const view = new EditorView({
       parent,
       state: EditorState.create({
         doc,
         extensions: [markdownLanguage(), markdownWysiwygExtension()],
-        selection: EditorSelection.cursor(doc.length),
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
       }),
     });
 
@@ -315,16 +700,493 @@ describe('markdown WYSIWYG extension', () => {
   it('renders task checkbox widgets without changing source text', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
+    const doc = '- [ ] task\n\nplain';
     const view = new EditorView({
       parent,
       state: EditorState.create({
-        doc: '- [ ] task',
+        doc,
         extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
       }),
     });
 
-    expect(view.state.doc.toString()).toBe('- [ ] task');
+    expect(view.state.doc.toString()).toBe(doc);
     expect(parent.querySelector('.lm-md-task-checkbox')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('exposes task checkboxes to assistive technology and keyboard input', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    expect(checkbox).not.toBeNull();
+    expect(checkbox?.type).toBe('checkbox');
+    expect(checkbox?.checked).toBe(false);
+    expect(checkbox?.tabIndex).toBe(0);
+    expect(checkbox?.getAttribute('aria-label')).toBe(
+      'Toggle task completion',
+    );
+
+    checkbox?.focus();
+    expect(document.activeElement).toBe(checkbox);
+    checkbox?.click();
+    expect(view.state.doc.toString()).toBe('- [x] task\n\nplain');
+
+    const checkedCheckbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+    expect(checkedCheckbox?.checked).toBe(true);
+    checkedCheckbox?.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        key: 'Enter',
+      }),
+    );
+    expect(view.state.doc.toString()).toBe('- [ ] task\n\nplain');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps the task checkbox DOM and focus across repeated toggles', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    if (!checkbox) {
+      throw new Error('Expected a task checkbox widget.');
+    }
+
+    checkbox.focus();
+    checkbox.click();
+
+    expect(view.state.doc.toString()).toBe('- [x] task\n\nplain');
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+    expect(document.activeElement).toBe(checkbox);
+    expect(checkbox.checked).toBe(true);
+
+    checkbox.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        key: 'Enter',
+      }),
+    );
+
+    expect(view.state.doc.toString()).toBe('- [ ] task\n\nplain');
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+    expect(document.activeElement).toBe(checkbox);
+    expect(checkbox.checked).toBe(false);
+
+    checkbox.click();
+
+    expect(view.state.doc.toString()).toBe('- [x] task\n\nplain');
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+    expect(document.activeElement).toBe(checkbox);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('dispatches one task checkbox state-character change without moving selection', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '- [ ] task\n\nplain';
+    const documentChanges: {
+      fromA: number;
+      fromB: number;
+      inserted: string;
+      toA: number;
+      toB: number;
+    }[][] = [];
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+          EditorView.updateListener.of((update) => {
+            if (!update.docChanged) {
+              return;
+            }
+
+            const changes: (typeof documentChanges)[number] = [];
+            update.changes.iterChanges(
+              (fromA, toA, fromB, toB, inserted) => {
+                changes.push({
+                  fromA,
+                  fromB,
+                  inserted: inserted.toString(),
+                  toA,
+                  toB,
+                });
+              },
+            );
+            documentChanges.push(changes);
+          }),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const selectionBefore = view.state.selection.toJSON();
+
+    parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    )?.click();
+
+    expect(documentChanges).toEqual([
+      [
+        {
+          fromA: 3,
+          fromB: 3,
+          inserted: 'x',
+          toA: 4,
+          toB: 4,
+        },
+      ],
+    ]);
+    expect(view.state.selection.toJSON()).toEqual(selectionBefore);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('disables task checkbox widgets in read-only editors', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+          EditorState.readOnly.of(true),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    expect(checkbox?.disabled).toBe(true);
+    checkbox?.click();
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(checkbox?.checked).toBe(false);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('updates a task checkbox when read-only is reconfigured', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const readOnly = new Compartment();
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+          readOnly.of(EditorState.readOnly.of(false)),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    if (!checkbox) {
+      throw new Error('Expected a task checkbox widget.');
+    }
+
+    view.dispatch({
+      effects: readOnly.reconfigure(EditorState.readOnly.of(true)),
+    });
+
+    expect(checkbox.disabled).toBe(true);
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+
+    view.dispatch({
+      effects: readOnly.reconfigure(EditorState.readOnly.of(false)),
+    });
+
+    expect(checkbox.disabled).toBe(false);
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('updates a task checkbox aria-label after phrases are reconfigured', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const phrases = new Compartment();
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+          phrases.of(
+            EditorState.phrases.of({
+              'Toggle task completion': 'Toggle completion',
+            }),
+          ),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    if (!checkbox) {
+      throw new Error('Expected a task checkbox widget.');
+    }
+
+    checkbox.focus();
+    view.dispatch({
+      effects: phrases.reconfigure(
+        EditorState.phrases.of({
+          'Toggle task completion': '切换任务完成状态',
+        }),
+      ),
+    });
+    await Promise.resolve();
+
+    expect(checkbox.getAttribute('aria-label')).toBe('切换任务完成状态');
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+    expect(document.activeElement).toBe(checkbox);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('restores task checkbox recycle focus without a later focus decision', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    if (!checkbox) {
+      throw new Error('Expected a task checkbox widget.');
+    }
+
+    checkbox.focus();
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('task')),
+    });
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('plain')),
+    });
+
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(checkbox);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('does not steal a later focus decision during task checkbox recycle', async () => {
+    const parent = document.createElement('div');
+    const button = document.createElement('button');
+    document.body.append(parent, button);
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    if (!checkbox) {
+      throw new Error('Expected a task checkbox widget.');
+    }
+
+    checkbox.focus();
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('task')),
+    });
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('plain')),
+    });
+
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+    button.focus();
+    expect(document.activeElement).toBe(button);
+
+    await Promise.resolve();
+
+    expect(document.activeElement).toBe(button);
+
+    view.destroy();
+    parent.remove();
+    button.remove();
+  });
+
+  it('does not restore task checkbox recycle focus over an existing control focus', async () => {
+    const parent = document.createElement('div');
+    const button = document.createElement('button');
+    document.body.append(parent, button);
+    const doc = '- [ ] task\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    );
+
+    if (!checkbox) {
+      throw new Error('Expected a task checkbox widget.');
+    }
+
+    checkbox.focus();
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('task')),
+    });
+    button.focus();
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('plain')),
+    });
+
+    expect(parent.querySelector('input.lm-md-task-checkbox')).toBe(checkbox);
+    expect(document.activeElement).toBe(button);
+
+    await Promise.resolve();
+
+    expect(document.activeElement).toBe(button);
+
+    view.destroy();
+    parent.remove();
+    button.remove();
+  });
+
+  it('keeps a mapped task checkbox bound to its current marker position', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['- [ ] first', '- [ ] second', '', 'plain'].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
+      }),
+    });
+    const secondCheckbox = parent.querySelectorAll<HTMLInputElement>(
+      'input.lm-md-task-checkbox',
+    )[1];
+
+    if (!secondCheckbox) {
+      throw new Error('Expected the second task checkbox widget.');
+    }
+
+    view.dispatch({
+      changes: { from: 0, insert: 'intro\n' },
+    });
+
+    expect(
+      parent.querySelectorAll<HTMLInputElement>(
+        'input.lm-md-task-checkbox',
+      )[1],
+    ).toBe(secondCheckbox);
+
+    secondCheckbox.click();
+
+    expect(view.state.doc.toString()).toBe(
+      ['intro', '- [ ] first', '- [x] second', '', 'plain'].join('\n'),
+    );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('replaces an inactive task marker once and restores source for its active list item', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '- [ ] task\n\nplain';
+    const taskPosition = doc.indexOf('task');
+    const plainPosition = doc.indexOf('plain');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(plainPosition),
+      }),
+    });
+
+    const taskLine = parent.querySelector('.lm-md-task-list-line');
+    expect(taskLine?.textContent).not.toContain('[ ]');
+    expect(
+      taskLine?.querySelectorAll('input.lm-md-task-checkbox'),
+    ).toHaveLength(1);
+
+    view.dispatch({
+      selection: EditorSelection.cursor(taskPosition),
+    });
+
+    expect(
+      parent.querySelector('.lm-md-task-list-line')?.textContent,
+    ).toContain('- [ ] task');
+    expect(
+      parent.querySelector('.lm-md-task-checkbox'),
+    ).toBeNull();
 
     view.destroy();
     parent.remove();
@@ -333,11 +1195,13 @@ describe('markdown WYSIWYG extension', () => {
   it('renders ordered task checkbox widgets', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
+    const doc = '1. [ ] task\n\nplain';
     const view = new EditorView({
       parent,
       state: EditorState.create({
-        doc: '1. [ ] task',
+        doc,
         extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('plain')),
       }),
     });
 
@@ -367,7 +1231,7 @@ describe('markdown WYSIWYG extension', () => {
   it('renders nested unordered list markers as preview bullets off the active line', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
-    const doc = ['- top', '  - nested', 'plain'].join('\n');
+    const doc = ['- top', '  - nested', '', 'plain'].join('\n');
     const view = new EditorView({
       parent,
       state: EditorState.create({
@@ -451,6 +1315,7 @@ describe('task list commands', () => {
   it('toggles an unchecked task marker at the current selection', () => {
     const state = EditorState.create({
       doc: '- [ ] task',
+      extensions: [markdownLanguage()],
       selection: EditorSelection.cursor(3),
     });
 
@@ -466,6 +1331,7 @@ describe('task list commands', () => {
   it('toggles a checked task marker at the current selection', () => {
     const state = EditorState.create({
       doc: '- [x] task',
+      extensions: [markdownLanguage()],
       selection: EditorSelection.cursor(4),
     });
 
@@ -481,6 +1347,7 @@ describe('task list commands', () => {
   it('toggles an ordered task marker at the current selection', () => {
     const state = EditorState.create({
       doc: '1. [ ] task',
+      extensions: [markdownLanguage()],
       selection: EditorSelection.cursor(5),
     });
 
@@ -496,6 +1363,7 @@ describe('task list commands', () => {
   it('does not toggle bracket text that is not a task list marker', () => {
     const state = EditorState.create({
       doc: 'plain [ ] text',
+      extensions: [markdownLanguage()],
       selection: EditorSelection.cursor(7),
     });
 
@@ -505,6 +1373,7 @@ describe('task list commands', () => {
   it('does not toggle a task marker without a following space', () => {
     const state = EditorState.create({
       doc: '- [ ]literal',
+      extensions: [markdownLanguage()],
       selection: EditorSelection.cursor(3),
     });
 

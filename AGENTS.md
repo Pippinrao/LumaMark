@@ -319,9 +319,11 @@ LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通�
 1. `AGENTS.md`：工作规则、工程纪律、文档治理。
 2. `DEVELOPMENT_PROCESS.md`：开发流程、测试、验证和完成定义。
 3. `docs/product/PROJECT_CHARTER.md`：项目愿景和长期定位。
-4. `docs/product/V1_VERSION_DESIGN.md`：V1 版本设计。
+4. `docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md`：当前实施范围、顺序和退出门禁。
 5. `docs/architecture/DETAILED_ARCHITECTURE.md`：当前详细架构和技术选型。
 6. `docs/roadmap/EVOLUTION_PLAN.md`：阶段和演进计划。
+
+`docs/product/V1_PRODUCT_REQUIREMENTS.md`、`docs/product/V1_UX_DESIGN.md`、`docs/product/V1_VERSION_DESIGN.md` 与 `docs/roadmap/V1_IMPLEMENTATION_PLAN.md` 是 Foundation / MarkText+ 的历史 Alpha 基线，不作为当前实现状态或执行顺序的事实来源。
 
 其他文档只能补充主事实来源，不能复制一整段相同内容后各自演化。
 

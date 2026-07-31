@@ -1,7 +1,15 @@
-import { EditorSelection, EditorState, type Extension } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
 import {
+  EditorSelection,
+  EditorState,
+  type Extension,
+} from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import { history, isolateHistory } from '@codemirror/commands';
+import {
+  captureDocumentSavepoint,
   createEditorState,
+  editorHistoryCompartment,
+  setDocumentSavepoint,
   type CreateEditorStateOptions,
   editorSearchPhrasesCompartment,
 } from './createEditorState';
@@ -14,6 +22,14 @@ import {
   type EditorDisplayMode,
 } from './editorDisplayMode';
 import { invalidatePendingImageImports } from '../capabilities/image/imageInputExtension';
+import {
+  documentSourceFormatField,
+  documentSourceFormatsEqual,
+  parseDocumentSource,
+  serializeDocumentSource,
+  setDocumentSourceFormat,
+} from './documentSourceFormat';
+import { createExactDocumentChanges } from './documentChangeMapping';
 
 export type CreateEditorApiOptions = Omit<
   CreateEditorStateOptions,
@@ -25,15 +41,32 @@ export type CreateEditorApiOptions = Omit<
 
 export type LoadDocumentOptions = {
   preserveView?: boolean;
+  resetHistory?: boolean;
+  saved?: boolean;
+};
+
+const snapshotSavepoint = Symbol('editorDocumentSnapshotSavepoint');
+
+export type EditorDocumentSnapshot = {
+  readonly serializedText: string;
+};
+
+type InternalEditorDocumentSnapshot = EditorDocumentSnapshot & {
+  readonly [snapshotSavepoint]: ReturnType<typeof captureDocumentSavepoint>;
 };
 
 export type EditorApi = {
   readonly view: EditorView;
+  captureDocumentSnapshot: () => EditorDocumentSnapshot;
   destroy: () => void;
   focus: () => void;
   getDisplayMode: () => EditorDisplayMode;
   getDocumentText: () => string;
+  getSerializedDocumentText: () => string;
+  isDocumentSnapshotCurrent: (snapshot: EditorDocumentSnapshot) => boolean;
   loadDocument: (doc: string, options?: LoadDocumentOptions) => void;
+  markDocumentSaved: (snapshot: EditorDocumentSnapshot) => void;
+  markDocumentUnsaved: () => void;
   setLanguage: (language: AppLanguage) => void;
   setDocumentContext: (context: EditorDocumentContext) => void;
   setDisplayMode: (mode: EditorDisplayMode) => void;
@@ -75,40 +108,130 @@ export class CodeMirrorEditorApi implements EditorApi {
     this.editorView.focus();
   }
 
+  captureDocumentSnapshot(): EditorDocumentSnapshot {
+    const snapshot = Object.freeze({
+      serializedText: serializeDocumentSource(this.editorView.state),
+      [snapshotSavepoint]: captureDocumentSavepoint(this.editorView.state),
+    });
+    this.editorView.dispatch({
+      annotations: isolateHistory.of('after'),
+    });
+
+    return snapshot;
+  }
+
   getDocumentText(): string {
     return this.editorView.state.doc.toString();
+  }
+
+  getSerializedDocumentText(): string {
+    return serializeDocumentSource(this.editorView.state);
   }
 
   getDisplayMode(): EditorDisplayMode {
     return this.displayMode;
   }
 
+  isDocumentSnapshotCurrent(snapshot: EditorDocumentSnapshot): boolean {
+    const savepoint = (snapshot as InternalEditorDocumentSnapshot)[
+      snapshotSavepoint
+    ];
+
+    return (
+      savepoint !== undefined &&
+      this.editorView.state.doc.eq(savepoint.doc) &&
+      documentSourceFormatsEqual(
+        this.editorView.state.field(documentSourceFormatField),
+        savepoint.sourceFormat,
+      )
+    );
+  }
+
   loadDocument(doc: string, options: LoadDocumentOptions = {}): void {
     const preserveView = options.preserveView ?? false;
+    const resetHistory = options.resetHistory ?? true;
+    const saved = options.saved ?? true;
+    const parsedDocument = parseDocumentSource(doc);
+    const documentText = this.editorView.state.toText(parsedDocument.text);
+    const mapPreparedDocument =
+      preserveView && resetHistory === false;
     const scrollLeft = this.editorView.scrollDOM.scrollLeft;
     const scrollTop = this.editorView.scrollDOM.scrollTop;
-    const selection = preserveView
+    const selection = preserveView && !mapPreparedDocument
       ? EditorSelection.create(
           this.editorView.state.selection.ranges.map((range) =>
             EditorSelection.range(
-              Math.min(range.anchor, doc.length),
-              Math.min(range.head, doc.length),
+              Math.min(range.anchor, documentText.length),
+              Math.min(range.head, documentText.length),
             ),
           ),
           this.editorView.state.selection.mainIndex,
         )
       : EditorSelection.cursor(0);
+    const scrollSnapshot = mapPreparedDocument
+      ? this.editorView.scrollSnapshot()
+      : null;
+    if (resetHistory) {
+      this.editorView.dispatch({
+        effects: editorHistoryCompartment.reconfigure([]),
+      });
+    }
     this.editorView.dispatch({
-      changes: {
-        from: 0,
-        insert: doc,
-        to: this.editorView.state.doc.length,
-      },
-      selection,
-      effects: invalidatePendingImageImports.of(null),
+      changes: mapPreparedDocument
+        ? createExactDocumentChanges(
+            this.editorView.state.doc,
+            documentText,
+          )
+        : {
+            from: 0,
+            insert: documentText,
+            to: this.editorView.state.doc.length,
+          },
+      ...(mapPreparedDocument ? {} : { selection }),
+      effects: [
+        ...(scrollSnapshot ? [scrollSnapshot] : []),
+        invalidatePendingImageImports.of(null),
+        setDocumentSourceFormat.of(parsedDocument.format),
+        setDocumentSavepoint.of(
+          saved
+            ? {
+                doc: documentText,
+                sourceFormat: parsedDocument.format,
+              }
+            : null,
+        ),
+      ],
     });
-    this.editorView.scrollDOM.scrollTop = preserveView ? scrollTop : 0;
-    this.editorView.scrollDOM.scrollLeft = preserveView ? scrollLeft : 0;
+    if (resetHistory) {
+      this.editorView.dispatch({
+        effects: editorHistoryCompartment.reconfigure(history()),
+      });
+    }
+    if (!mapPreparedDocument) {
+      this.editorView.scrollDOM.scrollTop = preserveView ? scrollTop : 0;
+      this.editorView.scrollDOM.scrollLeft = preserveView ? scrollLeft : 0;
+    }
+  }
+
+  markDocumentSaved(snapshot: EditorDocumentSnapshot): void {
+    const savepoint = (snapshot as InternalEditorDocumentSnapshot)[
+      snapshotSavepoint
+    ];
+
+    if (!savepoint) {
+      throw new Error('The document savepoint must be an editor snapshot.');
+    }
+
+    this.editorView.dispatch({
+      annotations: isolateHistory.of('full'),
+      effects: setDocumentSavepoint.of(savepoint),
+    });
+  }
+
+  markDocumentUnsaved(): void {
+    this.editorView.dispatch({
+      effects: setDocumentSavepoint.of(null),
+    });
   }
 
   setLanguage(language: AppLanguage): void {
@@ -155,9 +278,12 @@ export class CodeMirrorEditorApi implements EditorApi {
 
     this.displayMode = mode;
     this.editorView.dispatch({
-      effects: editorDisplayModeCompartment.reconfigure(
-        editorDisplayModeExtension(mode, this.documentContext),
-      ),
+      effects: [
+        this.editorView.scrollSnapshot(),
+        editorDisplayModeCompartment.reconfigure(
+          editorDisplayModeExtension(mode, this.documentContext),
+        ),
+      ],
     });
   }
 }

@@ -8,7 +8,6 @@ type IconNode = readonly [
 ][];
 
 export type MermaidWidgetDom = {
-  editorHost: HTMLElement;
   status: HTMLElement;
   svgContainer: HTMLElement;
   wrapper: HTMLElement;
@@ -52,11 +51,6 @@ export function createMermaidWidgetDom({
   actions.className = 'lm-mermaid-actions';
   wrapper.appendChild(actions);
 
-  const editorHost = document.createElement('div');
-  editorHost.className = 'lm-mermaid-editor';
-  editorHost.hidden = true;
-  wrapper.appendChild(editorHost);
-
   const svgContainer = document.createElement('div');
   svgContainer.className = 'lm-mermaid-svg';
   wrapper.appendChild(svgContainer);
@@ -64,7 +58,6 @@ export function createMermaidWidgetDom({
   actions.replaceChildren(createEditButton(onEdit), createDeleteButton(onDelete));
 
   return {
-    editorHost,
     status,
     svgContainer,
     wrapper,

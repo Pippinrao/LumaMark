@@ -1,6 +1,8 @@
 # V1 UX 设计
 
-本文件是 LumaMark V1 前台用户体验的主事实来源，描述 V1 默认界面、视觉目标、Markdown 编辑体验和验收标准。实现计划和代码改动必须先经过本文件审核通过后再展开。
+> **历史状态（Alpha UX 基线）：** 本文记录 Foundation / MarkText+ 阶段已经采用的界面方向、原型门禁与验收口径，不再作为当前实施顺序的事实来源。Parity Reliability 的当前交互合同与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+
+本文描述 LumaMark Alpha 前台界面、视觉目标、Markdown 编辑体验和当时的验收标准。后续实现仍应尊重其中稳定的布局与视觉原则，但过期的“实现前”原型步骤不能覆盖当前代码、测试和当前执行计划。
 
 ## 范围
 
@@ -37,7 +39,7 @@ V1 默认采用 **文件管理模式**。
 
 V1 不做三栏常驻布局。右侧不再常驻独立大纲栏。文件树和大纲不能同时占用横向空间。
 
-V1 必须先通过 Web 高保真原型审核，再进入生产实现。当前原型入口：
+Alpha 生产实现曾以 Web 高保真原型作为前置审核。历史原型入口：
 
 - `docs/product/prototypes/v1-apple-file-mode/index.html`
 
@@ -55,7 +57,7 @@ pnpm exec vite --host 127.0.0.1 --port 4180
 http://127.0.0.1:4180/docs/product/prototypes/v1-apple-file-mode/
 ```
 
-原型审核通过前，不得把这套 UX 合入生产 `AppShell`。
+该原型门禁已经服务于 Alpha `AppShell` 落地；它现在用于历史视觉回归，不再表示生产实现尚未开始。
 
 ## 视觉原则
 

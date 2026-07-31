@@ -2,6 +2,10 @@
 
 日期：2026-07-04
 
+更新：2026-07-27（Parity Reliability 编辑器合同）
+
+当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；本轮编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
+
 ## 设计结论
 
 LumaMark 的默认架构是：
@@ -12,6 +16,7 @@ Tauri v2
 └─ WebView Frontend
    ├─ React + TypeScript：应用壳和业务 UI
    ├─ CodeMirror 6：唯一主编辑器核心
+   ├─ @codemirror/merge：受控保存转换的最小 changes
    ├─ codemirror-markdown-tables：Markdown 表格交互组件
    ├─ Radix Primitives：dialog、tabs、tooltip 等基础交互组件
    ├─ react-resizable-panels：应用分栏
@@ -20,16 +25,18 @@ Tauri v2
    ├─ lucide-react：图标
    ├─ Zustand：轻量应用状态
    ├─ i18next/react-i18next：多语言
-   ├─ Mermaid / KaTeX：复杂块渲染
+   ├─ Mermaid：当前复杂块渲染；数学引擎待迁移语料评估与 ADR
    └─ Vitest / Playwright：自动化验证
 ```
 
 核心原则：
 
 - CodeMirror 6 持有 Markdown 正文和编辑热路径。
+- 主 CodeMirror `EditorView` 独占正文、选区和撤销历史；复杂块不能持有第二份待提交正文。
 - React 只做应用外壳，不参与逐字符输入渲染。
 - Rust 只处理系统能力和明确重任务。
 - Markdown 源文是唯一真实数据。
+- `DocumentSourceFormat` 在编辑器状态中映射 BOM、末尾换行与逐行换行格式；规范化 `Text` 不等于保存时全文件归一化。
 - 复杂块渲染异步、可取消、可缓存。
 - 基础组件成熟库优先，未经确认不自研。
 
@@ -67,7 +74,8 @@ Tauri v2
 
 - Markdown 正文不进入 React 全局 store。
 - React 不订阅全文内容。
-- 保存时从 CodeMirror 读取当前文档文本。
+- CodeMirror 内部使用规范化 `Text`；`documentSourceFormatField` 同步持有并映射 UTF-8 BOM、末尾换行、主换行格式和逐行 LF/CRLF/CR 覆盖。
+- 保存快照直接捕获当前 `Text` 与 `DocumentSourceFormat`，再从编辑器边界精确序列化；不得从调用方字符串重建格式。
 - AST、outline、Mermaid 预览、搜索结果都是派生数据。
 
 ### 文件状态
@@ -124,6 +132,7 @@ Rust 保存：
 | 包管理 | pnpm | npm/yarn | 选 pnpm。依赖安装快，lockfile 稳定，适合后续 monorepo。 |
 | 编辑器核心 | CodeMirror 6 | Milkdown/ProseMirror/Monaco | 选 CodeMirror 6。性能、源码保真和可视区渲染更符合目标。 |
 | Markdown 交互解析 | `@codemirror/lang-markdown` / Lezer | remark 作为热路径 parser | 编辑热路径选 CodeMirror/Lezer；remark 只用于导出或离线处理。 |
+| 保存转换 diff | `@codemirror/merge` | 自研 diff / 全文替换 | 只在稀疏、受控的 `prepareTextForSave` 转换后生成最小 CodeMirror changes，不进入普通输入热路径。目标文本精确，但极端输入下位置映射不能无条件视为精确；复审与 fallback 见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。 |
 | Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成和主题适配。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)。 |
 | UI 基础组件 | Radix Primitives | Ariakit/Base UI/React Aria | 默认 Radix。若单个组件不满足，再按组件替换。 |
 | 视觉样式 | CSS variables + CSS Modules | Tailwind/shadcn/ui | 默认 CSS tokens + CSS Modules。暂不引入 shadcn 生成组件，避免基础组件变成自维护代码。 |
@@ -138,7 +147,7 @@ Rust 保存：
 | 单元测试 | Vitest | Jest | 选 Vitest。与 Vite 原生集成。 |
 | E2E | Playwright | Cypress | 选 Playwright。适合自动化桌面 WebView 体验验证。 |
 | Mermaid | mermaid 官方包 | 自研渲染/第三方包装 | 用官方 Mermaid，外层自建异步调度和缓存。 |
-| 数学公式 | KaTeX | MathJax | 默认 KaTeX。速度优先；兼容性不足时再评估 MathJax。 |
+| 数学公式 | 待评估 KaTeX / MathJax | 其他成熟数学渲染器 | 当前里程碑不实现数学；Next 使用固定迁移语料比较兼容性、性能与安全边界，形成 ADR 后先实现块级数学。 |
 
 ## 前端模块划分
 
@@ -221,6 +230,7 @@ src/
 推荐子模块：
 
 - `core`：CodeMirror view/state 初始化。
+- `interaction`：从 CodeMirror state 与 Lezer 语法树派生 selection、最小 block、inline owner、delimiter、composition 和受保护源码范围。
 - `capabilities`：Mermaid、table、code block、image 等可独立演进的编辑器子能力。
 - `markdown`：Markdown 语言包和语法工具。
 - `wysiwyg`：Typora-like 通用 visual decorations 组合层，只保留低成本、源码保真的通用视觉规则，不持有复杂子能力主体实现。
@@ -236,12 +246,14 @@ Editor capability 边界：
 - `editor/commands/**` 只能通过 capability command factory 调用表格、代码块等能力，不能直接 import table widget、Mermaid widget 或 code-block decoration internals。
 - `editor/widgets/**` 只允许保留兼容 re-export，不能继续承载新主体实现。
 - 通用 `wysiwyg/markdownDecorations.ts` 可以负责标题、引用、列表 marker、inline mark 隐藏等低成本 syntax visual rule，也可以组合 capability 暴露的 decoration builder；代码块、图片、Mermaid、表格交互增强行为不得重新堆回通用 WYSIWYG 文件。
+- 所有标记展开与结构激活统一消费 `editor/interaction` 的 `EditorInteractionContext`；不得在 capability 或通用 WYSIWYG 中新增互相独立的活动行与 composition 特例。
+- `EditorInteractionContext` 是 transaction 派生状态，不进入 React store；IME composition 期间优先映射已有 decoration，结束后再增量重算候选文本附近结构。
 
 编辑器命令边界：
 
 - app 层只调用 `editor/commands/editorCommandPort.ts` 暴露的 `EditorDocumentPort` 和 `EditorCommandPort`。
 - Markdown format、table command、display mode、range selection 等具体 CodeMirror 命令不能散落 import 到 shell 渲染层或 feature UI。
-- `EditorDocumentPort` 只提供 `getText()`、`loadText(text)`、`focus()`、`setContext(context)` 等轻量能力，避免 React 层持有 Markdown 全文。
+- `EditorDocumentPort` 暴露快照、序列化、保存点、加载、聚焦、上下文和定点图片刷新等轻量命令；调用方可以即时读取正文但不能持有或广播 Markdown 全文。
 
 Mermaid capability 拆分要求：
 
@@ -252,9 +264,9 @@ Mermaid capability 拆分要求：
 - `mermaidBlockDetection.ts` 负责 fenced block 检测和类型。
 - `MermaidBlockWidget.ts` 负责 `WidgetType` lifecycle 和 DOM view 协调。
 - `mermaidWidgetDom.ts` 负责按钮、状态、svg container 等 DOM 创建。
-- `mermaidInlineEditor.ts` 负责 inline editor 创建、事件和 flush。
+- `mermaidInlineEditor.ts` 只负责把目标块激活到主 `EditorView`、设置 selection 并聚焦；禁止创建持有待提交正文的嵌套 editor 或 flush 协议。
 - `mermaidRenderAdapter.ts` 负责 Mermaid dynamic import、safe config 和 render。
-- `mermaidEditingState.ts` 负责正在编辑 block 的状态。
+- `mermaidEditingState.ts` 负责正在编辑 block 的可映射状态；激活时围栏源码留在主文档中，预览 decoration 放在块下方。
 - 后续性能优化应优先在 `mermaidPreviewExtension` 的 block 收集和 decoration 构建路径上做增量化，不能把复杂逻辑重新堆回 public entry。
 
 Table/code-block/image capability 规则：
@@ -266,6 +278,7 @@ Table/code-block/image capability 规则：
 当前能力边界审计结论：
 
 - 已独立的能力：`mermaid`、`table`、`code-block`、`image` 都有独立 capability 目录和薄 public entry；`editor/core/**` 与 `editor/commands/**` 不直接 import capability 内部实现。
+- 已建立的共享合同：`editor/interaction` 统一派生编辑范围；`documentSourceFormatField` 与 savepoint 同步映射源码格式；Mermaid 编辑只使用主 `EditorView`。详见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 - 允许的共享层：`editor/capabilities/index.ts` 只做 capability 和通用 WYSIWYG extension 组装；不得出现 DOM 创建、语法树扫描、渲染调度、第三方 widget 配置等主体逻辑。
 - 允许的通用 WYSIWYG：`wysiwyg/markdownDecorations.ts` 只处理所有 Markdown 都会共享的视觉规则，以及 capability decoration builder 的组合。它不能拥有异步渲染、block widget lifecycle、文件路径解析、table 命令、Mermaid 编辑器或 image preview DOM。
 - 已修正的依赖方向：capability 内部不能反向 import `app`、`features`、`services` 或 `wysiwyg` 私有类型；跨 capability 共享的 decoration range 类型放在 `editor/markdown`。
@@ -355,18 +368,33 @@ app/shell view
 
 ```ts
 interface EditorDocumentPort {
+  captureSnapshot(): EditorDocumentSnapshot
+  isSnapshotCurrent(snapshot: EditorDocumentSnapshot): boolean
   getText(): string
-  loadText(text: string): void
+  serializeText(): string
+  loadText(text: string, options?: LoadDocumentOptions): void
+  markSaved(snapshot: EditorDocumentSnapshot): void
+  markUnsaved(): void
+  refreshImages?(path: string): void
   focus(): void
   setContext(context: EditorDocumentContext): void
 }
 
 interface EditorCommandPort {
-  runFormat(command: MarkdownFormatCommand): void
   copyTable(): void
   deleteTable(): void
+  focus(): void
+  getDisplayMode(): EditorDisplayMode
+  insertImages(
+    images: readonly { alt: string; markdownSource: string }[],
+    position?: { x: number; y: number },
+  ): void
+  openSearch(): void
+  runFormat(command: MarkdownFormatCommand): void
+  undo(): void
+  redo(): void
   setDisplayMode(mode: EditorDisplayMode): void
-  selectRange(position: number): void
+  selectPosition(position: number): void
 }
 
 interface StatusAdapter {
@@ -475,8 +503,9 @@ interface AppError {
 User action
 -> dialog plugin / Rust command
 -> Rust read file
--> frontend receives text + metadata
--> create CodeMirror EditorState
+-> frontend receives source text + metadata
+-> parse BOM and per-line LF/CRLF/CR into normalized Text + DocumentSourceFormat
+-> create CodeMirror EditorState with both values
 -> update app store currentFile
 -> run outline/fixture/perf hooks as needed
 ```
@@ -485,6 +514,7 @@ User action
 
 - 打开大文件不能冻结 UI。
 - 文件内容进入 CodeMirror，不进入全局 store。
+- `DocumentSourceFormat` 与正文同属 editor state 生命周期，并随 transaction 映射。
 - 文件编码问题必须显式报错。
 
 ### 外部文件与图片变更
@@ -507,12 +537,15 @@ Rust parent-directory watcher
 - 打开/写入 fingerprint 与 watcher baseline 必须同源；临时读取失败通过单一合并 worker 有界重试，事件串行发送，前端仍按 revision 丢弃迟到事件；耗尽的 `error` 事件只能显示可恢复提示。
 - 文档切换、引用集合变化和 React cleanup 必须释放旧监听；自身保存的相同 fingerprint 不产生用户冲突。
 
+监听、冲突和定点图片刷新边界见 [ADR 0005](../decisions/0005-external-file-and-image-watch.md)；图片 resolver 与 draft finalize 边界见 [ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)。
+
 ### 编辑文档
 
 ```text
 User input
 -> CodeMirror transaction
 -> CodeMirror updates doc/view
+-> EditorInteractionContext maps or incrementally derives the minimum active structures
 -> editor plugins update decorations/widgets
 -> debounced lightweight events to React
 ```
@@ -527,16 +560,20 @@ User input
 
 ```text
 Save command
--> read current doc from CodeMirror
+-> capture current CodeMirror Text + DocumentSourceFormat savepoint
+-> serialize exact source text
+-> optional prepareTextForSave (for example finalize draft image references)
 -> Rust atomic write
--> update dirty state
--> optional round-trip guard in tests
+-> if snapshot is still current, map any prepared text back with minimal CodeMirror changes
+-> mark the exact current Text + format as saved; otherwise remain dirty
 ```
 
 要求：
 
 - 不格式化整篇文档。
-- 不改变未编辑区域。
+- 未修改行保留原 LF/CRLF/CR、BOM、尾随空格和末尾换行意图。
+- 保存转换必须基于捕获的快照；写入期间发生的新编辑不能被旧保存结果标成 clean。
+- `@codemirror/merge` 只用于受控转换后的最小 changes。应用 changes 后必须得到写入文本；selection/scroll 的语义映射精确性按 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md) 的边界验证。
 - 写入失败必须保留 dirty 状态。
 - 错误必须可恢复、可理解。
 
@@ -544,11 +581,16 @@ Save command
 
 ```text
 CodeMirror detects mermaid block
--> widget requests render job
+-> inactive block widget requests render job
 -> render scheduler debounce/cancel/cache
 -> dynamic import mermaid
 -> mermaid render
 -> widget receives SVG or error
+
+User activates mermaid block
+-> main EditorView reveals fenced source and owns every edit/undo
+-> preview decoration remains below the active block
+-> save/recovery reads the main document immediately
 ```
 
 要求：
@@ -557,6 +599,9 @@ CodeMirror detects mermaid block
 - 同一源码重复渲染命中缓存。
 - 过期任务必须丢弃。
 - 渲染失败不影响编辑。
+- 不创建嵌套 `EditorView`，不维护等待 blur/关闭后提交的 Mermaid 正文副本。
+- Mermaid 重依赖可继续动态分包；若手工分组与 `maxSize` 形成循环输出 chunk，Rolldown 必须启用 `strictExecutionOrder`，并由真实 `dist/` 懒加载渲染测试证明执行顺序。
+- Windows packaged WebView 必须覆盖主文档编辑态立即保存，不能用开发服务器或只看到应用壳代替。
 
 ### 搜索
 
@@ -580,6 +625,8 @@ Typora-like 行为分三层实现：
 - 引用样式。
 - 列表 marker 样式。
 - Markdown 符号弱化或隐藏。
+
+视觉层使用 `EditorInteractionContext` 判断最小展开范围。行内标记只在 selection 进入对应 span 时展开；标题、列表、引用和围栏只展开当前最小结构。composition 期间不得重建候选文本附近的 replacement decoration。
 
 ### Capability 和 Widget 层
 
@@ -631,6 +678,7 @@ capability 规则：
 - 选区。
 - 滚动。
 - 基础 decorations。
+- interaction context 的 transaction 映射与局部派生。
 
 ### 冷路径
 
@@ -642,6 +690,7 @@ capability 规则：
 - 工作区搜索。
 - 导出。
 - 大纲全量重建。
+- 保存前资源 finalize 与 save-preparation diff。
 
 ### 性能指标
 
@@ -654,6 +703,8 @@ capability 规则：
 - render job duration。
 - memory usage。
 - save duration。
+- selection-only decoration 更新与显示模式切换。
+- 代码块密集文档和复杂 Mermaid 长任务。
 
 ## 成熟组件使用边界
 
@@ -667,6 +718,7 @@ capability 规则：
 - 是否支持 TypeScript。
 - 是否主题可控。
 - 是否会增加明显包体积或启动成本。
+- 是否能暴露降级或非精确状态，避免在源码保真路径静默 fallback。
 
 如果成熟组件不满足目标，必须先记录证据并请求用户确认，再自研。
 
@@ -677,7 +729,7 @@ capability 规则：
 - `react-arborist`：文件树是否满足 Windows 路径、懒加载、虚拟化、键盘导航。
 - `react-resizable-panels`：是否满足 Typora-like 固定/折叠侧边栏体验。
 - `cmdk`：是否满足命令面板、i18n、快捷键和大量命令性能。
-- `KaTeX`：是否满足目标数学公式兼容范围。
+- `KaTeX` / `MathJax`：使用固定迁移语料比较兼容性、渲染成本、包体积和安全边界；形成 ADR 前不设默认引擎。
 - 工作区搜索库：先用简单 Rust 扫描还是直接引入索引库，需要根据 V1 范围决定。
 
 验证失败不等于立刻自研。优先寻找同类成熟替代。
@@ -699,6 +751,7 @@ capability 规则：
 
 - Tauri v2 架构与 command：<https://v2.tauri.app/concept/architecture/>、<https://v2.tauri.app/develop/calling-rust/>
 - CodeMirror 6 reference 与 decorations：<https://codemirror.net/docs/ref/>、<https://codemirror.net/examples/decoration/>
+- CodeMirror merge/diff reference：<https://codemirror.net/docs/ref/#merge>
 - Radix Primitives：<https://www.radix-ui.com/primitives>
 - TanStack Virtual：<https://tanstack.com/virtual/latest/docs/introduction>
 - react-i18next：<https://react.i18next.com/>
@@ -706,3 +759,4 @@ capability 规则：
 - Playwright：<https://playwright.dev/>
 - Mermaid usage：<https://mermaid.js.org/config/usage.html>
 - KaTeX：<https://katex.org/>
+- MathJax：<https://docs.mathjax.org/>

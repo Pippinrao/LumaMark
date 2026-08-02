@@ -25,13 +25,17 @@ async function switchEditorMode(
     return;
   }
 
-  await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
+  const viewMenu = page.getByRole('menuitem', { exact: true, name: '视图' });
+  await viewMenu.focus();
+  await viewMenu.press('ArrowDown');
+  await expect(viewMenu).toHaveAttribute('data-state', 'open');
   await page
-    .getByRole('menuitem', {
-      name: mode === 'source' ? '源码模式' : '实时预览',
+    .getByRole('menuitemradio', {
+      name: mode === 'source' ? /^源码模式/ : '实时预览',
     })
     .click();
   await expect(page.locator(rootClass)).toBeVisible();
+  await expect(page.locator('.lm-menu-content')).toHaveCount(0);
 }
 
 async function expectEditorSource(
@@ -42,6 +46,19 @@ async function expectEditorSource(
   await expect(
     page.locator('.lm-editor-source-mode .cm-line'),
   ).toHaveText(source.split('\n'));
+}
+
+async function openParagraphSubmenu(
+  page: Page,
+  submenuName: string,
+): Promise<void> {
+  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  const submenu = page.getByRole('menuitem', {
+    exact: true,
+    name: submenuName,
+  });
+  await submenu.focus();
+  await page.keyboard.press('ArrowRight');
 }
 
 test('renders basic markdown visually and keeps task source editable', async ({
@@ -302,7 +319,7 @@ test('creates one multi-paragraph blockquote from the paragraph menu', async ({
   await replaceEditorSource(page, 'first\n\nsecond');
   await page.keyboard.press(`${primaryModifier}+A`);
 
-  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  await openParagraphSubmenu(page, '块');
   await page.getByRole('menuitem', { name: '引用' }).click();
 
   await expectEditorSource(page, '> first\n>\n> second');
@@ -347,7 +364,7 @@ test('keeps foundational markdown source available in source mode', async ({
   ).toBeVisible();
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
 
   await expect(page.locator('.lm-editor-source-mode')).toBeVisible();
   await expect(editor).toContainText('> quote');
@@ -436,7 +453,7 @@ test('creates a paragraph below a final fenced code block when the caret moves d
 
   await expect(page.locator('.lm-md-code-block-line')).toHaveCount(3);
   await page.getByRole('menuitem', { name: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
   await expect(page.locator('.cm-line')).toHaveText([
     '```ts',
     'const value = 1',
@@ -503,12 +520,12 @@ test('toggles a selected unordered list from the paragraph menu', async ({
   await page.keyboard.press('Control+A');
   await page.keyboard.type('first');
   await page.keyboard.press('Control+A');
-  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  await openParagraphSubmenu(page, '列表');
   await page.getByRole('menuitem', { name: '无序列表' }).click();
 
   await expect(editor).toContainText('- first');
   await page.keyboard.press('Control+A');
-  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  await openParagraphSubmenu(page, '列表');
   await page.getByRole('menuitem', { name: '无序列表' }).click();
 
   await expect(page.locator('.cm-line').allTextContents()).resolves.toEqual(['first']);
@@ -667,17 +684,35 @@ test('creates strikethrough and ordered list Markdown from standard command entr
   await editor.click();
   await page.keyboard.press('Control+A');
   await page.keyboard.insertText('item');
-  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  await openParagraphSubmenu(page, '列表');
   await page.getByRole('menuitem', { name: '有序列表' }).click();
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
   await expect(editor).toContainText('1. item');
 });
 
-test('creates image Markdown from the format menu and command palette', async ({
+test('creates local image Markdown from the format menu and command palette', async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: async (path) => ({
+        ok: true,
+        data: { byteLength: 0, path, text: '' },
+      }),
+      showOpenDialog: async () => ({ ok: true, data: null }),
+      showOpenImageDialog: async () => ({
+        ok: true,
+        data: ['C:\\Pictures\\cover.png'],
+      }),
+      showSaveDialog: async () => ({ ok: true, data: null }),
+      writeText: async (path, text) => ({
+        ok: true,
+        data: { byteLength: text.length, path },
+      }),
+    };
+  });
   await page.goto('/');
 
   const editor = page.locator('.cm-content').first();
@@ -688,7 +723,10 @@ test('creates image Markdown from the format menu and command palette', async ({
 
   await page.locator('.lm-menu-trigger', { hasText: '格式' }).click();
   await page.getByRole('menuitem', { name: '图片' }).click();
-  await expect(editor).toContainText('![cover](url)');
+  await switchEditorMode(page, 'source');
+  await expect(editor).toContainText(
+    '![cover.png](C:\\Pictures\\cover.png)',
+  );
 
   await editor.click();
   await page.keyboard.press('Control+A');
@@ -697,9 +735,9 @@ test('creates image Markdown from the format menu and command palette', async ({
   await page.keyboard.press('Control+K');
   await page.getByRole('option', { name: '图片' }).click();
 
-  await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
-  await expect(editor).toContainText('![banner](url)');
+  await expect(editor).toContainText(
+    '![cover.png](C:\\Pictures\\cover.png)',
+  );
 });
 
 test('inserts a horizontal rule from the paragraph menu and command palette', async ({
@@ -713,7 +751,7 @@ test('inserts a horizontal rule from the paragraph menu and command palette', as
   await page.keyboard.insertText('Before\nAfter');
   await page.keyboard.press('Control+Home');
 
-  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  await openParagraphSubmenu(page, '插入');
   await page.getByRole('menuitem', { name: '分割线' }).click();
   await expect(page.locator('.lm-md-horizontal-rule')).toBeVisible();
 
@@ -726,7 +764,7 @@ test('inserts a horizontal rule from the paragraph menu and command palette', as
   await page.getByRole('option', { name: '分割线' }).click();
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
   await expect.poll(() => page.locator('.cm-line').allTextContents()).toEqual([
     'Before',
     '',
@@ -777,7 +815,7 @@ test('creates advanced heading levels through the menu and command palette', asy
   await page.getByRole('option', { name: '标题 6' }).click();
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
   await expect(editor).toContainText('###### Title');
 });
 
@@ -797,7 +835,7 @@ test('switches between live preview and source mode without changing markdown so
   await expect(page.locator('.lm-md-strong')).not.toContainText('**');
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
 
   await expect(page.locator('.lm-editor-source-mode')).toBeVisible();
   await expect(page.locator('.lm-md-heading-1')).toHaveCount(0);
@@ -805,7 +843,7 @@ test('switches between live preview and source mode without changing markdown so
   await expect(editor).toContainText('**bold**');
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '实时预览' }).click();
+  await page.getByRole('menuitemradio', { name: '实时预览' }).click();
 
   await expect(page.locator('.lm-editor-live-preview-mode')).toBeVisible();
   await expect(page.locator('.lm-md-heading-1')).toContainText('Title');
@@ -991,7 +1029,7 @@ test('localizes the built-in search panel after an application language change',
   await expect(page.locator('.cm-search [name="next"]')).toHaveText('下一个');
   await page.keyboard.press('Escape');
 
-  await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
+  await page.locator('.lm-menu-trigger', { hasText: '文件' }).click();
   await page.getByRole('menuitem', { name: '设置' }).click();
   await page.getByRole('tab', { name: '语言' }).click();
   await page.getByRole('button', { name: 'English' }).click();
@@ -1027,8 +1065,8 @@ test('renders markdown tables through the mature component and keeps table menu 
   await expect(page.locator('.lm-table-widget')).toHaveCount(0);
   await expect(page.locator('.lm-table-toolbar')).toHaveCount(0);
 
-  await page.locator('.tbl-data-cell').filter({ hasText: '2' }).click();
-  await page.locator('.lm-menu-trigger', { hasText: '编辑' }).click();
+  const tableCell = page.locator('.tbl-data-cell').filter({ hasText: '2' });
+  await tableCell.click({ button: 'right' });
   await page.getByRole('menuitem', { name: '复制表格' }).click();
   await expect
     .poll(async () => {
@@ -1038,14 +1076,14 @@ test('renders markdown tables through the mature component and keeps table menu 
     })
     .toBe(['| A | B |', '| - | - |', '| 1 | 2 |'].join('\n'));
 
-  await page.locator('.lm-menu-trigger', { hasText: '编辑' }).click();
+  await tableCell.click({ button: 'right' });
   await page.getByRole('menuitem', { name: '删除表格' }).click();
   await expect(page.locator('.tbl-table-widget')).toHaveCount(0);
   await expect(editor).toContainText('intro');
   await expect(editor).toContainText('after');
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
 
   await expect(editor).not.toContainText('| A | B |');
   await expect(page.locator('.tbl-table-widget')).toHaveCount(0);
@@ -1118,7 +1156,7 @@ test('reveals table cell markdown source on hover and edits the raw cell content
   );
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
 
   await expect(editor).toContainText('**bold**!');
   await expect(editor).toContainText('[site](https://example.com)');
@@ -1147,19 +1185,20 @@ test('supports table insert and delete shortcuts', async ({ page }) => {
 test('shows table shortcuts in top and editor context menus', async ({ page }) => {
   await page.goto('/');
 
-  await page.locator('.lm-menu-trigger', { hasText: '段落' }).click();
+  await openParagraphSubmenu(page, '插入');
   await expect(
-    page.getByRole('menuitem', { name: /^表格\s+Ctrl Alt T$/ }),
+    page.getByRole('menuitem', { name: /^表格\s+Ctrl\+T$/ }),
   ).toBeVisible();
 
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await page.locator('.lm-menu-trigger', { hasText: '编辑' }).click();
   await expect(
     page.getByRole('menuitem', { name: /^复制表格\s+Ctrl Alt C$/ }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     page.getByRole('menuitem', { name: /^删除表格\s+Ctrl Alt Backspace$/ }),
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   await page.keyboard.press('Escape');
   const editor = page.locator('.cm-content').first();
@@ -1171,7 +1210,7 @@ test('shows table shortcuts in top and editor context menus', async ({ page }) =
 
   await page.locator('.tbl-table-widget').click({ button: 'right' });
   await expect(
-    page.getByRole('menuitem', { name: /^表格\s+Ctrl Alt T$/ }),
+    page.getByRole('menuitem', { name: /^表格\s+Ctrl\+T$/ }),
   ).toBeVisible();
   await expect(
     page.getByRole('menuitem', { name: /^复制表格\s+Ctrl Alt C$/ }),

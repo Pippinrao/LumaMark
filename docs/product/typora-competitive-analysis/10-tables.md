@@ -1,5 +1,7 @@
 # 1. 表格竞品差距分析
 
+> **菜单系统实施更新（2026-08-02）：** “段落 → 插入 → 表格”、命令面板和编辑器内 `Ctrl+T` 现在调用真实插表命令，并在迁移期继续接受原 `Ctrl+Alt+T`；顶部菜单只展示与 Typora 基线一致的 `Ctrl+T`。复制表格与删除整表不再常驻“编辑”菜单或命令面板，只在右击已渲染表格时出现；普通编辑区右键只提供插入表格，避免非表格上下文点击无结果。删除整表继续保留 LumaMark 独立键位，不能冒充 Typora 的“删除表格行”。下方旧摘要中“顶部菜单使用 `Ctrl+Alt+T` 且常驻复制/删除”已经过期。选行 `Ctrl+L`、选单元格 `Ctrl+E`、删行 `Ctrl+Shift+Backspace`、行列编辑和工具栏仍是明确差距。
+
 ## 2. 用途、范围与非目标
 
 本文用于回答一个限定问题：以 Typora 1.13.7 的 GFM 表格体验为基线，LumaMark 当前已经具备哪些真实可用能力，哪些只是代码入口或依赖能力，距离“体验追平”还差什么。结论依据当前工作树中的代码、测试、fixture、依赖锁定与新鲜验证；路线图和 ADR 只用于解释意图与边界，不能单独证明功能已经可用。
@@ -60,7 +62,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 
 4. **菜单/命令面板/右键插入表格：已实现。** `tableCommands.ts:10-12` 复用依赖的 `insertEmptyMarkdownTable()`；`markdownFormatCommands.ts:71-72` 将通用 `table` 命令路由到 capability；`createCommandModels.ts:117-149,247-250,306-329` 提供命令面板、顶栏和编辑器上下文菜单模型；`AppShell.test.tsx:334-389,481-503` 覆盖三类入口；`editor-markdown.spec.ts:755-793` 覆盖顶栏与右键实际路径。
 
-5. **插入快捷键：已实现，但未追平 Typora。** `tableCommands.ts:60-64` 和 `useGlobalCommandShortcuts.ts:75-83` 接入 `Alt-Mod-t`，Windows 展示为 `Ctrl Alt T`；`editor-markdown.spec.ts:736-753` 验证该快捷键会插入合法 2×2 starter table。Typora Windows/Linux 是 `Ctrl+T`，当前键位不等价。
+5. **插入快捷键：已实现并对齐当前 Typora 基线。** 编辑器内 `Ctrl+T` 调用真实插表命令；原 `Ctrl+Alt+T` 仅作为迁移兼容键继续接受，菜单与命令面板统一展示 `Ctrl+T`。
 
 6. **复制当前表格 Markdown：已实现。** `tableCommands.ts:14-28,85-104` 通过语法树定位光标所在 Table 并写入完整源码；`tableCommands.test.ts:37-49` 验证复制内容；`editor-markdown.spec.ts:617-647` 在授予剪贴板权限后验证 UI 复制结果。该路径复制 Markdown，不是 Typora 默认 Copy as HTML 的完全复刻。
 
@@ -94,7 +96,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 | 直接手写完整源码 | 已实现 | 低 | 熟悉 Markdown 的用户可建表 | `markdownLanguage.ts:14-18`；E2E 插入源码后渲染 |
 | 管道表头加 Return 自动建表 | 证据不足 | 高 | Typora 最自然的输入流无法确认 | 仅有 autocompleter 配置，无对应测试 |
 | 菜单/命令面板插入 | 已实现 | 低 | 有明确替代创建入口 | `createCommandModels.ts` 与 AppShell/E2E |
-| Typora `Ctrl+T` 键位 | 未实现 | 中 | 迁移用户肌肉记忆中断 | 当前为 `Ctrl+Alt+T` |
+| Typora `Ctrl+T` 键位 | 已实现 | 低 | 迁移用户可直接使用熟悉键位 | 菜单、命令面板、全局控制器与 E2E；旧键仅迁移兼容 |
 | 非焦点管道隐藏与表格渲染 | 已实现 | 低 | 阅读噪音较低 | `.tbl-table-widget` 单元/E2E 断言 |
 | 三种对齐语法解析与显示 | 部分实现 | 中 | 源码可保存，但 UI 对齐效果未专项断言 | `table.md:3-7`；theme 默认左对齐；无三列视觉断言 |
 | 单元格粗体/代码/链接阅读 | 已实现 | 低 | 常见内联内容可读 | preview 单元测试及 E2E |

@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from 'react';
 
 type AppDialogsProps = {
+  aboutDialog: ReactNode;
   commandPalette: ReactNode;
   discardChangesDialog: ReactNode;
   externalFileConflictDialog: ReactNode;
@@ -10,6 +11,7 @@ type AppDialogsProps = {
 };
 
 export function AppDialogs({
+  aboutDialog,
   commandPalette,
   discardChangesDialog,
   externalFileConflictDialog,
@@ -19,6 +21,7 @@ export function AppDialogs({
 }: AppDialogsProps) {
   return (
     <Suspense fallback={null}>
+      {aboutDialog}
       {commandPalette}
       {discardChangesDialog}
       {externalFileConflictDialog}

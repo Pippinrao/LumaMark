@@ -11,6 +11,10 @@ export const markdownFormatKeymap: readonly KeyBinding[] = [
     run: (view) => applyMarkdownFormatCommand(view, 'italic'),
   },
   {
+    key: 'Mod-0',
+    run: (view) => applyMarkdownFormatCommand(view, 'paragraph'),
+  },
+  {
     key: 'Mod-1',
     run: (view) => applyMarkdownFormatCommand(view, 'heading1'),
   },
@@ -33,5 +37,9 @@ export const markdownFormatKeymap: readonly KeyBinding[] = [
   {
     key: 'Mod-6',
     run: (view) => applyMarkdownFormatCommand(view, 'heading6'),
+  },
+  {
+    key: 'Mod-Shift-k',
+    run: (view) => applyMarkdownFormatCommand(view, 'codeBlock'),
   },
 ];

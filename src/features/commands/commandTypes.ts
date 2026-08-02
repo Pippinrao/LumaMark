@@ -8,6 +8,7 @@ export type CommandActionId =
   | 'toggleFocusMode'
   | 'focusEditor'
   | 'newDocument'
+  | 'openAbout'
   | 'openCommandPalette'
   | 'openFile'
   | 'openSearch'
@@ -16,6 +17,10 @@ export type CommandActionId =
   | 'redo'
   | 'save'
   | 'saveAs'
+  | 'setChineseLanguage'
+  | 'setDarkTheme'
+  | 'setEnglishLanguage'
+  | 'setLightTheme'
   | 'setLivePreviewMode'
   | 'setSourceMode'
   | 'toggleDisplayMode'
@@ -37,15 +42,75 @@ export type CommandModel = {
   shortcut?: string;
 };
 
-export type CommandMenuItem = {
-  action?: CommandActionId;
+export type CommandMenuInvocation =
+  | {
+      action: CommandActionId;
+      focusManagement?: 'action';
+      kind: 'action';
+    }
+  | {
+      focusManagement?: 'action';
+      kind: 'callback';
+      run: () => void;
+    };
+
+type CommandMenuItemNode = {
   disabled?: boolean;
+  icon?: LucideIcon;
+  id: string;
+  invocation: CommandMenuInvocation;
   label: string;
   shortcut?: string;
+  type: 'item';
 };
 
+type CommandMenuSeparatorNode = {
+  id: string;
+  type: 'separator';
+};
+
+type CommandMenuSubmenuNode = {
+  disabled?: boolean;
+  icon?: LucideIcon;
+  id: string;
+  items: CommandMenuNode[];
+  label: string;
+  type: 'submenu';
+};
+
+type CommandMenuCheckboxNode = {
+  checked: boolean;
+  disabled?: boolean;
+  icon?: LucideIcon;
+  id: string;
+  invocation: CommandMenuInvocation;
+  label: string;
+  shortcut?: string;
+  type: 'checkbox';
+};
+
+type CommandMenuRadioNode = {
+  checked: boolean;
+  disabled?: boolean;
+  group: string;
+  icon?: LucideIcon;
+  id: string;
+  invocation: CommandMenuInvocation;
+  label: string;
+  shortcut?: string;
+  type: 'radio';
+};
+
+export type CommandMenuNode =
+  | CommandMenuCheckboxNode
+  | CommandMenuItemNode
+  | CommandMenuRadioNode
+  | CommandMenuSeparatorNode
+  | CommandMenuSubmenuNode;
+
 export type CommandMenuGroup = {
-  items: CommandMenuItem[];
+  id: string;
+  items: CommandMenuNode[];
   label: string;
 };
 
@@ -58,5 +123,4 @@ export type CommandContextMenuItem = {
 export type CommandShortcutLabels = {
   copy: string;
   delete: string;
-  insert: string;
 };

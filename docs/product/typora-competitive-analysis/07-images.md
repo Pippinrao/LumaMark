@@ -1,5 +1,7 @@
 # 图片：Typora 竞品差距分析
 
+> **菜单系统实施更新（2026-08-02）：** Format → Image、命令面板“图片”和 `Ctrl+Shift+I` 现在共用真实本地图片选择流程。Tauri 新增多选图片对话框并限制常见图片扩展名，取消选择保持文档不变；选中图片后继续复用既有 `createLocalImageReferences` 导入策略、草稿资源与文档切换保护。浏览器 E2E 通过注入文件命令证明菜单/快捷键编排，Windows Tauri 实机已验证本地化系统对话框可以打开、过滤器正确且取消后文档不变。因此下方旧摘要中“只插入 `![image](url)`、没有选择器和 `Ctrl+Shift+I`”已经过期，但右键资源管理、路径偏好持久化、批量移动/复制及真实文件选择后的自动化桌面闭环等差距仍然成立。
+
 > **Parity Reliability 实施更新（2026-07-27）：** 下方主体保留为旧专题审计快照，其中“本地图片 watcher 未接到编辑器刷新入口”和 live preview DOM 必须包含完整隐藏源码的断言已经过期。当前文件 watcher revision 会进入图片 capability 的局部刷新入口；图片 owner 采用精确范围，selection 位于 owner 内才显示源码与下方预览，离开后恢复替换预览。拖放、粘贴、草稿迁移、远程缓存、本地图片磁盘刷新和源码模式精确 Markdown 均有浏览器/Rust 回归；保存转换继续通过精确序列化边界。完整图片选择器、策略持久化和事务回滚仍属于 Next，真实 Windows 系统剪贴板也未完成前台验证。当前范围以 [当前执行计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 与 [ADR 0003](../../decisions/0003-live-preview-assets-code-and-table-inline.md)、[ADR 0005](../../decisions/0005-external-file-and-image-watch.md) 为准。
 
 ## 2. 用途、范围与非目标
@@ -14,7 +16,7 @@
 
 LumaMark 已经越过“只能显示 Markdown 源码”的阶段：CodeMirror 图片 capability 能识别**独占一行的图片段落**，在非焦点时替换为居中的懒加载预览，点击预览把光标放回源码行；相对路径、Windows 绝对路径、`data:`、`blob:` 和 HTTP(S) 来源有分流处理。保存文档中的粘贴位图会写入固定的 `<文档名>.assets/image-NNN.ext`，未保存文档先使用 `lumamark-draft://` 引用并在首次保存时迁移；Tauri 侧限制文件类型和 12 MiB 大小，远程下载禁重定向、拒绝本地/私网地址，并按 URL 哈希缓存。图片插入相关的中英文文案、逐文件 asset scope 和多图异步插入顺序也有实现与测试。
 
-但这仍不等于 Typora 图片体验已经追平。当前预览只覆盖“图片语法占满整行”的子集，普通段落内图片、链接包裹图片不渲染；焦点态是“源码行加下方预览”，而不是已经证实的 Typora 精细内联展开；Format 菜单和命令面板只插入 `![image](url)` 模板，没有本地文件选择器，且没有 Typora 的 `Ctrl+Shift+I`；浏览器拖出的 URL/HTML 图片没有导入路径；没有图片右键删除、移动、复制、重命名或批量 Move/Copy All；没有 `typora-root-url`、`typora-copy-images-to`、任意目标目录、`./` 前缀与 URL 转义偏好。复制到 assets 的设置只在 Zustand 内存 store 中，重启持久化没有证据。图片错误最终复用通用文件错误提示，不能向用户给出针对性的恢复动作。
+但这仍不等于 Typora 图片体验已经追平。当前预览只覆盖“图片语法占满整行”的子集，普通段落内图片、链接包裹图片不渲染；焦点态是“源码行加下方预览”，而不是已经证实的 Typora 精细内联展开；菜单、命令面板和 `Ctrl+Shift+I` 已能选择本地图片，但浏览器拖出的 URL/HTML 图片仍没有导入路径；没有图片右键删除、移动、复制、重命名或批量 Move/Copy All；没有 `typora-root-url`、`typora-copy-images-to`、任意目标目录、`./` 前缀与 URL 转义偏好。复制到 assets 的设置只在 Zustand 内存 store 中，重启持久化没有证据。图片错误最终复用通用文件错误提示，不能向用户给出针对性的恢复动作。
 
 新鲜验证进一步限制了结论：图片输入 Playwright、Rust `asset_service`、图片 capability 与 fixture 门禁均有通过记录。本地图片 revision 刷新入口及其控制器测试已经存在，但 `useAppDocumentModel` 创建文件工作流时没有把 `onLocalImageChanged` 接到该入口，默认回调仍为空操作，所以“本地图片在磁盘变化后自动刷新”当前只能判为部分实现。2026-07-22 已把图片 preview 的 selection-only 与普通尾部编辑从全树发现/同步路径中移出，并用围栏增删双向测试保护缓存失效；这只收窄编辑热路径风险，不等于建立了图片数量、解码、滚动和内存专项性能门禁。Playwright 仍使用注入的文件/asset 命令替身，证明浏览器层编排，不证明真实 Tauri 拖放、IPC、磁盘写入与 WebView asset protocol 的完整桌面链路。
 

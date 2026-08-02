@@ -54,6 +54,17 @@ export async function showOpenFileDialog(
   );
 }
 
+export async function showOpenImageDialog(
+  filterLabel: string,
+  options: FileCommandOptions = {},
+): Promise<CommandResult<string[] | null>> {
+  return invokeCommand<string[] | null>(
+    'files_show_open_image_dialog',
+    { filterLabel },
+    options.invokeFn,
+  );
+}
+
 export async function showSaveFileDialog(
   options: FileCommandOptions = {},
 ): Promise<CommandResult<string | null>> {

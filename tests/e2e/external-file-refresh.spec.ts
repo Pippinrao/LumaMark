@@ -215,7 +215,7 @@ test('refreshes a changed local image without rewriting its Markdown source', as
   await expect(image).toBeVisible();
   await expect(image).toHaveAttribute('src', /[?&]lmv=7(?:&|$)/);
   await page.getByRole('menuitem', { name: /View|视图/ }).click();
-  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
+  await page.getByRole('menuitemradio', { name: /Source Mode|源码模式/ }).click();
   await expect(page.locator('.cm-line')).toHaveText(markdownSource.split('\n'));
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);

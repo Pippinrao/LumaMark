@@ -90,9 +90,8 @@ export function createEditorCommandPort(editor: EditorApi): EditorCommandPort {
       applyMarkdownFormatCommand(editor.view, command);
     },
     redo: () => {
-      if (redo(editor.view)) {
-        editor.focus();
-      }
+      redo(editor.view);
+      editor.focus();
     },
     selectPosition: (position) => {
       editor.view.dispatch({
@@ -107,9 +106,8 @@ export function createEditorCommandPort(editor: EditorApi): EditorCommandPort {
       editor.setDisplayMode(mode);
     },
     undo: () => {
-      if (undo(editor.view)) {
-        editor.focus();
-      }
+      undo(editor.view);
+      editor.focus();
     },
   };
 }

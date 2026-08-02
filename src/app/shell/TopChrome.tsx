@@ -1,23 +1,23 @@
 import { Maximize2, Minimize2, Minus, X } from 'lucide-react';
-import * as Menubar from '@radix-ui/react-menubar';
 import type {
-  ShellActionId,
   ShellMenuGroup,
+  ShellMenuInvocation,
   TopChromeLabels,
   WindowControlsModel,
 } from './shellTypes';
+import { AppMenu } from './AppMenu';
 
 type TopChromeProps = {
   groups: ShellMenuGroup[];
   labels: TopChromeLabels;
-  onAction: (action: ShellActionId) => void;
+  onInvoke: (invocation: ShellMenuInvocation) => void;
   windowChrome: WindowControlsModel;
 };
 
 export function TopChrome({
   groups,
   labels,
-  onAction,
+  onInvoke,
   windowChrome,
 }: TopChromeProps) {
   return (
@@ -28,43 +28,7 @@ export function TopChrome({
     >
       <h1 className="lm-app-heading">{labels.appName}</h1>
 
-      <Menubar.Root
-        className="lm-menu-bar"
-        data-lm-window-interactive="true"
-      >
-        {groups.map((group) => (
-          <Menubar.Menu key={group.label}>
-            <Menubar.Trigger className="lm-menu-trigger">
-              {group.label}
-            </Menubar.Trigger>
-            <Menubar.Portal>
-              <Menubar.Content
-                className="lm-menu-content"
-                align="start"
-                sideOffset={12}
-              >
-                {group.items.map((item) => (
-                  <Menubar.Item
-                    className="lm-menu-item"
-                    disabled={item.disabled}
-                    key={item.label}
-                    onSelect={() => {
-                      if (item.action) {
-                        onAction(item.action);
-                      }
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    {item.shortcut ? (
-                      <kbd className="lm-menu-shortcut">{item.shortcut}</kbd>
-                    ) : null}
-                  </Menubar.Item>
-                ))}
-              </Menubar.Content>
-            </Menubar.Portal>
-          </Menubar.Menu>
-        ))}
-      </Menubar.Root>
+      <AppMenu groups={groups} onInvoke={onInvoke} />
 
       <nav
         className="lm-window-controls"

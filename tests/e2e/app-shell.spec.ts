@@ -12,6 +12,7 @@ test('uses Typora-like two-pane shell with file and outline tabs in the left sid
     '格式',
     '视图',
     '主题',
+    '语言',
     '帮助',
   ]);
   await expect(page.getByRole('tab', { name: '文件' })).toBeVisible();
@@ -91,7 +92,7 @@ test('collapses, restores, and persists an accessible sidebar state from the vie
     .toBeGreaterThan(200);
 
   await page.getByRole('menuitem', { name: '视图' }).click();
-  await page.getByRole('menuitem', { name: '切换侧边栏' }).click();
+  await page.getByRole('menuitemcheckbox', { name: /^切换侧边栏/ }).click();
   await expect
     .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
     .toBeLessThan(2);
@@ -110,7 +111,7 @@ test('collapses, restores, and persists an accessible sidebar state from the vie
   );
 
   await page.getByRole('menuitem', { name: '视图' }).click();
-  await page.getByRole('menuitem', { name: '切换侧边栏' }).click();
+  await page.getByRole('menuitemcheckbox', { name: /^切换侧边栏/ }).click();
   await expect
     .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
     .toBeGreaterThan(200);
@@ -147,7 +148,7 @@ test('enters and exits a distraction-free focus mode without changing the editor
   await page.goto('/');
 
   await page.getByRole('menuitem', { name: '视图' }).click();
-  await page.getByRole('menuitem', { name: '进入专注模式' }).click();
+  await page.getByRole('menuitemcheckbox', { name: /^专注模式/ }).click();
 
   const shell = page.getByTestId('app-shell');
   await expect(shell).toHaveClass(/lm-focus-mode/);
@@ -262,6 +263,9 @@ test('opens top menu popovers below the chrome without clipping', async ({
   await page.goto('/');
 
   await page.getByRole('menuitem', { name: '文件' }).click();
+  await page.locator('.lm-menu-content').evaluate((node) =>
+    Promise.all(node.getAnimations().map((animation) => animation.finished)),
+  );
   const chromeBox = await page.locator('.lm-top-chrome').boundingBox();
   const menuBox = await page.locator('.lm-menu-content').boundingBox();
   const zIndexes = await page.evaluate(() => ({

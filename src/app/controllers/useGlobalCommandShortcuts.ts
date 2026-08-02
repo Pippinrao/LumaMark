@@ -3,9 +3,11 @@ import type { CommandHandlerMap } from '../../features/commands/commandTypes';
 
 type GlobalShortcutHandlers = Pick<
   CommandHandlerMap,
+  | 'codeBlock'
   | 'copyTable'
   | 'deleteTable'
   | 'exitFocusMode'
+  | 'image'
   | 'newDocument'
   | 'openCommandPalette'
   | 'openFile'
@@ -31,6 +33,7 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
       }
 
       const currentHandlers = handlersRef.current;
+      const editorCommandTarget = isEditorCommandTarget(event.target);
 
       if (event.key === 'Escape') {
         if (globalThis.document.querySelector('[role="dialog"]')) {
@@ -38,6 +41,28 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
         }
 
         currentHandlers.exitFocusMode();
+        return;
+      }
+
+      if (
+        editorCommandTarget &&
+        isPrimaryModifierPressed(event) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'i'
+      ) {
+        event.preventDefault();
+        currentHandlers.image();
+        return;
+      }
+
+      if (
+        editorCommandTarget &&
+        isPrimaryModifierPressed(event) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'k'
+      ) {
+        event.preventDefault();
+        currentHandlers.codeBlock();
         return;
       }
 
@@ -51,7 +76,11 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
         return;
       }
 
-      if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 'k') {
+      if (
+        isPrimaryModifierPressed(event) &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'k'
+      ) {
         event.preventDefault();
         currentHandlers.openCommandPalette();
         return;
@@ -100,13 +129,18 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
         return;
       }
 
-      if (!isPrimaryModifierPressed(event) || !event.altKey) {
+      if (
+        editorCommandTarget &&
+        isPrimaryModifierPressed(event) &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 't'
+      ) {
+        event.preventDefault();
+        currentHandlers.table();
         return;
       }
 
-      if (event.key.toLowerCase() === 't') {
-        event.preventDefault();
-        currentHandlers.table();
+      if (!editorCommandTarget || !isPrimaryModifierPressed(event) || !event.altKey) {
         return;
       }
 
@@ -147,4 +181,8 @@ function shouldIgnoreDisplayModeShortcut(target: EventTarget | null): boolean {
   }
 
   return target.isContentEditable && !target.closest('.cm-content');
+}
+
+function isEditorCommandTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest('.cm-content'));
 }

@@ -1,5 +1,48 @@
 import { expect, test } from '@playwright/test';
 
+test('keeps the production menu keyboard-accessible and functional', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await expect(page.locator('.lm-top-chrome .lm-menu-trigger')).toHaveText([
+    '文件',
+    '编辑',
+    '段落',
+    '格式',
+    '视图',
+    '主题',
+    '语言',
+    '帮助',
+  ]);
+
+  const paragraph = page.getByRole('menuitem', {
+    exact: true,
+    name: '段落',
+  });
+  await paragraph.focus();
+  await paragraph.press('ArrowDown');
+  const insert = page.getByRole('menuitem', { exact: true, name: '插入' });
+  await insert.press('ArrowRight');
+  await expect(
+    page.getByRole('menuitem', { name: /^表格\s+Ctrl\+T$/ }),
+  ).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.getByRole('menuitem', { exact: true, name: '视图' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
+  await expect(page.locator('.lm-editor-source-mode')).toBeVisible();
+
+  await page.getByRole('menuitem', { exact: true, name: '主题' }).click();
+  await page.getByRole('menuitemradio', { name: '暗色' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  await page.getByRole('menuitem', { exact: true, name: '帮助' }).click();
+  await page.getByRole('menuitem', { name: '关于 LumaMark' }).click();
+  await expect(page.getByRole('dialog', { name: '关于 LumaMark' })).toBeVisible();
+});
+
 test('boots the production bundle and loads the lazy Mermaid renderer', async ({
   page,
 }) => {

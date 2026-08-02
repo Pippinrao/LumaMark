@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormatCommands';
+import { useCallback, useMemo } from 'react';
+import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
 import {
   createCommandPaletteModels,
   createEditorContextMenuModels,
@@ -9,164 +9,51 @@ import {
 import type {
   CommandActionId,
   CommandHandlerMap,
+  CommandMenuInvocation,
 } from '../../features/commands/commandTypes';
-import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
+import type { AppLanguage } from '../../shared/i18n';
+import type { ThemeMode } from '../stores/appStore';
 import { useGlobalCommandShortcuts } from './useGlobalCommandShortcuts';
 
-const markdownCommands: readonly MarkdownFormatCommand[] = [
-  'bold',
-  'codeBlock',
-  'heading1',
-  'heading2',
-  'heading3',
-  'heading4',
-  'heading5',
-  'heading6',
-  'horizontalRule',
-  'image',
-  'inlineCode',
-  'italic',
-  'link',
-  'orderedList',
-  'quote',
-  'strikethrough',
-  'table',
-  'taskList',
-  'unorderedList',
-];
-
 type UseAppCommandModelsOptions = {
-  copyTable: () => void;
-  deleteTable: () => void;
   editorDisplayMode: EditorDisplayMode;
-  exitFocusMode: () => void;
-  focusMode: boolean;
   fileOpening: boolean;
-  focusEditor: () => void;
-  newDocument: () => void;
-  openCommandPalette: () => void;
-  openFile: () => void;
-  openSearch: () => void;
-  openSettings: () => void;
-  openWorkspace: () => void;
-  redo: () => void;
-  runFormat: (command: MarkdownFormatCommand) => void;
-  save: () => void;
-  saveAs: () => void;
-  setLivePreviewMode: () => void;
-  setSourceMode: () => void;
+  focusMode: boolean;
+  handlers: CommandHandlerMap;
+  language: AppLanguage;
+  openRecentFile: (path: string) => void;
+  recentFiles: readonly { name: string; path: string }[];
   shortcuts: {
     copy: string;
     delete: string;
-    insert: string;
   };
+  sidebarOpen: boolean;
   t: (key: string) => string;
-  toggleDisplayMode: () => void;
-  toggleLanguage: () => void;
-  toggleFocusMode: () => void;
-  toggleSidebar: () => void;
-  toggleTheme: () => void;
-  undo: () => void;
+  theme: ThemeMode;
 };
 
 export function useAppCommandModels({
-  copyTable,
-  deleteTable,
   editorDisplayMode,
-  exitFocusMode,
-  focusMode,
   fileOpening,
-  focusEditor,
-  newDocument,
-  openCommandPalette,
-  openFile,
-  openSearch,
-  openSettings,
-  openWorkspace,
-  redo,
-  runFormat,
-  save,
-  saveAs,
-  setLivePreviewMode,
-  setSourceMode,
+  focusMode,
+  handlers,
+  language,
+  openRecentFile,
+  recentFiles,
   shortcuts,
+  sidebarOpen,
   t,
-  toggleDisplayMode,
-  toggleLanguage,
-  toggleFocusMode,
-  toggleSidebar,
-  toggleTheme,
-  undo,
+  theme,
 }: UseAppCommandModelsOptions) {
-  const handlers = useMemo<CommandHandlerMap>(() => {
-    const formatHandlers = Object.fromEntries(
-      markdownCommands.map((command) => [
-        command,
-        () => {
-          runFormat(command);
-        },
-      ]),
-    ) as Record<MarkdownFormatCommand, () => void>;
-
-    return {
-      ...formatHandlers,
-      copyTable,
-      deleteTable,
-      exitFocusMode,
-      focusEditor,
-      newDocument,
-      openCommandPalette,
-      openFile,
-      openSearch,
-      openSettings,
-      openWorkspace,
-      redo,
-      save,
-      saveAs,
-      setLivePreviewMode,
-      setSourceMode,
-      toggleDisplayMode,
-      toggleLanguage,
-      toggleFocusMode,
-      toggleSidebar,
-      toggleTheme,
-      undo,
-    };
-  }, [
-    copyTable,
-    deleteTable,
-    exitFocusMode,
-    focusEditor,
-    newDocument,
-    openCommandPalette,
-    openFile,
-    openSearch,
-    openSettings,
-    openWorkspace,
-    redo,
-    runFormat,
-    save,
-    saveAs,
-    setLivePreviewMode,
-    setSourceMode,
-    toggleDisplayMode,
-    toggleLanguage,
-    toggleFocusMode,
-    toggleSidebar,
-    toggleTheme,
-    undo,
-  ]);
-
   const commands = useMemo(
     () =>
       createCommandPaletteModels({
         fileOpening,
         focusMode,
         handlers,
-        shortcuts,
         t,
       }),
-    [fileOpening, focusMode, handlers, shortcuts, t],
+    [fileOpening, focusMode, handlers, t],
   );
   const topMenuGroups = useMemo(
     () =>
@@ -174,22 +61,50 @@ export function useAppCommandModels({
         editorDisplayMode,
         fileOpening,
         focusMode,
+        language,
+        openRecentFile,
+        recentFiles,
+        sidebarOpen,
         shortcuts,
         t,
+        theme,
       }),
-    [editorDisplayMode, fileOpening, focusMode, shortcuts, t],
+    [
+      editorDisplayMode,
+      fileOpening,
+      focusMode,
+      language,
+      openRecentFile,
+      recentFiles,
+      shortcuts,
+      sidebarOpen,
+      t,
+      theme,
+    ],
   );
-  const editorContextMenuItems = useMemo(
-    () =>
+  const getEditorContextMenuItems = useCallback(
+    (tableContext: boolean) =>
       createEditorContextMenuModels({
         shortcuts,
+        tableContext,
         t,
       }),
     [shortcuts, t],
   );
   const runAction = useMemo(
-    () => (action: CommandActionId | string) => {
-      runCommandAction(handlers, action as CommandActionId);
+    () => (action: CommandActionId) => {
+      runCommandAction(handlers, action);
+    },
+    [handlers],
+  );
+  const runMenuInvocation = useMemo(
+    () => (invocation: CommandMenuInvocation) => {
+      if (invocation.kind === 'callback') {
+        invocation.run();
+        return;
+      }
+
+      runCommandAction(handlers, invocation.action);
     },
     [handlers],
   );
@@ -198,8 +113,9 @@ export function useAppCommandModels({
 
   return {
     commands,
-    editorContextMenuItems,
+    getEditorContextMenuItems,
     runAction,
+    runMenuInvocation,
     topMenuGroups,
   };
 }

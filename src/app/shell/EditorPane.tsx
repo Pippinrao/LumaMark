@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { EditorApi } from '../../editor/core/editorApi';
 import type { EditorDocumentChangedHandler } from '../../editor/core/editorEvents';
@@ -22,7 +22,7 @@ const LazyEditorViewHost = lazy(() =>
 type EditorPaneProps = {
   accessibleTitle: string;
   ariaLabel: string;
-  contextMenuItems: ShellContextMenuItem[];
+  getContextMenuItems: (target: EventTarget) => ShellContextMenuItem[];
   onAction: (action: ShellActionId) => void;
   onDocumentChanged: EditorDocumentChangedHandler;
   onEditorReady: (editor: EditorApi) => void;
@@ -36,7 +36,7 @@ type EditorPaneProps = {
 export function EditorPane({
   accessibleTitle,
   ariaLabel,
-  contextMenuItems,
+  getContextMenuItems,
   onAction,
   onDocumentChanged,
   onEditorReady,
@@ -46,6 +46,8 @@ export function EditorPane({
   language,
   visibleDocumentTitle,
 }: EditorPaneProps) {
+  const [contextMenuItems, setContextMenuItems] = useState<ShellContextMenuItem[]>([]);
+
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
@@ -53,6 +55,9 @@ export function EditorPane({
           className="lm-editor-pane"
           data-testid="editor-host"
           aria-label={ariaLabel}
+          onContextMenuCapture={(event) => {
+            setContextMenuItems(getContextMenuItems(event.target));
+          }}
         >
           <div className="lm-editor-header">
             <span className="lm-editor-title">{visibleDocumentTitle}</span>

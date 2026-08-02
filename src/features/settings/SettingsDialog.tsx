@@ -12,6 +12,7 @@ type SettingsDialogProps = {
   onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
   onLanguageChange: (language: AppLanguage) => void;
   onOpenChange: (open: boolean) => void;
+  onReturnFocus: () => void;
   onThemeChange: (theme: ThemeMode) => void;
   open: boolean;
   theme: ThemeMode;
@@ -23,6 +24,7 @@ export function SettingsDialog({
   onCopyImagesToAssetsChange,
   onLanguageChange,
   onOpenChange,
+  onReturnFocus,
   onThemeChange,
   open,
   theme,
@@ -33,7 +35,13 @@ export function SettingsDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="lm-dialog-overlay" />
-        <Dialog.Content className="lm-settings-dialog">
+        <Dialog.Content
+          className="lm-settings-dialog"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            onReturnFocus();
+          }}
+        >
           <div className="lm-dialog-title-row">
             <Dialog.Title>{t('settings.title')}</Dialog.Title>
             <Dialog.Close className="lm-icon-button" aria-label={t('dialog.close')}>

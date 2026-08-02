@@ -34,6 +34,37 @@ const browserDiagnostics = new WeakMap<
   { consoleErrors: string[]; pageErrors: string[] }
 >();
 
+async function switchEditorMode(
+  page: Page,
+  mode: 'livePreview' | 'source',
+): Promise<void> {
+  const rootClass =
+    mode === 'source'
+      ? '.lm-editor-source-mode'
+      : '.lm-editor-live-preview-mode';
+
+  if (await page.locator(rootClass).isVisible()) {
+    return;
+  }
+
+  const viewMenu = page
+    .locator('.lm-menu-trigger')
+    .filter({ hasText: /View|视图/ });
+  await viewMenu.focus();
+  await viewMenu.press('ArrowDown');
+  await expect(viewMenu).toHaveAttribute('data-state', 'open');
+  await page
+    .getByRole('menuitemradio', {
+      name:
+        mode === 'source'
+          ? /Source Mode|源码模式/
+          : /Live Preview|实时预览/,
+    })
+    .click();
+  await expect(page.locator(rootClass)).toBeVisible();
+  await expect(page.locator('.lm-menu-content')).toHaveCount(0);
+}
+
 // This suite exercises the Vite/Web UI against a deterministic mocked Tauri
 // command boundary. Public network availability is gated separately by test:live-assets.
 
@@ -315,10 +346,8 @@ test('retries a failed remote image after leaving and returning to live preview'
   });
 
   await expect(page.getByText(/Remote image cache failed|远程图片缓存失败/)).toBeVisible();
-  await page.getByRole('menuitem', { name: /View|视图/ }).click();
-  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
-  await page.getByRole('menuitem', { name: /View|视图/ }).click();
-  await page.getByRole('menuitem', { name: /Live Preview|实时预览/ }).click();
+  await switchEditorMode(page, 'source');
+  await switchEditorMode(page, 'livePreview');
 
   await imageIsDecoded(page, fixture.alt);
   await expect
@@ -378,12 +407,10 @@ test('reveals editable markdown on click while keeping the preview and preserves
   await expect(image).toBeVisible();
   await expect(page.locator('.cm-content')).toContainText(markdown);
 
-  await page.getByRole('menuitem', { name: /View|视图/ }).click();
-  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
+  await switchEditorMode(page, 'source');
   await expect(page.locator('.cm-content')).toContainText(markdown);
 
-  await page.getByRole('menuitem', { name: /View|视图/ }).click();
-  await page.getByRole('menuitem', { name: /Live Preview|实时预览/ }).click();
+  await switchEditorMode(page, 'livePreview');
   await imageIsDecoded(page, fixture.alt);
   await expect(page.locator('.cm-content')).toContainText(fixture.url);
 });
@@ -402,8 +429,7 @@ test('renders a block image without alt text but leaves inline image markdown un
 
   await expect(page.locator('.lm-image-preview img')).toHaveCount(1);
   await expect(page.getByText('Inline image stays source-only:')).toBeVisible();
-  await page.getByRole('menuitem', { name: /View|视图/ }).click();
-  await page.getByRole('menuitem', { name: /Source Mode|源码模式/ }).click();
+  await switchEditorMode(page, 'source');
   await expect(page.locator('.cm-content')).toContainText(
     `![Inline remote](${inlineUrl})`,
   );

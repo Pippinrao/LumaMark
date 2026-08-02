@@ -155,7 +155,7 @@ app/shell 菜单渲染 ──► 类型安全 dispatcher ──► editor / feat
 ### 主题与语言
 
 - 亮色 / 暗色 radio group
-- 语言子菜单：简体中文 / English radio group
+- 语言菜单：简体中文 / English radio group
 
 ### 帮助
 
@@ -184,9 +184,9 @@ app/shell 菜单渲染 ──► 类型安全 dispatcher ──► editor / feat
 
 | 能力 | Typora 基线 | LumaMark 本轮状态 | 菜单策略 |
 |---|---|---|---|
-| 标题、列表、引用、代码块、分割线 | 已有公开输入或菜单/快捷键证据 | 已实现或部分实现 | 接入真实命令；补代码块快捷键 |
-| 本地图片 | Format → Image，`Ctrl+Shift+I` | 拖拽/粘贴 pipeline 已有，顶部入口不完整 | 接入真实文件选择与既有导入 pipeline |
-| GFM 表格插入 | `Ctrl+T` | 已实现，当前键位不一致 | 改为 `Ctrl+T` 并兼容旧键位 |
+| 标题、列表、引用、代码块、分割线 | 已有公开输入或菜单/快捷键证据 | 已接入真实命令；代码块 `Ctrl+Shift+K` 已补齐 | 保持单一 command port；不夸大专题边界体验 |
+| 本地图片 | Format → Image，`Ctrl+Shift+I` | 真实多选文件入口和快捷键已接入既有导入 pipeline | 取消不改文档；错误沿用文件通知合同 |
+| GFM 表格插入 | `Ctrl+T` | `Ctrl+T` 已接入，旧 `Ctrl+Alt+T` 迁移期兼容 | 顶部菜单只显示标准键位 |
 | 表格行列与选择 | 工具栏/上下文菜单及专用键 | 证据不足或未实现 | 不生成虚假顶部入口；保留专题差距 |
 | Copy as Markdown / Paste as Plain Text | 已确认 | 未建立可靠剪贴板合同 | 不显示；作为剪贴板专题高优先级缺口 |
 | 数学 | `Ctrl+Shift+M`、Math Tools | 未实现 | 不显示 |
@@ -196,6 +196,18 @@ app/shell 菜单渲染 ──► 类型安全 dispatcher ──► editor / feat
 | TOC | `[toc]` + Return；专用菜单证据不足 | 未实现 | 不显示 |
 | Callout | Paragraph → Alert，无专用默认键 | 未实现 | 不显示 |
 | HTML / iframe / video | 键入或粘贴，无通用插入键 | 未实现且安全合同缺失 | 不显示 |
+
+## 2026-08-02 实施与验证结果
+
+- 递归 Radix 菜单已经落地，8 个顶层菜单组可表达 action、separator、submenu、checkbox 和 radio；菜单、命令面板与全局快捷键通过同一类型安全 handler map 分发。
+- 本地图片入口已接入 Tauri 多选系统对话框与既有图片引用 pipeline；浏览器 E2E 验证菜单和 `Ctrl+Shift+I` 的命令编排，Rust 测试验证 IPC 合同，Windows Tauri 实机验证系统对话框可打开且取消后文档不变。
+- `Ctrl+Shift+K`、`Ctrl+T`、`Ctrl+/`、`Ctrl+1…6` 和 `Ctrl+0` 均有自动化命令结果验证；旧 `Ctrl+Alt+T` 迁移键仍受支持。
+- 最终自动化结果为 Vitest 637 项、Web Playwright 137 项、生产 bundle Playwright 2 项、Rust 81 项和独立性能基准 23 项全部通过；菜单专项另有 6 项，通过固定 1440×900 视口生成亮色、暗色、二级菜单和英文四种截图。
+- Windows Tauri 实机已人工检查顶部菜单、二级结构、快捷键列、源码模式状态和图片系统对话框；真实选择图片后的磁盘导入由分层自动化覆盖，本轮人工步骤只执行取消路径，未修改用户文件。
+
+截图证据随实现一同保存：[亮色中文文件菜单](../../artifacts/menu-system-report/menu-light-file-zh.png)、[暗色中文状态菜单](../../artifacts/menu-system-report/menu-dark-view-states-zh.png)、[暗色中文键盘二级菜单](../../artifacts/menu-system-report/menu-dark-nested-keyboard-zh.png)、[暗色英文文件菜单](../../artifacts/menu-system-report/menu-dark-file-en.png)、[Windows 原生图片选择器](../../artifacts/menu-system-report/tauri-native-image-dialog-zh.png)和[取消后的未修改文档](../../artifacts/menu-system-report/tauri-image-dialog-cancelled-zh.png)。
+
+仍未补齐的 Typora 差距没有生成虚假菜单入口：Copy as Markdown、Paste as Plain Text、表格选行/选单元格/删行，以及数学、脚注、TOC、Callout、YAML Front Matter 和受限 HTML 继续由各专题 capability 计划负责。
 
 ## 错误与降级
 

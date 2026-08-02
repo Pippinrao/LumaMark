@@ -7,6 +7,7 @@ import type { CommandResult } from '../tauri/invokeCommand';
 export type FileCommandClient = {
   readText: (path: string) => Promise<CommandResult<ReadTextFileResult>>;
   showOpenDialog: () => Promise<CommandResult<string | null>>;
+  showOpenImageDialog?: () => Promise<CommandResult<string[] | null>>;
   showSaveDialog: () => Promise<CommandResult<string | null>>;
   writeText: (
     path: string,

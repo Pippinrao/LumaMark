@@ -11,6 +11,7 @@ playwright-report/
 test-results/
 artifacts/image-preview-report/
 artifacts/live-preview-report/
+artifacts/menu-system-report/*.log
 artifacts/typora-observe/__pycache__/
 tests/fixtures/markdown/.lumamark/
 .env

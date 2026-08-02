@@ -85,7 +85,6 @@ const requiredCoreKeys = [
   'table.deleteTable',
   'shortcut.table.copy',
   'shortcut.table.delete',
-  'shortcut.table.insert',
   'mermaid.delete',
   'mermaid.edit',
   'mermaid.editSource',

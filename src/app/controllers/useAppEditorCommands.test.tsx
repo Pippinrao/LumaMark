@@ -34,9 +34,70 @@ describe('useAppEditorCommands', () => {
   afterEach(() => {
     delete window.__LUMAMARK_E2E_ASSET_COMMANDS__;
     delete window.__LUMAMARK_E2E_FILE_WATCH__;
+    delete window.__LUMAMARK_E2E_FILE_COMMANDS__;
     delete (window as Window & { __TAURI_INTERNALS__?: unknown })
       .__TAURI_INTERNALS__;
     document.body.textContent = '';
+  });
+
+  it('inserts every image selected by the file-menu picker through the local-image pipeline', async () => {
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn(),
+      showOpenDialog: vi.fn(),
+      showOpenImageDialog: vi.fn().mockResolvedValue({
+        ok: true,
+        data: ['C:\\Pictures\\cover.png', 'C:\\Pictures\\世界地图.webp'],
+      }),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    };
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '', parent });
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+
+    act(() => {
+      result.current.onEditorReady(editor);
+    });
+    await act(async () => {
+      await result.current.insertLocalImages();
+    });
+
+    expect(editor.getDocumentText()).toBe(
+      '![cover.png](C:\\Pictures\\cover.png)\n![世界地图.webp](C:\\Pictures\\世界地图.webp)',
+    );
+
+    unmount();
+    editor.destroy();
+  });
+
+  it('treats cancelling the local-image picker as a no-op', async () => {
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn(),
+      showOpenDialog: vi.fn(),
+      showOpenImageDialog: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    };
+    const parent = document.createElement('div');
+    const outside = document.createElement('button');
+    document.body.appendChild(parent);
+    document.body.appendChild(outside);
+    const editor = createEditorApi({ doc: 'unchanged', parent });
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+
+    act(() => result.current.onEditorReady(editor));
+    outside.focus();
+    await act(async () => {
+      await result.current.insertLocalImages();
+    });
+
+    expect(editor.getDocumentText()).toBe('unchanged');
+    expect(editor.view.hasFocus).toBe(true);
+    expect(useAppStore.getState().lastFileError).toBeNull();
+    unmount();
+    editor.destroy();
+    outside.remove();
   });
 
   it('keeps a stable display-mode toggle synchronized with the ready editor', () => {

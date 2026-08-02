@@ -128,6 +128,7 @@ describe('markdown format commands', () => {
   });
 
   it.each([
+    ['paragraph', '### Title', 'Title'],
     ['heading1', 'Title', '# Title'],
     ['heading2', '# Title', '## Title'],
     ['heading3', 'Title', '### Title'],
@@ -146,6 +147,31 @@ describe('markdown format commands', () => {
       applyMarkdownFormatCommand(view, command);
 
       expect(view.state.doc.toString()).toBe(expected);
+      view.destroy();
+    },
+  );
+
+  it('normalizes only the current heading marker and supports one-step undo', () => {
+    const original = 'Before\n  ###   Title\nAfter';
+    const cursor = original.indexOf('Title');
+    const view = createView(original, cursor, cursor);
+
+    applyMarkdownFormatCommand(view, 'paragraph');
+
+    expect(view.state.doc.toString()).toBe('Before\n  Title\nAfter');
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(original);
+    view.destroy();
+  });
+
+  it.each(['    ### literal code', '\t### literal code'])(
+    'preserves indented code that resembles a heading: %s',
+    (original) => {
+      const view = createView(original, original.length, original.length);
+
+      applyMarkdownFormatCommand(view, 'paragraph');
+
+      expect(view.state.doc.toString()).toBe(original);
       view.destroy();
     },
   );

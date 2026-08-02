@@ -18,6 +18,7 @@ export type MarkdownFormatCommand =
   | 'italic'
   | 'link'
   | 'orderedList'
+  | 'paragraph'
   | 'quote'
   | 'strikethrough'
   | 'table'
@@ -43,6 +44,8 @@ export function applyMarkdownFormatCommand(
       return wrapSelection(view, '![', '](url)', 'image');
     case 'horizontalRule':
       return insertHorizontalRule(view);
+    case 'paragraph':
+      return normalizeParagraph(view);
     case 'heading1':
       return replaceHeadingPrefix(view, '#');
     case 'heading2':
@@ -72,6 +75,35 @@ export function applyMarkdownFormatCommand(
     case 'table':
       return createEditorCapabilityCommands(view).insertTable();
   }
+}
+
+function normalizeParagraph(view: EditorView): boolean {
+  const selection = view.state.selection.main;
+  const line = view.state.doc.lineAt(selection.from);
+  const heading = /^( {0,3})#{1,6}[ \t]+/.exec(line.text);
+
+  if (!heading) {
+    view.focus();
+    return true;
+  }
+
+  const markerLength = heading[0].length - heading[1].length;
+  const markerFrom = line.from + heading[1].length;
+
+  view.dispatch({
+    changes: {
+      from: markerFrom,
+      to: markerFrom + markerLength,
+      insert: '',
+    },
+    selection: EditorSelection.cursor(
+      Math.max(markerFrom, selection.head - markerLength),
+    ),
+    userEvent: 'input.format',
+  });
+  view.focus();
+
+  return true;
 }
 
 function wrapSelection(

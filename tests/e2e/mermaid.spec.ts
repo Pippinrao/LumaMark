@@ -316,7 +316,7 @@ test('renders mermaid gallery fixture and keeps source mode faithful', async ({
   await expect(page.locator('.lm-mermaid-preview[data-status="success"]').first()).toBeVisible();
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
 
   await page.locator('.cm-scroller').evaluate((scroller) => {
     scroller.scrollTop = 0;

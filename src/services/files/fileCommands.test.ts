@@ -6,6 +6,7 @@ import {
 import {
   readTextFile,
   showOpenFileDialog,
+  showOpenImageDialog,
   showSaveFileDialog,
   writeTextFile,
 } from './fileCommands';
@@ -91,7 +92,8 @@ describe('file command clients', () => {
     const invokeFn = vi
       .fn()
       .mockResolvedValueOnce('E:/docs/open.md')
-      .mockResolvedValueOnce('E:/docs/save.md');
+      .mockResolvedValueOnce('E:/docs/save.md')
+      .mockResolvedValueOnce(['E:/images/cover.png', 'E:/images/map.webp']);
 
     await expect(showOpenFileDialog({ invokeFn })).resolves.toEqual({
       ok: true,
@@ -100,6 +102,10 @@ describe('file command clients', () => {
     await expect(showSaveFileDialog({ invokeFn })).resolves.toEqual({
       ok: true,
       data: 'E:/docs/save.md',
+    });
+    await expect(showOpenImageDialog('Images', { invokeFn })).resolves.toEqual({
+      ok: true,
+      data: ['E:/images/cover.png', 'E:/images/map.webp'],
     });
 
     expect(invokeFn).toHaveBeenNthCalledWith(
@@ -111,6 +117,11 @@ describe('file command clients', () => {
       2,
       'files_show_save_file_dialog',
       undefined,
+    );
+    expect(invokeFn).toHaveBeenNthCalledWith(
+      3,
+      'files_show_open_image_dialog',
+      { filterLabel: 'Images' },
     );
   });
 });

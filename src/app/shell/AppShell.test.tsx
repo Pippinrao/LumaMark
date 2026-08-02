@@ -583,7 +583,7 @@ describe('AppShell', () => {
     });
   });
 
-  it('exposes table actions with shortcuts in the command palette', async () => {
+  it('exposes shared creation shortcuts without context-only table actions', async () => {
     render(
       <I18nProvider>
         <ThemeProvider>
@@ -600,14 +600,16 @@ describe('AppShell', () => {
     const dialog = await screen.findByRole('dialog', { name: '命令面板' });
 
     expect(within(dialog).getByText('表格')).toBeInTheDocument();
-    expect(within(dialog).getByText('复制表格')).toBeInTheDocument();
-    expect(within(dialog).getByText('删除表格')).toBeInTheDocument();
-    expect(within(dialog).getByText('Ctrl Alt T')).toBeInTheDocument();
-    expect(within(dialog).getByText('Ctrl Alt C')).toBeInTheDocument();
-    expect(within(dialog).getByText('Ctrl Alt Backspace')).toBeInTheDocument();
+    expect(within(dialog).getByText('代码块')).toBeInTheDocument();
+    expect(within(dialog).getByText('图片')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ctrl+T')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ctrl+Shift+K')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ctrl+Shift+I')).toBeInTheDocument();
+    expect(within(dialog).queryByText('复制表格')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('删除表格')).not.toBeInTheDocument();
   });
 
-  it('shows table shortcuts after table actions in the top menu', async () => {
+  it('shows the aligned table shortcut in its submenu and omits destructive table actions from Edit', async () => {
     render(
       <I18nProvider>
         <ThemeProvider>
@@ -619,25 +621,20 @@ describe('AppShell', () => {
     const paragraphMenu = screen.getByRole('menuitem', { name: '段落' });
     paragraphMenu.focus();
     fireEvent.keyDown(paragraphMenu, { key: 'ArrowDown' });
+    const insertSubmenu = await screen.findByRole('menuitem', { name: '插入' });
+    insertSubmenu.focus();
+    fireEvent.keyDown(insertSubmenu, { key: 'ArrowRight' });
     expect(
-      await screen.findByRole('menuitem', { name: /^表格\s*Ctrl Alt T$/ }),
-    ).toHaveTextContent('Ctrl Alt T');
+      await screen.findByRole('menuitem', { name: /^表格Ctrl\+T$/ }),
+    ).toHaveTextContent('Ctrl+T');
 
     fireEvent.keyDown(document, { key: 'Escape' });
     const editMenu = screen.getByRole('menuitem', { name: '编辑' });
     editMenu.focus();
     fireEvent.keyDown(editMenu, { key: 'ArrowDown' });
 
-    expect(
-      await screen.findByRole('menuitem', {
-        name: /^复制表格\s*Ctrl Alt C$/,
-      }),
-    ).toHaveTextContent('Ctrl Alt C');
-    expect(
-      screen.getByRole('menuitem', {
-        name: /^删除表格\s*Ctrl Alt Backspace$/,
-      }),
-    ).toHaveTextContent('Ctrl Alt Backspace');
+    expect(screen.queryByText('复制表格')).not.toBeInTheDocument();
+    expect(screen.queryByText('删除表格')).not.toBeInTheDocument();
   });
 
   it('toggles the sidebar from the view menu and keyboard shortcut', async () => {
@@ -653,7 +650,7 @@ describe('AppShell', () => {
     viewMenu.focus();
     fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
     fireEvent.click(
-      await screen.findByRole('menuitem', { name: '切换侧边栏' }),
+      await screen.findByRole('menuitemcheckbox', { name: /^切换侧边栏/ }),
     );
 
     await waitFor(() => {
@@ -684,8 +681,8 @@ describe('AppShell', () => {
     viewMenu.focus();
     fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
     expect(
-      await screen.findByRole('menuitem', { name: '源码模式' }),
-    ).toBeInTheDocument();
+      await screen.findByRole('menuitemradio', { name: /^源码模式/ }),
+    ).toHaveAttribute('aria-checked', 'false');
     fireEvent.keyDown(document, { key: 'Escape' });
 
     fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
@@ -696,8 +693,11 @@ describe('AppShell', () => {
     viewMenu.focus();
     fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
     expect(
-      await screen.findByRole('menuitem', { name: '实时预览' }),
-    ).toBeInTheDocument();
+      await screen.findByRole('menuitemradio', { name: '实时预览' }),
+    ).toHaveAttribute('aria-checked', 'false');
+    expect(
+      screen.getByRole('menuitemradio', { name: /^源码模式/ }),
+    ).toHaveAttribute('aria-checked', 'true');
     fireEvent.keyDown(document, { key: 'Escape' });
 
     fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
@@ -708,8 +708,8 @@ describe('AppShell', () => {
     viewMenu.focus();
     fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
     expect(
-      await screen.findByRole('menuitem', { name: '源码模式' }),
-    ).toBeInTheDocument();
+      await screen.findByRole('menuitemradio', { name: /^源码模式/ }),
+    ).toHaveAttribute('aria-checked', 'false');
   });
 
   it('lets the user opt in to copying inserted local images to document assets', async () => {
@@ -721,9 +721,9 @@ describe('AppShell', () => {
       </I18nProvider>,
     );
 
-    const viewMenu = screen.getByRole('menuitem', { name: '视图' });
-    viewMenu.focus();
-    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+    fileMenu.focus();
+    fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
     fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
     const imagesTab = await screen.findByRole('tab', { name: '图片' });
     fireEvent.mouseDown(imagesTab, { button: 0 });
@@ -758,7 +758,7 @@ describe('AppShell', () => {
     viewMenu.focus();
     fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
     fireEvent.click(
-      await screen.findByRole('menuitem', { name: '进入专注模式' }),
+      await screen.findByRole('menuitemcheckbox', { name: /^专注模式/ }),
     );
 
     await waitFor(() => {
@@ -775,7 +775,30 @@ describe('AppShell', () => {
     });
   });
 
-  it('shows table actions and shortcuts in the editor context menu', async () => {
+  it('opens About from Help without opening Settings', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const helpMenu = screen.getByRole('menuitem', { name: '帮助' });
+    helpMenu.focus();
+    fireEvent.keyDown(helpMenu, { key: 'ArrowDown' });
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: '关于 LumaMark' }),
+    );
+
+    expect(
+      await screen.findByRole('dialog', { name: '关于 LumaMark' }),
+    ).toBeVisible();
+    expect(screen.queryByRole('dialog', { name: '设置' })).not.toBeInTheDocument();
+    expect(screen.getByText('高性能 Typora-like Markdown 编辑器')).toBeVisible();
+  });
+
+  it('shows destructive table actions only when the context target is a table', async () => {
     render(
       <I18nProvider>
         <ThemeProvider>
@@ -787,10 +810,19 @@ describe('AppShell', () => {
     fireEvent.contextMenu(screen.getByTestId('editor-host'));
 
     expect(
-      await screen.findByRole('menuitem', { name: /^表格\s*Ctrl Alt T$/ }),
-    ).toHaveTextContent('Ctrl Alt T');
+      await screen.findByRole('menuitem', { name: /^表格\s*Ctrl\+T$/ }),
+    ).toHaveTextContent('Ctrl+T');
+    expect(screen.queryByRole('menuitem', { name: /^复制表格/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^删除表格/ })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    const table = document.createElement('div');
+    table.className = 'tbl-table-widget';
+    screen.getByTestId('editor-host').append(table);
+    fireEvent.contextMenu(table);
+
     expect(
-      screen.getByRole('menuitem', { name: /^复制表格\s*Ctrl Alt C$/ }),
+      await screen.findByRole('menuitem', { name: /^复制表格\s*Ctrl Alt C$/ }),
     ).toHaveTextContent('Ctrl Alt C');
     expect(
       screen.getByRole('menuitem', {

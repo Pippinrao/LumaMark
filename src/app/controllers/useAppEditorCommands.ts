@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   createEditorCommandPort,
   createEditorDocumentPort,
@@ -10,6 +11,8 @@ import type { EditorApi } from '../../editor/core/editorApi';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
 import { createLocalImageReferences } from '../../services/assets/assetCommands';
 import { subscribeToLocalImageDrops } from '../../services/assets/localImageDrop';
+import { resolveFileCommandClient } from '../../services/files/fileCommandClient';
+import { showOpenImageDialog } from '../../services/files/fileCommands';
 import { useAppStore } from '../stores/appStore';
 import {
   reportImageInsertFailure,
@@ -17,6 +20,7 @@ import {
 } from './useAppImageAssets';
 
 export function useAppEditorCommands() {
+  const { t } = useTranslation();
   const documentPortRef = useRef<EditorDocumentPort | null>(null);
   const commandPortRef = useRef<EditorCommandPort | null>(null);
   const pendingFocusRef = useRef(false);
@@ -83,6 +87,46 @@ export function useAppEditorCommands() {
     commandPortRef.current?.runFormat(command);
   }, []);
 
+  const insertLocalImages = useCallback(async () => {
+    if (!commandPortRef.current) {
+      return;
+    }
+
+    const state = useAppStore.getState();
+    const documentPath = state.currentFile?.path ?? null;
+
+    try {
+      const browserClient = resolveFileCommandClient();
+      const result = browserClient?.showOpenImageDialog
+        ? await browserClient.showOpenImageDialog()
+        : await showOpenImageDialog(t('menu.image'));
+
+      if (!result.ok) {
+        throw new Error(result.error.code);
+      }
+
+      if (!result.data?.length) {
+        return;
+      }
+
+      const images = await createLocalImageReferences({
+        copyToAssets: state.copyImagesToAssets,
+        documentPath,
+        paths: result.data,
+      });
+
+      if ((useAppStore.getState().currentFile?.path ?? null) !== documentPath) {
+        return;
+      }
+
+      commandPortRef.current?.insertImages(images);
+    } catch (error) {
+      reportImageInsertFailure(error);
+    } finally {
+      commandPortRef.current?.focus();
+    }
+  }, [t]);
+
   const redo = useCallback(() => {
     commandPortRef.current?.redo();
   }, []);
@@ -144,6 +188,7 @@ export function useAppEditorCommands() {
     imageAssetResolver: imageAssets.imageAssetResolver,
     imageImportErrorHandler: reportImageInsertFailure,
     imageImportHandler: imageAssets.imageImportHandler,
+    insertLocalImages,
     onEditorReady,
     openSearch,
     runFormat,

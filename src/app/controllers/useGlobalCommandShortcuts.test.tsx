@@ -144,6 +144,83 @@ describe('useGlobalCommandShortcuts', () => {
     expect(focusModeEvent.defaultPrevented).toBe(true);
   });
 
+  it.each([
+    ['i', true, false, 'image'],
+    ['k', true, false, 'codeBlock'],
+    ['t', false, false, 'table'],
+    ['t', false, true, 'table'],
+  ] as const)(
+    'runs the Typora-aligned %s shortcut through its shared command handler',
+    (key, shiftKey, altKey, handler) => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        configurable: true,
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      });
+      const handlers = createHandlers();
+      const editor = document.createElement('div');
+      editor.className = 'cm-content';
+      document.body.append(editor);
+
+      render(<ShortcutHarness handlers={handlers} />);
+      const event = new KeyboardEvent('keydown', {
+        altKey,
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        key,
+        shiftKey,
+      });
+      editor.dispatchEvent(event);
+
+      expect(handlers[handler]).toHaveBeenCalledTimes(1);
+      expect(event.defaultPrevented).toBe(true);
+      editor.remove();
+    },
+  );
+
+  it('does not run editor mutation shortcuts from dialogs or auxiliary inputs', () => {
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    });
+    const handlers = createHandlers();
+    const dialog = document.createElement('div');
+    const dialogInput = document.createElement('input');
+    const auxiliaryInput = document.createElement('input');
+    dialog.setAttribute('role', 'dialog');
+    dialog.append(dialogInput);
+    document.body.append(dialog, auxiliaryInput);
+
+    try {
+      render(<ShortcutHarness handlers={handlers} />);
+
+      for (const target of [dialogInput, auxiliaryInput]) {
+        for (const [key, shiftKey] of [
+          ['i', true],
+          ['k', true],
+          ['t', false],
+        ] as const) {
+          const event = new KeyboardEvent('keydown', {
+            bubbles: true,
+            cancelable: true,
+            ctrlKey: true,
+            key,
+            shiftKey,
+          });
+          target.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(false);
+        }
+      }
+
+      expect(handlers.image).not.toHaveBeenCalled();
+      expect(handlers.codeBlock).not.toHaveBeenCalled();
+      expect(handlers.table).not.toHaveBeenCalled();
+    } finally {
+      dialog.remove();
+      auxiliaryInput.remove();
+    }
+  });
+
   it('requests a focus-mode exit when Escape is pressed', () => {
     const handlers = createHandlers();
 
@@ -408,9 +485,11 @@ describe('useGlobalCommandShortcuts', () => {
 
 function createHandlers() {
   return {
+    codeBlock: vi.fn(),
     copyTable: vi.fn(),
     deleteTable: vi.fn(),
     exitFocusMode: vi.fn(),
+    image: vi.fn(),
     newDocument: vi.fn(),
     openCommandPalette: vi.fn(),
     openFile: vi.fn(),

@@ -1,18 +1,14 @@
 import type { ReactNode } from 'react';
+import type {
+  CommandMenuGroup,
+  CommandMenuInvocation,
+  CommandActionId,
+} from '../../features/commands/commandTypes';
 
-export type ShellActionId = string;
+export type ShellActionId = CommandActionId;
 
-export type ShellMenuItem = {
-  action?: ShellActionId;
-  disabled?: boolean;
-  label: string;
-  shortcut?: string;
-};
-
-export type ShellMenuGroup = {
-  items: ShellMenuItem[];
-  label: string;
-};
+export type ShellMenuGroup = CommandMenuGroup;
+export type ShellMenuInvocation = CommandMenuInvocation;
 
 export type ShellContextMenuItem = {
   action: ShellActionId;

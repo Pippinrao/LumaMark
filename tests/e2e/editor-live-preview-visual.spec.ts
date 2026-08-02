@@ -92,7 +92,7 @@ test('generates a visual report for live preview rendering and editing states', 
   await capture(page, screenshots, '05-table-after-edit.png', 'Table after edit');
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
-  await page.getByRole('menuitem', { name: '源码模式' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
   await expect(editor).toContainText('**bold**!');
   await expect(editor).toContainText('console.log(value)');
 

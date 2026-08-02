@@ -11,6 +11,7 @@ import { EditorPane } from '../shell/EditorPane';
 import { TopChrome } from '../shell/TopChrome';
 import { WorkspaceSidebar } from '../shell/WorkspaceSidebar';
 import type { ShellSlots } from '../shell/shellTypes';
+import packageMetadata from '../../../package.json';
 
 const LazyCommandPalette = lazy(() =>
   import('../../features/command-palette/CommandPalette').then((module) => ({
@@ -22,6 +23,11 @@ const LazySettingsDialog = lazy(() =>
     default: module.SettingsDialog,
   })),
 );
+const LazyAboutDialog = lazy(() =>
+  import('../../features/about/AboutDialog').then((module) => ({
+    default: module.AboutDialog,
+  })),
+);
 
 type AppShellModel = ReturnType<typeof useAppShellModel>;
 
@@ -30,6 +36,16 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
     () => ({
       dialogs: (
         <AppDialogs
+          aboutDialog={
+            model.aboutOpen ? (
+              <LazyAboutDialog
+                onOpenChange={model.setAboutOpen}
+                onReturnFocus={model.restoreDialogFocus}
+                open={model.aboutOpen}
+                version={packageMetadata.version}
+              />
+            ) : null
+          }
           commandPalette={
             model.commandPaletteOpen ? (
               <LazyCommandPalette
@@ -45,6 +61,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
               <DiscardChangesDialog
                 onConfirm={model.confirmNewDocument}
                 onOpenChange={model.setNewDocumentConfirmOpen}
+                onReturnFocus={model.restoreNewDocumentFocus}
                 open={model.newDocumentConfirmOpen}
               />
             ) : null
@@ -78,6 +95,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
                 onCopyImagesToAssetsChange={model.setCopyImagesToAssets}
                 onLanguageChange={model.setLanguage}
                 onOpenChange={model.setSettingsOpen}
+                onReturnFocus={model.restoreDialogFocus}
                 onThemeChange={model.setTheme}
                 open={model.settingsOpen}
                 theme={model.theme}
@@ -99,7 +117,11 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
         <EditorPane
           accessibleTitle={model.documentTitle}
           ariaLabel={model.labels.editor}
-          contextMenuItems={model.editor.contextMenuItems}
+          getContextMenuItems={(target) =>
+            model.editor.getContextMenuItems(
+              target instanceof Element && Boolean(target.closest('.tbl-table-widget')),
+            )
+          }
           onAction={model.runAction}
           onDocumentChanged={(event) => {
             model.editor.markDocumentDirty(event.dirty);
@@ -148,7 +170,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
         <TopChrome
           groups={model.topMenuGroups}
           labels={model.labels.topChrome}
-          onAction={model.runAction}
+          onInvoke={model.runMenuInvocation}
           windowChrome={model.windowControls}
         />
       ),

@@ -2,10 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EditorApi } from '../../editor/core/editorApi';
 import { useWorkspaceWorkflow } from '../../features/workspace/useWorkspaceWorkflow';
+import { createAppShellLabels, createTableShortcutLabels } from './createAppShellLabels';
+import { useAppCommandHandlers } from './useAppCommandHandlers';
 import { useAppCommandModels } from './useAppCommandModels';
 import { useAppDocumentModel } from './useAppDocumentModel';
 import { useAppEditorCommands } from './useAppEditorCommands';
 import { useFocusMode } from './useFocusMode';
+import { useMenuDialogFocus } from './useMenuDialogFocus';
+import { useNewDocumentConfirmation } from './useNewDocumentConfirmation';
 import { useSettingsModel } from './useSettingsModel';
 import { useWindowControlsModel } from './useWindowControlsModel';
 import { useAppStore } from '../stores/appStore';
@@ -13,7 +17,7 @@ type DeferredCommand = () => void | Promise<void>;
 export function useAppShellModel() {
   const { t } = useTranslation();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [newDocumentConfirmOpen, setNewDocumentConfirmOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
@@ -26,6 +30,10 @@ export function useAppShellModel() {
     editor.refreshLocalImage,
   );
   const settings = useSettingsModel();
+  const { openAbout, openSettings, restoreDialogFocus } = useMenuDialogFocus({
+    setAboutOpen,
+    setSettingsOpen: settings.setSettingsOpen,
+  });
   const windowControls = useWindowControlsModel();
   const workspace = useWorkspaceWorkflow({
     openDocumentPath: document.fileWorkflow.openPath,
@@ -33,14 +41,12 @@ export function useAppShellModel() {
   });
   const documentTitle = document.currentFile?.name ?? t('app.emptyTitle');
   const visibleDocumentTitle = document.dirty ? `${documentTitle} *` : documentTitle;
-  const shortcuts = useMemo(
-    () => ({
-      copy: t('shortcut.table.copy'),
-      delete: t('shortcut.table.delete'),
-      insert: t('shortcut.table.insert'),
-    }),
-    [t],
-  );
+  const newDocumentConfirmation = useNewDocumentConfirmation({
+    createNewDocument: document.fileWorkflow.createNewDocument,
+    dirty: document.dirty,
+    focusEditor: editor.focusEditor,
+  });
+  const shortcuts = useMemo(() => createTableShortcutLabels(t), [t]);
   const onEditorReady = useCallback(
     (editorApi: EditorApi) => {
       editor.onEditorReady(editorApi);
@@ -48,24 +54,11 @@ export function useAppShellModel() {
     },
     [document, editor],
   );
-  const openSettings = useCallback(() => settings.setSettingsOpen(true), [settings]);
   const { exitFocusMode, focusMode, toggleFocusMode } = useFocusMode({
     focusEditor: editor.focusEditor,
     setSidebarOpen,
     sidebarOpen,
   });
-  const requestNewDocument = useCallback(() => {
-    if (document.dirty) {
-      setNewDocumentConfirmOpen(true);
-      return;
-    }
-
-    document.fileWorkflow.createNewDocument();
-  }, [document]);
-  const confirmNewDocument = useCallback(() => {
-    document.fileWorkflow.createNewDocument();
-    setNewDocumentConfirmOpen(false);
-  }, [document]);
   const openCommandPalette = useCallback(() => {
     if (commandPaletteOpen) {
       return;
@@ -100,15 +93,16 @@ export function useAppShellModel() {
       opener.focus();
     }
   }, [commandPaletteOpen]);
-  const commandModels = useAppCommandModels({
+  const commandHandlers = useAppCommandHandlers({
     copyTable: editor.copyTable,
     deleteTable: editor.deleteTable,
-    editorDisplayMode: editor.editorDisplayMode,
     exitFocusMode,
-    focusMode,
-    fileOpening: document.fileWorkflow.fileOpening,
     focusEditor: editor.focusEditor,
-    newDocument: requestNewDocument,
+    insertImage: () => {
+      void editor.insertLocalImages();
+    },
+    newDocument: newDocumentConfirmation.requestNewDocument,
+    openAbout,
     openCommandPalette,
     openFile: () => {
       void document.fileWorkflow.openFromDialog();
@@ -126,10 +120,10 @@ export function useAppShellModel() {
     saveAs: () => {
       void document.fileWorkflow.saveAs();
     },
+    setLanguage: settings.setLanguage,
     setLivePreviewMode: () => editor.setDisplayMode('livePreview'),
     setSourceMode: () => editor.setDisplayMode('source'),
-    shortcuts,
-    t,
+    setTheme: settings.setTheme,
     toggleDisplayMode: editor.toggleDisplayMode,
     toggleLanguage: settings.toggleLanguage,
     toggleFocusMode,
@@ -137,8 +131,24 @@ export function useAppShellModel() {
     toggleTheme: settings.toggleTheme,
     undo: editor.undo,
   });
+  const commandModels = useAppCommandModels({
+    editorDisplayMode: editor.editorDisplayMode,
+    fileOpening: document.fileWorkflow.fileOpening,
+    focusMode,
+    handlers: commandHandlers,
+    language: settings.language,
+    openRecentFile: (path) => {
+      void document.fileWorkflow.openPath(path);
+    },
+    recentFiles: document.recentFiles,
+    shortcuts,
+    sidebarOpen,
+    t,
+    theme: settings.theme,
+  });
 
   return {
+    aboutOpen,
     commandPaletteOpen,
     commands: commandModels.commands,
     currentFile: document.currentFile,
@@ -148,7 +158,7 @@ export function useAppShellModel() {
     documentTitle,
     focusMode,
     editor: {
-      contextMenuItems: commandModels.editorContextMenuItems,
+      getContextMenuItems: commandModels.getEditorContextMenuItems,
       focusEditor: editor.focusEditor,
       imageAssetResolver: editor.imageAssetResolver,
       imageImportErrorHandler: editor.imageImportErrorHandler,
@@ -163,50 +173,35 @@ export function useAppShellModel() {
       reloadFromDisk: document.fileWorkflow.reloadFromDisk,
     },
     headings: document.headings,
-    labels: {
-      editor: t('app.editorLabel'),
-      focusMode: {
-        exit: t('command.exitFocusMode'),
-      },
-      sidebar: {
-        files: t('sidebar.files'),
-        outline: t('outline.title'),
-        sidebar: t('app.sidebarLabel'),
-      },
-      status: {
-        dirtyIndicator: t('status.dirtyIndicator'),
-        statistics: t('status.documentStatistics', document.documentStatistics.statistics),
-        status: t(document.statusKey),
-      },
-      topChrome: {
-        appName: t('app.name'),
-        close: t('window.close'),
-        controls: t('window.controls'),
-        maximize: t('window.maximize'),
-        minimize: t('window.minimize'),
-        restore: t('window.restore'),
-      },
-    },
+    labels: createAppShellLabels({
+      documentStatistics: document.documentStatistics.statistics,
+      statusKey: document.statusKey,
+      t,
+    }),
     language: settings.language,
     copyImagesToAssets: settings.copyImagesToAssets,
     lastFileError: document.lastFileError,
-    newDocumentConfirmOpen,
+    newDocumentConfirmOpen: newDocumentConfirmation.open,
     recentFiles: document.recentFiles,
     recoveryDraft: document.recoveryDraft,
     runAction: commandModels.runAction,
+    runMenuInvocation: commandModels.runMenuInvocation,
     runCommandAfterPaletteClose,
+    restoreDialogFocus,
+    restoreNewDocumentFocus: newDocumentConfirmation.restoreFocus,
     scheduleOutlineRefresh: document.scheduleOutlineRefresh,
     setCommandPaletteOpen,
     setLanguage: settings.setLanguage,
+    setAboutOpen,
     setCopyImagesToAssets: settings.setCopyImagesToAssets,
-    setNewDocumentConfirmOpen,
+    setNewDocumentConfirmOpen: newDocumentConfirmation.setOpen,
     setSettingsOpen: settings.setSettingsOpen,
     setSidebarOpen,
     setTheme: settings.setTheme,
     settingsOpen: settings.settingsOpen,
     sidebarOpen,
     toggleFocusMode,
-    confirmNewDocument,
+    confirmNewDocument: newDocumentConfirmation.confirmNewDocument,
     theme: settings.theme,
     topMenuGroups: commandModels.topMenuGroups,
     visibleDocumentTitle,

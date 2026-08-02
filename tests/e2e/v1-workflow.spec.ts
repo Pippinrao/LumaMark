@@ -89,7 +89,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
 
   await page.goto('/');
 
-  await clickFirstVisibleMenuItem(page, ['视图', 'View']);
+  await clickFirstVisibleMenuItem(page, ['文件', 'File']);
   await clickFirstVisibleMenuItem(page, ['设置', 'Settings']);
   await page.getByRole('tab', { name: '语言' }).click();
   await page.getByRole('button', { name: 'English' }).click();
@@ -340,7 +340,11 @@ async function runFileMenuAction(
 
 async function clickFirstVisibleMenuItem(page: Page, names: string[]) {
   for (const name of names) {
-    const item = page.getByRole('menuitem', { exact: true, name }).first();
+    const item = page
+      .getByRole('menuitem', { name })
+      .or(page.getByRole('menuitemradio', { name }))
+      .or(page.getByRole('menuitemcheckbox', { name }))
+      .first();
     try {
       await expect(item).toBeVisible({ timeout: 2_000 });
       await item.click();

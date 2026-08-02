@@ -61,6 +61,26 @@ describe('editor command port', () => {
     parent.remove();
   });
 
+  it('restores editor focus when undo or redo has no history entry', () => {
+    const parent = document.createElement('div');
+    const outside = document.createElement('button');
+    document.body.append(parent, outside);
+    const editor = createEditorApi({ doc: 'plain', parent });
+    const commands = createEditorCommandPort(editor);
+
+    outside.focus();
+    commands.undo();
+    expect(editor.view.hasFocus).toBe(true);
+
+    outside.focus();
+    commands.redo();
+    expect(editor.view.hasFocus).toBe(true);
+
+    editor.destroy();
+    parent.remove();
+    outside.remove();
+  });
+
   it('inserts local image references without rewriting their markdown sources', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

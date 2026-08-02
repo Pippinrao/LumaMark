@@ -1,5 +1,7 @@
 # 1. LumaMark 与 Typora 水平线（Horizontal Rules）竞品分析
 
+> **菜单系统实施更新（2026-08-02）：** 水平线入口现位于“段落 → 插入 → 分割线”，并继续保留命令面板入口；二者调用同一 CodeMirror transaction 命令。Typora 基线没有核实专用默认快捷键，因此菜单不显示臆造键位。该调整只改善可发现性和菜单层级，不改变本文对焦点编辑、删除、变体保真、IME 与可访问性仍有差距的判断。
+
 > **Parity Reliability 实施更新（2026-07-27）**
 >
 > 本文正文中的“执行摘要”“LumaMark 当前状态”和差距矩阵记录的是 **2026-07-12 分析快照**，保留作历史取证，不再作为当前实施状态。当前唯一执行路线见 [Typora Parity 核心体验改进计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。

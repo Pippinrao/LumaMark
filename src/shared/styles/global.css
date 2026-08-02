@@ -96,69 +96,156 @@ button {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   justify-self: start;
 }
 
 .lm-menu-trigger {
-  min-height: 28px;
-  border: 0;
-  border-radius: var(--lm-radius-1);
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
   color: var(--lm-color-text);
   cursor: default;
-  font-size: 0.84rem;
-  padding: 0 var(--lm-space-3);
+  font-size: 0.82rem;
+  font-weight: 520;
+  letter-spacing: 0.01em;
+  outline: none;
+  padding: 0 11px;
+  transition: background-color 100ms ease, border-color 100ms ease, color 100ms ease;
   white-space: nowrap;
 }
 
 .lm-menu-trigger:hover,
 .lm-menu-trigger[data-state='open'] {
-  background: var(--lm-color-surface-muted);
+  border-color: color-mix(in srgb, var(--lm-color-border) 72%, transparent);
+  background: color-mix(in srgb, var(--lm-color-surface-muted) 88%, transparent);
+}
+
+.lm-menu-trigger[data-state='open'] {
+  color: var(--lm-color-accent-strong);
+}
+
+.lm-menu-trigger:focus-visible {
+  border-color: var(--lm-color-accent);
+  box-shadow: 0 0 0 2px var(--lm-color-accent-soft);
 }
 
 .lm-menu-content {
   z-index: 60;
-  min-width: 180px;
-  border: 1px solid var(--lm-color-border);
-  border-radius: var(--lm-radius-2);
-  background: var(--lm-color-surface);
-  box-shadow: 0 14px 36px rgb(0 0 0 / 16%);
-  padding: var(--lm-space-2);
+  min-width: 304px;
+  max-width: min(420px, calc(100vw - 24px));
+  border: 1px solid color-mix(in srgb, var(--lm-color-border) 92%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lm-color-surface) 97%, var(--lm-color-bg));
+  box-shadow: var(--lm-menu-shadow);
+  padding: 7px;
+  transform-origin: var(--radix-menubar-content-transform-origin);
+  animation: lm-menu-enter 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .lm-menu-item {
-  display: flex;
+  display: grid;
+  min-width: 0;
   align-items: center;
-  gap: var(--lm-space-4);
-  justify-content: space-between;
-  min-height: 30px;
-  border-radius: var(--lm-radius-1);
+  grid-template-columns: 16px 20px minmax(118px, 1fr) max-content 14px;
+  column-gap: 8px;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 7px;
   color: var(--lm-color-text);
   cursor: default;
-  font-size: 0.84rem;
+  font-size: 0.85rem;
   outline: none;
-  padding: 0 var(--lm-space-3);
+  padding: 0 10px 0 8px;
+  user-select: none;
 }
 
 .lm-menu-item[data-highlighted] {
-  background: var(--lm-color-accent);
-  color: white;
+  border-color: color-mix(in srgb, var(--lm-menu-highlight-bg) 88%, white);
+  background: var(--lm-menu-highlight-bg);
+  color: var(--lm-menu-highlight-text);
 }
 
 .lm-menu-item[data-disabled] {
   color: var(--lm-color-text-muted);
+  opacity: 0.48;
 }
 
-.lm-menu-shortcut {
-  color: var(--lm-color-text-muted);
-  font: inherit;
-  font-size: 0.72rem;
+.lm-menu-indicator,
+.lm-menu-icon,
+.lm-menu-submenu-arrow {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.lm-menu-indicator {
+  color: currentcolor;
+}
+
+.lm-menu-icon {
+  color: color-mix(in srgb, currentcolor 82%, var(--lm-color-text-muted));
+}
+
+.lm-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.lm-menu-submenu-arrow {
+  justify-self: end;
+  opacity: 0.72;
+}
+
+.lm-menu-shortcut {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--lm-color-border) 72%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--lm-color-surface-muted) 72%, transparent);
+  color: var(--lm-color-text-muted);
+  font-family: var(--lm-font-mono);
+  font-size: 0.68rem;
+  font-weight: 520;
+  line-height: 20px;
+  padding: 0 5px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.lm-menu-shortcut:empty {
+  visibility: hidden;
+}
+
 .lm-menu-item[data-highlighted] .lm-menu-shortcut {
-  color: color-mix(in srgb, white 82%, transparent);
+  border-color: rgb(255 255 255 / 22%);
+  background: rgb(255 255 255 / 12%);
+  color: rgb(255 255 255 / 90%);
+}
+
+.lm-menu-separator {
+  height: 1px;
+  margin: 6px 10px 6px 52px;
+  background: color-mix(in srgb, var(--lm-color-border) 78%, transparent);
+}
+
+.lm-menu-submenu-content {
+  min-width: 288px;
+}
+
+@keyframes lm-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .lm-editor-placeholder h2 {
@@ -680,7 +767,8 @@ button {
 }
 
 .lm-command-palette,
-.lm-settings-dialog {
+.lm-settings-dialog,
+.lm-about-dialog {
   position: fixed;
   z-index: 90;
   top: 72px;
@@ -746,6 +834,73 @@ button {
 
 .lm-settings-dialog {
   padding: var(--lm-space-4);
+}
+
+.lm-about-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: var(--lm-space-5);
+  text-align: center;
+}
+
+.lm-about-identity {
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lm-color-border);
+  border-radius: 12px;
+  margin-top: var(--lm-space-4);
+  background: var(--lm-color-accent-soft);
+  color: var(--lm-color-accent-strong);
+}
+
+.lm-about-description {
+  margin-bottom: var(--lm-space-3);
+}
+
+.lm-about-version {
+  display: flex;
+  justify-content: center;
+  gap: var(--lm-space-2);
+  margin: 0;
+  color: var(--lm-color-text-muted);
+  font-size: 0.78rem;
+}
+
+.lm-about-version strong {
+  color: var(--lm-color-text-soft);
+  font-family: var(--lm-font-mono);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lm-menu-content {
+    animation: none;
+  }
+
+  .lm-menu-trigger {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .lm-menu-trigger:focus-visible,
+  .lm-menu-item[data-highlighted] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .lm-menu-content,
+  .lm-menu-shortcut {
+    border-color: CanvasText;
+  }
+
+  .lm-menu-item[data-highlighted] {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
 }
 
 .lm-dialog-actions {

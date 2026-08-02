@@ -53,6 +53,25 @@ pub async fn files_show_open_file_dialog(app: AppHandle) -> Result<Option<String
 }
 
 #[tauri::command]
+pub async fn files_show_open_image_dialog(
+    app: AppHandle,
+    filter_label: String,
+) -> Result<Option<Vec<String>>, AppError> {
+    let selected = app
+        .dialog()
+        .file()
+        .add_filter(
+            filter_label,
+            &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif"],
+        )
+        .blocking_pick_files();
+
+    selected
+        .map(|paths| paths.into_iter().map(dialog_path_to_string).collect())
+        .transpose()
+}
+
+#[tauri::command]
 pub async fn files_show_save_file_dialog(app: AppHandle) -> Result<Option<String>, AppError> {
     let selected = app
         .dialog()

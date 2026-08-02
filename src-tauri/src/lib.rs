@@ -20,7 +20,8 @@ use commands::assets::{
 };
 use commands::file_watch::{replace_local_image_targets, unwatch_document, watch_document};
 use commands::files::{
-    files_read_text, files_show_open_file_dialog, files_show_save_file_dialog, files_write_text,
+    files_read_text, files_show_open_file_dialog, files_show_open_image_dialog,
+    files_show_save_file_dialog, files_write_text,
 };
 use commands::workspace::{workspace_list_children, workspace_open_directory};
 use services::file_watch_service::{FileWatchService, FILE_WATCH_CHANGED_EVENT};
@@ -46,6 +47,7 @@ pub fn run() {
             files_read_text,
             files_write_text,
             files_show_open_file_dialog,
+            files_show_open_image_dialog,
             files_show_save_file_dialog,
             watch_document,
             replace_local_image_targets,

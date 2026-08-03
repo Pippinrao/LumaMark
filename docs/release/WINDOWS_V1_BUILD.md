@@ -4,6 +4,48 @@
 
 > **历史记录：** 下列分支、版本号、文件大小与 SHA-256 只描述对应 Alpha 构建，不能当作当前工作树的发布产物。Parity Reliability 只有在当前执行计划的自动化门禁、Windows 实测和真实自用退出条件全部满足后，才具备 Beta 候选资格；一次本地 `pnpm build` 成功不等于已发布。
 
+## 0.2.1 NSIS-only Release
+
+- 日期：2026-08-03
+- 平台：Windows x64
+- 分支：`v1-implementation`
+- 发布提交：`20accc2d9e0a97ab410126efc817c07dbb9ec816`
+- Windows runner：[Windows Release Build 30757679582](https://github.com/Pippinrao/LumaMark/actions/runs/30757679582)（`success`）
+- 发布范围：GitHub Release 只上传由上述 runner 生成的 NSIS 安装器；exe、MSI 和 manifest 作为 workflow artifacts 保留。
+
+最终发布产物：
+
+| 产物 | 路径 | 大小 | SHA-256 |
+|---|---|---:|---|
+| NSIS 安装包 | `LumaMark_0.2.1_x64-setup.exe` | 4,656,736 bytes | `6a003c9e3c798e991a820a345c0a5d5cecab6992a75e5498aebdeae6c4337efb` |
+
+本版本将应用菜单重构为 Typora-like 的 File、Edit、Paragraph、Format、View、Help 六组菜单，补齐可执行命令、禁用态、嵌套菜单、键盘导航、菜单快捷键、About 对话框和中英文文案，并同步更新竞品分析与视觉验证截图。
+
+新鲜自动化验证：
+
+- `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm test`：68 个测试文件、637 项测试通过。
+- `pnpm test:fixtures`：2 个测试文件、6 项 round-trip 测试通过。
+- `pnpm download:markdown-corpus` 和 `pnpm test:markdown-corpus`：解析 6 个语料文件、646,256 bytes。
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml`：81 项 Rust 测试通过，1 项显式忽略的公网测试由 `pnpm test:live-assets` 单独执行并通过。
+- `pnpm quality:v1-ux-prototype`：2 项通过。
+- `pnpm quality:v1-ux-screenshots`：生成 6 张审查截图，且在 `NODE_OPTIONS=--throw-deprecation` 下无 warning。
+- `pnpm test:e2e -- --workers=1`：137 项 Playwright 测试通过。
+- `pnpm test:live-assets`：公网 PNG/SVG 和 Rust 真实下载缓存测试通过。
+- `pnpm quality:web-build`
+- `pnpm test:e2e:production`：2 项生产 bundle 测试通过，覆盖菜单键盘操作与懒加载 Mermaid。
+- `pnpm perf:bench`：6 个测试文件、23 项独立性能基准通过。
+- `pnpm release:packaged-webview`：Release 构建和真实打包 WebView 验证通过，生成 exe、MSI 和 NSIS。
+- `pnpm release:verify-artifacts`：本地 0.2.1 exe、MSI、NSIS 均存在并生成 SHA-256；GitHub runner manifest 与下载后的最终 NSIS 哈希一致。
+- `pnpm release:installer-smoke:plan`：确认 NSIS 安装器存在、目标为隔离临时目录且无需管理员权限。
+
+本地 Release 候选也通过真实打包 WebView 启动与文件保存验证。本机已有 `C:\Users\pippin\AppData\Local\LumaMark` 安装，安全脚本按设计拒绝运行可能影响现有安装注册信息的静默安装/卸载 smoke，因此该项未执行；MSI 的管理员安装 smoke 同样未执行。
+
+本版本仍未代码签名，Windows SmartScreen 和发布者信任提示属于已知分发风险。
+
 ## 0.2.0 NSIS-only Release
 
 - 日期：2026-08-01

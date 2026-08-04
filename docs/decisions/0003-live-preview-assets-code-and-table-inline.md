@@ -6,6 +6,8 @@
 
 更新：2026-07-27（接通本地图片定点刷新与保存前草稿图片 finalize）
 
+更新：2026-08-04（收紧表格 inline preview 与原生 cell editor 的光标几何合同）
+
 ## 背景
 
 V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同时继续遵守源码保真、成熟组件优先和 editor capability 边界。远程图片如果直接使用网络 URL，离线和跨平台稳定性较弱；如果自动改写 Markdown，又会破坏用户源码意图。代码块需要常见语言语法高亮，但不应替换 CodeMirror。表格交互已经由 `codemirror-markdown-tables` 承担，不能回退到自研整表编辑器。
@@ -27,6 +29,9 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 代码块语言高亮使用 CodeMirror 官方语言包：`@codemirror/language-data` 覆盖常见语言，`@codemirror/lang-javascript` 直接支持 `js/jsx/ts/tsx`。
 - 代码块整块预览只使用 CodeMirror 行级 decoration。禁止在通用 WYSIWYG 链路中对 `FencedCode` 施加跨多行 mark decoration，因为跨行 mark 上的 padding、border 或 line-height 会破坏光标定位、选区和背景对齐。
 - 表格仍以 `codemirror-markdown-tables` 为整表交互核心；LumaMark 只补 inactive cell 的 inline Markdown 薄渲染层。该薄层必须使用 sibling overlay 呈现视觉预览，保留 `.tbl-cell-view` 源码 DOM 给成熟组件负责选区和编辑。默认显示 overlay、隐藏源码视觉；鼠标 hover 或 focus 时隐藏 overlay、露出源码符号，点击后进入 cell editor 编辑原 Markdown。
+- 表格 preview overlay 与保留的 `.tbl-cell-view` 必须共享同一文字坐标系。LumaMark 不得在组件管理的 `.tbl-cell` 外层额外增加 padding；否则透明源码 DOM 会相对可见 preview 偏移，浏览器会按错误坐标计算原生 caret。视觉间距应由组件自己的 cell view padding 与同值 overlay padding 共同承担，禁止通过点击事件或手工坐标换算补偿。
+- preview overlay、hover/source view 与激活后的 nested CodeMirror 必须共享有效字体族、字号、行高和字距。传给组件多个嵌套层级重复消费的字号 token 不得使用会逐层复合的 `em`；hover 也不得在 pointerdown 前切换到不同字宽的字体。若需要源码视觉提示，应只改变颜色或背景等不重排字形的属性。
+- 表格光标回归必须使用真实浏览器坐标验证：按可见字符 `Range` 计算点击点，断言激活后的 nested CodeMirror selection 和 root selection 都落在同一字符边界，并在输入后继续保持同一单元格。jsdom 不提供可靠的字体布局与原生 caret，不能替代这项 E2E。
 
 ### 2026-07-27 实现更新
 
@@ -42,6 +47,9 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 恢复 `$HOME/**/*`、`$PICTURE/**/*` 等宽泛静态 asset scope：实现简单，但让 WebView 在启动时获得不必要的文件读取范围。
 - 在 editor capability 内直接调用 Tauri command：会破坏 editor 与 service/app 层边界。
 - 自研代码高亮或完整表格编辑器：没有证据证明成熟组件不能满足当前主要目标，维护成本和编辑器热路径风险更高。
+- 保留额外 cell padding 并让 overlay 复制补偿值：可以暂时对齐，但会形成两套几何参数，组件样式变化后容易再次漂移。
+- 继续把表格字号设为相对 `em`，再为每个嵌套层单独反向补偿：组件会在 cell、view 和 nested editor 多层消费同一 token，补偿链脆弱且会随 DOM 层级变化。
+- 拦截 pointer 事件并手工修正表格 caret 坐标：会侵入成熟组件负责的选区、IME 和跨单元格交互，且无法覆盖键盘、触摸与辅助技术的所有入口。
 
 ## 影响
 
@@ -53,6 +61,7 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - watcher revision 只影响运行时 resolver 与 widget identity；不会修改图片引用、dirty 状态或撤销历史。
 - 代码块预览不再把整段 fenced code 包成跨行 mark；视觉表面由 `.lm-md-code-block-line` 行级类承担，避免改变 CodeMirror 行盒模型。
 - 表格 inline 渲染当前覆盖 mature table widget 能稳定承载的 inactive cell 内容；overlay 预览层不能改写 `.tbl-cell-view.innerHTML`，否则会破坏 `codemirror-markdown-tables` 的 selectionchange、cell editor 同步和后续源码更新。
+- 2026-08-04 的真实 WebView2 诊断测得额外 `.tbl-cell` padding 令 preview/source 水平起点相差约 `11.2px`、垂直起点相差约 `8.96px`；点击可见第三个汉字右侧时，nested selection 落在该字之前。进一步审计确认 `0.94em` 会在 cell/view/nested 层级复合缩小，hover 的等宽字体也会让拉丁字形在 pointerdown 前重排。修复这些样式后，overlay、源码 DOM 与 nested editor 才能共用完整字符几何；过程不改变 Markdown、撤销历史或表格交互所有权。
 
 ## 回滚或复审条件
 

@@ -1163,6 +1163,191 @@ test('reveals table cell markdown source on hover and edits the raw cell content
   await expect(editor).toContainText('`code`');
 });
 
+test('keeps table preview clicks aligned with the cell editor caret', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  const cellText = 'Wiil甲乙丙丁';
+  await replaceEditorSource(
+    page,
+    [
+      'intro',
+      '',
+      '| First        | Second |',
+      '| ------------ | ------ |',
+      `| ${cellText} | value  |`,
+      '',
+      'after',
+    ].join('\n'),
+  );
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+
+  const tableCell = page
+    .locator('.tbl-data-cell')
+    .filter({ hasText: cellText })
+    .first();
+  const cellPreview = tableCell.locator('.lm-table-inline-preview');
+  const cellSource = tableCell.locator('.tbl-cell-view');
+  await expect(cellPreview).toBeVisible();
+  await expect(cellSource).toHaveAttribute(
+    'data-lm-inline-markdown-mode',
+    'preview',
+  );
+
+  const geometry = await tableCell.evaluate((cell, expectedText) => {
+    const preview = cell.querySelector<HTMLElement>(
+      '.lm-table-inline-preview',
+    );
+    const source = cell.querySelector<HTMLElement>('.tbl-cell-view');
+
+    if (!preview || !source) {
+      throw new Error('Expected both table cell preview and source elements');
+    }
+
+    const measureCharacters = (root: HTMLElement) => {
+      const walker = document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_TEXT,
+      );
+      const characters: Array<{
+        bottom: number;
+        character: string;
+        left: number;
+        right: number;
+        top: number;
+      }> = [];
+
+      while (walker.nextNode()) {
+        const textNode = walker.currentNode as Text;
+
+        for (let offset = 0; offset < textNode.data.length; offset += 1) {
+          const range = document.createRange();
+          range.setStart(textNode, offset);
+          range.setEnd(textNode, offset + 1);
+          const rect = range.getBoundingClientRect();
+          characters.push({
+            bottom: rect.bottom,
+            character: textNode.data.slice(offset, offset + 1),
+            left: rect.left,
+            right: rect.right,
+            top: rect.top,
+          });
+        }
+      }
+
+      return characters;
+    };
+
+    const previewCharacters = measureCharacters(preview);
+    const sourceCharacters = measureCharacters(source);
+    const targetIndex = previewCharacters.findIndex(
+      ({ character }) => character === '丙',
+    );
+    const target = previewCharacters[targetIndex];
+
+    if (
+      preview.textContent !== expectedText ||
+      source.textContent !== expectedText ||
+      targetIndex < 0 ||
+      !target
+    ) {
+      throw new Error('Expected matching table cell text and a visible 丙 glyph');
+    }
+
+    return {
+      click: {
+        x: target.left + (target.right - target.left) * 0.8,
+        y: target.top + (target.bottom - target.top) / 2,
+      },
+      previewCharacters,
+      sourceCharacters,
+    };
+  }, cellText);
+
+  expect(geometry.previewCharacters).toHaveLength([...cellText].length);
+  expect(geometry.sourceCharacters).toHaveLength([...cellText].length);
+  geometry.previewCharacters.forEach((previewCharacter, index) => {
+    const sourceCharacter = geometry.sourceCharacters[index];
+    expect(sourceCharacter?.character).toBe(previewCharacter.character);
+
+    for (const edge of ['left', 'right', 'top', 'bottom'] as const) {
+      expect.soft(
+        Math.abs(
+          previewCharacter[edge] -
+            (sourceCharacter?.[edge] ?? Number.POSITIVE_INFINITY),
+        ),
+        `character ${index} (${previewCharacter.character}) ${edge} preview/source delta`,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  await page.mouse.click(geometry.click.x, geometry.click.y);
+
+  const cellEditor = page.locator('.tbl-cell-editor .cm-content:visible');
+  await expect(cellEditor).toHaveCount(1);
+  await expect(cellEditor).toBeVisible();
+  const readCellSelection = () =>
+    cellEditor.evaluate((content) => {
+      const { anchor, head } = (
+        content as HTMLElement & {
+          cmTile: {
+            view: {
+              state: {
+                selection: {
+                  main: { anchor: number; head: number };
+                };
+              };
+            };
+          };
+        }
+      ).cmTile.view.state.selection.main;
+
+      return { anchor, head };
+    });
+  await expect
+    .poll(readCellSelection)
+    .toEqual({ anchor: 7, head: 7 });
+  await expect(cellEditor).toBeFocused();
+
+  await page.keyboard.insertText('中');
+
+  const editedCellText = 'Wiil甲乙丙中丁';
+  await expect(cellEditor).toHaveText(editedCellText);
+  await expect
+    .poll(readCellSelection)
+    .toEqual({ anchor: 8, head: 8 });
+
+  const rootEditor = page.locator('.cm-content').first();
+  await expect
+    .poll(() =>
+      rootEditor.evaluate((content, targetText) => {
+        const state = (
+          content as HTMLElement & {
+            cmTile: {
+              view: {
+                state: {
+                  doc: { toString(): string };
+                  selection: { main: { head: number } };
+                };
+              };
+            };
+          }
+        ).cmTile.view.state;
+        const targetStart = state.doc.toString().indexOf(targetText);
+
+        return {
+          hasEditedCell: targetStart >= 0,
+          headOffset:
+            targetStart >= 0
+              ? state.selection.main.head - targetStart
+              : null,
+        };
+      }, editedCellText),
+    )
+    .toEqual({ hasEditedCell: true, headOffset: 8 });
+});
+
 test('supports table insert and delete shortcuts', async ({ page }) => {
   await page.goto('/');
 

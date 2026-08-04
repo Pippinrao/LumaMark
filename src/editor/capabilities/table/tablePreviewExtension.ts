@@ -53,7 +53,7 @@ export function tablePreviewExtension(): Extension {
       style: TableStyle.default.with({
         '--tbl-style-default-header-alignment': 'left',
         '--tbl-style-font-family': 'var(--lm-font-editor)',
-        '--tbl-style-font-size': '0.94em',
+        '--tbl-style-font-size': '15.5px',
         '--tbl-style-menu-font-family': 'var(--lm-font-ui, var(--lm-font-sans))',
         '--tbl-style-menu-font-size': '12px',
       }),

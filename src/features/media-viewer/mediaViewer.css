@@ -33,6 +33,20 @@
   color: white;
 }
 
+.lm-media-viewer-toolbar .lm-icon-button[aria-disabled='true'] {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.lm-media-viewer-scale {
+  min-width: 4ch;
+  align-self: center;
+  color: white;
+  font: 600 0.75rem/1 var(--lm-font-ui);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .lm-media-viewer-transform,
 .lm-media-viewer-transform-content {
   width: 100% !important;
@@ -90,6 +104,10 @@
   }
 
   .lm-media-viewer-toolbar .lm-icon-button {
+    color: CanvasText;
+  }
+
+  .lm-media-viewer-scale {
     color: CanvasText;
   }
 }

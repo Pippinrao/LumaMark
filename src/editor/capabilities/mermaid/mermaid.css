@@ -80,6 +80,10 @@
   cursor: pointer;
 }
 
+.cm-content .lm-mermaid-actions .lm-media-preview-expand[hidden] {
+  display: none;
+}
+
 .cm-content .lm-mermaid-edit-source:hover,
 .cm-content .lm-mermaid-edit-source:focus-visible,
 .cm-content .lm-mermaid-actions .lm-media-preview-expand:hover,

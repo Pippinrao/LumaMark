@@ -103,6 +103,7 @@ const requiredCoreKeys = [
   'mediaViewer.description',
   'mediaViewer.zoomIn',
   'mediaViewer.zoomOut',
+  'mediaViewer.zoomLevel',
   'mediaViewer.resetZoom',
   'mediaViewer.expand',
   'status.ready',

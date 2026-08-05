@@ -1,6 +1,6 @@
 [package]
 name = "lumamark"
-version = "0.2.7"
+version = "0.2.8"
 description = "LumaMark desktop application"
 authors = ["LumaMark Contributors"]
 edition = "2021"

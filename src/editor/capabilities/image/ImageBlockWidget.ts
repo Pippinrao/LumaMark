@@ -178,11 +178,13 @@ function renderResolvedImage(
   getExpandLabel: () => string,
   onMediaPreviewRequest?: EditorMediaPreviewRequestHandler,
 ): void {
+  const media = document.createElement('span');
+  media.className = 'lm-image-preview-media';
   const image = document.createElement('img');
   image.alt = alt;
   image.loading = 'lazy';
   attachImagePreviewAction(
-    wrapper,
+    media,
     image,
     alt,
     getExpandLabel,
@@ -197,7 +199,8 @@ function renderResolvedImage(
       wrapper.appendChild(error);
     }
   });
-  wrapper.appendChild(image);
+  media.appendChild(image);
+  wrapper.appendChild(media);
 
   if (alt.trim()) {
     wrapper.appendChild(createCaption(alt));
@@ -205,7 +208,7 @@ function renderResolvedImage(
 }
 
 function attachImagePreviewAction(
-  wrapper: HTMLElement,
+  media: HTMLElement,
   image: HTMLImageElement,
   alt: string,
   getExpandLabel: () => string,
@@ -227,7 +230,7 @@ function attachImagePreviewAction(
       },
       getExpandLabel(),
     );
-    wrapper.appendChild(button);
+    media.appendChild(button);
   };
   image.addEventListener('load', showExpandAction);
   image.addEventListener('error', () => {

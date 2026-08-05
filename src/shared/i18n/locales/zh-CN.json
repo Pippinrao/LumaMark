@@ -166,6 +166,7 @@
   "mediaViewer.zoomIn": "放大",
   "mediaViewer.zoomOut": "缩小",
   "mediaViewer.resetZoom": "重置缩放",
+  "mediaViewer.zoomLevel": "缩放比例",
   "mediaViewer.expand": "展开查看",
   "status.ready": "就绪",
   "status.opening": "正在打开",

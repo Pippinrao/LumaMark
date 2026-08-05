@@ -30,6 +30,13 @@ describe('MediaViewerDialog', () => {
     expect(screen.getByRole('button', { name: '放大' })).toBeVisible();
     expect(screen.getByRole('button', { name: '缩小' })).toBeVisible();
     expect(screen.getByRole('button', { name: '重置缩放' })).toBeVisible();
+    expect(screen.getByRole('status', { name: '缩放比例' })).toHaveTextContent(
+      '100%',
+    );
+    expect(screen.getByRole('button', { name: '放大' })).toHaveAttribute(
+      'aria-keyshortcuts',
+      '+',
+    );
     expect(screen.getByRole('button', { name: '放大' })).toHaveAttribute(
       'title',
       '放大',

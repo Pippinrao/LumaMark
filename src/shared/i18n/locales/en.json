@@ -166,6 +166,7 @@
   "mediaViewer.zoomIn": "Zoom in",
   "mediaViewer.zoomOut": "Zoom out",
   "mediaViewer.resetZoom": "Reset zoom",
+  "mediaViewer.zoomLevel": "Zoom level",
   "mediaViewer.expand": "Expand preview",
   "status.ready": "Ready",
   "status.opening": "Opening",

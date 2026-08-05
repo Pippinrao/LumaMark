@@ -1,33 +1,87 @@
 diff --git a/dist/codemirror-markdown-tables.js b/dist/codemirror-markdown-tables.js
-index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..aed2ef08115548e3cfc8352f9817e19630f72202 100644
+index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..d552dff 100644
 --- a/dist/codemirror-markdown-tables.js
 +++ b/dist/codemirror-markdown-tables.js
-@@ -5612,7 +5612,10 @@ class mo {
+@@ -4901,11 +4901,29 @@ function Jl(e) {
+   return !Gl(e);
+ }
+ function ar(e) {
+-  return Jl(e) ? fo(e).getRangeAt(0).startOffset : void 0;
++  if (!Jl(e)) return;
++  const t = fo(e).getRangeAt(0), n = t.startContainer;
++  if (n.nodeType === 3) return t.startOffset;
++  const o = e.createRange();
++  o.setStart(n, 0), o.setEnd(n, t.startOffset);
++  return o.toString().length;
+ }
+ function vu(e) {
+   return Jl(e) ? fo(e).getRangeAt(0).startContainer : void 0;
+ }
++function lmTextOffsetAtPoint(e, t, { x: n, y: o }) {
++  const i = e.caretPositionFromPoint?.(n, o), r = i?.offsetNode, l = i?.offset,
++    s = _(r) || _(l) ? e.caretRangeFromPoint?.(n, o) : void 0,
++    a = r ?? s?.startContainer, c = l ?? s?.startOffset;
++  if (_(a) || _(c) || !t.contains(a)) return;
++  const h = e.createRange();
++  h.setStart(t, 0), h.setEnd(a, c);
++  return h.toString().length;
++}
++function lmSelectionFocusRect(e) {
++  const t = fo(e).focusNode, n = (t?.nodeType === 1 ? t : t?.parentElement)?.closest(".cm-content"), o = n?.cmTile?.view;
++  return o?.coordsAtPos(o.state.selection.main.head);
++}
+ function bu(e) {
+   fo(e).empty();
+ }
+@@ -5587,6 +5605,7 @@ function Bu(e, t) {
+   var c = Hu();
+   Xn(c, (h) => i = h, () => i), C(e, c), pe();
+ }
++const lmVerticalGoals = /* @__PURE__ */ new WeakMap();
+ class mo {
+   event;
+   tableState;
+@@ -5612,7 +5631,10 @@ class mo {
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateArrowUp() {
 -    this.position.top && this.moveUp({ createRow: !1, position: "end" });
 +    this.position.top && this.moveUp({
 +      createRow: !1,
-+      position: this.tableState.selection.isCell() ? this.tableState.selection.cellSection.head : "end"
++      position: this.visualPosition(-1) ?? (this.tableState.selection.isCell() ? this.tableState.selection.cellSection.head : "end")
 +    });
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateArrowRight() {
-@@ -5620,7 +5623,10 @@ class mo {
+@@ -5620,7 +5642,10 @@ class mo {
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateArrowDown() {
 -    this.position.bottom && this.moveDown({ createRow: !1, position: "end" });
 +    this.position.bottom && this.moveDown({
 +      createRow: !1,
-+      position: this.tableState.selection.isCell() ? this.tableState.selection.cellSection.head : "end"
++      position: this.visualPosition(1) ?? (this.tableState.selection.isCell() ? this.tableState.selection.cellSection.head : "end")
 +    });
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateShiftArrowLeft() {
-@@ -5743,7 +5749,7 @@ class mo {
+@@ -5741,9 +5766,22 @@ class mo {
+       );
+     }
    }
++  visualPosition(e) {
++    const { activeCell: t, document: n, tableElement: o, window: i } = this.tableState;
++    if (_(t)) return;
++    const r = Gn(o, { row: t.row + e, col: t.col })?.querySelector(".tbl-cell-view");
++    if (_(r) || Gl(n)) return;
++    const l = lmVerticalGoals.get(this.tableState)?.x ?? lmSelectionFocusRect(n)?.left;
++    if (_(l)) return;
++    const s = r.getBoundingClientRect(), a = i.getComputedStyle(r), c = parseFloat(a.lineHeight), h = e < 0 ? s.bottom - parseFloat(a.paddingBottom) - c / 2 : s.top + parseFloat(a.paddingTop) + c / 2, d = lmTextOffsetAtPoint(n, r, {
++      x: Math.min(Math.max(l, s.left + 1), s.right - 1),
++      y: h
++    });
++    return _(d) || lmVerticalGoals.set(this.tableState, { x: l, cell: { row: t.row + e, col: t.col }, offset: d }), d;
++  }
    moveTo(t, n) {
      if (this.tableState.activeCell = t, this.tableState.anchorCell = t, this.tableState.outlinedSection = z.ofCell(t), this.tableState.selection.isCell()) {
 -      const o = n === "start" ? 0 : this.tableState.table.cellAt(t).length;
@@ -35,3 +89,38 @@ index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..aed2ef08115548e3cfc8352f9817e196
        this.tableState.selectionValue = { cell: t, section: { anchor: o, head: o } };
      }
    }
+@@ -6980,7 +7018,13 @@ function af(e, t) {
+     onNavigate: () => t.onNavigate,
+     onDelete: () => t.onDelete
+   });
+-  ao(() => ke(J(n.document, "selectionchange", () => Ru(n)), J(n.document.body, "pointerdown", () => wu(n), { capture: !0, passive: !0 }), J(n.document.body, "pointerup", () => Cu(n), { capture: !0, passive: !0 }), J(n.document.body, "pointerleave", () => xu(n), { capture: !0, passive: !0 }), J(n.document.body, "copy", (x) => Su(x, n)), J(n.document.body, "cut", (x) => _u(x, n)), J(n.document.body, "paste", (x) => yu(x, n))));
++  ao(() => ke(J(n.document, "selectionchange", () => {
++    const x = lmVerticalGoals.get(n);
++    Ru(n);
++    x && (!n.selection.isCell() || !ze(n.selection.cell, x.cell) || n.selection.cellSection.anchor !== x.offset || n.selection.cellSection.head !== x.offset) && lmVerticalGoals.delete(n);
++  }), J(n.document.body, "pointerdown", () => {
++    lmVerticalGoals.delete(n), wu(n);
++  }, { capture: !0, passive: !0 }), J(n.document.body, "pointerup", () => Cu(n), { capture: !0, passive: !0 }), J(n.document.body, "pointerleave", () => xu(n), { capture: !0, passive: !0 }), J(n.document.body, "copy", (x) => Su(x, n)), J(n.document.body, "cut", (x) => _u(x, n)), J(n.document.body, "paste", (x) => yu(x, n))));
+   var o = sf(), i = Lt(o);
+   {
+     const x = (R, it = Fr) => {
+@@ -7056,7 +7100,7 @@ function af(e, t) {
+                         return ve();
+                       },
+                       set text(B) {
+-                        ne(B);
++                        lmVerticalGoals.delete(n), ne(B);
+                       },
+                       get selection() {
+                         return be();
+@@ -7087,7 +7131,9 @@ function af(e, t) {
+                       },
+                       onbeforeinput: (B) => Fu(B, n),
+                       ondragstart: (B) => $u(B),
+-                      onkeydown: (B, j) => Uu(B, j, n),
++                      onkeydown: (B, j) => {
++                        (B.key !== "ArrowUp" && B.key !== "ArrowDown" || B.altKey || B.ctrlKey || B.metaKey || B.shiftKey) && lmVerticalGoals.delete(n), Uu(B, j, n);
++                      },
+                       onpaste: (B) => Vu(B, n)
+                     });
+                   }

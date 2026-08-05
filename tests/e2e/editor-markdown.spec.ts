@@ -100,13 +100,13 @@ async function openNewDocument(page: Page): Promise<void> {
 async function clickAfterVisibleTableCellCharacter(
   page: Page,
   cellText: string,
-  visibleOffset: number,
+  targetCharacter: string,
 ): Promise<void> {
   const cell = page
     .locator('.tbl-data-cell')
     .filter({ hasText: cellText })
     .first();
-  const point = await cell.evaluate((element, targetOffset) => {
+  const point = await cell.evaluate((element, character) => {
     const visibleRoot = element.querySelector<HTMLElement>('.tbl-cell-view');
 
     if (!visibleRoot) {
@@ -117,38 +117,33 @@ async function clickAfterVisibleTableCellCharacter(
       visibleRoot,
       NodeFilter.SHOW_TEXT,
     );
-    let remaining = targetOffset;
-
     while (walker.nextNode()) {
       const textNode = walker.currentNode as Text;
       const parent = textNode.parentElement;
       const style = parent ? window.getComputedStyle(parent) : null;
+      const targetOffset = textNode.data.indexOf(character);
 
       if (
         style?.display === 'none' ||
         style?.visibility === 'hidden' ||
-        textNode.data.length === 0
+        targetOffset < 0
       ) {
         continue;
       }
 
-      if (remaining <= textNode.data.length) {
-        const range = document.createRange();
-        range.setStart(textNode, remaining);
-        range.collapse(true);
-        const rect = range.getBoundingClientRect();
+      const range = document.createRange();
+      range.setStart(textNode, targetOffset);
+      range.setEnd(textNode, targetOffset + character.length);
+      const rect = range.getBoundingClientRect();
 
-        return {
-          x: rect.left,
-          y: (rect.top + rect.bottom) / 2,
-        };
-      }
-
-      remaining -= textNode.data.length;
+      return {
+        x: rect.left + rect.width * 0.9,
+        y: (rect.top + rect.bottom) / 2,
+      };
     }
 
-    throw new Error(`Visible offset ${targetOffset} exceeds cell text`);
-  }, visibleOffset);
+    throw new Error(`Visible character ${character} was not found`);
+  }, targetCharacter);
 
   await page.mouse.click(point.x, point.y);
 }
@@ -1546,7 +1541,7 @@ test('renders table markdown from the cell source DOM and preserves undo-redo', 
     /.+/,
   );
 
-  await clickAfterVisibleTableCellCharacter(page, 'bold', 4);
+  await clickAfterVisibleTableCellCharacter(page, 'bold', 'd');
 
   const cellEditor = page.locator('.tbl-cell-editor .cm-content').first();
   await expect(cellEditor).toBeVisible();
@@ -1617,7 +1612,7 @@ test('maps variable-width table cell clicks to the matching editor caret', async
   await expect(cellSource).toBeVisible();
   await expect(tableCell.locator('.lm-table-inline-preview')).toHaveCount(0);
 
-  await clickAfterVisibleTableCellCharacter(page, cellText, 7);
+  await clickAfterVisibleTableCellCharacter(page, cellText, '丙');
 
   const cellEditor = page.locator('.tbl-cell-editor .cm-content:visible');
   await expect(cellEditor).toHaveCount(1);
@@ -1690,7 +1685,6 @@ test('maps clicks inside wrapped formatted table text to the matching source car
 
   const visibleCellText = `${'formatted content '.repeat(16)}TARGET尾部`;
   const sourceCellText = `**${visibleCellText}**`;
-  const visibleTargetOffset = visibleCellText.indexOf('TARGET') + 3;
   const sourceTargetOffset = sourceCellText.indexOf('TARGET') + 3;
   await replaceEditorSource(
     page,
@@ -1723,7 +1717,7 @@ test('maps clicks inside wrapped formatted table text to the matching source car
   await clickAfterVisibleTableCellCharacter(
     page,
     sourceCellText,
-    visibleTargetOffset,
+    'R',
   );
 
   await expect.poll(() => readVisibleTableCellState(page)).toEqual({
@@ -1757,7 +1751,7 @@ test('maps formatted table cell clicks to the matching source offset', async ({
   await replaceEditorSource(page, source);
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
-  await clickAfterVisibleTableCellCharacter(page, 'alpha', 3);
+  await clickAfterVisibleTableCellCharacter(page, 'alpha', 'p');
 
   await expect.poll(() => readVisibleTableCellState(page)).toEqual({
     text: '**alpha**',
@@ -1805,7 +1799,7 @@ test('preserves the logical cell column for vertical table arrows', async ({
   );
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
-  await clickAfterVisibleTableCellCharacter(page, 'abcd', 2);
+  await clickAfterVisibleTableCellCharacter(page, 'abcd', 'b');
   await expect.poll(() => readVisibleTableCellState(page)).toEqual({
     text: 'abcd',
     anchor: 2,
@@ -1847,7 +1841,7 @@ test('clamps the logical table column to a shorter destination cell', async ({
   );
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
-  await clickAfterVisibleTableCellCharacter(page, '012345', 5);
+  await clickAfterVisibleTableCellCharacter(page, '012345', '4');
   await expect.poll(() => readVisibleTableCellState(page)).toEqual({
     text: '012345',
     anchor: 5,

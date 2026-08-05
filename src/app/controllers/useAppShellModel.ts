@@ -72,10 +72,7 @@ export function useAppShellModel() {
     dirty: document.dirty,
     focusEditor: editor.focusEditor,
   });
-  const shortcuts = useMemo(
-    () => createCommandShortcutLabels(globalThis.navigator.userAgent),
-    [],
-  );
+  const shortcuts = useMemo(() => createCommandShortcutLabels(globalThis.navigator.userAgent), []);
   const onEditorReady = useCallback(
     (editorApi: EditorApi) => {
       editor.onEditorReady(editorApi);

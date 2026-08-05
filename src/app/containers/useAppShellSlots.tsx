@@ -10,6 +10,7 @@ import { AppDialogs } from '../shell/AppDialogs';
 import { EditorPane } from '../shell/EditorPane';
 import { TopChrome } from '../shell/TopChrome';
 import { WorkspaceSidebar } from '../shell/WorkspaceSidebar';
+import { StartScreen } from '../../features/startup/StartScreen';
 import type { ShellSlots } from '../shell/shellTypes';
 import packageMetadata from '../../../package.json';
 
@@ -26,6 +27,11 @@ const LazySettingsDialog = lazy(() =>
 const LazyAboutDialog = lazy(() =>
   import('../../features/about/AboutDialog').then((module) => ({
     default: module.AboutDialog,
+  })),
+);
+const LazyMediaViewerDialog = lazy(() =>
+  import('../../features/media-viewer/MediaViewerDialog').then((module) => ({
+    default: module.MediaViewerDialog,
   })),
 );
 
@@ -87,6 +93,17 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
               />
             ) : null
           }
+          mediaViewer={
+            model.mediaViewer.request ? (
+              <LazyMediaViewerDialog
+                onOpenChange={model.mediaViewer.setOpen}
+                onReturnFocus={model.mediaViewer.returnFocus}
+                open={model.mediaViewer.open}
+                request={model.mediaViewer.request}
+                sessionId={model.mediaViewer.sessionId}
+              />
+            ) : null
+          }
           settingsDialog={
             model.settingsOpen ? (
               <LazySettingsDialog
@@ -95,9 +112,16 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
                 onCopyImagesToAssetsChange={model.setCopyImagesToAssets}
                 onLanguageChange={model.setLanguage}
                 onOpenChange={model.setSettingsOpen}
+                onPageWidthChange={model.setPageWidth}
                 onReturnFocus={model.restoreDialogFocus}
+                onStartupBehaviorChange={model.setStartupBehavior}
                 onThemeChange={model.setTheme}
                 open={model.settingsOpen}
+                pageWidth={model.pageWidth}
+                pageWidthPersistenceError={model.pageWidthPersistenceError}
+                recentFilesPersistenceError={model.recentFilesPersistenceError}
+                startupBehavior={model.startupBehavior}
+                startupPersistenceError={model.startupPersistenceError}
                 theme={model.theme}
               />
             ) : null
@@ -116,6 +140,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
       editor: (
         <EditorPane
           accessibleTitle={model.documentTitle}
+          appearance={model.editor.appearance}
           ariaLabel={model.labels.editor}
           getContextMenuItems={(target) =>
             model.editor.getContextMenuItems(
@@ -136,6 +161,8 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
             }
           }}
           onEditorReady={model.editor.onReady}
+          onZoomRequested={model.editor.onZoomRequested}
+          onMediaPreviewRequest={model.mediaViewer.openMedia}
           imageAssetResolver={model.editor.imageAssetResolver}
           imageImportErrorHandler={model.editor.imageImportErrorHandler}
           imageImportHandler={model.editor.imageImportHandler}
@@ -166,6 +193,17 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
           }
         />
       ),
+      startScreen: model.startup.visible ? (
+        <StartScreen
+          onNewDocument={model.startup.newDocument}
+          onOpenFile={() => { void model.startup.openFile(); }}
+          onOpenRecentFile={(path) => { void model.startup.openRecentFile(path); }}
+          onOpenRecentWorkspace={(path) => { void model.startup.openRecentWorkspace(path); }}
+          onOpenWorkspace={() => { void model.startup.openWorkspace(); }}
+          recentFiles={model.recentFiles}
+          recentWorkspaces={model.startup.recentWorkspaces}
+        />
+      ) : null,
       topChrome: (
         <TopChrome
           groups={model.topMenuGroups}

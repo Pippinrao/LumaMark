@@ -225,7 +225,7 @@ function delimiterRangesForBlock(
 
   const delimiterName =
     owner.name === 'Blockquote'
-      ? 'QuoteMark'
+      ? null
       : owner.name === 'FencedCode'
         ? null
         : owner.name === 'ListItem'
@@ -407,6 +407,7 @@ function collectInlineOwners(
           selection.from < node.to
         ) {
           nodes.set(`${node.name}:${node.from}:${node.to}`, node);
+          break;
         }
       }
     }

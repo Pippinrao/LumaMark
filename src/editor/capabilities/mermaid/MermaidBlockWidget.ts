@@ -1,6 +1,7 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { i18n } from '../../../shared/i18n';
+import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
 import type { AbsoluteMermaidBlock } from './mermaidBlockDetection';
 import {
   setActiveMermaidBlockEffect,
@@ -11,6 +12,7 @@ import {
 } from './mermaidInlineEditor';
 import type { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import { safeMermaidConfig } from './mermaidRenderAdapter';
+import { getMediaPreviewButtonLabel } from '../mediaPreviewButton';
 import {
   createMermaidWidgetDom,
   type MermaidWidgetDom,
@@ -19,10 +21,12 @@ import {
 type MermaidBlockWidgetOptions = {
   config?: Record<string, unknown>;
   mermaidVersion?: string;
+  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
 };
 
 export class MermaidBlockWidget extends WidgetType {
   private cancelRender: (() => void) | null = null;
+  private renderedSvg: string | null = null;
 
   constructor(
     private readonly block: AbsoluteMermaidBlock,
@@ -41,18 +45,30 @@ export class MermaidBlockWidget extends WidgetType {
       widget.block.content === this.block.content &&
       widget.theme === this.theme &&
       widget.options.mermaidVersion === this.options.mermaidVersion &&
+      widget.options.onMediaPreviewRequest === this.options.onMediaPreviewRequest &&
       widget.editing === this.editing
     );
   }
 
   toDOM(view: EditorView): HTMLElement {
     const dom: MermaidWidgetDom = createMermaidWidgetDom({
+      expandLabel: getMediaPreviewButtonLabel(view.state),
       onDelete: () => {
         this.deleteBlock(view, dom.wrapper);
       },
       onEdit: () => {
         beginMermaidSourceEditing(view, dom.wrapper, this.block);
       },
+      onExpand: this.options.onMediaPreviewRequest
+        ? () => {
+            if (this.renderedSvg !== null) {
+              this.options.onMediaPreviewRequest?.({
+                kind: 'mermaid',
+                svg: this.renderedSvg,
+              });
+            }
+          }
+        : undefined,
     });
 
     if (this.editing) {
@@ -67,6 +83,7 @@ export class MermaidBlockWidget extends WidgetType {
   destroy(): void {
     this.cancelRender?.();
     this.cancelRender = null;
+    this.renderedSvg = null;
   }
 
   ignoreEvent(): boolean {
@@ -83,6 +100,7 @@ export class MermaidBlockWidget extends WidgetType {
       config: safeMermaidConfig(this.options.config),
       mermaidVersion: this.options.mermaidVersion ?? this.defaultMermaidVersion,
       onError: () => {
+        dom.expand?.setAttribute('hidden', '');
         dom.wrapper.classList.add('lm-mermaid-preview-error');
         dom.wrapper.dataset.status = 'error';
         dom.status.hidden = false;
@@ -90,6 +108,8 @@ export class MermaidBlockWidget extends WidgetType {
         dom.status.textContent = i18n.t('mermaid.renderFailed');
       },
       onLoading: () => {
+        this.renderedSvg = null;
+        dom.expand?.setAttribute('hidden', '');
         dom.wrapper.classList.remove('lm-mermaid-preview-error');
         dom.wrapper.dataset.status = 'loading';
         dom.status.hidden = false;
@@ -98,6 +118,8 @@ export class MermaidBlockWidget extends WidgetType {
         dom.svgContainer.replaceChildren();
       },
       onSuccess: ({ svg }) => {
+        this.renderedSvg = svg;
+        dom.expand?.removeAttribute('hidden');
         dom.wrapper.classList.remove('lm-mermaid-preview-error');
         dom.wrapper.dataset.status = 'success';
         dom.status.hidden = true;

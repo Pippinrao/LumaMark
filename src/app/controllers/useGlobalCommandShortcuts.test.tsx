@@ -58,6 +58,38 @@ describe('useGlobalCommandShortcuts', () => {
     expect(commandEvent.defaultPrevented).toBe(true);
   });
 
+  it.each([
+    ['n', false, 'newDocument'],
+    ['o', false, 'openFile'],
+    ['k', false, 'openCommandPalette'],
+    ['s', false, 'save'],
+    ['s', true, 'saveAs'],
+    ['\\', false, 'toggleSidebar'],
+    ['f', true, 'toggleFocusMode'],
+  ] as const)(
+    'routes Ctrl+%s to the advertised application command',
+    (key, shiftKey, handler) => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        configurable: true,
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      });
+      const handlers = createHandlers();
+
+      render(<ShortcutHarness handlers={handlers} />);
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        key,
+        shiftKey,
+      });
+      window.dispatchEvent(event);
+
+      expect(handlers[handler]).toHaveBeenCalledOnce();
+      expect(event.defaultPrevented).toBe(true);
+    },
+  );
+
   it('uses Control and prevents the browser shortcut when toggling the sidebar on Windows', () => {
     Object.defineProperty(window.navigator, 'userAgent', {
       configurable: true,
@@ -149,6 +181,8 @@ describe('useGlobalCommandShortcuts', () => {
     ['k', true, false, 'codeBlock'],
     ['t', false, false, 'table'],
     ['t', false, true, 'table'],
+    ['c', false, true, 'copyTable'],
+    ['Backspace', false, true, 'deleteTable'],
   ] as const)(
     'runs the Typora-aligned %s shortcut through its shared command handler',
     (key, shiftKey, altKey, handler) => {
@@ -175,6 +209,99 @@ describe('useGlobalCommandShortcuts', () => {
       expect(handlers[handler]).toHaveBeenCalledTimes(1);
       expect(event.defaultPrevented).toBe(true);
       editor.remove();
+    },
+  );
+
+  it('uses the physical letter key for Cmd+Option+C on macOS', () => {
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)',
+    });
+    const handlers = createHandlers();
+    const editor = document.createElement('div');
+    editor.className = 'cm-content';
+    document.body.append(editor);
+
+    try {
+      render(<ShortcutHarness handlers={handlers} />);
+      const event = new KeyboardEvent('keydown', {
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+        code: 'KeyC',
+        key: 'ç',
+        metaKey: true,
+      });
+      editor.dispatchEvent(event);
+
+      expect(handlers.copyTable).toHaveBeenCalledOnce();
+      expect(event.defaultPrevented).toBe(true);
+    } finally {
+      editor.remove();
+    }
+  });
+
+  it('uses the logical letter key for shortcuts on Dvorak-style layouts', () => {
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    });
+    const handlers = createHandlers();
+
+    render(<ShortcutHarness handlers={handlers} />);
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      code: 'KeyL',
+      ctrlKey: true,
+      key: 'n',
+    });
+    window.dispatchEvent(event);
+
+    expect(handlers.newDocument).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it.each([
+    ['Ctrl+Shift+N', 'n', true, false, false, 'newDocument'],
+    ['Ctrl+Alt+O', 'o', false, true, false, 'openFile'],
+    ['Ctrl+Alt+S', 's', false, true, false, 'save'],
+    ['Ctrl+Shift+Alt+T', 't', true, true, false, 'table'],
+    ['AltGr+C', 'c', false, true, true, 'copyTable'],
+  ] as const)(
+    'ignores undeclared %s shortcut modifiers',
+    (_label, key, shiftKey, altKey, altGraph, handler) => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        configurable: true,
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      });
+      const handlers = createHandlers();
+      const editor = document.createElement('div');
+      editor.className = 'cm-content';
+      document.body.append(editor);
+
+      try {
+        render(<ShortcutHarness handlers={handlers} />);
+        const event = new KeyboardEvent('keydown', {
+          altKey,
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          key,
+          shiftKey,
+        });
+        if (altGraph) {
+          Object.defineProperty(event, 'getModifierState', {
+            value: (modifier: string) => modifier === 'AltGraph',
+          });
+        }
+        editor.dispatchEvent(event);
+
+        expect(handlers[handler]).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+      } finally {
+        editor.remove();
+      }
     },
   );
 
@@ -235,6 +362,39 @@ describe('useGlobalCommandShortcuts', () => {
 
     expect(handlers.exitFocusMode).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    ['Control', true, false, false, false, false],
+    ['Shift', false, true, false, false, false],
+    ['Alt', false, false, true, false, false],
+    ['Meta', false, false, false, true, false],
+    ['AltGraph', true, false, true, false, true],
+  ] as const)(
+    'does not treat %s+Escape as the plain focus-mode exit command',
+    (_modifier, ctrlKey, shiftKey, altKey, metaKey, altGraph) => {
+      const handlers = createHandlers();
+
+      render(<ShortcutHarness handlers={handlers} />);
+      const event = new KeyboardEvent('keydown', {
+        altKey,
+        bubbles: true,
+        cancelable: true,
+        ctrlKey,
+        key: 'Escape',
+        metaKey,
+        shiftKey,
+      });
+      if (altGraph) {
+        Object.defineProperty(event, 'getModifierState', {
+          value: (modifier: string) => modifier === 'AltGraph',
+        });
+      }
+      window.dispatchEvent(event);
+
+      expect(handlers.exitFocusMode).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    },
+  );
 
   it('does not let Escape leave focus mode through an open dialog', () => {
     const handlers = createHandlers();

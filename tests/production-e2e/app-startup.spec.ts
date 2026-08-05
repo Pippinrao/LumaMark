@@ -4,6 +4,7 @@ test('keeps the production menu keyboard-accessible and functional', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await expect(page.locator('.lm-top-chrome .lm-menu-trigger')).toHaveText([
     '文件',
@@ -56,6 +57,7 @@ test('boots the production bundle and loads the lazy Mermaid renderer', async ({
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await expect(page.getByTestId('app-shell')).toBeVisible();
   const editor = page.locator('.cm-content');

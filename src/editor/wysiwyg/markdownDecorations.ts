@@ -25,11 +25,16 @@ import {
   toggleTaskAtPosition,
   toggleTaskListCommand,
 } from './taskListCommands';
+import {
+  isReplaceableMarkdownSourceMark,
+  markdownSourceMarkClassName,
+} from './markdownSourceMarks';
 import './wysiwyg.css';
 
 export type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
 
 type TaskMarker = {
+  active: boolean;
   checked: boolean;
   from: number;
   to: number;
@@ -41,13 +46,18 @@ type DecorationItem = {
   to: number;
 };
 
-const INLINE_MARK_NODE_NAMES = new Set([
-  'CodeMark',
-  'EmphasisMark',
-  'LinkTitle',
-  'StrikethroughMark',
-]);
 const TASK_CHECKBOX_ARIA_LABEL = 'Toggle task completion';
+
+export function relabelTaskCheckboxes(
+  root: ParentNode,
+  ariaLabel: string,
+): void {
+  for (const checkbox of root.querySelectorAll<HTMLInputElement>(
+    '[data-lm-task-checkbox]',
+  )) {
+    checkbox.setAttribute('aria-label', ariaLabel);
+  }
+}
 
 export function collectMarkdownDecorationRanges(
   markdown: string,
@@ -236,6 +246,7 @@ class TaskCheckboxWidget extends WidgetType {
   ): number {
     checkbox.checked = this.checked;
     checkbox.disabled = this.readOnly;
+    checkbox.dataset.lmTaskCheckbox = '';
     checkbox.setAttribute('aria-label', this.ariaLabel);
     taskCheckboxWidgets.set(checkbox, this);
     taskCheckboxViews.set(checkbox, view);
@@ -346,6 +357,17 @@ function buildDecorations(view: EditorView): DecorationSet {
       interaction,
     )
   ) {
+    if (marker.active) {
+      decorations.push({
+        decoration: Decoration.mark({
+          class: markdownSourceMarkClassName('TaskMarker'),
+        }),
+        from: marker.from,
+        to: marker.to,
+      });
+      continue;
+    }
+
     decorations.push({
       decoration: Decoration.replace({
         widget: new TaskCheckboxWidget(
@@ -360,7 +382,7 @@ function buildDecorations(view: EditorView): DecorationSet {
     });
   }
 
-  for (const marker of collectUnorderedListMarkers(view, interaction)) {
+  for (const marker of collectListMarkers(view, interaction)) {
     decorations.push(marker);
   }
 
@@ -569,7 +591,7 @@ function syntaxNodeToDecorationRange(
   }
 }
 
-function collectUnorderedListMarkers(
+function collectListMarkers(
   view: EditorView,
   interaction: EditorInteractionContext,
 ): DecorationItem[] {
@@ -588,17 +610,32 @@ function collectUnorderedListMarkers(
         const line = view.state.doc.lineAt(node.from);
         const lineText = view.state.doc.sliceString(line.from, line.to);
         const taskMarker = /^\s{0,3}[-*+]\s+\[[ xX]\](?=\s|$)/.test(lineText);
+        const unorderedMarker = /^[-*+]$/.test(marker);
+        const orderedMarker = /^\d+[.)]$/.test(marker);
         const owner = findAncestorBlock(node.node, 'ListItem');
         if (
-          !/^[-*+]$/.test(marker) ||
-          taskMarker ||
+          (!unorderedMarker && !orderedMarker) ||
           isProtectedRange(
             interaction.protectedSourceRanges,
             node.from,
             node.to,
-          ) ||
-          (owner && isActiveBlock(interaction, owner))
+          )
         ) {
+          return;
+        }
+
+        if (owner && isActiveBlock(interaction, owner)) {
+          markers.push({
+            decoration: Decoration.mark({
+              class: markdownSourceMarkClassName('ListMark'),
+            }),
+            from: node.from,
+            to: node.to,
+          });
+          return;
+        }
+
+        if (taskMarker || !unorderedMarker) {
           return;
         }
 
@@ -641,11 +678,8 @@ function collectTaskMarkersFromSyntax(
 
         const owner = findAncestorBlock(node.node, 'ListItem');
 
-        if (owner && isActiveBlock(interaction, owner)) {
-          return;
-        }
-
         markers.push({
+          active: Boolean(owner && isActiveBlock(interaction, owner)),
           checked: state.doc.sliceString(node.from, node.to).toLowerCase() === '[x]',
           from: node.from,
           to: node.to,
@@ -722,19 +756,30 @@ function collectHiddenMarkdownMarks(
       from: range.from,
       to: range.to,
       enter(node) {
+        const parentName = node.node.parent?.name;
+        const sourceMarkClassName = markdownSourceMarkClassName(
+          node.name,
+          parentName,
+        );
+
         if (
-          !shouldHideSyntaxNode(node.name, node.node.parent?.name) ||
+          !isReplaceableMarkdownSourceMark(node.name, parentName) ||
+          !sourceMarkClassName ||
           isProtectedRange(
             interaction.protectedSourceRanges,
             node.from,
             node.to,
-          ) ||
-          shouldRevealSyntaxNode(
-            view,
-            interaction,
-            node.node,
           )
         ) {
+          return;
+        }
+
+        if (shouldRevealSyntaxNode(view, interaction, node.node)) {
+          marks.push({
+            decoration: Decoration.mark({ class: sourceMarkClassName }),
+            from: node.from,
+            to: node.to,
+          });
           return;
         }
 
@@ -750,24 +795,6 @@ function collectHiddenMarkdownMarks(
   }
 
   return marks;
-}
-
-function shouldHideSyntaxNode(name: string, parentName?: string): boolean {
-  if (
-    name === 'HeaderMark' ||
-    name === 'QuoteMark' ||
-    name === 'CodeInfo' ||
-    name === 'LinkMark' ||
-    name === 'LinkTitle' ||
-    INLINE_MARK_NODE_NAMES.has(name)
-  ) {
-    return true;
-  }
-
-  return (
-    name === 'URL' &&
-    (parentName === 'Image' || parentName === 'Link')
-  );
 }
 
 type SyntaxNode = ReturnType<

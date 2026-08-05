@@ -86,7 +86,8 @@ const groups: CommandMenuGroup[] = [
 
 describe('AppMenu', () => {
   it('renders stable icon, label, shortcut, separator, and disabled slots', async () => {
-    render(<AppMenu groups={groups} onInvoke={vi.fn()} />);
+    const onInvoke = vi.fn();
+    render(<AppMenu groups={groups} onInvoke={onInvoke} />);
 
     await openMenu('文件');
 
@@ -98,9 +99,13 @@ describe('AppMenu', () => {
     expect(openItem.querySelector('.lm-menu-label')).toHaveTextContent('打开文件');
     expect(openItem.querySelector('.lm-menu-shortcut')).toHaveTextContent('Ctrl O');
     expect(screen.getByRole('separator')).toBeVisible();
-    expect(screen.getByRole('menuitem', { name: '不可用' })).toHaveAttribute(
+    const unavailableItem = screen.getByRole('menuitem', { name: '不可用' });
+    expect(unavailableItem).toHaveAttribute(
       'data-disabled',
     );
+    expect(unavailableItem).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(unavailableItem);
+    expect(onInvoke).not.toHaveBeenCalled();
   });
 
   it('dispatches a typed invocation exactly once', async () => {

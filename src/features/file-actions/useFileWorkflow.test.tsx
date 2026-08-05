@@ -8,6 +8,7 @@ import type { FileCommandClient } from '../../services/files/fileCommandClient';
 import type { FileWatchClient } from '../../services/file-watch/fileWatchClient';
 import type { FileWatchChangeEvent } from '../../services/file-watch/fileWatchClient';
 import type { CommandResult } from '../../services/tauri/invokeCommand';
+import { createRecentFilesStore } from '../recent-files/recentFilesStore';
 import { useFileWorkflow, type FileWorkflow } from './useFileWorkflow';
 import type { FileActionState } from './fileActions';
 
@@ -279,12 +280,90 @@ describe('useFileWorkflow', () => {
       />,
     );
 
+    let outcome: Awaited<ReturnType<FileWorkflow['openPath']>> | undefined;
     await act(async () => {
-      await workflowRef.current?.openPath('E:/notes/opened.md');
+      outcome = await workflowRef.current?.openPath('E:/notes/opened.md');
     });
 
     expect(fileWatch.unwatchDocument).toHaveBeenCalledTimes(1);
     expect(fileWatch.watchDocument).toHaveBeenCalledWith('E:/notes/opened.md');
+    expect(outcome).toEqual({
+      file: { name: 'opened.md', path: 'E:/notes/opened.md' },
+      status: 'opened',
+    });
+  });
+
+  it('finishes opening and watching when recent-file persistence fails', async () => {
+    const fileWatch = createFileWatchClient();
+    const recentFileStore = createRecentFilesStore({
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('Recent-file storage unavailable');
+      },
+    });
+    const onDocumentBecameSafe = vi.fn();
+    const setStatusKey = vi.fn();
+    const loadText = vi.fn();
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({
+      readText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          byteLength: 8,
+          fingerprint: 'sha256:opened',
+          path: 'E:/notes/opened.md',
+          text: '# Opened',
+        },
+      }),
+    });
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => '# Opened',
+            loadText,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={fileWatch}
+        onDocumentBecameSafe={onDocumentBecameSafe}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{
+          addRecentFile: recentFileStore.getState().addRecentFile,
+        }}
+        state={createState()}
+        status={{ setStatusKey }}
+      />,
+    );
+
+    let outcome: Awaited<ReturnType<FileWorkflow['openPath']>> | undefined;
+    await act(async () => {
+      outcome = await workflowRef.current?.openPath('E:/notes/opened.md');
+    });
+
+    expect(loadText).toHaveBeenCalledWith('# Opened');
+    expect(fileWatch.watchDocument).toHaveBeenCalledWith('E:/notes/opened.md');
+    expect(onDocumentBecameSafe).toHaveBeenCalledTimes(1);
+    expect(setStatusKey).toHaveBeenLastCalledWith('status.opened');
+    expect(outcome).toEqual({
+      file: { name: 'opened.md', path: 'E:/notes/opened.md' },
+      status: 'opened',
+    });
+    expect(recentFileStore.getState()).toMatchObject({
+      recentFiles: [
+        expect.objectContaining({
+          name: 'opened.md',
+          path: 'E:/notes/opened.md',
+        }),
+      ],
+      recentFilesPersistenceError: true,
+    });
   });
 
   it('automatically reloads a clean document when its disk contents change', async () => {
@@ -1060,6 +1139,76 @@ describe('useFileWorkflow', () => {
     });
 
     expect(fileWatch.watchDocument).toHaveBeenCalledWith('E:/notes/saved.md');
+  });
+
+  it('finishes saving and watching when recent-file persistence fails', async () => {
+    const fileWatch = createFileWatchClient();
+    const recentFileStore = createRecentFilesStore({
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('Recent-file storage unavailable');
+      },
+    });
+    const onDocumentBecameSafe = vi.fn();
+    const setStatusKey = vi.fn();
+    const state = createState({
+      currentFile: { name: 'saved.md', path: 'E:/notes/saved.md' },
+      dirty: true,
+    });
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    const writeText = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        byteLength: 7,
+        fingerprint: 'sha256:saved',
+        path: 'E:/notes/saved.md',
+      },
+    });
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({ writeText });
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => '# Saved',
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={fileWatch}
+        onDocumentBecameSafe={onDocumentBecameSafe}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{
+          addRecentFile: recentFileStore.getState().addRecentFile,
+        }}
+        state={state}
+        status={{ setStatusKey }}
+      />,
+    );
+
+    await act(async () => {
+      await workflowRef.current?.save();
+    });
+
+    expect(writeText).toHaveBeenCalledWith('E:/notes/saved.md', '# Saved');
+    expect(state.getState().dirty).toBe(false);
+    expect(fileWatch.watchDocument).toHaveBeenCalledWith('E:/notes/saved.md');
+    expect(onDocumentBecameSafe).toHaveBeenCalledTimes(1);
+    expect(setStatusKey).toHaveBeenLastCalledWith('status.saved');
+    expect(recentFileStore.getState()).toMatchObject({
+      recentFiles: [
+        expect.objectContaining({
+          name: 'saved.md',
+          path: 'E:/notes/saved.md',
+        }),
+      ],
+      recentFilesPersistenceError: true,
+    });
   });
 
   it('keeps recovery and unsaved status when the document changes while save installs its watcher', async () => {

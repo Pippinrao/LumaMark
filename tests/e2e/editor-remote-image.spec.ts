@@ -216,6 +216,7 @@ async function openRemoteDocument(
   );
 
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   await expect(page.getByTestId('app-shell')).toBeVisible();
   await expect(page.getByTestId('editor-host')).toBeVisible();
   await page.getByRole('menuitem', { name: /File|文件/ }).click();

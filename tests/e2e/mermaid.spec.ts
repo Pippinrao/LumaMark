@@ -12,6 +12,7 @@ test('renders mermaid asynchronously while normal text remains editable', async 
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -37,6 +38,7 @@ test('edits and deletes mermaid from explicit preview actions', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -67,6 +69,7 @@ test('edits and deletes mermaid from explicit preview actions', async ({
 
 test('keeps mermaid source edits in the main undo history', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -94,6 +97,7 @@ test('keeps the main-editor cursor position after invalid mermaid validation', a
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -121,6 +125,7 @@ test('keeps typing at the caret after an intermediate mermaid render failure', a
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -150,6 +155,7 @@ test('keeps the main-editor cursor position after successful live mermaid render
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -178,6 +184,7 @@ test('places the live mermaid preview below the main-editor source while editing
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -214,6 +221,7 @@ test('places the live mermaid preview below the main-editor source while editing
 for (const sample of requiredMermaidRenderSamples) {
   test(`renders required Mermaid sample: ${sample.title}`, async ({ page }) => {
     await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
     const editor = page.locator('.cm-content').first();
     await editor.click();
@@ -234,6 +242,7 @@ for (const sample of mermaidTestSamples.filter(
 )) {
   test(`renders extended Mermaid sample: ${sample.title}`, async ({ page }) => {
     await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
     const editor = page.locator('.cm-content').first();
     await editor.click();
@@ -253,6 +262,7 @@ test('isolates an invalid mermaid block while the document remains editable', as
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -297,6 +307,7 @@ test('renders mermaid gallery fixture and keeps source mode faithful', async ({
     'utf8',
   );
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();

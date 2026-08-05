@@ -24,7 +24,7 @@ export function createLivePreviewCapabilities(
     createCodeBlockCapability(),
     createImageCapability(context),
     createTableCapability(),
-    createMermaidCapability(),
+    createMermaidCapability(context),
   ];
 }
 

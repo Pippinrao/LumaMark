@@ -22,19 +22,23 @@ const denseCodeBlockBudgetsMs = {
 const interactionBudgetsMs: Record<
   string,
   {
+    appearanceDispatchRoundTrip: number;
     modeRoundTrip: number;
     selectionBatch: number;
   }
 > = {
   'large-1mb.md': {
+    appearanceDispatchRoundTrip: 50,
     modeRoundTrip: 150,
     selectionBatch: 100,
   },
   'large-5mb.md': {
+    appearanceDispatchRoundTrip: 75,
     modeRoundTrip: 300,
     selectionBatch: 120,
   },
   'large-10mb.md': {
+    appearanceDispatchRoundTrip: 100,
     modeRoundTrip: 600,
     selectionBatch: 160,
   },
@@ -75,6 +79,13 @@ describe('editor interaction latency baseline', () => {
 
         const modeRoundTripDurationMs =
           performance.now() - modeStartedAt;
+        const appearanceStartedAt = performance.now();
+
+        editor.setAppearance({ fontZoomPercent: 110, pageWidthPx: 1040 });
+        editor.setAppearance({ fontZoomPercent: 100, pageWidthPx: 810 });
+
+        const appearanceDispatchRoundTripDurationMs =
+          performance.now() - appearanceStartedAt;
 
         process.stdout.write(
           [
@@ -83,8 +94,10 @@ describe('editor interaction latency baseline', () => {
             `${selectionDurationMs.toFixed(2)} ms`,
             `(avg ${(selectionDurationMs / selectionProbeCount).toFixed(2)} ms),`,
             `mode round-trip ${modeRoundTripDurationMs.toFixed(2)} ms`,
+            `appearance compartment dispatch round-trip ${appearanceDispatchRoundTripDurationMs.toFixed(2)} ms`,
             `(budgets selection <${interactionBudgetsMs[name].selectionBatch} ms,`,
-            `mode <${interactionBudgetsMs[name].modeRoundTrip} ms)`,
+            `mode <${interactionBudgetsMs[name].modeRoundTrip} ms,`,
+            `appearance dispatch <${interactionBudgetsMs[name].appearanceDispatchRoundTrip} ms)`,
             '\n',
           ].join(' '),
         );
@@ -97,11 +110,15 @@ describe('editor interaction latency baseline', () => {
         ).not.toBeNull();
         expect(Number.isFinite(selectionDurationMs)).toBe(true);
         expect(Number.isFinite(modeRoundTripDurationMs)).toBe(true);
+        expect(Number.isFinite(appearanceDispatchRoundTripDurationMs)).toBe(true);
         expect(selectionDurationMs).toBeLessThan(
           interactionBudgetsMs[name].selectionBatch,
         );
         expect(modeRoundTripDurationMs).toBeLessThan(
           interactionBudgetsMs[name].modeRoundTrip,
+        );
+        expect(appearanceDispatchRoundTripDurationMs).toBeLessThan(
+          interactionBudgetsMs[name].appearanceDispatchRoundTrip,
         );
       } finally {
         editor.destroy();

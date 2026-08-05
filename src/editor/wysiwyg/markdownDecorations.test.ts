@@ -364,7 +364,7 @@ describe('markdown WYSIWYG extension', () => {
     parent.remove();
   });
 
-  it('reveals nested inline owners but not an adjacent owner', () => {
+  it('reveals only the innermost nested inline owner for a collapsed caret', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const doc = '**outer *中文* tail** and ``code`span`` and *other*';
@@ -377,15 +377,45 @@ describe('markdown WYSIWYG extension', () => {
       }),
     });
 
-    expect(parent.textContent).toContain('**outer *中文* tail**');
+    expect(parent.textContent).toContain('outer *中文* tail');
+    expect(parent.textContent).not.toContain('**outer');
     expect(parent.textContent).not.toContain('``code`span``');
     expect(parent.textContent).not.toContain('*other*');
+    expect(
+      [...parent.querySelectorAll('.lm-md-source-mark-inline')].map(
+        (element) => element.textContent,
+      ),
+    ).toEqual(['*', '*']);
 
     view.dispatch({
       selection: EditorSelection.cursor(doc.indexOf('code') + 1),
     });
     expect(parent.textContent).toContain('``code`span``');
     expect(parent.textContent).not.toContain('**outer *中文* tail**');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('reveals only the active line marker in a multi-line blockquote', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '> first\n> second\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('second') + 1),
+      }),
+    });
+
+    expect(visibleLineTexts(parent)).toEqual([
+      ' first',
+      '> second',
+      '',
+      'plain',
+    ]);
 
     view.destroy();
     parent.remove();
@@ -476,7 +506,7 @@ describe('markdown WYSIWYG extension', () => {
       {
         cursor: 'second',
         doc: '> first\n> second\n\nplain',
-        expected: ['> first', '> second'],
+        expected: ['> second'],
       },
       {
         cursor: 'const',
@@ -670,6 +700,64 @@ describe('markdown WYSIWYG extension', () => {
     });
 
     expect(parent.querySelector('.lm-md-hidden-mark')).not.toBeNull();
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('weakens an active heading marker without changing source or selection', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '# Title\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(0),
+      }),
+    });
+    const selectionBefore = view.state.selection.toJSON();
+
+    const marker = parent.querySelector('.lm-md-source-mark-block');
+
+    expect(marker?.textContent).toBe('#');
+    expect(marker?.closest('.lm-md-heading-1')).not.toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.state.selection.toJSON()).toEqual(selectionBefore);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('weakens active list and task source markers', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['- item', '- [ ] task', '1. ordered', '', 'plain'].join('\n');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('item')),
+      }),
+    });
+    const visibleSourceMarks = () =>
+      [...parent.querySelectorAll('.lm-md-source-mark-block')].map(
+        (element) => element.textContent,
+      );
+
+    expect(visibleSourceMarks()).toEqual(['-']);
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('task')),
+    });
+    expect(visibleSourceMarks()).toEqual(['-', '[ ]']);
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('ordered')),
+    });
+    expect(visibleSourceMarks()).toEqual(['1.']);
 
     view.destroy();
     parent.remove();

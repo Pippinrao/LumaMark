@@ -76,7 +76,7 @@ test('discards an interrupted draft only when the user explicitly chooses to dis
   await dialog.getByRole('button', { name: '丢弃草稿' }).click();
 
   await expect(dialog).toBeHidden();
-  await expect(page.locator('.cm-content')).toContainText('# LumaMark');
+  await expect(page.getByRole('main', { name: '开始' })).toBeVisible();
   await expect
     .poll(() => page.evaluate((key) => localStorage.getItem(key), recoveryDraftKey))
     .toBeNull();
@@ -103,6 +103,7 @@ test('does not recover a draft after redo returns to the saved snapshot', async 
   }, savedPath);
 
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   const editor = page.locator('.cm-content');
   await editor.click();
   await page.keyboard.press('Control+A');

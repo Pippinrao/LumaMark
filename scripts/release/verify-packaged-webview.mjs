@@ -17,6 +17,7 @@ const executablePath = fileURLToPath(
 );
 const recentFilesKey = 'lumamark.recent-files.v1';
 const recoveryDraftKey = 'lumamark-recovery-draft-v1';
+const startupStorageKey = 'lumamark.startup.v1';
 const fileName = 'parity-native.md';
 const unicodeText = '中文输入路径';
 const initialMarkdown = [
@@ -106,20 +107,30 @@ try {
   });
 
   await page.waitForLoadState('domcontentloaded', { timeout: 10_000 }).catch(() => {});
-  await page.getByRole('heading', { name: /lumamark/i }).waitFor({
+  await page
+    .getByRole('banner')
+    .getByRole('heading', { name: /lumamark/i })
+    .waitFor({
     state: 'visible',
     timeout: 10_000,
-  });
+    });
 
   originalStorage = await page.evaluate(
-    ({ recentFilesKey, recoveryDraftKey }) => ({
+    ({ recentFilesKey, recoveryDraftKey, startupStorageKey }) => ({
       recentFiles: localStorage.getItem(recentFilesKey),
       recoveryDraft: localStorage.getItem(recoveryDraftKey),
+      startup: localStorage.getItem(startupStorageKey),
     }),
-    { recentFilesKey, recoveryDraftKey },
+    { recentFilesKey, recoveryDraftKey, startupStorageKey },
   );
   await page.evaluate(
-    ({ recentFilesKey, recoveryDraftKey, documentPath, fileName }) => {
+    ({
+      recentFilesKey,
+      recoveryDraftKey,
+      startupStorageKey,
+      documentPath,
+      fileName,
+    }) => {
       localStorage.setItem(
         recentFilesKey,
         JSON.stringify([
@@ -131,14 +142,81 @@ try {
         ]),
       );
       localStorage.removeItem(recoveryDraftKey);
+      localStorage.setItem(
+        startupStorageKey,
+        JSON.stringify({
+          lastSession: { kind: 'file', path: documentPath },
+          recentWorkspaces: [],
+          startupBehavior: 'restoreLastSession',
+          version: 1,
+        }),
+      );
     },
-    { recentFilesKey, recoveryDraftKey, documentPath, fileName },
+    {
+      recentFilesKey,
+      recoveryDraftKey,
+      startupStorageKey,
+      documentPath,
+      fileName,
+    },
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
 
   const editor = page.locator('.cm-content');
   await editor.waitFor({ state: 'visible', timeout: 10_000 });
   await page.waitForTimeout(500);
+  await expectEditorAppearance(page, {
+    fontScale: '1',
+    pageWidth: '810px',
+  });
+  await page.getByRole('menuitem', { name: /File|文件/ }).click();
+  await page.getByRole('menuitem', { name: /Settings|设置/ }).click();
+  const pageWidthGroup = page.getByRole('group', { name: /Page width|页面宽度/ });
+  const appearanceLayoutDurationMs = await pageWidthGroup
+    .getByRole('button', { name: /Wide|宽/, exact: true })
+    .evaluate(async (button) => {
+      const startedAt = performance.now();
+      button.click();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      const editorContent = document.querySelector('.cm-content');
+
+      if (!editorContent) {
+        throw new Error('Editor content disappeared during appearance layout.');
+      }
+
+      const contentBounds = editorContent.getBoundingClientRect();
+
+      if (contentBounds.width <= 0 || contentBounds.height <= 0) {
+        throw new Error('Appearance update did not produce visible editor layout.');
+      }
+
+      return performance.now() - startedAt;
+    });
+  if (appearanceLayoutDurationMs >= 500) {
+    throw new Error(
+      `Packaged WebView appearance layout exceeded 500 ms: ${appearanceLayoutDurationMs.toFixed(2)} ms.`,
+    );
+  }
+  await expectEditorAppearance(page, {
+    fontScale: '1',
+    pageWidth: '1040px',
+  });
+  await page.getByRole('button', { name: /Close|关闭/ }).click();
+  await editor.dispatchEvent('wheel', { ctrlKey: true, deltaY: -100 });
+  await expectEditorAppearance(page, {
+    fontScale: '1.1',
+    pageWidth: '1040px',
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.cm-content').waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  });
+  await expectEditorAppearance(page, {
+    fontScale: '1',
+    pageWidth: '1040px',
+  });
   await page.getByRole('button', { name: new RegExp(fileName) }).click();
   await page.locator('.lm-editor-title', { hasText: fileName }).waitFor({
     state: 'visible',
@@ -274,6 +352,9 @@ try {
         editorAcceptedInput: true,
         mermaidRendered: true,
         modeRoundTrip: true,
+        appearanceLayoutDurationMs: Number(appearanceLayoutDurationMs.toFixed(2)),
+        pageWidthPersisted: true,
+        sessionZoomReset: true,
         taskCheckboxAccessible: true,
         unicodeInput: true,
       },
@@ -286,7 +367,12 @@ try {
   if (page && originalStorage) {
     await page
       .evaluate(
-        ({ recentFilesKey, recoveryDraftKey, originalStorage }) => {
+        ({
+          recentFilesKey,
+          recoveryDraftKey,
+          startupStorageKey,
+          originalStorage,
+        }) => {
           if (originalStorage.recentFiles === null) {
             localStorage.removeItem(recentFilesKey);
           } else {
@@ -303,8 +389,18 @@ try {
               originalStorage.recoveryDraft,
             );
           }
+          if (originalStorage.startup === null) {
+            localStorage.removeItem(startupStorageKey);
+          } else {
+            localStorage.setItem(startupStorageKey, originalStorage.startup);
+          }
         },
-        { recentFilesKey, recoveryDraftKey, originalStorage },
+        {
+          recentFilesKey,
+          recoveryDraftKey,
+          startupStorageKey,
+          originalStorage,
+        },
       )
       .catch(() => {});
   }
@@ -328,6 +424,24 @@ async function waitForSavedStatus(page) {
     const title = document.querySelector('.lm-editor-title')?.textContent ?? '';
     return /Saved|已保存/.test(status) && !title.includes('*');
   });
+}
+
+async function expectEditorAppearance(page, expected) {
+  await page.waitForFunction(
+    ({ fontScale, pageWidth }) => {
+      const editorElement = document.querySelector('.cm-editor');
+      if (!editorElement) {
+        return false;
+      }
+      const styles = getComputedStyle(editorElement);
+
+      return (
+        styles.getPropertyValue('--lm-editor-font-scale').trim() === fontScale &&
+        styles.getPropertyValue('--lm-editor-page-width').trim() === pageWidth
+      );
+    },
+    expected,
+  );
 }
 
 function parseRequestedPort(value) {

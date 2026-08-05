@@ -153,6 +153,7 @@ test('refreshes a changed local image without rewriting its Markdown source', as
   );
 
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   await page.getByRole('menuitem', { name: /File|文件/ }).click();
   await page.getByRole('menuitem', { name: /Open File|打开文件/ }).click();
   const image = page.getByRole('img', { name: 'Local watcher image' });

@@ -1,0 +1,37 @@
+diff --git a/dist/codemirror-markdown-tables.js b/dist/codemirror-markdown-tables.js
+index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..aed2ef08115548e3cfc8352f9817e19630f72202 100644
+--- a/dist/codemirror-markdown-tables.js
++++ b/dist/codemirror-markdown-tables.js
+@@ -5612,7 +5612,10 @@ class mo {
+   }
+   // noinspection JSUnusedGlobalSymbols -- Called dynamically
+   navigateArrowUp() {
+-    this.position.top && this.moveUp({ createRow: !1, position: "end" });
++    this.position.top && this.moveUp({
++      createRow: !1,
++      position: this.tableState.selection.isCell() ? this.tableState.selection.cellSection.head : "end"
++    });
+   }
+   // noinspection JSUnusedGlobalSymbols -- Called dynamically
+   navigateArrowRight() {
+@@ -5620,7 +5623,10 @@ class mo {
+   }
+   // noinspection JSUnusedGlobalSymbols -- Called dynamically
+   navigateArrowDown() {
+-    this.position.bottom && this.moveDown({ createRow: !1, position: "end" });
++    this.position.bottom && this.moveDown({
++      createRow: !1,
++      position: this.tableState.selection.isCell() ? this.tableState.selection.cellSection.head : "end"
++    });
+   }
+   // noinspection JSUnusedGlobalSymbols -- Called dynamically
+   navigateShiftArrowLeft() {
+@@ -5743,7 +5749,7 @@ class mo {
+   }
+   moveTo(t, n) {
+     if (this.tableState.activeCell = t, this.tableState.anchorCell = t, this.tableState.outlinedSection = z.ofCell(t), this.tableState.selection.isCell()) {
+-      const o = n === "start" ? 0 : this.tableState.table.cellAt(t).length;
++      const i = this.tableState.table.cellAt(t).length, o = typeof n == "number" ? Math.min(n, i) : n === "start" ? 0 : i;
+       this.tableState.selectionValue = { cell: t, section: { anchor: o, head: o } };
+     }
+   }

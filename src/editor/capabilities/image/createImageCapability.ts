@@ -16,6 +16,7 @@ export function createImageCapability(
       imagePreviewExtension({
         documentPath: context.path,
         imageAssetResolver: context.imageAssetResolver,
+        onMediaPreviewRequest: context.onMediaPreviewRequest,
       }),
     ],
     id: 'image',

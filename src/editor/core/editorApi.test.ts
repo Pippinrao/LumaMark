@@ -1,4 +1,4 @@
-import { redo, undo } from '@codemirror/commands';
+import { redo, undo, undoDepth } from '@codemirror/commands';
 import { startCompletion } from '@codemirror/autocomplete';
 import { openSearchPanel } from '@codemirror/search';
 import { EditorSelection } from '@codemirror/state';
@@ -7,6 +7,7 @@ import { createEditorApi } from './editorApi';
 import { importFiles } from '../capabilities/image/imageInputExtension';
 import { isDocumentDirty } from './createEditorState';
 import { parseDocumentSource } from './documentSourceFormat';
+import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 
 describe('editorApi', () => {
   it('keeps adjacent inserted logical line endings distinct after serialization', () => {
@@ -573,19 +574,176 @@ describe('editorApi', () => {
     const documentBeforeLanguageChange = editor.getDocumentText();
     const selectionBeforeLanguageChange = editor.view.state.selection.main;
     expect(openSearchPanel(editor.view)).toBe(true);
-    expect(
-      parent.querySelector<HTMLInputElement>('[name="search"]')?.placeholder,
-    ).toBe('Find');
+    const english = getEditorSearchPhrases('en');
+    const chinese = getEditorSearchPhrases('zh-CN');
+    const controls = {
+      all: parent.querySelector<HTMLButtonElement>('.cm-search button[name="select"]'),
+      byWord: parent.querySelector<HTMLInputElement>('.cm-search input[name="word"]')
+        ?.closest('label'),
+      close: parent.querySelector<HTMLButtonElement>('.cm-search button[name="close"]'),
+      find: parent.querySelector<HTMLInputElement>('.cm-search input[name="search"]'),
+      matchCase: parent.querySelector<HTMLInputElement>('.cm-search input[name="case"]')
+        ?.closest('label'),
+      next: parent.querySelector<HTMLButtonElement>('.cm-search button[name="next"]'),
+      previous: parent.querySelector<HTMLButtonElement>('.cm-search button[name="prev"]'),
+      regexp: parent.querySelector<HTMLInputElement>('.cm-search input[name="re"]')
+        ?.closest('label'),
+      replace: parent.querySelector<HTMLInputElement>('.cm-search input[name="replace"]'),
+      replaceAll: parent.querySelector<HTMLButtonElement>(
+        '.cm-search button[name="replaceAll"]',
+      ),
+      replaceOne: parent.querySelector<HTMLButtonElement>(
+        '.cm-search button[name="replace"]',
+      ),
+    };
+    expect(controls.find?.placeholder).toBe(english.Find);
+    expect(controls.find?.getAttribute('aria-label')).toBe(english.Find);
+    expect(controls.replace?.placeholder).toBe(english.Replace);
+    expect(controls.replace?.getAttribute('aria-label')).toBe(english.Replace);
+    expect(controls.next?.textContent).toBe(english.next);
+    expect(controls.previous?.textContent).toBe(english.previous);
+    expect(controls.all?.textContent).toBe(english.all);
+    expect(controls.matchCase?.textContent).toBe(english['match case']);
+    expect(controls.regexp?.textContent).toBe(english.regexp);
+    expect(controls.byWord?.textContent).toBe(english['by word']);
+    expect(controls.replaceOne?.textContent).toBe(english.replace);
+    expect(controls.replaceAll?.textContent).toBe(english['replace all']);
+    expect(controls.close?.getAttribute('aria-label')).toBe(english.close);
 
     editor.setLanguage('zh-CN');
 
     expect(editor.getDocumentText()).toBe(documentBeforeLanguageChange);
     expect(editor.view.state.selection.main).toEqual(selectionBeforeLanguageChange);
-    expect(
-      parent.querySelector<HTMLInputElement>('[name="search"]')?.placeholder,
-    ).toBe('查找');
+    expect(controls.find?.placeholder).toBe(chinese.Find);
+    expect(controls.find?.getAttribute('aria-label')).toBe(chinese.Find);
+    expect(controls.replace?.placeholder).toBe(chinese.Replace);
+    expect(controls.replace?.getAttribute('aria-label')).toBe(chinese.Replace);
+    expect(controls.next?.textContent).toBe(chinese.next);
+    expect(controls.previous?.textContent).toBe(chinese.previous);
+    expect(controls.all?.textContent).toBe(chinese.all);
+    expect(controls.matchCase?.textContent).toBe(chinese['match case']);
+    expect(controls.regexp?.textContent).toBe(chinese.regexp);
+    expect(controls.byWord?.textContent).toBe(chinese['by word']);
+    expect(controls.replaceOne?.textContent).toBe(chinese.replace);
+    expect(controls.replaceAll?.textContent).toBe(chinese['replace all']);
+    expect(controls.close?.getAttribute('aria-label')).toBe(chinese.close);
+    expect(parent.querySelector('.cm-search button[name="select"]')).toBe(controls.all);
+    expect(parent.querySelector('.cm-search input[name="word"]')?.closest('label')).toBe(
+      controls.byWord,
+    );
+    expect(parent.querySelector('.cm-search button[name="close"]')).toBe(controls.close);
+    expect(parent.querySelector('.cm-search input[name="search"]')).toBe(controls.find);
+    expect(parent.querySelector('.cm-search input[name="case"]')?.closest('label')).toBe(
+      controls.matchCase,
+    );
+    expect(parent.querySelector('.cm-search button[name="next"]')).toBe(controls.next);
+    expect(parent.querySelector('.cm-search button[name="prev"]')).toBe(controls.previous);
+    expect(parent.querySelector('.cm-search input[name="re"]')?.closest('label')).toBe(
+      controls.regexp,
+    );
+    expect(parent.querySelector('.cm-search input[name="replace"]')).toBe(controls.replace);
+    expect(parent.querySelector('.cm-search button[name="replaceAll"]')).toBe(
+      controls.replaceAll,
+    );
+    expect(parent.querySelector('.cm-search button[name="replace"]')).toBe(
+      controls.replaceOne,
+    );
     expect(undo(editor.view)).toBe(true);
     expect(editor.getDocumentText()).toBe('Find this Markdown text.');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('relabels an existing task checkbox without recreating editor state or DOM', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['- [ ] task', '', 'after'].join('\n');
+    const editor = createEditorApi({ doc, language: 'en', parent });
+    editor.view.dispatch({
+      changes: { from: doc.length, insert: ' updated' },
+      selection: EditorSelection.cursor(doc.indexOf('after')),
+    });
+    const checkbox = parent.querySelector<HTMLInputElement>('.lm-md-task-checkbox');
+    const documentBefore = editor.getDocumentText();
+    const selectionBefore = editor.view.state.selection;
+    const historyBefore = undoDepth(editor.view.state);
+
+    expect(checkbox?.getAttribute('aria-label')).toBe(
+      getEditorSearchPhrases('en')['Toggle task completion'],
+    );
+
+    editor.setLanguage('zh-CN');
+
+    expect(checkbox?.getAttribute('aria-label')).toBe(
+      getEditorSearchPhrases('zh-CN')['Toggle task completion'],
+    );
+    expect(checkbox?.isConnected).toBe(true);
+    expect(parent.querySelector('.lm-md-task-checkbox')).toBe(checkbox);
+    expect(editor.getDocumentText()).toBe(documentBefore);
+    expect(editor.view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(editor.view.state)).toBe(historyBefore);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('owns a mutable copy of custom search phrases', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const customPhrases = Object.freeze({ Find: 'Frozen find' });
+    const editor = createEditorApi({
+      doc: 'text',
+      language: 'en',
+      parent,
+      searchPhrases: customPhrases,
+    });
+
+    expect(editor.view.state.phrase('Find')).toBe('Frozen find');
+    expect(() => editor.setLanguage('zh-CN')).not.toThrow();
+    expect(customPhrases).toEqual({ Find: 'Frozen find' });
+    expect(editor.view.state.phrase('Find')).toBe(
+      getEditorSearchPhrases('zh-CN').Find,
+    );
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('updates reading appearance without changing source, selection, or undo history', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      appearance: {
+        fontZoomPercent: 100,
+        pageWidthPx: 810,
+      },
+      doc: '# Initial\n',
+      parent,
+    });
+
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: '\nDraft' },
+      selection: EditorSelection.cursor(3),
+    });
+    const sourceBeforeAppearanceChange = editor.getSerializedDocumentText();
+    const selectionBeforeAppearanceChange = editor.view.state.selection.main;
+
+    editor.setAppearance({
+      fontZoomPercent: 120,
+      pageWidthPx: 1040,
+    });
+
+    expect(editor.getSerializedDocumentText()).toBe(sourceBeforeAppearanceChange);
+    expect(editor.view.state.selection.main).toEqual(selectionBeforeAppearanceChange);
+    expect(editor.view.dom.style.getPropertyValue('--lm-editor-font-scale')).toBe(
+      '1.2',
+    );
+    expect(editor.view.dom.style.getPropertyValue('--lm-editor-page-width')).toBe(
+      '1040px',
+    );
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.getDocumentText()).toBe('# Initial\n');
 
     editor.destroy();
     parent.remove();

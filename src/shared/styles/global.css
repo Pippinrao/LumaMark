@@ -295,6 +295,130 @@ button {
   overflow: hidden;
 }
 
+.lm-workspace-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lm-workspace-content,
+.lm-workspace-shell {
+  height: 100%;
+}
+
+.lm-start-screen-layer {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+}
+
+.lm-start-screen {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--lm-color-bg);
+  padding: clamp(32px, 8vh, 88px) clamp(24px, 7vw, 96px);
+}
+
+.lm-start-screen-content {
+  width: min(920px, 100%);
+  margin: 0 auto;
+}
+
+.lm-start-screen-header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+.lm-start-screen-header p {
+  margin: 10px 0 0;
+  color: var(--lm-color-text-muted);
+}
+
+.lm-start-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.lm-start-actions button,
+.lm-start-recent-list button {
+  border: 1px solid var(--lm-color-border);
+  border-radius: 10px;
+  background: var(--lm-color-surface);
+  color: var(--lm-color-text);
+  cursor: pointer;
+}
+
+.lm-start-actions button {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  text-align: left;
+}
+
+.lm-start-actions button:hover,
+.lm-start-actions button:focus-visible,
+.lm-start-recent-list button:hover,
+.lm-start-recent-list button:focus-visible {
+  border-color: var(--lm-color-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--lm-color-accent-soft);
+}
+
+.lm-start-recents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  margin-top: 40px;
+}
+
+.lm-start-recent-section h2 {
+  margin: 0 0 12px;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.lm-start-recent-list {
+  display: grid;
+  gap: 7px;
+}
+
+.lm-start-recent-list button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.lm-start-recent-list svg {
+  grid-row: 1 / span 2;
+}
+
+.lm-start-recent-list span,
+.lm-start-recent-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lm-start-recent-list small,
+.lm-start-empty {
+  color: var(--lm-color-text-muted);
+  font-size: 0.74rem;
+}
+
+.lm-start-empty {
+  margin: 0;
+}
+
 .lm-sidebar-panel,
 .lm-editor-panel,
 .lm-outline-panel {
@@ -984,6 +1108,13 @@ button {
   accent-color: var(--lm-color-accent);
 }
 
+.lm-setting-error {
+  margin: 0;
+  color: var(--lm-color-danger, #b42318);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 720px) {
   .lm-app-shell {
     grid-template-rows: auto minmax(0, 1fr) var(--lm-status-height);
@@ -1012,5 +1143,10 @@ button {
 
   .lm-editor-scroll {
     height: 100%;
+  }
+
+  .lm-start-actions,
+  .lm-start-recents {
+    grid-template-columns: 1fr;
   }
 }

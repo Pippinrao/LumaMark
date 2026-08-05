@@ -10,7 +10,7 @@
 
 ## 3. 执行摘要
 
-LumaMark 的表格能力不是空壳。当前 live preview 默认启用 `codemirror-markdown-tables`，能够把合法 GFM 管道表显示为结构化表格；单元格非编辑时可渲染部分行内 Markdown，悬停会露出源标记，单击进入组件提供的单元格编辑器；菜单、命令面板、编辑器右键菜单和 `Ctrl+Alt+T/C/Backspace` 已接入插入、复制源码、删除整表；源码模式会卸载表格 widget 并显示完整 Markdown；表格 fixture 已纳入字节级 open→save→diff 门禁。本次新鲜验证中，4 个表格相关 Vitest 文件 65 项通过，Playwright 命令选中的 6 项通过，fixture 24 项通过；但包含架构门禁的 8 文件组合验证为 92/93 通过，失败来自与表格无直接关系的 `useAppShellModel.ts` 行数超限。因此可以证明表格定点路径通过，不能把整个聚焦组合门禁写成全绿。
+LumaMark 的表格能力不是空壳。当前 live preview 默认启用 `codemirror-markdown-tables`，能够把合法 GFM 管道表显示为结构化表格；单元格直接在组件的源码 token DOM 上呈现部分行内 Markdown，单击进入组件提供的单元格编辑器；菜单、命令面板、编辑器右键菜单和 `Ctrl+Alt+T/C/Backspace` 已接入插入、复制源码、删除整表；源码模式会卸载表格 widget 并显示完整 Markdown；表格 fixture 已纳入字节级 open→save→diff 门禁。Issue #6 的回归测试还覆盖格式化单元格点击、变宽中英混排点击、上下键同列移动和短目标单元格夹紧。完整门禁结果以最近一次任务报告为准，不沿用本文早期验证数字。
 
 但“功能存在”不等于“体验追平”。Typora 的核心路径是输入管道表头后按 Return 自动建表，并在焦点表格上通过工具栏和上下文菜单调整尺寸、对齐、行列；其 Windows/Linux 标准快捷键为 `Ctrl+T`、`Ctrl+L`、`Ctrl+E`、`Ctrl+Shift+Backspace`。LumaMark 目前没有测试证明 Return 自动建表、选行、选单元格、删行、对齐与尺寸操作达到 Typora 路径，也没有表格粘贴、IME、撤销重做、键盘无鼠标、错误反馈和表格专项性能证据。结论是：基础 GFM 表格与若干编辑路径为**已实现**，整体 Typora-like 表格体验为**部分实现**，尚不能声称追平。
 
@@ -58,7 +58,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 
 2. **明暗主题与基础视觉适配：已实现。** `tablePreviewExtension.ts:53-93` 把组件主题映射到 LumaMark token；`table.css:1-91` 定义表格、单元格、句柄、菜单和 tooltip 的适配样式。现有证据证明样式入口存在，不证明已与 Typora 像素一致。
 
-3. **单元格行内 Markdown 阅读/露源/编辑：部分实现。** `tablePreviewExtension.ts:99-274` 通过 `markdown-it` sibling overlay 渲染 inactive cell，hover/focus 露出原源码，保留成熟组件的 `.tbl-cell-view`；`tablePreviewExtension.test.ts:78-176` 覆盖粗体、行内代码、hover 露源和管道文本误识别前置场景；`editor-markdown.spec.ts:662-734` 真实浏览器覆盖粗体、链接、代码、单元格编辑和切源码模式后的源文。删除线在配置和 fixture 中存在，但没有同等精度的交互断言；图片、HTML 等并非本专题承诺的 cell inline 范围。
+3. **单元格行内 Markdown 阅读/编辑：部分实现。** `tablePreviewExtension.ts` 复用组件提供的 `.tbl-cell-view` 与 nested CodeMirror token DOM；CSS 隐藏定界符和链接目标，并呈现粗体、斜体、删除线、行内代码与链接标签，不再创建 `markdown-it` sibling overlay。单元测试覆盖单一源码 DOM、token 与 hover DOM 稳定性；真实浏览器覆盖格式化点击偏移、输入、撤销重做和切源码模式后的源文。图片、HTML 等并非本专题承诺的 cell inline 范围。
 
 4. **菜单/命令面板/右键插入表格：已实现。** `tableCommands.ts:10-12` 复用依赖的 `insertEmptyMarkdownTable()`；`markdownFormatCommands.ts:71-72` 将通用 `table` 命令路由到 capability；`createCommandModels.ts:117-149,247-250,306-329` 提供命令面板、顶栏和编辑器上下文菜单模型；`AppShell.test.tsx:334-389,481-503` 覆盖三类入口；`editor-markdown.spec.ts:755-793` 覆盖顶栏与右键实际路径。
 
@@ -76,13 +76,13 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 
 11. **转义管道和混合内容 fixture：部分实现。** `gfm-edge-cases.md:3-6` 包含 `\|`、中文和对齐；`markdownFixtureManifest.ts:98-107` 声明 `gfm:escaped-pipe-table`；fixture 覆盖与 round-trip 已通过，但没有浏览器交互测试证明 widget 中编辑转义管道后仍正确。
 
-12. **架构边界与成熟依赖：已实现。** `package.json:54` 声明 `codemirror-markdown-tables` 的 `^1.0.0` 范围，`pnpm-lock.yaml:71-73,1491` 将当前解析版本固定为 `1.0.0`；ADR 0002 规定成熟组件承担行列、选择与序列化，LumaMark 只做薄适配；`architectureBoundaries.test.ts:165-230,261-290` 约束 capability 入口及跨层依赖。本项证明架构选择与接入，不自动证明依赖的每项交互都达到产品验收。新鲜组合验证还暴露了同一测试文件中的非表格架构门禁失败，不能据该文件整体声称当前架构门禁全绿。
+12. **架构边界与成熟依赖：已实现。** `package.json` 将 `codemirror-markdown-tables` 精确固定为 `1.0.0`，`pnpm-workspace.yaml` 登记最小纵向光标补丁；ADR 0002 规定成熟组件继续承担行列、选择与序列化，LumaMark 只做薄适配。补丁只把上下键的当前源码列传给目标 cell 并按长度夹紧，不复制组件状态机。
 
 ## 6. 当前真实体验路径
 
 当前用户可通过四类入口开始：在“段落”菜单、命令面板或编辑器右键菜单选择“表格”，或按 `Ctrl+Alt+T`。命令最终到达 `insertEmptyMarkdownTable()`，在 CodeMirror 文档中插入标准 2×2 管道表，live preview 随即把源码呈现为成熟组件的表格 widget。也可直接输入或粘贴完整合法 GFM 表源码，随后由解析器识别并显示。
 
-阅读时，单元格内的粗体、链接和行内代码由 overlay 显示为渲染结果。鼠标悬停单元格会隐藏 overlay、露出原始定界符；单击后进入 `.tbl-cell-editor`，编辑会回写 CodeMirror 文档；离开表格后恢复阅读态。用户可从编辑菜单复制当前表格的完整 Markdown，或删除整张表；右键菜单也提供同样的三项 LumaMark 命令。切换“视图→源码模式”后 widget 消失，完整管道、对齐行与行内定界符可直接编辑。
+阅读时，单元格内的粗体、链接和行内代码由组件源码 DOM 上的 token 样式直接呈现；悬停不交换 DOM，单击后同一 token 规则应用于 `.tbl-cell-editor`，编辑会回写 CodeMirror 文档。用户可从编辑菜单复制当前表格的完整 Markdown，或删除整张表；右键菜单也提供同样的三项 LumaMark 命令。切换“视图→源码模式”后 widget 消失，完整管道、对齐行与行内定界符可直接编辑。
 
 这条路径已经被浏览器测试覆盖，但尚未形成同等可靠的纯键盘选行/选格/删行路径，也没有现有测试演示 Typora 式 `| ... |`+Return 自动转换、表格工具栏对齐/尺寸、行列菜单、Excel/TSV 粘贴或失败提示。因此真实路径可用，却仍窄于 Typora 基线。
 
@@ -121,7 +121,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 | IME 组合输入 | 证据不足 | 阻断 | 中文 cell 编辑可能出现候选中断或提交错位 | 无 composition 测试 |
 | 撤销/重做表格结构操作 | 证据不足 | 阻断 | 行列或单元格误操作难恢复 | 仅通用 history 与模式测试，无结构操作测试 |
 | 键盘可访问性与语义 | 证据不足 | 高 | 无鼠标用户和读屏用户可能受阻 | 未见 grid/cell 语义与焦点顺序验收 |
-| 大文档/大量表格性能 | 证据不足 | 高 | widget 与 DOM overlay 扫描可能影响输入、滚动 | `tests/perf` 无表格专项用例 |
+| 大文档/大量表格性能 | 证据不足 | 高 | widget 数量可能影响输入、滚动 | `tests/perf` 无表格专项用例 |
 
 ## 8. 根因与架构影响
 
@@ -129,7 +129,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 
 第二，表格命令边界过于粗。`EditorCapabilityCommands` 暴露插入、复制、删除整表，却没有“选择行/格、增删行列、设置对齐”的稳定产品命令，也没有结构化失败结果。`EditorCommandPort.copyTable()` 返回 `void` 并丢弃异步结果，导致剪贴板拒绝无法进入 app 层的本地化错误通知。若直接把更多行为塞进 React shell 或通用 format command，会违反 editor 与 app 分层；正确方向应是在 table capability 内定义薄命令适配和可判别结果，再由 app 编排 UI。
 
-第三，inline overlay 是必要的差异化薄层，但当前实现通过 `setTimeout(0)`、全 widget DOM 查询、逐 cell 读取与 `innerHTML` 更新工作。它没有改写 CodeMirror 文档，这是源码保真优点；同时它可能随 viewport、selection 和每次 doc change 扫描大量 cell，且 `tablePreviewExtension.ts` 同时承担组件配置、调度、DOM 状态和 Markdown 渲染，职责开始膨胀。没有 perf 数据前不能断言已退化，但这条路径必须被测量。组件编译产物虽然给表格和菜单项提供了部分 `role`，却也把行列/对齐菜单文案写死为英文；因此 i18n 与 a11y 都需要以当前锁定版本建立产品契约，不能仅依赖组件自述。
+第三，Issue #6 已证明 sibling overlay 即使纯文本看似对齐，也会在 Markdown 定界符、字体和组件激活切换时形成第二套坐标。当前实现已删除 overlay 调度、全 widget DOM 扫描和 `innerHTML` 渲染，表格 inline 呈现只消费组件现有 token DOM。组件编译产物虽然给表格和菜单项提供了部分 `role`，却也把行列/对齐菜单文案写死为英文；因此 i18n 与 a11y 仍需以当前锁定版本建立产品契约，不能仅依赖组件自述。
 
 第四，源码保真目前只锁定“未编辑保存”。结构化组件通常会格式化目标表格，这是可接受的前提仅是范围和规则明确；项目尚未定义“编辑一个 cell 允许改哪些空格、是否保留冒号、转义管道如何序列化”。这直接影响 Markdown 唯一真实数据原则，应先以 fixture 契约固定行为，再扩大 UI 操作。
 
@@ -143,7 +143,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 
 ### 9.2 数据流与命令契约
 
-唯一数据流应是：用户输入/组件操作→CodeMirror transaction→Markdown 文档→现有 dirty/save 流程。overlay 只能读源码并渲染视觉 sibling，禁止把 HTML 当状态或反向序列化。新增 `TableCommandResult` 可判别结果，例如成功、光标不在表格、剪贴板不可用、剪贴板拒绝、组件操作不支持；editor capability 返回结果，app controller 将失败映射到可本地化 notice。顶栏、命令面板、右键和快捷键必须复用同一 command model，不能各写一套逻辑。
+唯一数据流应是：用户输入/组件操作→CodeMirror transaction→Markdown 文档→现有 dirty/save 流程。inline 视觉只能来自 CodeMirror/Lezer token，禁止维护第二份 HTML 状态或反向序列化。新增 `TableCommandResult` 可判别结果，例如成功、光标不在表格、剪贴板不可用、剪贴板拒绝、组件操作不支持；editor capability 返回结果，app controller 将失败映射到可本地化 notice。顶栏、命令面板、右键和快捷键必须复用同一 command model，不能各写一套逻辑。
 
 对 Typora 键位先做冲突审计。Windows/Linux 提供 `Ctrl+T` 插表、`Ctrl+L` 选行、`Ctrl+E` 选格、`Ctrl+Shift+Backspace` 删行；macOS 使用官方对应键。若 `Ctrl+T` 与应用标签页计划冲突，应形成明确产品决策并允许用户重映射，而不是静默采用不兼容键位。整表删除保留为独立、语义清晰且不易误触的命令。
 
@@ -155,13 +155,13 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 
 补齐中英文 key：行/列插入删除、左右/居中对齐、选择行/格、复制失败、操作不适用、粘贴无法解析。不得继续接受组件硬编码英文 tooltip。当前锁定版本的公开 `MarkdownTablesConfig` 未见 locale/label 注入口，应先向上游确认或贡献可注入文案的 API，并同时评估仍在维护、可满足源码保真与性能要求的成熟替代方案；基于 DOM 文本替换的薄适配只能作为有回归测试的临时方案，不能直接 fork 或自研基础表格组件。
 
-以键盘和读屏实际验收表格：可进入/退出表格，不困住 Tab；焦点指示清晰；行、列、cell 与选中状态具有可读语义；菜单支持方向键、Escape 和焦点返回；overlay 为 `aria-hidden` 时底层内容仍有可访问名称。剪贴板拒绝、非表格位置执行命令、非法表结构、组件异常都应返回显式结果并显示非阻塞、本地化反馈，不使用静默 fallback。
+以键盘和读屏实际验收表格：可进入/退出表格，不困住 Tab；焦点指示清晰；行、列、cell 与选中状态具有可读语义；菜单支持方向键、Escape 和焦点返回；单元格不得因重复视觉 DOM 产生重复可访问名称。剪贴板拒绝、非表格位置执行命令、非法表结构、组件异常都应返回显式结果并显示非阻塞、本地化反馈，不使用静默 fallback。
 
 ### 9.5 创建、粘贴和性能
 
 为 `| ... |`+Return 建立真实 keyboard transaction 测试，确认只在合法上下文触发，不把普通含管道段落或代码块转成表。对 TSV、HTML table、纯文本 Markdown 三类剪贴板格式先实测 Typora，再决定 LumaMark 是追平、差异化还是明确不支持；任何智能转换都必须可撤销并保留原始文本的可恢复性。
 
-性能上将 overlay 更新限制到受影响 widget/cell，避免每次 selection change 扫描全视口；可采用 requestAnimationFrame 合并、基于 transaction range 的增量更新和取消过期任务，但必须先基准后改动。性能门禁单独运行，不能与 E2E、build 或 lint 并发。
+性能上不得重新引入逐 selection change 的全表 DOM 扫描或第二渲染器；后续优化聚焦成熟组件 widget 数量、增量 transaction 和可测瓶颈。性能门禁单独运行，不能与 E2E、build 或 lint 并发。
 
 ## 10. P0/P1/P2 分阶段计划
 
@@ -230,7 +230,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 ### 11.6 Perf
 
 - 单独运行 1MB 文档加 100/500/1000 张小表，以及单张 100×50 宽表。
-- 测量打开时间、首次 widget 稳定时间、单格输入 transaction p50/p95、滚动帧、模式切换、内存峰值与 overlay 更新次数。
+- 测量打开时间、首次 widget 稳定时间、单格输入 transaction p50/p95、滚动帧、模式切换与内存峰值。
 - perf 文件串行执行，并保存硬件、版本和基线；不得与 E2E、构建、typecheck、lint 并行。
 
 ## 12. 风险与未核实项
@@ -238,7 +238,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 - Typora 1.13.7 工具栏按钮全集、中文菜单精确文案、Tab/方向键边界、空格规范化、不等列容错仍未实机逐项核实。
 - Typora 对 Excel/TSV/HTML 粘贴的真实行为未知，不能据横切 Smart Paste 推断表格一定转换。
 - `codemirror-markdown-tables@1.0.0` 的行列、对齐、键盘、IME、a11y 和粘贴能力目前主要由 ADR 意图与启用配置间接支持，缺少 LumaMark 产品级契约测试。
-- inline overlay 使用 DOM 查询和 `setTimeout(0)`；没有表格专项性能基准，性能影响未知。
+- 当前没有表格专项性能基准；移除 overlay 减少了一条渲染路径，但不能据此直接宣称大表性能达标。
 - 复制命令的异步失败未传递到 UI；当前 E2E 只覆盖已授权剪贴板成功路径。
 - 本次 4 文件表格相关 Vitest 为 65/65 通过；扩大到 8 文件组合后为 92/93 通过，失败是 `useAppShellModel.ts` 行数架构门禁，另输出 Node `--localstorage-file` 无有效路径 warning。前者不直接推翻表格行为结论，但意味着当前组合门禁未全绿；warning 仍应由测试基础设施定位并消除。
 - 本报告分析的是当前未提交工作树。相关表格实现和测试本身已有用户改动；后续合并时需要在最终提交状态重新运行全部门禁。
@@ -255,7 +255,7 @@ Typora 横切体验包含 Smart Paste、普通粘贴和粘贴为纯文本，但�
 
 ### LumaMark 代码与依赖
 
-- `src/editor/capabilities/table/tablePreviewExtension.ts:29-274`：成熟组件配置、主题、inline overlay 与露源调度。
+- `src/editor/capabilities/table/tablePreviewExtension.ts`、`table.css`：成熟组件配置、主题与源码 token DOM 样式。
 - `src/editor/capabilities/table/tableCommands.ts:10-104`：插入、复制、删除整表与 keymap。
 - `src/editor/capabilities/table/createTableCapability.ts:4-8`、`src/editor/capabilities/index.ts:20-49`：capability 聚合和命令边界。
 - `src/editor/core/editorDisplayMode.ts:37-52`、`src/editor/core/createEditorState.ts:97-120`：live preview/source 模式与共享编辑器状态。

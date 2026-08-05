@@ -214,6 +214,17 @@
   opacity: 0;
 }
 
+.cm-content .lm-md-source-mark {
+  color: var(--lm-color-source-mark);
+  font-family: var(--lm-font-mono);
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
+  text-decoration: none;
+}
+
 .lm-md-task-checkbox {
   accent-color: var(--lm-color-accent);
   cursor: pointer;

@@ -86,6 +86,7 @@ test.beforeEach(async ({ page }) => {
     };
   }, { documentPath, pixelSvg });
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   await openTopMenu(page, /File|文件/);
   await page.getByRole('menuitem', { name: /Open File|打开文件/ }).click();
   await expect(page.locator('.lm-menu-content')).toHaveCount(0);

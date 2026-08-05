@@ -2,6 +2,8 @@ import { useCallback, useRef } from 'react';
 import {
   listWorkspaceChildren,
   openWorkspaceDirectory,
+  openWorkspacePath,
+  type WorkspaceDirectory,
 } from '../../services/workspace/workspaceCommands';
 import { useWorkspaceStore } from './workspaceStore';
 
@@ -9,13 +11,18 @@ export type WorkspaceWorkflow = {
   loadingPaths: Record<string, boolean>;
   loadChildren: (path: string, session?: number) => Promise<void>;
   openFile: (path: string) => Promise<void>;
-  openWorkspace: () => Promise<void>;
+  openPath: (path: string) => Promise<OpenWorkspaceOutcome>;
+  openWorkspace: () => Promise<OpenWorkspaceOutcome>;
   root: ReturnType<typeof useWorkspaceStore.getState>['root'];
   tree: ReturnType<typeof useWorkspaceStore.getState>['tree'];
 };
 
+export type OpenWorkspaceOutcome =
+  | { status: 'opened'; workspace: WorkspaceDirectory }
+  | { status: 'cancelled' | 'failed' };
+
 type UseWorkspaceWorkflowOptions = {
-  openDocumentPath: (path: string) => Promise<void>;
+  openDocumentPath: (path: string) => Promise<unknown>;
   status: {
     setStatusKey: (statusKey: string) => void;
   };
@@ -76,31 +83,47 @@ export function useWorkspaceWorkflow({
     ],
   );
 
+  const applyWorkspace = useCallback(async (workspace: WorkspaceDirectory) => {
+    workspaceLoadSessionRef.current += 1;
+    workspaceLoadGenerationsRef.current.clear();
+    const workspaceLoadSession = workspaceLoadSessionRef.current;
+    setWorkspaceRoot(workspace);
+    status.setStatusKey('status.workspaceOpened');
+    await loadChildren(workspace.path, workspaceLoadSession);
+    return { status: 'opened', workspace } as const;
+  }, [
+    loadChildren,
+    status,
+    setWorkspaceRoot,
+  ]);
+
   const openWorkspace = useCallback(async () => {
     const result = await openWorkspaceDirectory();
 
     if (!result.ok) {
       setWorkspaceError(result.error);
       status.setStatusKey('status.workspaceOpenFailed');
-      return;
+      return { status: 'failed' } as const;
     }
 
     if (!result.data) {
-      return;
+      return { status: 'cancelled' } as const;
     }
 
-    workspaceLoadSessionRef.current += 1;
-    workspaceLoadGenerationsRef.current.clear();
-    const workspaceLoadSession = workspaceLoadSessionRef.current;
-    setWorkspaceRoot(result.data);
-    status.setStatusKey('status.workspaceOpened');
-    await loadChildren(result.data.path, workspaceLoadSession);
-  }, [
-    loadChildren,
-    status,
-    setWorkspaceError,
-    setWorkspaceRoot,
-  ]);
+    return applyWorkspace(result.data);
+  }, [applyWorkspace, setWorkspaceError, status]);
+
+  const openPath = useCallback(async (path: string) => {
+    const result = await openWorkspacePath(path);
+
+    if (!result.ok) {
+      setWorkspaceError(result.error);
+      status.setStatusKey('status.workspaceOpenFailed');
+      return { status: 'failed' } as const;
+    }
+
+    return applyWorkspace(result.data);
+  }, [applyWorkspace, setWorkspaceError, status]);
 
   const openFile = useCallback(
     async (path: string) => {
@@ -113,6 +136,7 @@ export function useWorkspaceWorkflow({
     loadChildren,
     loadingPaths,
     openFile,
+    openPath,
     openWorkspace,
     root,
     tree,

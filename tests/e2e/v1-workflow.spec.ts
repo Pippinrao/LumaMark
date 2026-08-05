@@ -88,6 +88,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   );
 
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await clickFirstVisibleMenuItem(page, ['文件', 'File']);
   await clickFirstVisibleMenuItem(page, ['设置', 'Settings']);
@@ -165,6 +166,14 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   expect(savedFiles.original).not.toContain('# Save As Current File');
   expect(savedFiles.copy).toContain('# Save As Current File');
 
+  await editor.click();
+  await page.keyboard.type('\n\n# Menu Save As');
+  await runFileMenuAction(page, 'saveAs');
+  await expect(page.getByRole('status')).toHaveText('Saved');
+  saved = await page.evaluate(() => window.__LUMAMARK_E2E_STATE__?.lastWrite);
+  expect(saved?.path).toBe(saveAsPath);
+  expect(saved?.text).toContain('# Menu Save As');
+
   await page.reload();
   await runFileMenuAction(page, 'openFile');
   await expect(editor).toContainText('Fixture Title');
@@ -220,6 +229,7 @@ test('reopens a recent file from the files sidebar', async ({ page }) => {
     { path, text },
   );
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await runFileMenuAction(page, 'openFile');
   const editor = page.locator('.cm-content');
@@ -228,6 +238,7 @@ test('reopens a recent file from the files sidebar', async ({ page }) => {
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'recent.md' })).toBeVisible();
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await editor.click();
   await page.keyboard.press('Control+A');
@@ -264,6 +275,7 @@ test('keeps the current draft and explains a failed file open', async ({ page })
     };
   }, missingPath);
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -285,6 +297,7 @@ test('creates a new document only after confirming discarded changes', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -309,6 +322,7 @@ test('creates a new document from the command palette through the same confirmat
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content');
   await editor.click();

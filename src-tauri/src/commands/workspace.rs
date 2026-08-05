@@ -20,6 +20,11 @@ pub async fn workspace_open_directory(
 }
 
 #[tauri::command]
+pub fn workspace_open_path(path: String) -> Result<WorkspaceDirectory, AppError> {
+    open_directory(PathBuf::from(path))
+}
+
+#[tauri::command]
 pub fn workspace_list_children(path: String) -> Result<Vec<WorkspaceEntry>, AppError> {
     list_children(PathBuf::from(path))
 }

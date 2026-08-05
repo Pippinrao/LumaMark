@@ -22,7 +22,7 @@ function createState(
 }
 
 describe('editor interaction context', () => {
-  it('activates nested inline owners and exposes their exact delimiters', () => {
+  it('activates only the innermost inline owner for a collapsed caret', () => {
     const doc = '**outer *中文* tail**';
     const state = createState(
       doc,
@@ -33,17 +33,34 @@ describe('editor interaction context', () => {
     const selection = context.selections[0];
 
     expect(selection.inlineOwners.map((owner) => owner.kind)).toEqual([
-      'StrongEmphasis',
       'Emphasis',
     ]);
     expect(
       selection.delimiterRanges.map((range) =>
         state.doc.sliceString(range.from, range.to),
       ),
-    ).toEqual(['**', '*', '*', '**']);
+    ).toEqual(['*', '*']);
     expect(context.activeInlineOwners).toEqual(selection.inlineOwners);
     expect(selection.block?.kind).toBe('Paragraph');
     expect(selection.crossesBlocks).toBe(false);
+  });
+
+  it('activates every nested inline owner intersected by a non-empty selection', () => {
+    const doc = '**outer *中文* tail**';
+    const state = createState(
+      doc,
+      EditorSelection.range(doc.indexOf('中文'), doc.indexOf('中文') + 2),
+    );
+
+    const selection = deriveEditorInteractionContext(
+      state,
+      false,
+    ).selections[0];
+
+    expect(selection.inlineOwners.map((owner) => owner.kind)).toEqual([
+      'StrongEmphasis',
+      'Emphasis',
+    ]);
   });
 
   it('does not activate either adjacent owner at their shared boundary', () => {
@@ -188,20 +205,25 @@ describe('editor interaction context', () => {
     ).toBe(false);
   });
 
-  it('keeps block delimiters scoped to the selected structure', () => {
+  it('keeps blockquote delimiters scoped to the active line', () => {
     const doc = '> first\n\n> second';
     const state = createState(
       doc,
       EditorSelection.cursor(doc.indexOf('first') + 1),
     );
 
-    const block = deriveEditorInteractionContext(
+    const selection = deriveEditorInteractionContext(
       state,
       false,
-    ).selections[0].block;
+    ).selections[0];
 
     expect(
-      block?.delimiterRanges.map((range) =>
+      selection.block?.delimiterRanges.map((range) =>
+        state.doc.sliceString(range.from, range.to),
+      ),
+    ).toEqual([]);
+    expect(
+      selection.delimiterRanges.map((range) =>
         state.doc.sliceString(range.from, range.to),
       ),
     ).toEqual(['>']);

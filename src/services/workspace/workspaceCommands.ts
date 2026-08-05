@@ -31,6 +31,17 @@ export async function openWorkspaceDirectory(
   );
 }
 
+export async function openWorkspacePath(
+  path: string,
+  options: WorkspaceCommandOptions = {},
+): Promise<CommandResult<WorkspaceDirectory>> {
+  return invokeCommand<WorkspaceDirectory>(
+    'workspace_open_path',
+    { path },
+    options.invokeFn,
+  );
+}
+
 export async function listWorkspaceChildren(
   path: string,
   options: WorkspaceCommandOptions = {},

@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormatCommands';
+import type { CommandShortcutLabels as ShortcutLabels } from './commandShortcuts';
 
 export type CommandActionId =
   | 'copyTable'
@@ -120,7 +121,4 @@ export type CommandContextMenuItem = {
   shortcut: string;
 };
 
-export type CommandShortcutLabels = {
-  copy: string;
-  delete: string;
-};
+export type CommandShortcutLabels = ShortcutLabels;

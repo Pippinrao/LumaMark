@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../stores/appStore';
+import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
+import { useStartupStore } from '../../features/startup/startupStore';
 
 export function useSettingsModel() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -13,15 +15,27 @@ export function useSettingsModel() {
   const setTheme = useAppStore((state) => state.setTheme);
   const toggleLanguage = useAppStore((state) => state.toggleLanguage);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
+  const recentFilesPersistenceError = useRecentFilesStore(
+    (state) => state.recentFilesPersistenceError,
+  );
+  const startupBehavior = useStartupStore((state) => state.startupBehavior);
+  const startupPersistenceError = useStartupStore(
+    (state) => state.startupPersistenceError,
+  );
+  const setStartupBehavior = useStartupStore((state) => state.setStartupBehavior);
 
   return {
     copyImagesToAssets,
     language,
+    recentFilesPersistenceError,
     setCopyImagesToAssets,
     setLanguage,
     setSettingsOpen,
     setTheme,
     settingsOpen,
+    setStartupBehavior,
+    startupBehavior,
+    startupPersistenceError,
     theme,
     toggleLanguage,
     toggleTheme,

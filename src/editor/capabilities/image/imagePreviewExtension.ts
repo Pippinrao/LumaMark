@@ -1,22 +1,11 @@
 import {
-  EditorSelection,
   type EditorState,
   type Extension,
   RangeSetBuilder,
   StateEffect,
   StateField,
 } from '@codemirror/state';
-import {
-  Decoration,
-  type DecorationSet,
-  EditorView,
-  WidgetType,
-} from '@codemirror/view';
-import { i18n } from '../../../shared/i18n';
-import type {
-  ImageAssetResolution,
-  ImageAssetResolver,
-} from '../../core/editorDisplayMode';
+import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
 import {
   collectImageBlocksInRanges,
   type ImageBlock,
@@ -28,24 +17,19 @@ import {
   mapImageBlocks,
   selectionIntersectsBlock,
 } from './imageChangeDetection';
+import { ImageBlockWidget, type ImagePreviewContext } from './ImageBlockWidget';
 import './image.css';
 
 export { collectImageBlocksInRanges } from './imageBlockDetection';
 export type { ImageBlock } from './imageBlockDetection';
-
-export type ImagePreviewContext = {
-  documentPath: string | null;
-  imageAssetResolver?: ImageAssetResolver;
-};
+export { resolveMarkdownImageSource } from './imagePathResolver';
+export type { ImagePreviewContext } from './ImageBlockWidget';
+export type { ResolvedImageSource } from './imagePathResolver';
 
 type ImageDecorationState = {
   blocks: readonly ImageBlock[];
   decorations: DecorationSet;
 };
-
-export type ResolvedImageSource =
-  | { kind: 'error'; reason: 'relative_without_document' }
-  | { kind: 'resolved'; src: string };
 
 export const refreshImagePreviews = StateEffect.define<string>();
 
@@ -53,31 +37,6 @@ export function imagePreviewExtension(
   context: ImagePreviewContext = { documentPath: null },
 ): Extension {
   return imageDecorationsField(context);
-}
-
-export function resolveMarkdownImageSource({
-  documentPath,
-  source,
-}: {
-  documentPath: string | null;
-  source: string;
-}): ResolvedImageSource {
-  if (/^(?:https?:|data:|blob:)/i.test(source)) {
-    return { kind: 'resolved', src: source };
-  }
-
-  if (isAbsolutePath(source)) {
-    return { kind: 'resolved', src: toAssetUrl(source) };
-  }
-
-  if (!documentPath) {
-    return { kind: 'error', reason: 'relative_without_document' };
-  }
-
-  return {
-    kind: 'resolved',
-    src: toAssetUrl(resolveRelativePath(documentPath, source)),
-  };
 }
 
 function imageDecorationsField(context: ImagePreviewContext): Extension {
@@ -204,111 +163,6 @@ function discoverImageBlocks(
   return blocks;
 }
 
-class ImageBlockWidget extends WidgetType {
-  constructor(
-    private readonly block: ImageBlock,
-    private readonly context: ImagePreviewContext,
-    private readonly revision: number | undefined,
-  ) {
-    super();
-  }
-
-  eq(widget: ImageBlockWidget): boolean {
-    return (
-      widget.block.blockId === this.block.blockId &&
-      widget.block.alt === this.block.alt &&
-      widget.block.source === this.block.source &&
-      widget.context.documentPath === this.context.documentPath &&
-      widget.revision === this.revision
-    );
-  }
-
-  toDOM(view: EditorView): HTMLElement {
-    const wrapper = document.createElement('figure');
-    wrapper.className = 'lm-image-preview';
-    wrapper.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      view.dispatch({
-        selection: EditorSelection.cursor(
-          Math.min(this.block.from + 2, this.block.to - 1),
-        ),
-        scrollIntoView: true,
-      });
-      view.focus();
-    });
-
-    if (
-      this.context.imageAssetResolver &&
-      !/^(?:data:|blob:)/i.test(this.block.source)
-    ) {
-      return this.renderRemotePlaceholder(wrapper);
-    }
-
-    const resolved = resolveMarkdownImageSource({
-      documentPath: this.context.documentPath,
-      source: this.block.source,
-    });
-
-    if (resolved.kind === 'error') {
-      wrapper.classList.add('lm-image-preview-error');
-      wrapper.appendChild(createCaption(i18n.t('image.relativePathUnavailable')));
-      return wrapper;
-    }
-
-    const image = document.createElement('img');
-    image.alt = this.block.alt;
-    image.src = resolved.src;
-    image.loading = 'lazy';
-    image.addEventListener('error', () => {
-      wrapper.classList.add('lm-image-preview-error');
-      if (!wrapper.querySelector('.lm-image-error')) {
-        const error = createCaption(i18n.t('image.loadFailed'));
-        error.classList.add('lm-image-error');
-        wrapper.appendChild(error);
-      }
-    });
-    wrapper.appendChild(image);
-
-    if (this.block.alt.trim()) {
-      wrapper.appendChild(createCaption(this.block.alt));
-    }
-
-    return wrapper;
-  }
-
-  private renderRemotePlaceholder(wrapper: HTMLElement): HTMLElement {
-    if (
-      !this.context.documentPath &&
-      !isDraftImageSource(this.block.source) &&
-      !isAbsolutePath(this.block.source)
-    ) {
-      wrapper.classList.add('lm-image-preview-error');
-      wrapper.appendChild(
-        createCaption(i18n.t('image.unsavedRemoteCacheUnavailable')),
-      );
-      return wrapper;
-    }
-
-    wrapper.appendChild(createCaption(i18n.t('image.downloading')));
-    void this.context
-      .imageAssetResolver?.({
-        documentPath: this.context.documentPath,
-        source: this.block.source,
-      })
-      .then((resolution) => {
-        renderRemoteResolution(wrapper, this.block.alt, resolution);
-      })
-      .catch(() => {
-        renderRemoteResolution(wrapper, this.block.alt, {
-          kind: 'error',
-          reason: 'remote_cache_failed',
-        });
-      });
-
-    return wrapper;
-  }
-}
-
 function syncLocalImageSources(
   context: ImagePreviewContext,
   blocks: readonly ImageBlock[],
@@ -332,101 +186,4 @@ function syncLocalImageSources(
 
 function isWatchableLocalImageSource(source: string): boolean {
   return !/^(?:https?:|data:|blob:|lumamark-draft:)/i.test(source);
-}
-
-function createCaption(text: string): HTMLElement {
-  const caption = document.createElement('figcaption');
-  caption.className = 'lm-image-caption';
-  caption.textContent = text;
-
-  return caption;
-}
-
-function renderRemoteResolution(
-  wrapper: HTMLElement,
-  alt: string,
-  resolution: ImageAssetResolution,
-): void {
-  wrapper.textContent = '';
-
-  if (resolution.kind === 'error') {
-    wrapper.classList.add('lm-image-preview-error');
-    wrapper.appendChild(
-      createCaption(
-        i18n.t(
-          resolution.reason === 'local_authorization_failed'
-            ? 'image.loadFailed'
-            : 'image.remoteCacheFailed',
-        ),
-      ),
-    );
-    return;
-  }
-
-  wrapper.classList.remove('lm-image-preview-error');
-  const image = document.createElement('img');
-  image.alt = alt;
-  image.loading = 'lazy';
-  image.src = resolution.src;
-  image.addEventListener('error', () => {
-    wrapper.classList.add('lm-image-preview-error');
-    if (!wrapper.querySelector('.lm-image-error')) {
-      const error = createCaption(i18n.t('image.loadFailed'));
-      error.classList.add('lm-image-error');
-      wrapper.appendChild(error);
-    }
-  });
-  wrapper.appendChild(image);
-
-  if (alt.trim()) {
-    wrapper.appendChild(createCaption(alt));
-  }
-}
-
-function isAbsolutePath(path: string): boolean {
-  return /^[a-z]:[\\/]/i.test(path) || path.startsWith('/') || path.startsWith('\\');
-}
-
-function isDraftImageSource(source: string): boolean {
-  return source.startsWith('lumamark-draft://');
-}
-
-function resolveRelativePath(documentPath: string, source: string): string {
-  const separator = documentPath.includes('\\') ? '\\' : '/';
-  const directory = documentPath.replace(/[\\/][^\\/]*$/, '');
-  const parts = `${directory}${separator}${source}`.split(/[\\/]+/);
-  const resolved: string[] = [];
-
-  for (const part of parts) {
-    if (!part || part === '.') {
-      continue;
-    }
-
-    if (part === '..') {
-      resolved.pop();
-      continue;
-    }
-
-    resolved.push(part);
-  }
-
-  if (/^[a-z]:$/i.test(resolved[0] ?? '')) {
-    return `${resolved[0]}\\${resolved.slice(1).join('\\')}`;
-  }
-
-  return `${documentPath.startsWith('/') ? '/' : ''}${resolved.join(separator)}`;
-}
-
-function toAssetUrl(path: string): string {
-  const tauriInternals = (
-    globalThis as typeof globalThis & {
-      __TAURI_INTERNALS__?: {
-        convertFileSrc?: (filePath: string, protocol?: string) => string;
-      };
-    }
-  ).__TAURI_INTERNALS__;
-
-  return tauriInternals?.convertFileSrc
-    ? tauriInternals.convertFileSrc(path)
-    : `asset://localhost/${encodeURIComponent(path)}`;
 }

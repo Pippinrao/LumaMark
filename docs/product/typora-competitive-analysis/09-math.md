@@ -72,7 +72,7 @@
 
 ### 4.4 数学渲染引擎：未直接接入
 
-`package.json:33-64` 的直接依赖有 CodeMirror、Mermaid 和 markdown-it，但没有 KaTeX 或 MathJax。`pnpm-lock.yaml:4954-4970` 显示 Mermaid 11.16.0 的依赖项中包含 `katex: 0.16.47`；这只证明安装 Mermaid 时带入 KaTeX，不能证明 LumaMark 直接调用它，也不应依赖传递依赖的内部版本。
+`package.json` 的直接依赖有 CodeMirror 和 Mermaid，但没有 `markdown-it`、KaTeX 或 MathJax。`pnpm-lock.yaml` 显示 Mermaid 的依赖项中包含 KaTeX；这只证明安装 Mermaid 时带入 KaTeX，不能证明 LumaMark 直接调用它，也不应依赖传递依赖的内部版本。
 
 `docs/architecture/DETAILED_ARCHITECTURE.md:141` 建议数学公式默认选 KaTeX、兼容性不足再评估 MathJax，`docs/architecture/DETAILED_ARCHITECTURE.md:677` 又要求实现前做小样验证。二者都是规划证据，所以当前渲染状态仍为**未实现**。
 

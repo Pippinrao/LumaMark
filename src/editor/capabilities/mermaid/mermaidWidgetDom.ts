@@ -1,4 +1,5 @@
 import { i18n } from '../../../shared/i18n';
+import { createMediaPreviewButton } from '../mediaPreviewButton';
 
 type IconNode = readonly [
   elementName: 'path',
@@ -8,6 +9,7 @@ type IconNode = readonly [
 ][];
 
 export type MermaidWidgetDom = {
+  expand: HTMLButtonElement | null;
   status: HTMLElement;
   svgContainer: HTMLElement;
   wrapper: HTMLElement;
@@ -31,11 +33,15 @@ const trashIcon: IconNode = [
 ];
 
 export function createMermaidWidgetDom({
+  expandLabel,
   onDelete,
   onEdit,
+  onExpand,
 }: {
+  expandLabel?: string;
   onDelete: () => void;
   onEdit: () => void;
+  onExpand?: () => void;
 }): MermaidWidgetDom {
   const wrapper = document.createElement('section');
   wrapper.className = 'lm-mermaid-preview';
@@ -55,9 +61,20 @@ export function createMermaidWidgetDom({
   svgContainer.className = 'lm-mermaid-svg';
   wrapper.appendChild(svgContainer);
 
-  actions.replaceChildren(createEditButton(onEdit), createDeleteButton(onDelete));
+  const expand = onExpand
+    ? createMediaPreviewButton(onExpand, expandLabel)
+    : null;
+  if (expand) {
+    expand.hidden = true;
+  }
+  actions.replaceChildren(
+    ...(expand ? [expand] : []),
+    createEditButton(onEdit),
+    createDeleteButton(onDelete),
+  );
 
   return {
+    expand,
     status,
     svgContainer,
     wrapper,

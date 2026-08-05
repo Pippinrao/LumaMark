@@ -249,4 +249,4 @@ Typora 对 IME 精确时序、跨模式共享 undo 的 GUI 细节以及复制为
 
 ### 依赖证据
 
-- `package.json`、`pnpm-lock.yaml`：CodeMirror 6、Lezer Markdown、Markdown language、成熟表格组件、Radix、i18next、markdown-it 的直接依赖及锁定版本。
+- `package.json`、`pnpm-lock.yaml`：CodeMirror 6、Lezer Markdown、Markdown language、成熟表格组件、Radix、i18next 的直接依赖及锁定版本。

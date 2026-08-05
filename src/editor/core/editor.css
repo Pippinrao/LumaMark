@@ -43,14 +43,14 @@
 
 .lm-codemirror .cm-scroller {
   font-family: var(--lm-font-editor);
-  font-size: 16.5px;
+  font-size: calc(16.5px * var(--lm-editor-font-scale, 1));
   line-height: 1.74;
   overflow: auto;
 }
 
 .lm-codemirror .cm-content {
-  width: min(calc(100% - 96px), 810px);
-  max-width: 810px;
+  width: min(calc(100% - 96px), var(--lm-editor-page-width, 810px));
+  max-width: var(--lm-editor-page-width, 810px);
   min-height: 100%;
   margin: 0 auto;
   caret-color: var(--lm-color-accent);
@@ -69,12 +69,13 @@
 
 @media (max-width: 720px) {
   .lm-codemirror .cm-scroller {
-    font-size: 16px;
+    font-size: calc(16px * var(--lm-editor-font-scale, 1));
     line-height: 1.7;
   }
 
   .lm-codemirror .cm-content {
-    width: min(calc(100% - 36px), 760px);
+    width: min(calc(100% - 36px), var(--lm-editor-page-width, 760px));
+    max-width: var(--lm-editor-page-width, 760px);
     padding: 42px 0 78px;
   }
 }

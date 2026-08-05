@@ -1,6 +1,81 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+type RootEditorViewTestBridge = {
+  coordsAtPos(position: number, side?: number): DOMRect | null;
+  dispatch(spec: {
+    scrollIntoView: boolean;
+    selection: { anchor: number; head: number };
+  }): void;
+  focus(): void;
+  scrollDOM: HTMLElement;
+  state: {
+    doc: {
+      sliceString(from: number, to?: number): string;
+      toString(): string;
+    };
+    selection: {
+      main: { anchor: number; from: number; head: number; to: number };
+    };
+  };
+};
+
+type RootEditorContentTestBridge = HTMLElement & {
+  resolveRootEditorViewForTest(): RootEditorViewTestBridge;
+};
+
+async function installRootEditorViewTestBridge(editor: Locator): Promise<void> {
+  await editor.evaluate((content) => {
+    const tile = (content as HTMLElement & { cmTile?: unknown }).cmTile;
+
+    if (!tile || typeof tile !== 'object' || !('root' in tile)) {
+      throw new Error('CodeMirror root tile is unavailable.');
+    }
+
+    const root = tile.root;
+
+    if (!root || typeof root !== 'object' || !('view' in root)) {
+      throw new Error('CodeMirror root view is unavailable.');
+    }
+
+    const view = root.view;
+
+    if (
+      !view ||
+      typeof view !== 'object' ||
+      !('coordsAtPos' in view) ||
+      typeof view.coordsAtPos !== 'function' ||
+      !('dispatch' in view) ||
+      typeof view.dispatch !== 'function' ||
+      !('focus' in view) ||
+      typeof view.focus !== 'function' ||
+      !('scrollDOM' in view) ||
+      !(view.scrollDOM instanceof HTMLElement) ||
+      !('state' in view) ||
+      !view.state ||
+      typeof view.state !== 'object' ||
+      !('doc' in view.state) ||
+      !view.state.doc ||
+      typeof view.state.doc !== 'object' ||
+      !('sliceString' in view.state.doc) ||
+      typeof view.state.doc.sliceString !== 'function' ||
+      !('toString' in view.state.doc) ||
+      typeof view.state.doc.toString !== 'function' ||
+      !('selection' in view.state) ||
+      !view.state.selection ||
+      typeof view.state.selection !== 'object' ||
+      !('main' in view.state.selection)
+    ) {
+      throw new Error('CodeMirror root view does not match the E2E contract.');
+    }
+
+    Object.defineProperty(content, 'resolveRootEditorViewForTest', {
+      configurable: true,
+      value: () => view,
+    });
+  });
+}
 
 async function replaceEditorSource(
   page: Page,
@@ -10,6 +85,101 @@ async function replaceEditorSource(
   await editor.click();
   await page.keyboard.press(`${primaryModifier}+A`);
   await page.keyboard.insertText(source);
+}
+
+async function openNewDocument(page: Page): Promise<void> {
+  await page.goto('/');
+  const newDocumentButton = page.getByRole('button', {
+    name: /^(?:New Document|新建文档)$/,
+  });
+
+  await newDocumentButton.click();
+  await expect(newDocumentButton).toBeHidden();
+}
+
+async function clickAfterVisibleTableCellCharacter(
+  page: Page,
+  cellText: string,
+  visibleOffset: number,
+): Promise<void> {
+  const cell = page
+    .locator('.tbl-data-cell')
+    .filter({ hasText: cellText })
+    .first();
+  const point = await cell.evaluate((element, targetOffset) => {
+    const visibleRoot = element.querySelector<HTMLElement>('.tbl-cell-view');
+
+    if (!visibleRoot) {
+      throw new Error('Expected a visible table cell text surface');
+    }
+
+    const walker = document.createTreeWalker(
+      visibleRoot,
+      NodeFilter.SHOW_TEXT,
+    );
+    let remaining = targetOffset;
+
+    while (walker.nextNode()) {
+      const textNode = walker.currentNode as Text;
+      const parent = textNode.parentElement;
+      const style = parent ? window.getComputedStyle(parent) : null;
+
+      if (
+        style?.display === 'none' ||
+        style?.visibility === 'hidden' ||
+        textNode.data.length === 0
+      ) {
+        continue;
+      }
+
+      if (remaining <= textNode.data.length) {
+        const range = document.createRange();
+        range.setStart(textNode, remaining);
+        range.collapse(true);
+        const rect = range.getBoundingClientRect();
+
+        return {
+          x: rect.left,
+          y: (rect.top + rect.bottom) / 2,
+        };
+      }
+
+      remaining -= textNode.data.length;
+    }
+
+    throw new Error(`Visible offset ${targetOffset} exceeds cell text`);
+  }, visibleOffset);
+
+  await page.mouse.click(point.x, point.y);
+}
+
+async function readVisibleTableCellState(page: Page): Promise<{
+  anchor: number;
+  head: number;
+  text: string;
+}> {
+  return page
+    .locator('.tbl-cell-editor .cm-content:visible')
+    .evaluate((content) => {
+      const state = (
+        content as HTMLElement & {
+          cmTile: {
+            view: {
+              state: {
+                doc: { toString(): string };
+                selection: { main: { anchor: number; head: number } };
+              };
+            };
+          };
+        }
+      ).cmTile.view.state;
+
+      return {
+        anchor: state.selection.main.anchor,
+        head: state.selection.main.head,
+        text: state.doc.toString(),
+      };
+    });
 }
 
 async function switchEditorMode(
@@ -48,6 +218,16 @@ async function expectEditorSource(
   ).toHaveText(source.split('\n'));
 }
 
+async function moveCaretToOffset(page: Page, offset: number): Promise<void> {
+  const editor = page.locator('.cm-content').first();
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+Home`);
+
+  for (let index = 0; index < offset; index += 1) {
+    await page.keyboard.press('ArrowRight');
+  }
+}
+
 async function openParagraphSubmenu(
   page: Page,
   submenuName: string,
@@ -65,6 +245,7 @@ test('renders basic markdown visually and keeps task source editable', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -130,6 +311,7 @@ for (const { expected, key, name } of [
 ] as const) {
   test(`${name} in an ordinary paragraph`, async ({ page }) => {
     await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
     await replaceEditorSource(page, 'plain');
 
     await page.keyboard.press(key);
@@ -142,6 +324,7 @@ test('Enter adds only one line break when the caret is already on an empty line'
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   await replaceEditorSource(page, 'before\n\nafter');
   await page.keyboard.press(`${primaryModifier}+Home`);
   await page.keyboard.press('ArrowDown');
@@ -155,16 +338,18 @@ test('reveals only the current adjacent or nested inline owner', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   const source = '**outer *内层* tail** and **second**';
   await replaceEditorSource(page, source);
   const line = page.locator('.cm-line').first();
 
-  await page.locator('.lm-md-emphasis', { hasText: '内层' }).click();
+  await moveCaretToOffset(page, source.indexOf('内层') + 1);
   await expect(line).toHaveText(
-    '**outer *内层* tail** and second',
+    'outer *内层* tail and second',
   );
+  await expect(line.locator('.lm-md-source-mark-inline')).toHaveCount(2);
 
-  await page.locator('.lm-md-strong', { hasText: 'second' }).click();
+  await moveCaretToOffset(page, source.indexOf('second') + 1);
   await expect(line).toHaveText(
     'outer 内层 tail and **second**',
   );
@@ -195,6 +380,7 @@ for (const {
     page,
   }) => {
     await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
     await replaceEditorSource(page, initial);
 
     await page.keyboard.press('Enter');
@@ -217,6 +403,7 @@ test('indents and unindents the current list item with Tab and Shift+Tab', async
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   const flatList = '- parent\n- child';
   const nestedList = '- parent\n  - child';
   await replaceEditorSource(page, flatList);
@@ -247,6 +434,7 @@ for (const { key, name } of [
     page,
   }) => {
     await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
     await replaceEditorSource(page, '- [ ] task\n\nplain');
     const editor = page.locator('.cm-content').first();
     const checkbox = page.getByRole('checkbox', {
@@ -284,6 +472,7 @@ for (const { expected, initial, name } of [
 ] as const) {
   test(`toggles ${name} with Mod-Enter`, async ({ page }) => {
     await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
     await replaceEditorSource(page, initial);
 
     await page.keyboard.press(`${primaryModifier}+Enter`);
@@ -296,6 +485,7 @@ test('reveals the complete marker path for nested blockquote content', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   await replaceEditorSource(
     page,
     '> > nested\n\n> - [ ] quoted task',
@@ -312,10 +502,26 @@ test('reveals the complete marker path for nested blockquote content', async ({
   await expect(quotedTaskLine).toHaveText('> - [ ] quoted task');
 });
 
+test('reveals only the active marker path in a multi-line blockquote', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+  await replaceEditorSource(page, '> first\n> second\n\nplain');
+
+  const firstLine = page.locator('.cm-line', { hasText: 'first' });
+  const secondLine = page.locator('.cm-line', { hasText: 'second' });
+  await moveCaretToOffset(page, '> first\n> '.length);
+
+  await expect(firstLine).toHaveText(' first');
+  await expect(secondLine).toHaveText('> second');
+  await expect(secondLine.locator('.lm-md-source-mark-block')).toHaveText('>');
+});
+
 test('creates one multi-paragraph blockquote from the paragraph menu', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
   await replaceEditorSource(page, 'first\n\nsecond');
   await page.keyboard.press(`${primaryModifier}+A`);
 
@@ -329,6 +535,7 @@ test('keeps foundational markdown source available in source mode', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -379,6 +586,7 @@ test('keeps fenced code blocks editable with stable preview row layout', async (
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -423,6 +631,7 @@ test('leaves a final fenced code block when Enter is pressed on its closing fenc
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -441,6 +650,7 @@ test('creates a paragraph below a final fenced code block when the caret moves d
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -466,6 +676,7 @@ test('toggles tasks with keyboard and ignores fenced code task literals', async 
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await replaceEditorSource(
     page,
@@ -496,6 +707,7 @@ test('toggles tasks with keyboard and ignores fenced code task literals', async 
 
 test('applies basic markdown formatting from the top menu', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -514,6 +726,7 @@ test('toggles a selected unordered list from the paragraph menu', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -535,6 +748,7 @@ test('formats selected text with standard bold and italic keyboard shortcuts', a
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -562,6 +776,7 @@ test('changes the current line heading level with standard keyboard shortcuts', 
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -578,6 +793,7 @@ test('changes the current line heading level with standard keyboard shortcuts', 
 
 test('undoes and redoes a Markdown command from the edit menu', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -601,6 +817,7 @@ test('undoes and redoes a Markdown command from the edit menu', async ({ page })
 
 test('opens the built-in search panel from the edit menu', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await page.locator('.lm-menu-trigger', { hasText: '编辑' }).click();
   await page.getByRole('menuitem', { name: '查找' }).click();
@@ -615,6 +832,7 @@ test('opens the built-in search panel from the command palette', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await page.locator('.cm-content').first().click();
   await page.keyboard.press('Control+K');
@@ -627,6 +845,7 @@ test('opens the built-in search panel when the command palette confirms Find by 
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await page.locator('.cm-content').first().click();
   await page.keyboard.press('Control+K');
@@ -641,6 +860,7 @@ test('returns focus to the editor when the command palette closes without a comm
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -655,6 +875,7 @@ test('preserves the command palette opener when its shortcut is pressed again', 
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -670,6 +891,7 @@ test('creates strikethrough and ordered list Markdown from standard command entr
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -714,6 +936,7 @@ test('creates local image Markdown from the format menu and command palette', as
     };
   });
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -744,6 +967,7 @@ test('inserts a horizontal rule from the paragraph menu and command palette', as
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -778,6 +1002,7 @@ test('creates and undoes an ordered list from the command palette', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -798,6 +1023,7 @@ test('creates advanced heading levels through the menu and command palette', asy
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -823,6 +1049,7 @@ test('switches between live preview and source mode without changing markdown so
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -858,6 +1085,7 @@ test('toggles display mode twice with Mod+/ without changing editor state', asyn
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   const scroller = page.locator('.cm-scroller').first();
@@ -989,10 +1217,184 @@ test('toggles display mode twice with Mod+/ without changing editor state', asyn
   expect(await readSourceFromClipboard()).toBe(documentAfterEdit);
 });
 
+test('keeps the reading anchor and caret geometry stable across zoom and page-width changes', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
+
+  const editor = page.locator('.cm-content').first();
+  const scroller = page.locator('.cm-scroller').first();
+  await installRootEditorViewTestBridge(editor);
+  const documentBeforeEdit = Array.from({ length: 180 }, (_, index) => {
+    if (index === 118) {
+      return 'viewport ANCHOR_SELECTION stays stable';
+    }
+
+    return `paragraph ${String(index + 1).padStart(3, '0')} ${'wrapped reading text '.repeat(8)}`;
+  }).join('\n');
+  const documentAfterEdit = `${documentBeforeEdit}!`;
+  const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+  const redoShortcut =
+    process.platform === 'darwin' ? 'Meta+Shift+Z' : 'Control+Y';
+  const settleEditorLayout = () =>
+    page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+          });
+        }),
+    );
+  const readEditorSnapshot = () =>
+    editor.evaluate((content) => {
+      const view = (
+        content as RootEditorContentTestBridge
+      ).resolveRootEditorViewForTest();
+      const { anchor, from, head, to } = view.state.selection.main;
+      const scrollerBounds = view.scrollDOM.getBoundingClientRect();
+      const caretBounds = view.coordsAtPos(head, head >= anchor ? -1 : 1);
+      const firstVisibleLine = [
+        ...view.scrollDOM.querySelectorAll<HTMLElement>('.cm-line'),
+      ].find((line) => {
+        const bounds = line.getBoundingClientRect();
+
+        return (
+          bounds.bottom > scrollerBounds.top &&
+          bounds.top < scrollerBounds.bottom
+        );
+      });
+      const styles = getComputedStyle(view.scrollDOM.closest('.cm-editor')!);
+
+      return {
+        anchor,
+        caretLeft:
+          caretBounds === null ? null : caretBounds.left - scrollerBounds.left,
+        caretTop:
+          caretBounds === null ? null : caretBounds.top - scrollerBounds.top,
+        documentText: view.state.doc.toString(),
+        firstVisibleText: firstVisibleLine?.textContent ?? null,
+        fontScale: styles.getPropertyValue('--lm-editor-font-scale').trim(),
+        head,
+        pageWidth: styles.getPropertyValue('--lm-editor-page-width').trim(),
+        scrollHeight: view.scrollDOM.scrollHeight,
+        scrollTop: view.scrollDOM.scrollTop,
+        selectedText: view.state.doc.sliceString(from, to),
+        viewportHeight: view.scrollDOM.clientHeight,
+        viewportWidth: view.scrollDOM.clientWidth,
+      };
+    });
+  const focusEditor = () =>
+    editor.evaluate((content) => {
+      (content as RootEditorContentTestBridge)
+        .resolveRootEditorViewForTest()
+        .focus();
+    });
+
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+A`);
+  await page.keyboard.insertText(documentBeforeEdit);
+  await page.keyboard.press(`${primaryModifier}+End`);
+  await page.keyboard.insertText('!');
+  await editor.evaluate((content, selectedText) => {
+    const view = (
+      content as RootEditorContentTestBridge
+    ).resolveRootEditorViewForTest();
+    const start = view.state.doc.toString().indexOf(selectedText);
+
+    if (start < 0) {
+      throw new Error('Reading appearance selection anchor is missing.');
+    }
+
+    view.dispatch({
+      scrollIntoView: true,
+      selection: { anchor: start, head: start + selectedText.length },
+    });
+    view.focus();
+  }, 'ANCHOR_SELECTION');
+  await settleEditorLayout();
+  await scroller.evaluate((node) => {
+    const selection = globalThis.getSelection();
+
+    if (!selection || selection.rangeCount === 0) {
+      throw new Error('Reading appearance selection is unavailable.');
+    }
+
+    const selectionBounds = selection.getRangeAt(0).getBoundingClientRect();
+    const scrollerBounds = node.getBoundingClientRect();
+
+    node.scrollTop += selectionBounds.top - scrollerBounds.top - 8;
+  });
+  await settleEditorLayout();
+
+  const initial = await readEditorSnapshot();
+  expect(initial.documentText).toBe(documentAfterEdit);
+  expect(initial.selectedText).toBe('ANCHOR_SELECTION');
+  expect(initial.scrollTop).toBeGreaterThan(0);
+  expect(initial.firstVisibleText).not.toBeNull();
+  expect(initial.caretTop).not.toBeNull();
+
+  await scroller.dispatchEvent('wheel', {
+    ctrlKey: process.platform !== 'darwin',
+    deltaY: -100,
+    metaKey: process.platform === 'darwin',
+  });
+  await expect
+    .poll(async () => (await readEditorSnapshot()).fontScale)
+    .toBe('1.1');
+  await settleEditorLayout();
+
+  const zoomed = await readEditorSnapshot();
+  expect(zoomed.documentText).toBe(documentAfterEdit);
+  expect(zoomed.anchor).toBe(initial.anchor);
+  expect(zoomed.head).toBe(initial.head);
+  expect(zoomed.selectedText).toBe('ANCHOR_SELECTION');
+  expect(zoomed.firstVisibleText).toBe(initial.firstVisibleText);
+  expect(
+    Math.abs((zoomed.caretTop ?? 0) - (initial.caretTop ?? 0)),
+  ).toBeLessThanOrEqual(8);
+  expect(zoomed.caretLeft).toBeGreaterThanOrEqual(0);
+  expect(zoomed.caretLeft).toBeLessThanOrEqual(zoomed.viewportWidth);
+
+  await page.getByRole('menuitem', { name: '文件' }).click();
+  await page.getByRole('menuitem', { name: '设置' }).click();
+  const widthGroup = page.getByRole('group', { name: '页面宽度' });
+  await widthGroup.getByRole('button', { name: '宽', exact: true }).click();
+  await expect
+    .poll(async () => (await readEditorSnapshot()).pageWidth)
+    .toBe('1040px');
+  await page.getByRole('button', { name: '关闭' }).click();
+  await settleEditorLayout();
+
+  const widened = await readEditorSnapshot();
+  expect(widened.documentText).toBe(documentAfterEdit);
+  expect(widened.anchor).toBe(initial.anchor);
+  expect(widened.head).toBe(initial.head);
+  expect(widened.selectedText).toBe('ANCHOR_SELECTION');
+  expect(widened.firstVisibleText).toBe(initial.firstVisibleText);
+  expect(
+    Math.abs((widened.caretTop ?? 0) - (zoomed.caretTop ?? 0)),
+  ).toBeLessThanOrEqual(8);
+  expect(widened.caretLeft).toBeGreaterThanOrEqual(0);
+  expect(widened.caretLeft).toBeLessThanOrEqual(widened.viewportWidth);
+  expect(widened.scrollTop).toBeLessThan(widened.scrollHeight - widened.viewportHeight);
+
+  await focusEditor();
+  await page.keyboard.press(`${primaryModifier}+Z`);
+  await expect.poll(async () => (await readEditorSnapshot()).documentText).toBe(
+    documentBeforeEdit,
+  );
+  await page.keyboard.press(redoShortcut);
+  await expect.poll(async () => (await readEditorSnapshot()).documentText).toBe(
+    documentAfterEdit,
+  );
+});
+
 test('opens the built-in search panel and navigates to a Markdown match', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1016,6 +1418,7 @@ test('localizes the built-in search panel after an application language change',
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1050,6 +1453,7 @@ test('renders markdown tables through the mature component and keeps table menu 
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1089,10 +1493,11 @@ test('renders markdown tables through the mature component and keeps table menu 
   await expect(page.locator('.tbl-table-widget')).toHaveCount(0);
 });
 
-test('reveals table cell markdown source on hover and edits the raw cell content', async ({
+test('renders table markdown from the cell source DOM and preserves undo-redo', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1113,60 +1518,81 @@ test('reveals table cell markdown source on hover and edits the raw cell content
   const table = page.locator('.tbl-table-widget');
   const boldCell = table.locator('.tbl-data-cell').filter({ hasText: 'bold' });
   const boldCellSource = boldCell.locator('.tbl-cell-view');
-  const boldCellPreview = boldCell.locator('.lm-table-inline-preview');
 
   await expect(table).toBeVisible();
-  await expect(boldCellPreview.locator('strong', { hasText: 'bold' })).toBeVisible();
+  await expect(table.locator('.lm-table-inline-preview')).toHaveCount(0);
   await expect(
-    table.locator('.lm-table-inline-preview code', { hasText: 'code' }),
+    boldCell.locator(
+      '.lm-table-token-strong:not(.lm-table-token-mark)',
+      { hasText: 'bold' },
+    ),
   ).toBeVisible();
-  await expect(boldCellSource).toHaveAttribute(
+  await expect(
+    table.locator('.lm-table-token-code:not(.lm-table-token-mark)', {
+      hasText: 'code',
+    }),
+  ).toBeVisible();
+  await expect(
+    table.locator(
+      '.lm-table-token-link:not(.lm-table-token-mark, .lm-table-token-link-destination)',
+      { hasText: 'site' },
+    ),
+  ).toBeVisible();
+  await expect(
+    table.locator('.lm-table-token-link-destination'),
+  ).toBeHidden();
+  await expect(boldCellSource).not.toHaveAttribute(
     'data-lm-inline-markdown-mode',
-    'preview',
+    /.+/,
   );
 
-  await boldCell.hover();
-
-  await expect(boldCellSource).toContainText('**bold**');
-  await expect(boldCellSource).toHaveAttribute(
-    'data-lm-inline-markdown-mode',
-    'source',
-  );
-
-  await boldCell.click();
+  await clickAfterVisibleTableCellCharacter(page, 'bold', 4);
 
   const cellEditor = page.locator('.tbl-cell-editor .cm-content').first();
   await expect(cellEditor).toBeVisible();
   await expect(cellEditor).toContainText('**bold**');
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: '**bold**',
+    anchor: 6,
+    head: 6,
+  });
 
-  await cellEditor.click();
-  await page.keyboard.press('End');
-  await page.keyboard.type('!');
+  await page.keyboard.insertText('!');
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: '**bold!**',
+    anchor: 7,
+    head: 7,
+  });
 
-  await expect(cellEditor).toContainText('**bold**!');
+  await page.keyboard.press('Control+Z');
+  await expect
+    .poll(() => readVisibleTableCellState(page).then(({ text }) => text))
+    .toBe('**bold**');
+
+  await page.keyboard.press(
+    process.platform === 'darwin' ? 'Meta+Shift+Z' : 'Control+Y',
+  );
 
   await page.locator('.cm-line', { hasText: 'after' }).click();
-  await expect(boldCellPreview).toContainText('bold!');
   await expect(
-    boldCellPreview.locator('strong', { hasText: 'bold' }),
+    boldCell.locator(
+      '.lm-table-token-strong:not(.lm-table-token-mark)',
+      { hasText: 'bold!' },
+    ),
   ).toBeVisible();
-  await expect(boldCellSource).toHaveAttribute(
-    'data-lm-inline-markdown-mode',
-    'preview',
-  );
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
   await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
 
-  await expect(editor).toContainText('**bold**!');
+  await expect(editor).toContainText('**bold!**');
   await expect(editor).toContainText('[site](https://example.com)');
   await expect(editor).toContainText('`code`');
 });
 
-test('keeps table preview clicks aligned with the cell editor caret', async ({
+test('maps variable-width table cell clicks to the matching editor caret', async ({
   page,
 }) => {
-  await page.goto('/');
+  await openNewDocument(page);
 
   const cellText = 'Wiil甲乙丙丁';
   await replaceEditorSource(
@@ -1187,102 +1613,11 @@ test('keeps table preview clicks aligned with the cell editor caret', async ({
     .locator('.tbl-data-cell')
     .filter({ hasText: cellText })
     .first();
-  const cellPreview = tableCell.locator('.lm-table-inline-preview');
   const cellSource = tableCell.locator('.tbl-cell-view');
-  await expect(cellPreview).toBeVisible();
-  await expect(cellSource).toHaveAttribute(
-    'data-lm-inline-markdown-mode',
-    'preview',
-  );
+  await expect(cellSource).toBeVisible();
+  await expect(tableCell.locator('.lm-table-inline-preview')).toHaveCount(0);
 
-  const geometry = await tableCell.evaluate((cell, expectedText) => {
-    const preview = cell.querySelector<HTMLElement>(
-      '.lm-table-inline-preview',
-    );
-    const source = cell.querySelector<HTMLElement>('.tbl-cell-view');
-
-    if (!preview || !source) {
-      throw new Error('Expected both table cell preview and source elements');
-    }
-
-    const measureCharacters = (root: HTMLElement) => {
-      const walker = document.createTreeWalker(
-        root,
-        NodeFilter.SHOW_TEXT,
-      );
-      const characters: Array<{
-        bottom: number;
-        character: string;
-        left: number;
-        right: number;
-        top: number;
-      }> = [];
-
-      while (walker.nextNode()) {
-        const textNode = walker.currentNode as Text;
-
-        for (let offset = 0; offset < textNode.data.length; offset += 1) {
-          const range = document.createRange();
-          range.setStart(textNode, offset);
-          range.setEnd(textNode, offset + 1);
-          const rect = range.getBoundingClientRect();
-          characters.push({
-            bottom: rect.bottom,
-            character: textNode.data.slice(offset, offset + 1),
-            left: rect.left,
-            right: rect.right,
-            top: rect.top,
-          });
-        }
-      }
-
-      return characters;
-    };
-
-    const previewCharacters = measureCharacters(preview);
-    const sourceCharacters = measureCharacters(source);
-    const targetIndex = previewCharacters.findIndex(
-      ({ character }) => character === '丙',
-    );
-    const target = previewCharacters[targetIndex];
-
-    if (
-      preview.textContent !== expectedText ||
-      source.textContent !== expectedText ||
-      targetIndex < 0 ||
-      !target
-    ) {
-      throw new Error('Expected matching table cell text and a visible 丙 glyph');
-    }
-
-    return {
-      click: {
-        x: target.left + (target.right - target.left) * 0.8,
-        y: target.top + (target.bottom - target.top) / 2,
-      },
-      previewCharacters,
-      sourceCharacters,
-    };
-  }, cellText);
-
-  expect(geometry.previewCharacters).toHaveLength([...cellText].length);
-  expect(geometry.sourceCharacters).toHaveLength([...cellText].length);
-  geometry.previewCharacters.forEach((previewCharacter, index) => {
-    const sourceCharacter = geometry.sourceCharacters[index];
-    expect(sourceCharacter?.character).toBe(previewCharacter.character);
-
-    for (const edge of ['left', 'right', 'top', 'bottom'] as const) {
-      expect.soft(
-        Math.abs(
-          previewCharacter[edge] -
-            (sourceCharacter?.[edge] ?? Number.POSITIVE_INFINITY),
-        ),
-        `character ${index} (${previewCharacter.character}) ${edge} preview/source delta`,
-      ).toBeLessThanOrEqual(1);
-    }
-  });
-
-  await page.mouse.click(geometry.click.x, geometry.click.y);
+  await clickAfterVisibleTableCellCharacter(page, cellText, 7);
 
   const cellEditor = page.locator('.tbl-cell-editor .cm-content:visible');
   await expect(cellEditor).toHaveCount(1);
@@ -1348,8 +1683,188 @@ test('keeps table preview clicks aligned with the cell editor caret', async ({
     .toEqual({ hasEditedCell: true, headOffset: 8 });
 });
 
+test('maps clicks inside wrapped formatted table text to the matching source caret', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+
+  const visibleCellText = `${'formatted content '.repeat(16)}TARGET尾部`;
+  const sourceCellText = `**${visibleCellText}**`;
+  const visibleTargetOffset = visibleCellText.indexOf('TARGET') + 3;
+  const sourceTargetOffset = sourceCellText.indexOf('TARGET') + 3;
+  await replaceEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| Content | Other |',
+      '| ------- | ----- |',
+      `| ${sourceCellText} | value |`,
+      '',
+      'after',
+    ].join('\n'),
+  );
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+
+  const cellSource = page
+    .locator('.tbl-data-cell')
+    .filter({ hasText: 'TARGET' })
+    .locator('.tbl-cell-view');
+  await expect
+    .poll(() =>
+      cellSource.evaluate((element) => {
+        const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight);
+
+        return element.getBoundingClientRect().height > lineHeight * 1.5;
+      }),
+    )
+    .toBe(true);
+
+  await clickAfterVisibleTableCellCharacter(
+    page,
+    sourceCellText,
+    visibleTargetOffset,
+  );
+
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: sourceCellText,
+    anchor: sourceTargetOffset,
+    head: sourceTargetOffset,
+  });
+
+  await page.keyboard.insertText('X');
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: `${sourceCellText.slice(0, sourceTargetOffset)}X${sourceCellText.slice(sourceTargetOffset)}`,
+    anchor: sourceTargetOffset + 1,
+    head: sourceTargetOffset + 1,
+  });
+});
+
+test('maps formatted table cell clicks to the matching source offset', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+
+  const source = [
+    'before',
+    '',
+    '| A           | B    |',
+    '| ----------- | ---- |',
+    '| **alpha**   | beta |',
+    '',
+    'after',
+  ].join('\n');
+  await replaceEditorSource(page, source);
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+
+  await clickAfterVisibleTableCellCharacter(page, 'alpha', 3);
+
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: '**alpha**',
+    anchor: 5,
+    head: 5,
+  });
+
+  await page.keyboard.insertText('X');
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: '**alpXha**',
+    anchor: 6,
+    head: 6,
+  });
+  await expectEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| A          | B    |',
+      '| ---------- | ---- |',
+      '| **alpXha** | beta |',
+      '',
+      'after',
+    ].join('\n'),
+  );
+});
+
+test('preserves the logical cell column for vertical table arrows', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+
+  await replaceEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| A      | B |',
+      '| ------ | - |',
+      '| abcd   | q |',
+      '| 012345 | z |',
+      '',
+      'after',
+    ].join('\n'),
+  );
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+
+  await clickAfterVisibleTableCellCharacter(page, 'abcd', 2);
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: 'abcd',
+    anchor: 2,
+    head: 2,
+  });
+
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: '012345',
+    anchor: 2,
+    head: 2,
+  });
+
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: 'abcd',
+    anchor: 2,
+    head: 2,
+  });
+});
+
+test('clamps the logical table column to a shorter destination cell', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+
+  await replaceEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| A      | B |',
+      '| ------ | - |',
+      '| 012345 | q |',
+      '| xy     | z |',
+      '',
+      'after',
+    ].join('\n'),
+  );
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+
+  await clickAfterVisibleTableCellCharacter(page, '012345', 5);
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: '012345',
+    anchor: 5,
+    head: 5,
+  });
+
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(() => readVisibleTableCellState(page)).toEqual({
+    text: 'xy',
+    anchor: 2,
+    head: 2,
+  });
+});
+
 test('supports table insert and delete shortcuts', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1369,6 +1884,7 @@ test('supports table insert and delete shortcuts', async ({ page }) => {
 
 test('shows table shortcuts in top and editor context menus', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   await openParagraphSubmenu(page, '插入');
   await expect(
@@ -1379,10 +1895,10 @@ test('shows table shortcuts in top and editor context menus', async ({ page }) =
   await page.keyboard.press('Escape');
   await page.locator('.lm-menu-trigger', { hasText: '编辑' }).click();
   await expect(
-    page.getByRole('menuitem', { name: /^复制表格\s+Ctrl Alt C$/ }),
+    page.getByRole('menuitem', { name: /^复制表格\s+Ctrl\+Alt\+C$/ }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole('menuitem', { name: /^删除表格\s+Ctrl Alt Backspace$/ }),
+    page.getByRole('menuitem', { name: /^删除表格\s+Ctrl\+Alt\+Backspace$/ }),
   ).toHaveCount(0);
 
   await page.keyboard.press('Escape');
@@ -1398,10 +1914,10 @@ test('shows table shortcuts in top and editor context menus', async ({ page }) =
     page.getByRole('menuitem', { name: /^表格\s+Ctrl\+T$/ }),
   ).toBeVisible();
   await expect(
-    page.getByRole('menuitem', { name: /^复制表格\s+Ctrl Alt C$/ }),
+    page.getByRole('menuitem', { name: /^复制表格\s+Ctrl\+Alt\+C$/ }),
   ).toBeVisible();
   await page
-    .getByRole('menuitem', { name: /^删除表格\s+Ctrl Alt Backspace$/ })
+    .getByRole('menuitem', { name: /^删除表格\s+Ctrl\+Alt\+Backspace$/ })
     .click();
 
   await expect(page.locator('.tbl-table-widget')).toHaveCount(0);

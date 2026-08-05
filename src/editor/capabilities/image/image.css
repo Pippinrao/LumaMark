@@ -1,7 +1,45 @@
 .cm-content .lm-image-preview {
+  position: relative;
   display: block;
   margin: 22px 0 28px;
   text-align: center;
+}
+
+.cm-content .lm-image-preview > .lm-media-preview-expand {
+  position: absolute;
+  top: var(--lm-space-2);
+  right: var(--lm-space-2);
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, white 28%, transparent);
+  border-radius: var(--lm-radius-1);
+  opacity: 0;
+  background: rgb(20 23 29 / 72%);
+  color: white;
+  cursor: pointer;
+  font: 1rem/1 var(--lm-font-ui);
+  transition: opacity 120ms ease;
+}
+
+.cm-content .lm-image-preview:hover > .lm-media-preview-expand,
+.cm-content .lm-image-preview:focus-within > .lm-media-preview-expand,
+.cm-content .lm-image-preview > .lm-media-preview-expand:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cm-content .lm-image-preview > .lm-media-preview-expand {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-content .lm-image-preview > .lm-media-preview-expand {
+    transition: none;
+  }
 }
 
 .cm-content .lm-image-preview img {

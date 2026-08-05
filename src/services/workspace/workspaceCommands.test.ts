@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   listWorkspaceChildren,
   openWorkspaceDirectory,
+  openWorkspacePath,
 } from './workspaceCommands';
 
 describe('workspace command clients', () => {
@@ -59,6 +60,23 @@ describe('workspace command clients', () => {
           path: 'E:/docs/Notes/README.md',
         },
       ],
+    });
+  });
+
+  it('restores a workspace through a typed path command', async () => {
+    const invokeFn = vi.fn().mockResolvedValue({
+      name: 'Notes',
+      path: 'E:/docs/Notes',
+    });
+
+    const result = await openWorkspacePath('E:/docs/Notes', { invokeFn });
+
+    expect(invokeFn).toHaveBeenCalledWith('workspace_open_path', {
+      path: 'E:/docs/Notes',
+    });
+    expect(result).toEqual({
+      ok: true,
+      data: { name: 'Notes', path: 'E:/docs/Notes' },
     });
   });
 });

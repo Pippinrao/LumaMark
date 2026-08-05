@@ -1,4 +1,8 @@
 import { create } from 'zustand';
+import {
+  browserPreferenceStorage,
+  type KeyValueStorage,
+} from '../../services/preferences/browserPreferenceStorage';
 
 export type RecentFile = {
   name: string;
@@ -12,94 +16,55 @@ export type RecentFileInput = {
   path: string;
 };
 
-export type RecentFilesStorage = {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
-};
-
 type RecentFilesState = {
   recentFiles: RecentFile[];
+  recentFilesPersistenceError: boolean;
   addRecentFile: (file: RecentFileInput) => void;
   clearRecentFiles: () => void;
 };
 
 const MAX_RECENT_FILES = 20;
 const RECENT_FILES_STORAGE_KEY = 'lumamark.recent-files.v1';
-const fallbackStorage = new Map<string, string>();
-
-function isJsdomRuntime(): boolean {
-  const userAgent = globalThis.navigator?.userAgent.toLowerCase() ?? '';
-
-  return userAgent.includes('jsdom');
-}
-
-function getBrowserStorage(): RecentFilesStorage | null {
-  if (isJsdomRuntime()) {
-    return null;
-  }
-
-  try {
-    return globalThis.document?.defaultView?.localStorage ?? null;
-  } catch {
-    return null;
-  }
-}
-
-const defaultStorage: RecentFilesStorage = {
-  getItem(key) {
-    const storage = getBrowserStorage();
-
-    if (!storage) {
-      return fallbackStorage.get(key) ?? null;
-    }
-
-    try {
-      return storage.getItem(key);
-    } catch {
-      return fallbackStorage.get(key) ?? null;
-    }
-  },
-  setItem(key, value) {
-    const storage = getBrowserStorage();
-
-    if (!storage) {
-      fallbackStorage.set(key, value);
-      return;
-    }
-
-    try {
-      storage.setItem(key, value);
-    } catch {
-      fallbackStorage.set(key, value);
-    }
-  },
-};
 
 function parseRecentFiles(value: string | null): RecentFile[] {
-  if (!value) {
+  if (value === null) {
     return [];
   }
 
+  const parsed: unknown = JSON.parse(value);
+
+  if (!Array.isArray(parsed) || !parsed.every(isRecentFile)) {
+    throw new Error('Invalid persisted recent files');
+  }
+
+  return parsed.slice(0, MAX_RECENT_FILES);
+}
+
+function loadRecentFiles(
+  storage: KeyValueStorage,
+): Pick<RecentFilesState, 'recentFiles' | 'recentFilesPersistenceError'> {
   try {
-    const parsed: unknown = JSON.parse(value);
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed
-      .filter(isRecentFile)
-      .slice(0, MAX_RECENT_FILES);
+    return {
+      recentFiles: parseRecentFiles(storage.getItem(RECENT_FILES_STORAGE_KEY)),
+      recentFilesPersistenceError: false,
+    };
   } catch {
-    return [];
+    return {
+      recentFiles: [],
+      recentFilesPersistenceError: true,
+    };
   }
 }
 
-function loadRecentFiles(storage: RecentFilesStorage): RecentFile[] {
+function persistRecentFiles(
+  storage: KeyValueStorage,
+  recentFiles: RecentFile[],
+): boolean {
   try {
-    return parseRecentFiles(storage.getItem(RECENT_FILES_STORAGE_KEY));
+    storage.setItem(RECENT_FILES_STORAGE_KEY, JSON.stringify(recentFiles));
+    return true;
   } catch {
-    return [];
+    return false;
   }
 }
 
@@ -118,9 +83,11 @@ function isRecentFile(value: unknown): value is RecentFile {
   );
 }
 
-export function createRecentFilesStore(storage: RecentFilesStorage = defaultStorage) {
+export function createRecentFilesStore(
+  storage: KeyValueStorage = browserPreferenceStorage,
+) {
   return create<RecentFilesState>((set) => ({
-    recentFiles: loadRecentFiles(storage),
+    ...loadRecentFiles(storage),
     addRecentFile: (file) => {
       set((state) => {
         const nextFile: RecentFile = {
@@ -135,14 +102,22 @@ export function createRecentFilesStore(storage: RecentFilesStorage = defaultStor
           ),
         ].slice(0, MAX_RECENT_FILES);
 
-        storage.setItem(RECENT_FILES_STORAGE_KEY, JSON.stringify(recentFiles));
-
-        return { recentFiles };
+        return {
+          recentFiles,
+          recentFilesPersistenceError: !persistRecentFiles(
+            storage,
+            recentFiles,
+          ),
+        };
       });
     },
     clearRecentFiles: () => {
-      storage.setItem(RECENT_FILES_STORAGE_KEY, '[]');
-      set({ recentFiles: [] });
+      const recentFiles: RecentFile[] = [];
+
+      set({
+        recentFiles,
+        recentFilesPersistenceError: !persistRecentFiles(storage, recentFiles),
+      });
     },
   }));
 }

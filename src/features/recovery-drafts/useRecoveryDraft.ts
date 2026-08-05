@@ -14,6 +14,7 @@ export type RecoveryDraftWorkflow = {
   clearRecoveryDraft: () => void;
   discardRecoveryDraft: () => void;
   pendingRecoveryDraft: RecoveryDraft | null;
+  recoveryChecked: boolean;
   restoreRecoveryDraft: () => void;
   scheduleRecoveryDraft: () => void;
 };
@@ -33,6 +34,7 @@ export function useRecoveryDraft({
 }: UseRecoveryDraftOptions): RecoveryDraftWorkflow {
   const [pendingRecoveryDraft, setPendingRecoveryDraft] =
     useState<RecoveryDraft | null>(null);
+  const [recoveryChecked, setRecoveryChecked] = useState(false);
   const schedulerRef = useRef(
     createRecoveryDraftScheduler(saveRecoveryDraft, RECOVERY_DRAFT_DELAY_MS),
   );
@@ -43,6 +45,7 @@ export function useRecoveryDraft({
     }
 
     setPendingRecoveryDraft(readRecoveryDraft());
+    setRecoveryChecked(true);
   }, [editorReady, editorRef]);
 
   useEffect(() => {
@@ -95,6 +98,7 @@ export function useRecoveryDraft({
     clearRecoveryDraft: clearPendingRecoveryDraft,
     discardRecoveryDraft: clearPendingRecoveryDraft,
     pendingRecoveryDraft,
+    recoveryChecked,
     restoreRecoveryDraft,
     scheduleRecoveryDraft,
   };

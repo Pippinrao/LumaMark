@@ -9,13 +9,19 @@ import type { AppLanguage } from '../../shared/i18n';
 import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
+  EditorMediaPreviewRequestHandler,
 } from './editorEvents';
+import type {
+  EditorAppearance,
+  EditorZoomRequestedHandler,
+} from './editorAppearance';
 import './editor.css';
 
 const DEFAULT_EDITOR_DOCUMENT = '# LumaMark\n';
 
 export type EditorViewHostProps = {
   accessibleTitle?: string;
+  appearance: EditorAppearance;
   ariaLabel?: string;
   className?: string;
   initialDoc?: string;
@@ -26,10 +32,13 @@ export type EditorViewHostProps = {
   onDocumentChanged?: EditorDocumentChangedHandler;
   onEditorReady?: (editor: EditorApi) => void;
   onFocusChanged?: EditorFocusChangedHandler;
+  onZoomRequested: EditorZoomRequestedHandler;
+  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
 };
 
 export function EditorViewHost({
   accessibleTitle,
+  appearance,
   ariaLabel,
   className,
   initialDoc = DEFAULT_EDITOR_DOCUMENT,
@@ -40,17 +49,22 @@ export function EditorViewHost({
   onDocumentChanged,
   onEditorReady,
   onFocusChanged,
+  onZoomRequested,
+  onMediaPreviewRequest,
 }: EditorViewHostProps) {
   const editorParentRef = useRef<HTMLDivElement>(null);
   const initialDocRef = useRef(initialDoc);
+  const initialAppearanceRef = useRef(appearance);
   const initialImageAssetResolverRef = useRef(imageAssetResolver);
   const initialImageImportErrorHandlerRef = useRef(imageImportErrorHandler);
   const initialImageImportHandlerRef = useRef(imageImportHandler);
   const initialLanguageRef = useRef(language);
+  const initialMediaPreviewRequestHandlerRef = useRef(onMediaPreviewRequest);
   const editorRef = useRef<EditorApi | null>(null);
   const onDocumentChangedRef = useRef(onDocumentChanged);
   const onEditorReadyRef = useRef(onEditorReady);
   const onFocusChangedRef = useRef(onFocusChanged);
+  const onZoomRequestedRef = useRef(onZoomRequested);
   const titleId = useId();
 
   useEffect(() => {
@@ -66,8 +80,16 @@ export function EditorViewHost({
   }, [onFocusChanged]);
 
   useEffect(() => {
+    onZoomRequestedRef.current = onZoomRequested;
+  }, [onZoomRequested]);
+
+  useEffect(() => {
     editorRef.current?.setLanguage(language);
   }, [language]);
+
+  useEffect(() => {
+    editorRef.current?.setAppearance(appearance);
+  }, [appearance]);
 
   useEffect(() => {
     const parent = editorParentRef.current;
@@ -77,6 +99,7 @@ export function EditorViewHost({
     }
 
     const editor = createEditorApi({
+      appearance: initialAppearanceRef.current,
       doc: initialDocRef.current,
       onDocumentChanged: (event) => {
         onDocumentChangedRef.current?.(event);
@@ -84,11 +107,15 @@ export function EditorViewHost({
       onFocusChanged: (event) => {
         onFocusChangedRef.current?.(event);
       },
+      onZoomRequested: (direction) => {
+        onZoomRequestedRef.current(direction);
+      },
       parent,
       documentContext: {
         imageAssetResolver: initialImageAssetResolverRef.current,
         imageImportErrorHandler: initialImageImportErrorHandlerRef.current,
         imageImportHandler: initialImageImportHandlerRef.current,
+        onMediaPreviewRequest: initialMediaPreviewRequestHandlerRef.current,
         path: null,
       },
       language: initialLanguageRef.current,

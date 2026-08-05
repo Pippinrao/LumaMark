@@ -63,6 +63,7 @@
 }
 
 .cm-content .lm-mermaid-edit-source,
+.cm-content .lm-mermaid-actions .lm-media-preview-expand,
 .cm-content .lm-mermaid-delete {
   display: inline-flex;
   width: 30px;
@@ -81,6 +82,8 @@
 
 .cm-content .lm-mermaid-edit-source:hover,
 .cm-content .lm-mermaid-edit-source:focus-visible,
+.cm-content .lm-mermaid-actions .lm-media-preview-expand:hover,
+.cm-content .lm-mermaid-actions .lm-media-preview-expand:focus-visible,
 .cm-content .lm-mermaid-delete:hover,
 .cm-content .lm-mermaid-delete:focus-visible {
   border-color: var(--lm-color-accent);
@@ -89,6 +92,7 @@
 }
 
 .cm-content .lm-mermaid-edit-source svg,
+.cm-content .lm-mermaid-actions .lm-media-preview-expand svg,
 .cm-content .lm-mermaid-delete svg {
   pointer-events: none;
 }

@@ -21,6 +21,7 @@ const phraseKeys = {
   'replaced match on line $': 'editor.search.replacedMatchOnLine',
   'replaced $ matches': 'editor.search.replacedMatches',
   'Toggle task completion': 'editor.task.toggle',
+  'Expand media preview': 'mediaViewer.expand',
 } as const;
 
 type EditorSearchPhraseKey = (typeof phraseKeys)[keyof typeof phraseKeys];

@@ -1,7 +1,14 @@
 import { lazy, Suspense, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { EditorApi } from '../../editor/core/editorApi';
-import type { EditorDocumentChangedHandler } from '../../editor/core/editorEvents';
+import type {
+  EditorAppearance,
+  EditorZoomRequestedHandler,
+} from '../../editor/core/editorAppearance';
+import type {
+  EditorDocumentChangedHandler,
+  EditorMediaPreviewRequestHandler,
+} from '../../editor/core/editorEvents';
 import type {
   ImageAssetResolver,
   ImageImportErrorHandler,
@@ -21,11 +28,14 @@ const LazyEditorViewHost = lazy(() =>
 
 type EditorPaneProps = {
   accessibleTitle: string;
+  appearance: EditorAppearance;
   ariaLabel: string;
   getContextMenuItems: (target: EventTarget) => ShellContextMenuItem[];
   onAction: (action: ShellActionId) => void;
   onDocumentChanged: EditorDocumentChangedHandler;
   onEditorReady: (editor: EditorApi) => void;
+  onZoomRequested: EditorZoomRequestedHandler;
+  onMediaPreviewRequest: EditorMediaPreviewRequestHandler;
   imageAssetResolver?: ImageAssetResolver;
   imageImportErrorHandler?: ImageImportErrorHandler;
   imageImportHandler?: ImageImportHandler;
@@ -35,11 +45,14 @@ type EditorPaneProps = {
 
 export function EditorPane({
   accessibleTitle,
+  appearance,
   ariaLabel,
   getContextMenuItems,
   onAction,
   onDocumentChanged,
   onEditorReady,
+  onZoomRequested,
+  onMediaPreviewRequest,
   imageAssetResolver,
   imageImportErrorHandler,
   imageImportHandler,
@@ -67,13 +80,17 @@ export function EditorPane({
               <Suspense fallback={null}>
                 <LazyEditorViewHost
                   accessibleTitle={accessibleTitle}
+                  appearance={appearance}
                   ariaLabel={ariaLabel}
+                  initialDoc=""
                   imageAssetResolver={imageAssetResolver}
                   imageImportErrorHandler={imageImportErrorHandler}
                   imageImportHandler={imageImportHandler}
                   language={language}
                   onDocumentChanged={onDocumentChanged}
                   onEditorReady={onEditorReady}
+                  onZoomRequested={onZoomRequested}
+                  onMediaPreviewRequest={onMediaPreviewRequest}
                 />
               </Suspense>
             </div>

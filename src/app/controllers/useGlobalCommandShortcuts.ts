@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isMacUserAgent } from '../../features/commands/commandShortcuts';
 import type { CommandHandlerMap } from '../../features/commands/commandTypes';
 
 type GlobalShortcutHandlers = Pick<
@@ -35,7 +36,7 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
       const currentHandlers = handlersRef.current;
       const editorCommandTarget = isEditorCommandTarget(event.target);
 
-      if (event.key === 'Escape') {
+      if (isPlainEscape(event)) {
         if (globalThis.document.querySelector('[role="dialog"]')) {
           return;
         }
@@ -46,9 +47,7 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
 
       if (
         editorCommandTarget &&
-        isPrimaryModifierPressed(event) &&
-        event.shiftKey &&
-        event.key.toLowerCase() === 'i'
+        matchesShortcut(event, 'i', { shiftKey: true })
       ) {
         event.preventDefault();
         currentHandlers.image();
@@ -57,68 +56,57 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
 
       if (
         editorCommandTarget &&
-        isPrimaryModifierPressed(event) &&
-        event.shiftKey &&
-        event.key.toLowerCase() === 'k'
+        matchesShortcut(event, 'k', { shiftKey: true })
       ) {
         event.preventDefault();
         currentHandlers.codeBlock();
         return;
       }
 
-      if (
-        isPrimaryModifierPressed(event) &&
-        event.shiftKey &&
-        event.key.toLowerCase() === 'f'
-      ) {
+      if (matchesShortcut(event, 'f', { shiftKey: true })) {
         event.preventDefault();
         currentHandlers.toggleFocusMode();
         return;
       }
 
-      if (
-        isPrimaryModifierPressed(event) &&
-        !event.shiftKey &&
-        event.key.toLowerCase() === 'k'
-      ) {
+      if (matchesShortcut(event, 'k')) {
         event.preventDefault();
         currentHandlers.openCommandPalette();
         return;
       }
 
-      if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 'n') {
+      if (matchesShortcut(event, 'n')) {
         event.preventDefault();
         currentHandlers.newDocument();
         return;
       }
 
-      if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 'o') {
+      if (matchesShortcut(event, 'o')) {
         event.preventDefault();
         currentHandlers.openFile();
         return;
       }
 
-      if (isPrimaryModifierPressed(event) && event.key.toLowerCase() === 's') {
+      if (matchesShortcut(event, 's', { shiftKey: true })) {
         event.preventDefault();
-        if (event.shiftKey) {
-          currentHandlers.saveAs();
-        } else {
-          currentHandlers.save();
-        }
+        currentHandlers.saveAs();
         return;
       }
 
-      if (isPrimaryModifierPressed(event) && event.key === '\\') {
+      if (matchesShortcut(event, 's')) {
+        event.preventDefault();
+        currentHandlers.save();
+        return;
+      }
+
+      if (matchesShortcut(event, '\\')) {
         event.preventDefault();
         currentHandlers.toggleSidebar();
         return;
       }
 
       if (
-        isPrimaryModifierPressed(event) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key === '/'
+        matchesShortcut(event, '/')
       ) {
         if (shouldIgnoreDisplayModeShortcut(event.target)) {
           return;
@@ -131,26 +119,25 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
 
       if (
         editorCommandTarget &&
-        isPrimaryModifierPressed(event) &&
-        !event.shiftKey &&
-        event.key.toLowerCase() === 't'
+        (matchesShortcut(event, 't') ||
+          matchesShortcut(event, 't', { altKey: true }))
       ) {
         event.preventDefault();
         currentHandlers.table();
         return;
       }
 
-      if (!editorCommandTarget || !isPrimaryModifierPressed(event) || !event.altKey) {
+      if (!editorCommandTarget) {
         return;
       }
 
-      if (event.key.toLowerCase() === 'c') {
+      if (matchesShortcut(event, 'c', { altKey: true })) {
         event.preventDefault();
         currentHandlers.copyTable();
         return;
       }
 
-      if (event.key === 'Backspace') {
+      if (matchesShortcut(event, 'Backspace', { altKey: true })) {
         event.preventDefault();
         currentHandlers.deleteTable();
       }
@@ -164,8 +151,54 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
   }, []);
 }
 
-function isPrimaryModifierPressed(event: KeyboardEvent): boolean {
-  return /Mac/i.test(navigator.userAgent) ? event.metaKey : event.ctrlKey;
+function isPlainEscape(event: KeyboardEvent): boolean {
+  return (
+    event.key === 'Escape' &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    !event.getModifierState('AltGraph')
+  );
+}
+
+function matchesShortcut(
+  event: KeyboardEvent,
+  key: string,
+  {
+    altKey = false,
+    shiftKey = false,
+  }: { altKey?: boolean; shiftKey?: boolean } = {},
+): boolean {
+  if (event.getModifierState('AltGraph')) {
+    return false;
+  }
+
+  const isMac = isMacUserAgent(navigator.userAgent);
+  const primaryModifierMatches = isMac
+    ? event.metaKey && !event.ctrlKey
+    : event.ctrlKey && !event.metaKey;
+
+  return (
+    primaryModifierMatches &&
+    event.altKey === altKey &&
+    event.shiftKey === shiftKey &&
+    matchesShortcutKey(event, key)
+  );
+}
+
+function matchesShortcutKey(event: KeyboardEvent, key: string): boolean {
+  const normalizedKey = key.toLowerCase();
+
+  if (event.key.toLowerCase() === normalizedKey) {
+    return true;
+  }
+
+  return (
+    event.altKey &&
+    /^[a-z]$/.test(normalizedKey) &&
+    event.code === `Key${normalizedKey.toUpperCase()}`
+  );
 }
 
 function shouldIgnoreDisplayModeShortcut(target: EventTarget | null): boolean {

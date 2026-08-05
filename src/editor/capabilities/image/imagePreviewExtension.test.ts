@@ -1,8 +1,11 @@
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { undoDepth } from '@codemirror/commands';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '../../../shared/i18n';
+import { createEditorApi } from '../../core/editorApi';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
+import { ImageBlockWidget } from './ImageBlockWidget';
 import * as imagePreviewModule from './imagePreviewExtension';
 import {
   collectImageBlocksInRanges,
@@ -17,6 +20,7 @@ async function waitForMicrotasks(): Promise<void> {
 
 describe('image preview extension', () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     delete (
       globalThis as typeof globalThis & {
         __TAURI_INTERNALS__?: unknown;
@@ -151,6 +155,159 @@ describe('image preview extension', () => {
     expect(parent.querySelector('.lm-image-caption')?.textContent).toContain(
       'Alt',
     );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('opens a successfully loaded image without changing source, selection, or history', () => {
+    const doc = ['![Alt](data:image/png;base64,AA==)', '', 'after'].join('\n');
+    const onMediaPreviewRequest = vi.fn();
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: null,
+            onMediaPreviewRequest,
+          }),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('after')),
+      }),
+    });
+    const selectionBefore = view.state.selection;
+    const historyBefore = undoDepth(view.state);
+    const image = parent.querySelector<HTMLImageElement>('.lm-image-preview img');
+
+    expect(parent.querySelector('.lm-media-preview-expand')).toBeNull();
+    image?.dispatchEvent(new Event('load'));
+    const expand = parent.querySelector<HTMLButtonElement>('.lm-media-preview-expand');
+    expect(expand).not.toBeNull();
+
+    expand?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expand?.click();
+
+    expect(onMediaPreviewRequest).toHaveBeenCalledWith({
+      alt: 'Alt',
+      kind: 'image',
+      src: 'data:image/png;base64,AA==',
+    });
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(view.state)).toBe(historyBefore);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('relabels an existing image expand action without changing editor state', async () => {
+    await i18n.changeLanguage('zh-CN');
+    const eqSpy = vi.spyOn(ImageBlockWidget.prototype, 'eq');
+    const toDOMSpy = vi.spyOn(ImageBlockWidget.prototype, 'toDOM');
+    const doc = ['![Alt](data:image/png;base64,AA==)', '', 'after'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc,
+      extensions: [
+        imagePreviewExtension({
+          documentPath: null,
+          onMediaPreviewRequest: vi.fn(),
+        }),
+      ],
+      language: 'zh-CN',
+      parent,
+    });
+    editor.view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('after')),
+    });
+    const image = parent.querySelector<HTMLImageElement>('.lm-image-preview img');
+    image?.dispatchEvent(new Event('load'));
+    const expand = parent.querySelector<HTMLButtonElement>('.lm-media-preview-expand');
+    const selectionBefore = editor.view.state.selection;
+    const historyBefore = undoDepth(editor.view.state);
+    const widgetCallsBeforeLanguageChange = {
+      eq: eqSpy.mock.calls.length,
+      toDOM: toDOMSpy.mock.calls.length,
+    };
+
+    expect(expand?.getAttribute('aria-label')).toBe('展开查看');
+    expect(expand?.getAttribute('title')).toBe('展开查看');
+
+    editor.setLanguage('en');
+
+    expect({
+      eq: eqSpy.mock.calls.length,
+      toDOM: toDOMSpy.mock.calls.length,
+    }).toEqual(widgetCallsBeforeLanguageChange);
+    expect(expand?.getAttribute('aria-label')).toBe('Expand preview');
+    expect(expand?.getAttribute('title')).toBe('Expand preview');
+    expect(expand?.isConnected).toBe(true);
+    expect(
+      parent.querySelector<HTMLButtonElement>('[data-lm-media-preview-button]'),
+    ).toBe(expand);
+    expect(editor.view.state.doc.toString()).toBe(doc);
+    expect(editor.view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(editor.view.state)).toBe(historyBefore);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('uses the initial editor language for media labels when global i18n differs', async () => {
+    await i18n.changeLanguage('zh-CN');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc: '![Alt](data:image/png;base64,AA==)',
+      extensions: [
+        imagePreviewExtension({
+          documentPath: null,
+          onMediaPreviewRequest: vi.fn(),
+        }),
+      ],
+      language: 'en',
+      parent,
+    });
+    parent
+      .querySelector<HTMLImageElement>('.lm-image-preview img')
+      ?.dispatchEvent(new Event('load'));
+    const expand = parent.querySelector<HTMLButtonElement>('.lm-media-preview-expand');
+
+    expect(expand?.getAttribute('aria-label')).toBe('Expand preview');
+    expect(expand?.getAttribute('title')).toBe('Expand preview');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('does not expose an expand action for loading or failed images', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: '![Alt](data:image/png;base64,AA==)',
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: null,
+            onMediaPreviewRequest: vi.fn(),
+          }),
+        ],
+      }),
+    });
+    const image = parent.querySelector<HTMLImageElement>('.lm-image-preview img');
+
+    expect(parent.querySelector('.lm-media-preview-expand')).toBeNull();
+    image?.dispatchEvent(new Event('error'));
+    expect(parent.querySelector('.lm-media-preview-expand')).toBeNull();
 
     view.destroy();
     parent.remove();
@@ -306,6 +463,44 @@ describe('image preview extension', () => {
     parent.remove();
   });
 
+  it('opens the resolved asset URL for a remotely cached image', async () => {
+    const onMediaPreviewRequest = vi.fn();
+    const resolver = vi.fn().mockResolvedValue({
+      kind: 'resolved',
+      src: 'asset://localhost/cache/pic.png',
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: '![Remote](https://example.com/pic.png)',
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({
+            documentPath: 'E:\\notes\\doc.md',
+            imageAssetResolver: resolver,
+            onMediaPreviewRequest,
+          }),
+        ],
+      }),
+    });
+
+    await waitForMicrotasks();
+    const image = parent.querySelector<HTMLImageElement>('.lm-image-preview img');
+    image?.dispatchEvent(new Event('load'));
+    parent.querySelector<HTMLButtonElement>('.lm-media-preview-expand')?.click();
+
+    expect(onMediaPreviewRequest).toHaveBeenCalledWith({
+      alt: 'Remote',
+      kind: 'image',
+      src: 'asset://localhost/cache/pic.png',
+    });
+
+    view.destroy();
+    parent.remove();
+  });
+
   it('uses the injected resolver to authorize relative local images one file at a time', async () => {
     const doc = ['![Local](./assets/pic.png)', '', 'after'].join('\n');
     const resolver = vi.fn().mockResolvedValue({
@@ -350,6 +545,7 @@ describe('image preview extension', () => {
       kind: 'resolved',
       src: 'asset://localhost/cache/pic.png',
     });
+    const onMediaPreviewRequest = vi.fn();
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const view = new EditorView({
@@ -360,6 +556,7 @@ describe('image preview extension', () => {
           markdownLanguage(),
           ...createImageCapability({
             imageAssetResolver: resolver,
+            onMediaPreviewRequest,
             path: 'E:\\workspace\\notes\\doc.md',
           }).extensions,
         ],
@@ -376,6 +573,14 @@ describe('image preview extension', () => {
     expect(parent.querySelector<HTMLImageElement>('.lm-image-preview img')?.src).toBe(
       'asset://localhost/cache/pic.png',
     );
+    const image = parent.querySelector<HTMLImageElement>('.lm-image-preview img');
+    image?.dispatchEvent(new Event('load'));
+    parent.querySelector<HTMLButtonElement>('.lm-media-preview-expand')?.click();
+    expect(onMediaPreviewRequest).toHaveBeenCalledWith({
+      alt: 'Remote',
+      kind: 'image',
+      src: 'asset://localhost/cache/pic.png',
+    });
 
     view.destroy();
     parent.remove();

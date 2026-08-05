@@ -8,6 +8,7 @@
   --lm-color-text: #171a1f;
   --lm-color-text-soft: #343a46;
   --lm-color-text-muted: rgb(52 60 72 / 66%);
+  --lm-color-source-mark: #68707c;
   --lm-color-accent: #0a66d8;
   --lm-color-accent-strong: #074da5;
   --lm-color-accent-soft: rgb(10 102 216 / 10%);
@@ -44,6 +45,7 @@
   --lm-color-text: #f2f4f8;
   --lm-color-text-soft: #dfe4ee;
   --lm-color-text-muted: rgb(223 228 238 / 66%);
+  --lm-color-source-mark: #aab2be;
   --lm-color-accent: #65a7ff;
   --lm-color-accent-strong: #91c1ff;
   --lm-color-accent-soft: rgb(101 167 255 / 16%);

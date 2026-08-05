@@ -21,6 +21,7 @@ test('generates an HTML visual report for rendered image previews', async ({
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const markdown = [
     '# Image preview visual report',

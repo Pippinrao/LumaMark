@@ -1,6 +1,5 @@
 import {
   EditorSelection,
-  EditorState,
   type Extension,
 } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
@@ -11,10 +10,9 @@ import {
   editorHistoryCompartment,
   setDocumentSavepoint,
   type CreateEditorStateOptions,
-  editorSearchPhrasesCompartment,
 } from './createEditorState';
-import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 import type { AppLanguage } from '../../shared/i18n';
+import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
@@ -22,6 +20,8 @@ import {
   type EditorDisplayMode,
 } from './editorDisplayMode';
 import { invalidatePendingImageImports } from '../capabilities/image/imageInputExtension';
+import { relabelMediaPreviewButtons } from '../capabilities/mediaPreviewButton';
+import { relabelTaskCheckboxes } from '../wysiwyg/markdownDecorations';
 import {
   documentSourceFormatField,
   documentSourceFormatsEqual,
@@ -30,10 +30,16 @@ import {
   setDocumentSourceFormat,
 } from './documentSourceFormat';
 import { createExactDocumentChanges } from './documentChangeMapping';
+import {
+  DEFAULT_EDITOR_APPEARANCE,
+  editorAppearanceCompartment,
+  editorAppearanceExtension,
+  type EditorAppearance,
+} from './editorAppearance';
 
 export type CreateEditorApiOptions = Omit<
   CreateEditorStateOptions,
-  'extensions'
+  'extensions' | 'isMacPlatform'
 > & {
   extensions?: readonly Extension[];
   parent: HTMLElement;
@@ -68,23 +74,31 @@ export type EditorApi = {
   markDocumentSaved: (snapshot: EditorDocumentSnapshot) => void;
   markDocumentUnsaved: () => void;
   setLanguage: (language: AppLanguage) => void;
+  setAppearance: (appearance: EditorAppearance) => void;
   setDocumentContext: (context: EditorDocumentContext) => void;
   setDisplayMode: (mode: EditorDisplayMode) => void;
 };
 
 export class CodeMirrorEditorApi implements EditorApi {
   private readonly editorView: EditorView;
+  private appearance: EditorAppearance;
   private documentContext: EditorDocumentContext;
   private displayMode: EditorDisplayMode;
   private language: AppLanguage;
+  private readonly searchPhrases: Record<string, string>;
 
   constructor(options: CreateEditorApiOptions) {
+    this.appearance = options.appearance ?? DEFAULT_EDITOR_APPEARANCE;
     this.displayMode = options.displayMode ?? 'livePreview';
     this.documentContext = options.documentContext ?? { path: null };
     this.language = options.language ?? 'zh-CN';
+    this.searchPhrases = {
+      ...(options.searchPhrases ?? getEditorSearchPhrases(this.language)),
+    };
     this.editorView = new EditorView({
       parent: options.parent,
       state: createEditorState({
+        appearance: this.appearance,
         displayMode: this.displayMode,
         documentContext: this.documentContext,
         doc: options.doc,
@@ -92,6 +106,8 @@ export class CodeMirrorEditorApi implements EditorApi {
         language: this.language,
         onDocumentChanged: options.onDocumentChanged,
         onFocusChanged: options.onFocusChanged,
+        onZoomRequested: options.onZoomRequested,
+        searchPhrases: this.searchPhrases,
       }),
     });
   }
@@ -240,10 +256,31 @@ export class CodeMirrorEditorApi implements EditorApi {
     }
 
     this.language = language;
+    Object.assign(this.searchPhrases, getEditorSearchPhrases(language));
+    relabelMediaPreviewButtons(this.editorView.dom, language);
+    relabelTaskCheckboxes(
+      this.editorView.dom,
+      this.searchPhrases['Toggle task completion'],
+    );
+    relabelEditorSearchPanel(this.editorView.dom, this.searchPhrases);
+  }
+
+  setAppearance(appearance: EditorAppearance): void {
+    if (
+      appearance.fontZoomPercent === this.appearance.fontZoomPercent &&
+      appearance.pageWidthPx === this.appearance.pageWidthPx
+    ) {
+      return;
+    }
+
+    this.appearance = appearance;
     this.editorView.dispatch({
-      effects: editorSearchPhrasesCompartment.reconfigure(
-        EditorState.phrases.of(getEditorSearchPhrases(language)),
-      ),
+      effects: [
+        this.editorView.scrollSnapshot(),
+        editorAppearanceCompartment.reconfigure(
+          editorAppearanceExtension(appearance),
+        ),
+      ],
     });
   }
 
@@ -258,7 +295,9 @@ export class CodeMirrorEditorApi implements EditorApi {
       nextContext.imageAssetResolver === this.documentContext.imageAssetResolver &&
       nextContext.imageImportErrorHandler ===
         this.documentContext.imageImportErrorHandler &&
-      nextContext.imageImportHandler === this.documentContext.imageImportHandler
+      nextContext.imageImportHandler === this.documentContext.imageImportHandler &&
+      nextContext.onMediaPreviewRequest ===
+        this.documentContext.onMediaPreviewRequest
     ) {
       return;
     }
@@ -290,4 +329,58 @@ export class CodeMirrorEditorApi implements EditorApi {
 
 export function createEditorApi(options: CreateEditorApiOptions): EditorApi {
   return new CodeMirrorEditorApi(options);
+}
+
+function relabelEditorSearchPanel(
+  root: ParentNode,
+  phrases: Record<string, string>,
+): void {
+  relabelSearchInput(root, 'search', phrases.Find);
+  relabelSearchInput(root, 'replace', phrases.Replace);
+
+  for (const [name, phrase] of [
+    ['next', phrases.next],
+    ['prev', phrases.previous],
+    ['select', phrases.all],
+    ['replace', phrases.replace],
+    ['replaceAll', phrases['replace all']],
+  ] as const) {
+    const button = root.querySelector<HTMLButtonElement>(
+      `.cm-search button[name="${name}"]`,
+    );
+    if (button) {
+      button.textContent = phrase;
+    }
+  }
+
+  for (const [name, phrase] of [
+    ['case', phrases['match case']],
+    ['re', phrases.regexp],
+    ['word', phrases['by word']],
+  ] as const) {
+    const label = root
+      .querySelector<HTMLInputElement>(`.cm-search input[name="${name}"]`)
+      ?.closest('label');
+    if (label?.lastChild) {
+      label.lastChild.textContent = phrase;
+    }
+  }
+
+  root
+    .querySelector<HTMLButtonElement>('.cm-search button[name="close"]')
+    ?.setAttribute('aria-label', phrases.close);
+}
+
+function relabelSearchInput(
+  root: ParentNode,
+  name: 'replace' | 'search',
+  phrase: string,
+): void {
+  const input = root.querySelector<HTMLInputElement>(
+    `.cm-search input[name="${name}"]`,
+  );
+  if (input) {
+    input.placeholder = phrase;
+    input.setAttribute('aria-label', phrase);
+  }
 }

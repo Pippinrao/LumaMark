@@ -8,6 +8,7 @@ import mermaidPackage from 'mermaid/package.json';
 import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import { renderWithMermaid } from './mermaidRenderAdapter';
 import { changedRangesRequireMermaidRebuild } from './mermaidChangeDetection';
+import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
 import {
   activeMermaidBlock,
   mermaidEditingStateField,
@@ -25,6 +26,7 @@ export type MermaidPreviewExtensionOptions = {
   config?: Record<string, unknown>;
   mermaidVersion?: string;
   scheduler?: MermaidRenderScheduler;
+  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
 };
 
 const DEFAULT_MERMAID_VERSION = mermaidPackage.version;

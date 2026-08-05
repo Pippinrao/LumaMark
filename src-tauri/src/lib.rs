@@ -23,7 +23,7 @@ use commands::files::{
     files_read_text, files_show_open_file_dialog, files_show_open_image_dialog,
     files_show_save_file_dialog, files_write_text,
 };
-use commands::workspace::{workspace_list_children, workspace_open_directory};
+use commands::workspace::{workspace_list_children, workspace_open_directory, workspace_open_path};
 use services::file_watch_service::{FileWatchService, FILE_WATCH_CHANGED_EVENT};
 use tauri::{Emitter, Manager};
 
@@ -59,6 +59,7 @@ pub fn run() {
             assets_import_draft_image,
             assets_finalize_draft_images,
             workspace_open_directory,
+            workspace_open_path,
             workspace_list_children
         ])
         .run(tauri::generate_context!())

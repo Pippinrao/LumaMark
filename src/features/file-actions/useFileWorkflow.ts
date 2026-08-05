@@ -12,6 +12,7 @@ import {
   type FileActionStateAdapter,
 } from './fileActions';
 import type { RecentFileInput } from '../recent-files/recentFilesStore';
+import type { FileMetadata } from '../../services/files/fileTypes';
 import {
   resolveFileWatchClient,
   type FileWatchChangeEvent,
@@ -24,14 +25,18 @@ import {
 
 export type { ExternalFileConflict } from './useExternalFileWatch';
 
+export type OpenDocumentOutcome =
+  | { file: FileMetadata; status: 'opened' }
+  | { status: 'cancelled' | 'failed' | 'superseded' };
+
 export type FileWorkflow = {
   createNewDocument: () => void;
   externalConflict: ExternalFileConflict | null;
   fileOpening: boolean;
   keepCurrentContent: () => void;
   markDocumentDirty: (dirty: boolean) => void;
-  openFromDialog: () => Promise<void>;
-  openPath: (path: string) => Promise<void>;
+  openFromDialog: () => Promise<OpenDocumentOutcome>;
+  openPath: (path: string) => Promise<OpenDocumentOutcome>;
   reloadFromDisk: () => Promise<void>;
   save: () => Promise<void>;
   saveAs: () => Promise<void>;
@@ -175,7 +180,7 @@ export function useFileWorkflow({
 
   const openFromDialog = useCallback(async () => {
     if (fileOpeningRef.current) {
-      return;
+      return { status: 'superseded' } as const;
     }
 
     const requestId = ++operationIdRef.current;
@@ -187,19 +192,19 @@ export function useFileWorkflow({
       await waitForEditor();
 
       if (!isCurrentRequest()) {
-        return;
+        return { status: 'superseded' } as const;
       }
 
       const actions = createActions(isCurrentRequest);
 
       if (!actions) {
-        return;
+        return { status: 'superseded' } as const;
       }
 
       const result = await actions.openFileFromDialog();
 
       if (!isCurrentRequest()) {
-        return;
+        return { status: 'superseded' } as const;
       }
 
       if (result.ok && result.data) {
@@ -208,14 +213,20 @@ export function useFileWorkflow({
           result.data.fingerprint,
         );
         if (!isCurrentRequest()) {
-          return;
+          return { status: 'superseded' } as const;
         }
         onDocumentBecameSafe();
         status.setStatusKey('status.opened');
+        const file = state.getState().currentFile;
+        return file
+          ? { file, status: 'opened' } as const
+          : { status: 'failed' } as const;
       } else if (!result.ok) {
         status.setStatusKey('status.openFailed');
+        return { status: 'failed' } as const;
       } else {
         status.setStatusKey('status.ready');
+        return { status: 'cancelled' } as const;
       }
     } finally {
       if (isCurrentRequest()) {
@@ -227,6 +238,7 @@ export function useFileWorkflow({
     createActions,
     onDocumentBecameSafe,
     replaceWatchedDocument,
+    state,
     status,
     waitForEditor,
   ]);
@@ -242,19 +254,19 @@ export function useFileWorkflow({
         await waitForEditor();
 
         if (!isCurrentRequest()) {
-          return;
+          return { status: 'superseded' } as const;
         }
 
         const actions = createActions(isCurrentRequest);
 
         if (!actions) {
-          return;
+          return { status: 'superseded' } as const;
         }
 
         const result = await actions.openFile(path);
 
         if (!isCurrentRequest()) {
-          return;
+          return { status: 'superseded' } as const;
         }
 
         if (result.ok) {
@@ -263,12 +275,17 @@ export function useFileWorkflow({
             result.data.fingerprint,
           );
           if (!isCurrentRequest()) {
-            return;
+            return { status: 'superseded' } as const;
           }
           onDocumentBecameSafe();
           status.setStatusKey('status.opened');
+          const file = state.getState().currentFile;
+          return file
+            ? { file, status: 'opened' } as const
+            : { status: 'failed' } as const;
         } else {
           status.setStatusKey('status.openFailed');
+          return { status: 'failed' } as const;
         }
       } finally {
         if (isCurrentRequest()) {
@@ -281,6 +298,7 @@ export function useFileWorkflow({
       createActions,
       onDocumentBecameSafe,
       replaceWatchedDocument,
+      state,
       status,
       waitForEditor,
     ],

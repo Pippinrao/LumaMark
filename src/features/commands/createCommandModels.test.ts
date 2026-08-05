@@ -8,12 +8,19 @@ import {
   createEditorContextMenuModels,
   createTopMenuModels,
 } from './createCommandModels';
+import { createCommandShortcutLabels } from './commandShortcuts';
+
+const shortcuts = createCommandShortcutLabels(
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+);
 
 describe('createCommandPaletteModels', () => {
   it('disables opening a file while another file is opening', () => {
     const commands = createCommandPaletteModels({
+      editorAvailable: true,
       fileOpening: true,
       handlers: {} as CommandHandlerMap,
+      shortcuts,
       t: (key) => key,
     });
 
@@ -24,8 +31,10 @@ describe('createCommandPaletteModels', () => {
 
   it('shares Typora-aligned shortcuts and excludes table-only destructive actions', () => {
     const commands = createCommandPaletteModels({
+      editorAvailable: true,
       fileOpening: false,
       handlers: {} as CommandHandlerMap,
+      shortcuts,
       t: (key) => key,
     });
 
@@ -35,15 +44,59 @@ describe('createCommandPaletteModels', () => {
     expect(commands.some(({ id }) => id === 'copy-table')).toBe(false);
     expect(commands.some(({ id }) => id === 'delete-table')).toBe(false);
   });
+
+  it('disables only editor-dependent commands when the editor is unavailable', () => {
+    const commands = createCommandPaletteModels({
+      editorAvailable: false,
+      fileOpening: false,
+      handlers: {} as CommandHandlerMap,
+      shortcuts,
+      t: (key) => key,
+    });
+
+    expect(
+      commands.filter(({ disabled }) => disabled).map(({ id }) => id),
+    ).toEqual([
+      'save',
+      'save-as',
+      'find',
+      'undo',
+      'redo',
+      'focus-editor',
+      'toggle-focus-mode',
+      'heading-1',
+      'heading-2',
+      'heading-3',
+      'heading-4',
+      'heading-5',
+      'heading-6',
+      'insert-horizontal-rule',
+      'insert-image',
+      'insert-code-block',
+      'insert-table',
+      'insert-ordered-list',
+      'toggle-strikethrough',
+    ]);
+    expect(
+      commands
+        .filter(({ disabled }) => !disabled)
+        .map(({ id }) => id),
+    ).toEqual([
+      'new-document',
+      'open-file',
+      'open-workspace',
+      'toggle-theme',
+      'toggle-language',
+      'toggle-sidebar',
+      'open-settings',
+    ]);
+  });
 });
 
 describe('createEditorContextMenuModels', () => {
   const createModels = (tableContext: boolean) =>
     createEditorContextMenuModels({
-      shortcuts: {
-        copy: 'Ctrl Alt C',
-        delete: 'Ctrl Alt Backspace',
-      },
+      shortcuts,
       tableContext,
       t: (key) => key,
     });
@@ -66,15 +119,13 @@ describe('createTopMenuModels', () => {
   const createModels = (overrides: Record<string, unknown> = {}) =>
     createTopMenuModels({
       editorDisplayMode: 'source',
+      editorAvailable: true,
       fileOpening: false,
       focusMode: true,
       language: 'zh-CN',
       openRecentFile: vi.fn(),
       recentFiles: [],
-      shortcuts: {
-        copy: 'Ctrl Alt C',
-        delete: 'Ctrl Alt Backspace',
-      },
+      shortcuts,
       sidebarOpen: true,
       t: (key) => key,
       theme: 'dark',
@@ -92,6 +143,71 @@ describe('createTopMenuModels', () => {
       'language',
       'help',
     ]);
+  });
+
+  it('keeps every executable menu leaf wired to the expected action and shortcut', () => {
+    const groups = createModels({
+      recentFiles: [{ name: 'one.md', path: 'E:/notes/one.md' }],
+    });
+
+    expect(
+      Object.fromEntries(
+        groups.map((group) => [group.id, collectLeafContracts(group.items)]),
+      ),
+    ).toEqual({
+      edit: [
+        'undo:undo:Ctrl+Z',
+        'redo:redo:Ctrl+Y',
+        'find:openSearch:Ctrl+F',
+        'command-palette:openCommandPalette:Ctrl+K',
+      ],
+      file: [
+        'new-document:newDocument:Ctrl+N',
+        'open-file:openFile:Ctrl+O',
+        'recent-file-0:callback:',
+        'open-workspace:openWorkspace:',
+        'save:save:Ctrl+S',
+        'save-as:saveAs:Ctrl+Shift+S',
+        'settings:openSettings:',
+      ],
+      format: [
+        'bold:bold:Ctrl+B',
+        'italic:italic:Ctrl+I',
+        'strikethrough:strikethrough:',
+        'inline-code:inlineCode:',
+        'link:link:',
+        'image:image:Ctrl+Shift+I',
+      ],
+      help: ['about:openAbout:'],
+      language: [
+        'language-zh:setChineseLanguage:',
+        'language-en:setEnglishLanguage:',
+      ],
+      paragraph: [
+        'normal-paragraph:paragraph:Ctrl+0',
+        'heading-1:heading1:Ctrl+1',
+        'heading-2:heading2:Ctrl+2',
+        'heading-3:heading3:Ctrl+3',
+        'heading-4:heading4:Ctrl+4',
+        'heading-5:heading5:Ctrl+5',
+        'heading-6:heading6:Ctrl+6',
+        'ordered-list:orderedList:',
+        'unordered-list:unorderedList:',
+        'task-list:taskList:',
+        'quote:quote:',
+        'code-block:codeBlock:Ctrl+Shift+K',
+        'insert-table:table:Ctrl+T',
+        'horizontal-rule:horizontalRule:',
+      ],
+      theme: ['theme-light:setLightTheme:', 'theme-dark:setDarkTheme:'],
+      view: [
+        'live-preview-mode:setLivePreviewMode:',
+        'source-mode:setSourceMode:Ctrl+/',
+        'sidebar:toggleSidebar:Ctrl+\\',
+        'focus-mode:toggleFocusMode:Ctrl+Shift+F',
+        'focus-editor:focusEditor:',
+      ],
+    });
   });
 
   it('keeps destructive table actions out of the persistent Edit menu', () => {
@@ -164,6 +280,62 @@ describe('createTopMenuModels', () => {
     expect(findNode(file?.items ?? [], 'save-as')).toMatchObject({ disabled: true });
   });
 
+  it('disables editor-dependent leaves while preserving startup actions', () => {
+    const groups = createModels({ editorAvailable: false });
+    const actionNodes = collectActionNodes(
+      groups.flatMap((group) => group.items),
+    );
+
+    expect(
+      actionNodes.filter((node) => node.disabled).map((node) => node.id),
+    ).toEqual([
+      'save',
+      'save-as',
+      'undo',
+      'redo',
+      'find',
+      'normal-paragraph',
+      'heading-1',
+      'heading-2',
+      'heading-3',
+      'heading-4',
+      'heading-5',
+      'heading-6',
+      'ordered-list',
+      'unordered-list',
+      'task-list',
+      'quote',
+      'code-block',
+      'insert-table',
+      'horizontal-rule',
+      'bold',
+      'italic',
+      'strikethrough',
+      'inline-code',
+      'link',
+      'image',
+      'live-preview-mode',
+      'source-mode',
+      'focus-mode',
+      'focus-editor',
+    ]);
+    expect(
+      actionNodes.filter((node) => !node.disabled).map((node) => node.id),
+    ).toEqual([
+      'new-document',
+      'open-file',
+      'open-workspace',
+      'settings',
+      'command-palette',
+      'sidebar',
+      'theme-light',
+      'theme-dark',
+      'language-zh',
+      'language-en',
+      'about',
+    ]);
+  });
+
   it('lets the new-document action preserve the editor focus it establishes', () => {
     const file = createModels().find((group) => group.id === 'file');
 
@@ -233,4 +405,39 @@ function findNode(
   }
 
   return undefined;
+}
+
+function collectLeafContracts(nodes: readonly CommandMenuNode[]): string[] {
+  return nodes.flatMap((node) => {
+    if (node.type === 'separator') {
+      return [];
+    }
+
+    if (node.type === 'submenu') {
+      return collectLeafContracts(node.items);
+    }
+
+    const action =
+      node.invocation.kind === 'action'
+        ? node.invocation.action
+        : 'callback';
+
+    return [`${node.id}:${action}:${node.shortcut ?? ''}`];
+  });
+}
+
+function collectActionNodes(
+  nodes: readonly CommandMenuNode[],
+): Extract<CommandMenuNode, { type: 'checkbox' | 'item' | 'radio' }>[] {
+  return nodes.flatMap((node) => {
+    if (node.type === 'separator') {
+      return [];
+    }
+
+    if (node.type === 'submenu') {
+      return collectActionNodes(node.items);
+    }
+
+    return node.invocation.kind === 'action' ? [node] : [];
+  });
 }

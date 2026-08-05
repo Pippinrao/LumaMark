@@ -17,6 +17,8 @@ Foundation 与 MarkText+ 已建立 CodeMirror 主编辑器、文件闭环和多�
 - 在 `editor/interaction` 派生 `EditorInteractionContext`，统一表示 composition、每个 selection 的最小 block、inline span、delimiter 与受保护源码范围。
 - 上下文从 CodeMirror state/语法树获得，并随 transaction 映射或增量重算；不进入 React store。
 - 标题、列表、引用、代码围栏和行内标记消费同一合同，不再各自维护活动行规则。
+- 折叠光标只激活最内层行内 owner；非空选区激活所有相交行内 owner。普通多行引用只展开 selection 所在行的 `QuoteMark`，代码围栏和 Mermaid 等边界完整性语义继续展开完整 block delimiter。
+- live preview 中已激活的 Markdown delimiter 使用不替换文本的弱化 source-mark decoration；未激活 delimiter 仍按既有预览规则隐藏或替换，source mode 始终显示原始源码。
 
 ### 精确源码序列化
 
@@ -55,7 +57,7 @@ Foundation 与 MarkText+ 已建立 CodeMirror 主编辑器、文件闭环和多�
 
 ## 验证要求
 
-- 单元测试覆盖 context 派生、composition、格式映射和 save-preparation changes。
+- 单元测试覆盖 context 派生、嵌套行内 owner、逐行引用 delimiter、composition、格式映射和 save-preparation changes。
 - 使用真实 `EditorView → prepareTextForSave → write → reopen → byte diff` 证明无关字节 diff 为 0。
 - 集成/E2E 覆盖模式切换、selection/scroll、统一 undo 和 Mermaid active-save。
 - 生产 E2E 必须触发 Mermaid 动态 import 并得到 SVG；Windows packaged WebView 必须从真实临时文件进入编辑态，验证 active-save 立即落盘、Unicode 输入、模式往返和任务 checkbox 可访问名称。

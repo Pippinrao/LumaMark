@@ -95,7 +95,7 @@ LumaMark 当前 Callout 产品功能总体状态是 **未实现**。仓库没有
 | Callout 可访问语义 | 证据不足 | 当前 DOM 只有普通 CodeMirror decoration class，没有 Callout 类型对应的可访问名称、role 或说明。 | 无屏幕阅读器、键盘导航、高对比度、颜色非唯一通道专项测试。 |
 | Callout 性能预算 | 证据不足 | 当前没有 Callout 解析或 decoration，自然也没有该专题增量扫描、视口限制或缓存实现。 | `tests/perf` 没有 Callout 密集文档场景；不能从通用编辑器预算推导专题无退化。 |
 
-`package.json:37,45-50,55-57` 与 `pnpm-lock.yaml:20,44-80,300,550,659,1929,2135,2147` 表明项目声明并锁定 CodeMirror Markdown、Lezer Markdown、Radix、i18next、Lucide 和 markdown-it。`markdown-it` 当前只在 `src/editor/capabilities/table/tablePreviewExtension.ts:17-22` 用于表格单元格的行内渲染，不能被当作 Callout 已解析的证据。
+`package.json` 与 `pnpm-lock.yaml` 表明项目声明并锁定 CodeMirror Markdown、Lezer Markdown、Radix、i18next 和 Lucide。表格单元格已改为复用 CodeMirror/Lezer token DOM，仓库不再直接依赖 `markdown-it`；这不能被当作 Callout 已解析的证据。
 
 ## 6. 当前真实体验路径
 
@@ -155,7 +155,7 @@ LumaMark 当前 Callout 产品功能总体状态是 **未实现**。仓库没有
 
 - 继续使用 `@codemirror/lang-markdown` / `@lezer/markdown` 提供 Blockquote 边界和增量语法树，使用 CodeMirror `ViewPlugin`、`Decoration.mark`、`Decoration.line` 或轻量 widget；不自研编辑器、树解析器或 DOM diff。
 - 图标复用已安装的 `lucide-react`，例如信息、灯泡、重要、警告、谨慎的通用图形，但不得复制 Typora 专有素材。设置控件优先采用项目既有 Radix 体系；若需要 Switch，应先评估对应成熟 Radix 组件，不手搓基础交互。
-- 不因 Callout 引入新的全量 Markdown renderer。现有 `markdown-it` 仅服务表格行内渲染；除非原型和 benchmark 证明 Lezer 范围识别不足，否则不扩展依赖。
+- 不因 Callout 引入新的全量 Markdown renderer。除非原型和 benchmark 证明现有 CodeMirror/Lezer 范围识别不足，否则不增加第二套解析依赖。
 
 ### 9.3 数据流与设置
 
@@ -292,5 +292,5 @@ LumaMark 当前 Callout 产品功能总体状态是 **未实现**。仓库没有
 - `tests/fixtures/fixturePaths.ts:5-26`：fixture 清单没有 Callout 专项。
 - `tests/fixtures/roundTrip.test.ts:8-70`：清单内 fixture 的逐字节 round-trip 机制。
 - `tests/fixtures/markdown/blockquote.md:1-20`、`comprehensive.md:1-30`：普通引用复杂样本，不含 `[!TYPE]`。
-- `package.json:37,45-50,55-57` 与 `pnpm-lock.yaml:20,44-80,300,550,659,1929,2135,2147`：CodeMirror、Lezer、Radix、i18next、Lucide、markdown-it 的声明与锁定证据。
+- `package.json` 与 `pnpm-lock.yaml`：CodeMirror、Lezer、Radix、i18next、Lucide 的声明与锁定证据。
 - 只读 Node 探针：`markdownLanguage.parser.parse('> [!NOTE]\\n> body')` 输出 `Document(Blockquote(QuoteMark,Paragraph(Link(LinkMark,LinkMark),QuoteMark)))`，直接证明当前语法树没有 Callout 类型节点；该探针不是自动化测试。

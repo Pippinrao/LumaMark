@@ -1,0 +1,95 @@
+.lm-media-viewer-overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  background: rgb(10 12 16 / 88%);
+}
+
+.lm-media-viewer-dialog {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  overflow: hidden;
+  background: transparent;
+  color: white;
+  outline: none;
+}
+
+.lm-media-viewer-toolbar {
+  position: absolute;
+  z-index: 1;
+  top: var(--lm-space-3);
+  right: var(--lm-space-3);
+  display: flex;
+  gap: var(--lm-space-1);
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--lm-radius-2);
+  background: rgb(20 23 29 / 78%);
+  padding: var(--lm-space-1);
+  backdrop-filter: blur(10px);
+}
+
+.lm-media-viewer-toolbar .lm-icon-button {
+  color: white;
+}
+
+.lm-media-viewer-transform,
+.lm-media-viewer-transform-content {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.lm-media-viewer-transform-content {
+  align-items: center;
+  justify-content: center;
+}
+
+.lm-media-viewer-transform img,
+.lm-media-viewer-mermaid,
+.lm-media-viewer-mermaid svg {
+  display: block;
+  max-width: min(90vw, 1600px);
+  max-height: 88vh;
+}
+
+.lm-media-viewer-transform img {
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.lm-media-viewer-mermaid svg {
+  width: 100%;
+  height: auto;
+}
+
+.lm-media-viewer-mermaid {
+  box-sizing: border-box;
+  width: min(90vw, 1600px);
+  max-height: 88vh;
+  border-radius: var(--lm-radius-2);
+  background: var(--lm-color-surface);
+  padding: var(--lm-space-4);
+  color: var(--lm-color-text);
+}
+
+.lm-media-viewer-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .lm-media-viewer-toolbar {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  .lm-media-viewer-toolbar .lm-icon-button {
+    color: CanvasText;
+  }
+}

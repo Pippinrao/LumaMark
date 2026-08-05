@@ -128,7 +128,7 @@ LumaMark 当前可以把脚注源码当作普通文本输入、编辑、切到�
 
 ### 9.2 成熟依赖优先
 
-首选沿用已安装的 `@lezer/markdown` / `@codemirror/lang-markdown` 扩展机制，在同一语法树中识别脚注，而不是并行维护一套正则解析器。实现前应以本仓库锁定版本做小型 grammar 原型，验证节点优先级、增量解析和 GFM 链接兼容性。仓库已有 `markdown-it` 仅用于表格预览，不能未经评估就扩展为编辑器第二事实源。若评估 `markdown-it-footnote` 或其它插件，必须先记录维护状态、许可证、Typora/MultiMarkdown 方言匹配、包体与解析差异；在这些证据完成前不把它写成既定依赖，也不自研通用 popover。`package.json:50` 虽已安装 Radix Tooltip，但当前生产 `src/` 没有可直接复用的 Tooltip 封装，只有 prototype 用例；实现前必须按内容语义评估成熟浮层：纯只读短文本可用 tooltip，包含链接、滚动或其它可交互内容时应采用支持焦点管理的 popover/dialog 类组件，不能用 tooltip 语义承载交互控件。
+首选沿用已安装的 `@lezer/markdown` / `@codemirror/lang-markdown` 扩展机制，在同一语法树中识别脚注，而不是并行维护一套正则解析器。实现前应以本仓库锁定版本做小型 grammar 原型，验证节点优先级、增量解析和 GFM 链接兼容性。仓库已移除表格曾使用的 `markdown-it` 直接依赖；若评估 `markdown-it-footnote` 或其它插件，必须先记录维护状态、许可证、Typora/MultiMarkdown 方言匹配、包体与解析差异，不能未经评估引入编辑器第二事实源。`package.json` 虽已安装 Radix Tooltip，但当前生产 `src/` 没有可直接复用的 Tooltip 封装，只有 prototype 用例；实现前必须按内容语义评估成熟浮层：纯只读短文本可用 tooltip，包含链接、滚动或其它可交互内容时应采用支持焦点管理的 popover/dialog 类组件，不能用 tooltip 语义承载交互控件。
 
 ### 9.3 数据流与增量更新
 
@@ -243,5 +243,5 @@ LumaMark 当前可以把脚注源码当作普通文本输入、编辑、切到�
 | `tests/fixtures/markdownFixtureManifest.ts:7-167` | 当前 fixture 清单无脚注专题 |
 | `src/editor/wysiwyg/markdownDecorations.test.ts:85-142,417-449` | 现有链接装饰和标记隐藏测试范围，不含脚注 |
 | `tests/e2e/editor-markdown.spec.ts:529-560` | 一般 Markdown live preview/source 切换证据，不含脚注 |
-| `package.json:34-57`、`pnpm-lock.yaml` | CodeMirror、Lezer、Radix、markdown-it 的实际依赖与锁定版本；Radix Tooltip 已安装不等于生产已有可复用浮层封装 |
+| `package.json`、`pnpm-lock.yaml` | CodeMirror、Lezer、Radix 的实际依赖与锁定版本；Radix Tooltip 已安装不等于生产已有可复用浮层封装 |
 | 本地只读 Lezer 解析探针 | `Text[^fn1].` 被解析为普通 `Link`；复杂定义未形成脚注语义。该探针不是产品自动化测试 |

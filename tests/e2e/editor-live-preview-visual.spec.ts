@@ -20,6 +20,7 @@ test('generates a visual report for live preview rendering and editing states', 
   page,
 }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -60,22 +61,26 @@ test('generates a visual report for live preview rendering and editing states', 
   const table = page.locator('.tbl-table-widget');
   const boldCell = table.locator('.tbl-data-cell').filter({ hasText: 'bold' });
   const boldSource = boldCell.locator('.tbl-cell-view');
-  const boldPreview = boldCell.locator('.lm-table-inline-preview');
 
-  await expect(boldPreview.locator('strong', { hasText: 'bold' })).toBeVisible();
+  await expect(table.locator('.lm-table-inline-preview')).toHaveCount(0);
   await expect(
-    table.locator('.lm-table-inline-preview a', { hasText: 'site' }),
+    boldCell.locator('.lm-table-token-strong:not(.lm-table-token-mark)', {
+      hasText: 'bold',
+    }),
   ).toBeVisible();
   await expect(
-    table.locator('.lm-table-inline-preview code', { hasText: 'code' }),
+    table.locator(
+      '.lm-table-token-link:not(.lm-table-token-mark, .lm-table-token-link-destination)',
+      { hasText: 'site' },
+    ),
   ).toBeVisible();
-
-  await boldCell.hover();
-  await expect(boldSource).toHaveAttribute(
-    'data-lm-inline-markdown-mode',
-    'source',
-  );
-  await capture(page, screenshots, '03-table-hover-source.png', 'Table hover source');
+  await expect(
+    table.locator('.lm-table-token-code:not(.lm-table-token-mark)', {
+      hasText: 'code',
+    }),
+  ).toBeVisible();
+  await expect(boldSource).toContainText('**bold**');
+  await capture(page, screenshots, '03-table-source-dom.png', 'Table source DOM preview');
 
   await boldCell.click();
   const cellEditor = page.locator('.tbl-cell-editor .cm-content').first();
@@ -86,14 +91,14 @@ test('generates a visual report for live preview rendering and editing states', 
   await cellEditor.click();
   await page.keyboard.press('End');
   await page.keyboard.type('!');
-  await expect(cellEditor).toContainText('**bold**!');
+  await expect(cellEditor).toContainText('**bold!**');
   await page.locator('.cm-line', { hasText: 'after' }).click();
-  await expect(boldPreview).toContainText('bold!');
+  await expect(boldCell).toContainText('bold!');
   await capture(page, screenshots, '05-table-after-edit.png', 'Table after edit');
 
   await page.locator('.lm-menu-trigger', { hasText: '视图' }).click();
   await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
-  await expect(editor).toContainText('**bold**!');
+  await expect(editor).toContainText('**bold!**');
   await expect(editor).toContainText('console.log(value)');
 
   const metrics: LivePreviewMetric[] = [
@@ -107,7 +112,7 @@ test('generates a visual report for live preview rendering and editing states', 
     },
     {
       name: 'table source preserved',
-      value: '**bold**! / [site](https://example.com) / `code`',
+      value: '**bold!** / [site](https://example.com) / `code`',
     },
   ];
 

@@ -1,6 +1,7 @@
 import { Compartment, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { createLivePreviewExtensions } from '../capabilities';
+import type { EditorMediaPreviewRequestHandler } from './editorEvents';
 
 export type EditorDisplayMode = 'livePreview' | 'source';
 export type ImageAssetRequest = {
@@ -41,6 +42,7 @@ export type EditorDocumentContext = {
   imageAssetResolver?: ImageAssetResolver;
   imageImportErrorHandler?: ImageImportErrorHandler;
   imageImportHandler?: ImageImportHandler;
+  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
   path: string | null;
 };
 

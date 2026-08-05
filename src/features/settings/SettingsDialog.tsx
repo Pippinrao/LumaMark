@@ -3,6 +3,8 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { AppLanguage } from '../../shared/i18n';
+import type { EditorPageWidth } from '../reading-appearance/readingAppearanceStore';
+import type { StartupBehavior } from '../startup/startupStore';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -12,9 +14,16 @@ type SettingsDialogProps = {
   onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
   onLanguageChange: (language: AppLanguage) => void;
   onOpenChange: (open: boolean) => void;
+  onPageWidthChange: (pageWidth: EditorPageWidth) => void;
   onReturnFocus: () => void;
+  onStartupBehaviorChange: (startupBehavior: StartupBehavior) => void;
   onThemeChange: (theme: ThemeMode) => void;
   open: boolean;
+  pageWidth: EditorPageWidth;
+  pageWidthPersistenceError: boolean;
+  recentFilesPersistenceError: boolean;
+  startupBehavior: StartupBehavior;
+  startupPersistenceError: boolean;
   theme: ThemeMode;
 };
 
@@ -24,9 +33,16 @@ export function SettingsDialog({
   onCopyImagesToAssetsChange,
   onLanguageChange,
   onOpenChange,
+  onPageWidthChange,
   onReturnFocus,
+  onStartupBehaviorChange,
   onThemeChange,
   open,
+  pageWidth,
+  pageWidthPersistenceError,
+  recentFilesPersistenceError,
+  startupBehavior,
+  startupPersistenceError,
   theme,
 }: SettingsDialogProps) {
   const { t } = useTranslation();
@@ -57,6 +73,7 @@ export function SettingsDialog({
               <Tabs.Trigger value="appearance">{t('settings.appearance')}</Tabs.Trigger>
               <Tabs.Trigger value="language">{t('settings.language')}</Tabs.Trigger>
               <Tabs.Trigger value="images">{t('settings.images')}</Tabs.Trigger>
+              <Tabs.Trigger value="startup">{t('settings.startup')}</Tabs.Trigger>
             </Tabs.List>
             <Tabs.Content value="appearance" className="lm-settings-panel">
               <div className="lm-setting-row">
@@ -82,6 +99,56 @@ export function SettingsDialog({
                   </button>
                 </div>
               </div>
+              <div className="lm-setting-row">
+                <span>{t('settings.pageWidth')}</span>
+                <div
+                  aria-label={t('settings.pageWidth')}
+                  className="lm-segmented-control"
+                  role="group"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={pageWidth === 'narrow'}
+                    onClick={() => {
+                      onPageWidthChange('narrow');
+                    }}
+                  >
+                    {t('settings.pageWidthNarrow')}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={pageWidth === 'standard'}
+                    onClick={() => {
+                      onPageWidthChange('standard');
+                    }}
+                  >
+                    {t('settings.pageWidthStandard')}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={pageWidth === 'wide'}
+                    onClick={() => {
+                      onPageWidthChange('wide');
+                    }}
+                  >
+                    {t('settings.pageWidthWide')}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={pageWidth === 'fluid'}
+                    onClick={() => {
+                      onPageWidthChange('fluid');
+                    }}
+                  >
+                    {t('settings.pageWidthFluid')}
+                  </button>
+                </div>
+              </div>
+              {pageWidthPersistenceError ? (
+                <p className="lm-setting-error" role="alert">
+                  {t('settings.pageWidthPersistenceError')}
+                </p>
+              ) : null}
             </Tabs.Content>
             <Tabs.Content value="language" className="lm-settings-panel">
               <div className="lm-setting-row">
@@ -119,6 +186,37 @@ export function SettingsDialog({
                   type="checkbox"
                 />
               </label>
+            </Tabs.Content>
+            <Tabs.Content value="startup" className="lm-settings-panel">
+              <div className="lm-setting-row">
+                <span>{t('settings.startupBehavior')}</span>
+                <div className="lm-segmented-control">
+                  <button
+                    aria-pressed={startupBehavior === 'home'}
+                    onClick={() => { onStartupBehaviorChange('home'); }}
+                    type="button"
+                  >
+                    {t('settings.startupHome')}
+                  </button>
+                  <button
+                    aria-pressed={startupBehavior === 'restoreLastSession'}
+                    onClick={() => { onStartupBehaviorChange('restoreLastSession'); }}
+                    type="button"
+                  >
+                    {t('settings.startupRestore')}
+                  </button>
+                </div>
+              </div>
+              {startupPersistenceError ? (
+                <p className="lm-setting-error" role="alert">
+                  {t('settings.startupPersistenceError')}
+                </p>
+              ) : null}
+              {recentFilesPersistenceError ? (
+                <p className="lm-setting-error" role="alert">
+                  {t('settings.recentFilesPersistenceError')}
+                </p>
+              ) : null}
             </Tabs.Content>
           </Tabs.Root>
         </Dialog.Content>

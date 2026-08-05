@@ -4,6 +4,52 @@
 
 > **历史记录：** 下列分支、版本号、文件大小与 SHA-256 只描述对应 Alpha 构建，不能当作当前工作树的发布产物。Parity Reliability 只有在当前执行计划的自动化门禁、Windows 实测和真实自用退出条件全部满足后，才具备 Beta 候选资格；一次本地 `pnpm build` 成功不等于已发布。
 
+## 0.2.3 NSIS-only 发布候选
+
+- 日期：2026-08-05
+- 平台：Windows x64
+- 分支：`main`
+- 目标发布标签：`v0.2.3`
+- 发布策略：候选通过全部门禁后，GitHub Release 仅上传 NSIS 安装器；裸 exe、MSI 和本地产物清单用于一致性门禁。
+
+候选产物：
+
+| 产物 | 路径 | 大小 | SHA-256 |
+|---|---|---:|---|
+| Windows 可执行文件 | `src-tauri/target/release/lumamark.exe` | 13,857,792 bytes | `2e7bc99ccddf3eabfd6b443dcc362b5fe99c51fe452a036eb84514ba29cebc42` |
+| MSI 安装包 | `src-tauri/target/release/bundle/msi/LumaMark_0.2.3_x64_en-US.msi` | 6,041,600 bytes | `26f8d2cbe9208dbf8bce402148ec237023bb97292e9749f63ed2374979b353da` |
+| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.2.3_x64-setup.exe` | 4,650,095 bytes | `5ac67fa71530271520480158af94b3bf45ba15cb24f9b3b7686db6da4f3a6c87` |
+
+本版本完成并验收 GitHub Issues #1–#6：媒体全屏查看与缩放、完整菜单与精确快捷键、阅读宽度和平台主修饰键缩放、启动页与单文件恢复体验、活动 Markdown 源码标记视觉，以及格式化、折行和不等宽表格中的稳定光标映射。验收补丁还覆盖语言切换时现有媒体、搜索面板和任务复选框的原地重标、启动偏好持久化错误的可见反馈，以及启动页后的真实 E2E 交互。
+
+新鲜自动化验证：
+
+- `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm test`：81 个测试文件、745 项测试通过。
+- `pnpm test:fixtures`：2 个测试文件、6 项 round-trip 测试通过。
+- `pnpm download:markdown-corpus` 和 `pnpm test:markdown-corpus`：解析 6 个语料文件、646,256 bytes。
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml`：81 项 Rust 测试通过；公网 Rust 测试由专用门禁单独执行。
+- `pnpm quality:v1-ux-prototype`：2 项通过。
+- `NODE_OPTIONS=--throw-deprecation pnpm quality:v1-ux-screenshots`：生成 6 张截图，无弃用 warning。
+- `pnpm test:e2e -- --workers=1`：156 项 Playwright 测试通过。
+- `pnpm test:live-assets:public`：公网 PNG 和 SVG 内容、MIME 与签名校验通过；首次组合命令遇到一次外部 Wikimedia TLS `ECONNRESET`，原子命令重跑即通过。
+- `pnpm test:live-assets:rust`：1 项真实下载和缓存测试通过。
+- `pnpm quality:web-build`
+- `pnpm test:e2e:production`：2 项生产 bundle 测试通过。
+- `pnpm perf:bench`：6 个测试文件、23 项独立性能基准通过；10MB 文档加载 77.49 ms、输入 p80 1.07 ms。
+- `pnpm release:packaged-webview`：0.2.3 Release 构建和真实打包 WebView 验证通过。
+- `pnpm release:verify-artifacts`：本地 0.2.3 exe、MSI、NSIS 均存在，大小和 SHA-256 与上表一致。
+- `pnpm release:installer-smoke:plan`：确认 NSIS 安装器存在、目标为隔离临时目录且无需管理员权限。
+
+打包 WebView 验证覆盖应用启动、Mermaid 活跃编辑保存、编辑器输入、显示模式往返、页面宽度持久化、会话缩放重置、任务复选框可访问性和 Unicode 输入；外观布局恢复耗时 19.1 ms。
+
+本机已有 `C:\Users\pippin\AppData\Local\LumaMark` 安装，安全脚本按设计拒绝运行可能影响现有安装注册信息的 NSIS 静默安装/卸载 smoke；本轮未绕过保护。MSI 管理员安装 smoke 同样未执行。
+
+本版本仍未代码签名，Windows SmartScreen 和发布者信任提示属于已知分发风险。
+
 ## 0.2.1 NSIS-only Release
 
 - 日期：2026-08-03

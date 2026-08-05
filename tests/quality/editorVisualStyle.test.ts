@@ -18,9 +18,13 @@ describe('editor visual style contract', () => {
   it('keeps the CodeMirror document surface paper-grade instead of default editor-like', async () => {
     const editorCss = await readCss('src', 'editor', 'core', 'editor.css');
 
-    expect(editorCss).toContain('font-size: 16.5px;');
+    expect(editorCss).toContain(
+      'font-size: calc(16.5px * var(--lm-editor-font-scale, 1));',
+    );
     expect(editorCss).toContain('line-height: 1.74;');
-    expect(editorCss).toContain('max-width: 810px;');
+    expect(editorCss).toContain(
+      'max-width: var(--lm-editor-page-width, 810px);',
+    );
     expect(editorCss).toContain('font-feature-settings: "kern" 1');
     expect(editorCss).toContain('font-variant-east-asian: proportional-width;');
   });

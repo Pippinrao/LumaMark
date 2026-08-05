@@ -23,6 +23,13 @@ import {
   markdownSyntaxHighlighting,
 } from '../markdown/markdownLanguage';
 import {
+  DEFAULT_EDITOR_APPEARANCE,
+  editorAppearanceCompartment,
+  editorAppearanceExtension,
+  type EditorAppearance,
+  type EditorZoomRequestedHandler,
+} from './editorAppearance';
+import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
   type EditorDocumentContext,
@@ -32,6 +39,7 @@ import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
 } from './editorEvents';
+import { editorZoomWheelExtension } from './editorZoomWheelExtension';
 import {
   documentSourceFormatExtension,
   documentSourceFormatField,
@@ -41,16 +49,19 @@ import {
 } from './documentSourceFormat';
 
 export type CreateEditorStateOptions = {
+  appearance?: EditorAppearance;
   doc?: string;
   documentContext?: EditorDocumentContext;
   extensions?: readonly Extension[];
   displayMode?: EditorDisplayMode;
+  isMacPlatform?: boolean;
   language?: AppLanguage;
+  searchPhrases?: Record<string, string>;
   onDocumentChanged?: EditorDocumentChangedHandler;
   onFocusChanged?: EditorFocusChangedHandler;
+  onZoomRequested?: EditorZoomRequestedHandler;
 };
 
-export const editorSearchPhrasesCompartment = new Compartment();
 export const editorHistoryCompartment = new Compartment();
 export type DocumentSavepoint = {
   readonly doc: Text;
@@ -116,13 +127,17 @@ export function createEditorState(
   options: CreateEditorStateOptions = {},
 ): EditorState {
   const {
+    appearance = DEFAULT_EDITOR_APPEARANCE,
     doc = '',
     documentContext = { path: null },
     displayMode = 'livePreview',
     extensions = [],
+    isMacPlatform,
     language = 'zh-CN',
+    searchPhrases = getEditorSearchPhrases(language),
     onDocumentChanged,
     onFocusChanged,
+    onZoomRequested,
   } = options;
   const parsedDocument = parseDocumentSource(doc);
   let docVersion = 0;
@@ -174,6 +189,9 @@ export function createEditorState(
         }),
       ]
     : [];
+  const zoomExtensions: Extension[] = onZoomRequested
+    ? [editorZoomWheelExtension(onZoomRequested, isMacPlatform)]
+    : [];
 
   return EditorState.create({
     doc: parsedDocument.text,
@@ -182,12 +200,11 @@ export function createEditorState(
       markdownLanguage(),
       markdownSyntaxHighlighting(),
       documentSourceFormatExtension(parsedDocument.format),
+      editorAppearanceCompartment.of(editorAppearanceExtension(appearance)),
       editorDisplayModeCompartment.of(
         editorDisplayModeExtension(displayMode, documentContext),
       ),
-      editorSearchPhrasesCompartment.of(
-        EditorState.phrases.of(getEditorSearchPhrases(language)),
-      ),
+      EditorState.phrases.of(searchPhrases),
       documentSavepointField,
       editorHistoryCompartment.of(history()),
       autocompletion(),
@@ -195,6 +212,7 @@ export function createEditorState(
       EditorView.lineWrapping,
       documentChangeListener,
       ...focusExtensions,
+      ...zoomExtensions,
       keymap.of(markdownFormatKeymap),
       keymap.of([
         ...defaultKeymap,

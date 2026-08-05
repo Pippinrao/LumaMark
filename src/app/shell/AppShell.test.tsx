@@ -12,6 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceEntry } from '../../services/workspace/workspaceCommands';
 import { saveRecoveryDraft } from '../../services/drafts/draftStore';
 import { useWorkspaceStore } from '../../features/workspace/workspaceStore';
+import { useReadingAppearanceStore } from '../../features/reading-appearance/readingAppearanceStore';
+import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
+import { useStartupStore } from '../../features/startup/startupStore';
 import type { CommandError, CommandResult } from '../../services/tauri/invokeCommand';
 import type {
   FileWatchChangeEvent,
@@ -56,6 +59,22 @@ describe('AppShell', () => {
     windowControlMocks.startDragging.mockReset().mockResolvedValue(true);
     windowControlMocks.toggleMaximize.mockReset().mockResolvedValue(true);
     useWorkspaceStore.getState().clearWorkspace();
+    useReadingAppearanceStore.setState({
+      fontZoomPercent: 100,
+      pageWidth: 'standard',
+      pageWidthPersistenceError: false,
+    });
+    useRecentFilesStore.setState({
+      recentFiles: [],
+      recentFilesPersistenceError: false,
+    });
+    useStartupStore.setState({
+      lastSession: null,
+      recentWorkspaces: [],
+      startScreenOpen: false,
+      startupBehavior: 'home',
+      startupPersistenceError: false,
+    });
     useAppStore.setState({
       copyImagesToAssets: false,
       currentFile: null,
@@ -67,6 +86,44 @@ describe('AppShell', () => {
       statusKey: 'status.ready',
       theme: 'light',
     });
+  });
+
+  it('shows the start screen while disabling editor-dependent commands', async () => {
+    useStartupStore.setState({ startScreenOpen: true });
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole('main', { name: '开始' })).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-content')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByTestId('editor-host')).toBeInTheDocument();
+
+    const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+    fileMenu.focus();
+    fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+    expect(await screen.findByRole('menuitem', { name: /^保存/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('menuitem', { name: /^打开文件/ })).not.toHaveAttribute(
+      'aria-disabled',
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    expect(await screen.findByRole('option', { name: '保存' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('option', { name: '打开文件' })).toHaveAttribute(
+      'aria-disabled',
+      'false',
+    );
   });
 
   afterEach(() => {
@@ -386,6 +443,74 @@ describe('AppShell', () => {
     }
   });
 
+  it('opens an editor image in the shared media viewer and restores trigger focus', async () => {
+    const documentPath = 'E:/notes/media.md';
+    const markdown = ['![Pixel](data:image/png;base64,AA==)', '', 'after'].join('\n');
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          byteLength: markdown.length,
+          path: documentPath,
+          text: markdown,
+        },
+      }),
+      showOpenDialog: vi.fn().mockResolvedValue({
+        ok: true,
+        data: documentPath,
+      }),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    };
+
+    try {
+      render(
+        <I18nProvider>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
+        </I18nProvider>,
+      );
+
+      await openFileFromMenu();
+      const image = await waitFor(() => {
+        const candidate = screen
+          .getByTestId('editor-host')
+          .querySelector<HTMLImageElement>('.lm-image-preview img');
+        expect(candidate).not.toBeNull();
+        return candidate;
+      });
+      fireEvent.load(image as HTMLImageElement);
+      const expand = screen.getByRole('button', { name: '展开查看' });
+      expand.focus();
+      fireEvent.click(expand);
+
+      const dialog = await screen.findByRole('dialog', { name: '图片查看器' });
+      expect(within(dialog).getByRole('img', { name: 'Pixel' })).toBeVisible();
+      expect(within(dialog).getByRole('button', { name: '放大' })).toBeVisible();
+      fireEvent.click(within(dialog).getByRole('button', { name: '关闭' }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: '图片查看器' })).not
+          .toBeInTheDocument();
+      });
+      expect(document.activeElement).toBe(expand);
+
+      fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
+      await waitFor(() => {
+        expect(document.querySelector('.lm-editor-source-mode')).not.toBeNull();
+      });
+      expect(
+        screen.getByTestId('editor-host').querySelector('.cm-content'),
+      ).toHaveTextContent('![Pixel](data:image/png;base64,AA==)');
+      expect(
+        screen.getByTestId('editor-host').querySelector('.cm-content'),
+      ).toHaveTextContent('after');
+    } finally {
+      delete window.__LUMAMARK_E2E_FILE_COMMANDS__;
+    }
+  });
+
   it('leaves the current image widget untouched when an image event arrives late from the previous document', async () => {
     let emitChange: ((event: FileWatchChangeEvent) => void) | undefined;
     const firstPath = 'E:/notes/first.md';
@@ -637,6 +762,40 @@ describe('AppShell', () => {
     expect(screen.queryByText('删除表格')).not.toBeInTheDocument();
   });
 
+  it('opens a workspace from the File menu through the workspace service boundary', async () => {
+    workspaceCommandMocks.openWorkspaceDirectory.mockResolvedValue({
+      ok: true,
+      data: { name: 'Menu Notes', path: 'E:/menu-notes' },
+    });
+    workspaceCommandMocks.listWorkspaceChildren.mockResolvedValue({
+      ok: true,
+      data: [],
+    });
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+    fileMenu.focus();
+    fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: '打开工作区' }),
+    );
+
+    await waitFor(() => {
+      expect(workspaceCommandMocks.openWorkspaceDirectory).toHaveBeenCalledOnce();
+      expect(useWorkspaceStore.getState().root).toEqual({
+        name: 'Menu Notes',
+        path: 'E:/menu-notes',
+      });
+    });
+  });
+
   it('toggles the sidebar from the view menu and keyboard shortcut', async () => {
     render(
       <I18nProvider>
@@ -745,6 +904,100 @@ describe('AppShell', () => {
     ).toBe(true);
   });
 
+  it('applies the persisted page-width setting and session-only modified-wheel zoom', async () => {
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const editorDom = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>('.cm-editor');
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    expect(editorDom.style.getPropertyValue('--lm-editor-page-width')).toBe(
+      '810px',
+    );
+    expect(editorDom.style.getPropertyValue('--lm-editor-font-scale')).toBe('1');
+
+    const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+    fileMenu.focus();
+    fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
+
+    const widthGroup = await screen.findByRole('group', { name: '页面宽度' });
+    fireEvent.click(within(widthGroup).getByRole('button', { name: '宽' }));
+
+    await waitFor(() => {
+      expect(useReadingAppearanceStore.getState().pageWidth).toBe('wide');
+      expect(editorDom.style.getPropertyValue('--lm-editor-page-width')).toBe(
+        '1040px',
+      );
+    });
+
+    const contentDom = document.querySelector<HTMLElement>('.cm-content');
+    expect(contentDom).not.toBeNull();
+    fireEvent.wheel(contentDom!, { ctrlKey: true, deltaY: -100 });
+
+    await waitFor(() => {
+      expect(useReadingAppearanceStore.getState().fontZoomPercent).toBe(110);
+      expect(editorDom.style.getPropertyValue('--lm-editor-font-scale')).toBe(
+        '1.1',
+      );
+    });
+
+    fireEvent.wheel(contentDom!, { deltaY: -100 });
+    expect(useReadingAppearanceStore.getState().fontZoomPercent).toBe(110);
+  });
+
+  it('alerts the user when the page-width setting cannot be persisted', async () => {
+    useReadingAppearanceStore.setState({ pageWidthPersistenceError: true });
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+    fileMenu.focus();
+    fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '页面宽度已应用，但无法读取或保存设置；下次启动可能恢复默认值。',
+    );
+  });
+
+  it('passes recent-file persistence errors through the settings model', async () => {
+    useRecentFilesStore.setState({ recentFilesPersistenceError: true });
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+    fileMenu.focus();
+    fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
+    const startupTab = await screen.findByRole('tab', { name: '启动' });
+    startupTab.focus();
+    fireEvent.keyDown(startupTab, { key: 'Enter' });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '无法读取或保存最近文件列表。当前列表可能仅在本次运行期间有效。',
+    );
+  });
+
   it('enters a distraction-free focus mode and provides an explicit exit control', async () => {
     render(
       <I18nProvider>
@@ -822,13 +1075,13 @@ describe('AppShell', () => {
     fireEvent.contextMenu(table);
 
     expect(
-      await screen.findByRole('menuitem', { name: /^复制表格\s*Ctrl Alt C$/ }),
-    ).toHaveTextContent('Ctrl Alt C');
+      await screen.findByRole('menuitem', { name: /^复制表格\s*Ctrl\+Alt\+C$/ }),
+    ).toHaveTextContent('Ctrl+Alt+C');
     expect(
       screen.getByRole('menuitem', {
-        name: /^删除表格\s*Ctrl Alt Backspace$/,
+        name: /^删除表格\s*Ctrl\+Alt\+Backspace$/,
       }),
-    ).toHaveTextContent('Ctrl Alt Backspace');
+    ).toHaveTextContent('Ctrl+Alt+Backspace');
   });
 
   it('ignores stale workspace child load errors after switching roots', async () => {

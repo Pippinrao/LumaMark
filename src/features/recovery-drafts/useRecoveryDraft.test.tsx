@@ -115,6 +115,41 @@ describe('useRecoveryDraft', () => {
     vi.unstubAllGlobals();
   });
 
+  it('reports when recovery storage has been checked after the editor becomes ready', () => {
+    const workflowRef: { current: RecoveryDraftWorkflow | null } = { current: null };
+    const editorRef = {
+      current: {
+        focus: vi.fn(),
+        getText: vi.fn(),
+        loadText: vi.fn(),
+        markSaved: vi.fn(),
+        markUnsaved: vi.fn(),
+        setContext: vi.fn(),
+      },
+    };
+    const view = render(
+      <RecoveryDraftHarness
+        editorReady={false}
+        editorRef={editorRef}
+        onRestore={vi.fn()}
+        onWorkflow={(workflow) => { workflowRef.current = workflow; }}
+      />,
+    );
+
+    expect(workflowRef.current?.recoveryChecked).toBe(false);
+
+    view.rerender(
+      <RecoveryDraftHarness
+        editorReady
+        editorRef={editorRef}
+        onRestore={vi.fn()}
+        onWorkflow={(workflow) => { workflowRef.current = workflow; }}
+      />,
+    );
+
+    expect(workflowRef.current?.recoveryChecked).toBe(true);
+  });
+
   it('keeps the latest user edit as a local recovery draft', () => {
     const getText = vi.fn(() => '# Recovered');
     const workflowRef: { current: RecoveryDraftWorkflow | null } = {

@@ -4,6 +4,8 @@
 
 更新：2026-07-27（Parity Reliability 编辑器合同）
 
+更新：2026-08-04（开始页、会话恢复与工作区路径恢复）
+
 当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；本轮编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 
 ## 设计结论
@@ -89,6 +91,7 @@ Tauri v2
 - 恢复草稿仅保存在 `services/drafts` 的本地持久化槽；React 状态只保留是否有待用户决策的草稿元数据，正文仍从 CodeMirror 读取。恢复总是作为新未保存文档，详见 [ADR 0004](../decisions/0004-local-recovery-drafts.md)。
 - 最近文件列表。
 - 当前 workspace。
+- 启动偏好、最近工作区和最后会话只保存路径、名称与时间戳；禁止保存 Markdown 正文。
 - UI 展开状态。
 
 Rust 保存：
@@ -114,6 +117,7 @@ Rust 保存：
 - dirty 状态。
 - 命令面板状态。
 - 最近文件元数据。
+- 最近工作区、最后文件/工作区会话和启动行为元数据。
 
 不放入 store：
 
@@ -177,9 +181,12 @@ src/
 │  ├─ outline/
 │  ├─ search/
 │  ├─ settings/
+│  ├─ reading-appearance/
 │  ├─ command-palette/
-│  └─ recent-files/
+│  ├─ recent-files/
+│  └─ startup/
 ├─ services/
+│  ├─ preferences/
 │  ├─ tauri/
 │  ├─ files/
 │  ├─ workspace/
@@ -210,7 +217,8 @@ src/
 
 - `AppShell` 只能组合 `useAppShellModel`、`useAppShellSlots` 和 `AppShellView`，不直接调用文件、工作区、编辑器表格或 Tauri service 细节。
 - `app/shell/**` 是纯渲染层：只消费 props、labels、callbacks 和 ReactNode slots；不能 import store、service、workflow、editor command 或窗口控制实现。
-- `app/controllers/` 拆为独立子域 hook：document、workspace、commands、editor、settings、window；不能再形成新的总控大文件。
+- `app/controllers/` 拆为独立子域 hook：document、workspace、commands、editor、startup、settings、window；不能再形成新的总控大文件。
+- `useStartupExperience` 只编排文件/工作区 workflow、恢复草稿决策和版本化启动元数据；开始页显示时编辑器保持挂载，但整个工作区内容必须 `inert` 且从可访问树隐藏。
 - `app/containers/` 负责把 feature UI 容器装配成 shell slots；shell view 不知道 feature workflow 或 store。
 - 菜单、命令面板和右键菜单必须消费 `features/commands` 的同一组 command model，不能在 shell JSX 或 controller 中重复定义同一业务动作。
 - i18n label 生成放在 controller/model 层，渲染组件只消费字符串。
@@ -254,6 +262,7 @@ Editor capability 边界：
 - app 层只调用 `editor/commands/editorCommandPort.ts` 暴露的 `EditorDocumentPort` 和 `EditorCommandPort`。
 - Markdown format、table command、display mode、range selection 等具体 CodeMirror 命令不能散落 import 到 shell 渲染层或 feature UI。
 - `EditorDocumentPort` 暴露快照、序列化、保存点、加载、聚焦、上下文和定点图片刷新等轻量命令；调用方可以即时读取正文但不能持有或广播 Markdown 全文。
+- 页面宽度与字体缩放通过 `EditorApi.setAppearance` 和独立 CodeMirror compartment 重配置；平台主修饰键加滚轮（macOS 为 `Meta`，Windows/Linux 为 `Ctrl`）只从编辑器 DOM 发出轻量 zoom request，由 feature 更新会话状态。该事务不得修改正文、选区或撤销历史。
 
 Mermaid capability 拆分要求：
 
@@ -271,9 +280,11 @@ Mermaid capability 拆分要求：
 
 Table/code-block/image capability 规则：
 
-- table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory，以及 inactive cell inline Markdown 薄渲染层；复杂表格交互仍以成熟组件为准。
+- table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory，以及基于组件源码 token DOM 的样式适配；不创建 sibling preview DOM。复杂表格交互仍以成熟组件为准，纵向光标列保持暂由锁定版本的最小 pnpm patch 修正。
 - code-block capability 负责 fenced/indented code block decoration、整块行级 preview class 和 wrap command；代码高亮通过 CodeMirror 官方语言包接入。
 - image capability 负责 image-only Markdown preview、relative path resolution、image DOM widget 和注入式远程图片 resolver；不直接依赖 workspace、file tree、app shell 或 Tauri service。
+- image capability 的 detection、path resolution、Widget DOM 和 decoration StateField 分别位于 `imageBlockDetection.ts`、`imagePathResolver.ts`、`ImageBlockWidget.ts` 与 `imagePreviewExtension.ts`；toolbar 和异步加载生命周期不得重新堆回 StateField 文件。
+- image 与 Mermaid capability 通过注入式 `EditorMediaPreviewRequestHandler` 向 app 抛出当前已成功加载的 asset URL 或已渲染 SVG；该回调不能创建 editor transaction，也不能让 capability 反向依赖 feature UI。
 
 当前能力边界审计结论：
 
@@ -282,7 +293,7 @@ Table/code-block/image capability 规则：
 - 允许的共享层：`editor/capabilities/index.ts` 只做 capability 和通用 WYSIWYG extension 组装；不得出现 DOM 创建、语法树扫描、渲染调度、第三方 widget 配置等主体逻辑。
 - 允许的通用 WYSIWYG：`wysiwyg/markdownDecorations.ts` 只处理所有 Markdown 都会共享的视觉规则，以及 capability decoration builder 的组合。它不能拥有异步渲染、block widget lifecycle、文件路径解析、table 命令、Mermaid 编辑器或 image preview DOM。
 - 已修正的依赖方向：capability 内部不能反向 import `app`、`features`、`services` 或 `wysiwyg` 私有类型；跨 capability 共享的 decoration range 类型放在 `editor/markdown`。
-- 仍需治理的债务：`imagePreviewExtension.ts` 目前仍集中 detection、path resolution、StateField 和 DOM widget，若继续增加 toolbar、cache、async size probing 或错误恢复，应拆为 `imageBlockDetection`、`imagePathResolver`、`ImageBlockWidget`、`imagePreviewExtension`。
+- 已完成的边界治理：image detection、path resolution、DOM Widget 与 StateField 已拆分；后续 cache、尺寸探测或错误恢复继续进入对应聚焦模块，不回填到 `imagePreviewExtension.ts`。
 - 仍需治理的债务：表格的源码视觉 class 仍在通用 WYSIWYG 里，表格交互和 inactive cell inline Markdown 薄渲染已在 table capability 里。若表格视觉规则继续增长，应迁入 table capability 提供的 decoration builder。
 - 仍需治理的债务：任务列表 checkbox、`Mod-Enter` toggle 和列表 marker 仍在通用 WYSIWYG/list command 附近。若后续出现 task-list toolbar、批量操作、嵌套列表专门逻辑，应新增 `editor/capabilities/list` 或 `editor/capabilities/task-list`，不能继续扩大 `markdownDecorations.ts`。
 - 兼容层债务：`editor/widgets/*` 只允许 re-export。迁移完成且调用方稳定后，应删除旧路径和对应 re-export 测试，而不是在旧路径继续加逻辑。
@@ -307,7 +318,11 @@ feature workflow 规则：
 - `features/file-actions` 通过 `FileStateAdapter`、`StatusAdapter`、`EditorDocumentPort` 接收状态和编辑器能力，不能硬依赖 `appStore`。
 - 工作区打开、children lazy load、stale request 防护通过 `features/workspace` 的 workflow 收口。
 - `features/workspace` 拆为 workflow、selectors、view model/UI-facing 类型；打开文件只通过注入 callback，不知道 file workflow 实现。
+- `features/startup` 只持有开始页 UI 和版本化会话元数据 store。自动恢复必须等待编辑器 ready 且恢复草稿检查完成；待恢复草稿优先于最后会话。
+- 文件与工作区打开 workflow 返回 `opened`、`cancelled`、`failed` 或适用的 `superseded` 结果，app controller 只能在确认成功后关闭开始页。
 - `features/commands` 是 command id、label、shortcut、enabled 状态和 run handler 的唯一 command model 来源。
+- `features/reading-appearance` 持有页面宽度档位和当前会话字体缩放；只有页面宽度 action 调用 `services/preferences` 写入，字体缩放不触碰持久化且每次应用启动都从 100% 开始。读取损坏或写入失败由 feature 状态显式暴露给设置页，不得静默伪装成已保存。
+- `features/media-viewer` 只持有当前查看会话与 opener，组合 Radix Dialog 和 `react-zoom-pan-pinch`；媒体 payload 不进入 Zustand，Dialog 由 app container 懒加载。依赖与回滚条件见 [ADR 0008](../decisions/0008-shared-media-viewer.md)。
 - `features/*/components/**` 只负责渲染；需要业务行为时由 feature container、workflow 或 app container 注入 props。
 - feature 可以组合 editor API 和 service facade，但不能持有 Markdown 全文。
 
@@ -321,6 +336,7 @@ feature workflow 规则：
 
 - workspace Tauri wrapper 位于 `services/workspace/`，`features/workspace/` 只保留 workflow、store 和 UI-facing 类型使用。
 - 文件监听 command/event wrapper 位于 `services/file-watch/`；打开结果 fingerprint 与 watch baseline 在这里形成竞态握手。图片 resolver 只向该 facade 串行同步已授权本地目标，editor capability 不直接依赖 Tauri。
+- 浏览器/WebView 偏好存储适配位于 `services/preferences/`；它只暴露无业务方向的 key-value storage，不依赖 feature store，也不决定哪些字段持久化。
 - services 不能依赖 React 组件、Zustand store 或 app shell。
 
 ### `shared`
@@ -461,6 +477,7 @@ watch_document
 replace_local_image_targets
 unwatch_document
 workspace.open
+workspace.open_path
 workspace.list_children
 workspace.watch
 search.query
@@ -556,6 +573,32 @@ User input
 - 复杂派生任务 debounce 或 idle scheduling。
 - 输入延迟作为指标记录。
 
+### 阅读外观
+
+```text
+Settings page-width choice
+-> features/reading-appearance store
+-> persist only pageWidth through services/preferences
+-> app controller maps preset to pixel boundary
+-> EditorApi.setAppearance
+-> CodeMirror appearance compartment + CSS variables
+
+Platform primary modifier + wheel inside CodeMirror
+-> non-passive scrollDOM listener prevents WebView zoom
+-> throttle repeated touchpad events to one request per 80 ms
+-> lightweight zoom request
+-> session-only fontZoomPercent
+-> EditorApi.setAppearance
+```
+
+要求：
+
+- 页面宽度仅使用 `narrow`、`standard`、`wide`、`fluid` 四个稳定档位；默认 `standard`，持久化值无效时回退默认值。
+- 字体缩放范围为 80%–200%，步长 10%；不进入持久化数据，下次启动恢复 100%。
+- 普通滚轮和编辑器外部的组合滚轮不得触发字体缩放；只有 macOS 的 `Meta + wheel` 与 Windows/Linux 的 `Ctrl + wheel` 可触发，非主修饰键、多个修饰键叠加和 AltGraph 输入不得被拦截。合法组合滚轮在整个 CodeMirror `scrollDOM`（包括页边距）被非被动监听器拦截，必须阻止 WebView 页面级缩放，并以 80 ms 节流限制高频触控板事件。
+- 页面宽度读取损坏或写入失败时继续应用当前会话选择，但设置页必须提供本地化的可访问错误提示；不得让 UI 暗示该值已成功保存。
+- 外观更新只能重配置 view extension/CSS variable，不创建文档 change，不广播 Markdown 全文。
+
 ### 保存文件
 
 ```text
@@ -626,7 +669,7 @@ Typora-like 行为分三层实现：
 - 列表 marker 样式。
 - Markdown 符号弱化或隐藏。
 
-视觉层使用 `EditorInteractionContext` 判断最小展开范围。行内标记只在 selection 进入对应 span 时展开；标题、列表、引用和围栏只展开当前最小结构。composition 期间不得重建候选文本附近的 replacement decoration。
+视觉层使用 `EditorInteractionContext` 判断最小展开范围。折叠光标进入嵌套行内语法时只展开最内层 owner，非空选区才展开所有相交 owner；标题和列表展开当前最小 block，普通多行引用只展开 selection 所在行的 marker，代码围栏和 Mermaid 等边界完整性语义保留完整 block delimiter。已激活源码符号使用不替换文本、继承主题 token 的弱化 source-mark decoration，source mode 不应用该视觉规则。composition 期间不得重建候选文本附近的 replacement decoration。
 
 ### Capability 和 Widget 层
 

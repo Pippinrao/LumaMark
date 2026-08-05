@@ -3,6 +3,7 @@ import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormat
 import type { CommandHandlerMap } from '../../features/commands/commandTypes';
 import type { AppLanguage } from '../../shared/i18n';
 import type { ThemeMode } from '../stores/appStore';
+import { guardEditorCommand } from './editorCommandGuard';
 
 const markdownCommands: readonly MarkdownFormatCommand[] = [
   'bold',
@@ -30,6 +31,7 @@ const markdownCommands: readonly MarkdownFormatCommand[] = [
 type UseAppCommandHandlersOptions = {
   copyTable: () => void;
   deleteTable: () => void;
+  editorAvailable: boolean;
   exitFocusMode: () => void;
   focusEditor: () => void;
   insertImage: () => void;
@@ -59,6 +61,7 @@ type UseAppCommandHandlersOptions = {
 export function useAppCommandHandlers({
   copyTable,
   deleteTable,
+  editorAvailable,
   exitFocusMode,
   focusEditor,
   insertImage,
@@ -88,45 +91,46 @@ export function useAppCommandHandlers({
     const formatHandlers = Object.fromEntries(
       markdownCommands.map((command) => [
         command,
-        () => {
+        guardEditorCommand(editorAvailable, () => {
           runFormat(command);
-        },
+        }),
       ]),
     ) as Record<MarkdownFormatCommand, () => void>;
 
     return {
       ...formatHandlers,
-      copyTable,
-      deleteTable,
-      exitFocusMode,
-      focusEditor,
-      image: insertImage,
+      copyTable: guardEditorCommand(editorAvailable, copyTable),
+      deleteTable: guardEditorCommand(editorAvailable, deleteTable),
+      exitFocusMode: guardEditorCommand(editorAvailable, exitFocusMode),
+      focusEditor: guardEditorCommand(editorAvailable, focusEditor),
+      image: guardEditorCommand(editorAvailable, insertImage),
       newDocument,
       openAbout,
       openCommandPalette,
       openFile,
-      openSearch,
+      openSearch: guardEditorCommand(editorAvailable, openSearch),
       openSettings,
       openWorkspace,
-      redo,
-      save,
-      saveAs,
+      redo: guardEditorCommand(editorAvailable, redo),
+      save: guardEditorCommand(editorAvailable, save),
+      saveAs: guardEditorCommand(editorAvailable, saveAs),
       setChineseLanguage: () => setLanguage('zh-CN'),
       setDarkTheme: () => setTheme('dark'),
       setEnglishLanguage: () => setLanguage('en'),
       setLightTheme: () => setTheme('light'),
-      setLivePreviewMode,
-      setSourceMode,
-      toggleDisplayMode,
+      setLivePreviewMode: guardEditorCommand(editorAvailable, setLivePreviewMode),
+      setSourceMode: guardEditorCommand(editorAvailable, setSourceMode),
+      toggleDisplayMode: guardEditorCommand(editorAvailable, toggleDisplayMode),
       toggleLanguage,
-      toggleFocusMode,
+      toggleFocusMode: guardEditorCommand(editorAvailable, toggleFocusMode),
       toggleSidebar,
       toggleTheme,
-      undo,
+      undo: guardEditorCommand(editorAvailable, undo),
     };
   }, [
     copyTable,
     deleteTable,
+    editorAvailable,
     exitFocusMode,
     focusEditor,
     insertImage,

@@ -16,10 +16,12 @@ import {
 } from './mermaidEditingState';
 import { MermaidBlockWidget } from './MermaidBlockWidget';
 import type { MermaidRenderScheduler } from './mermaidRenderScheduler';
+import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
 
 type MermaidDecorationOptions = {
   config?: Record<string, unknown>;
   mermaidVersion?: string;
+  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
 };
 
 type MermaidDecorationContext = {

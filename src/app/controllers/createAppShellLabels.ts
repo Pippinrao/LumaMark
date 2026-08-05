@@ -8,13 +8,6 @@ type CreateAppShellLabelsOptions = {
   t: TFunction;
 };
 
-export function createTableShortcutLabels(t: TFunction) {
-  return {
-    copy: t('shortcut.table.copy'),
-    delete: t('shortcut.table.delete'),
-  };
-}
-
 export function createAppShellLabels({
   documentStatistics,
   statusKey,

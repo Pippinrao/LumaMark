@@ -8,6 +8,7 @@ import {
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { panelLayoutStorage } from './panelLayoutStorage';
+import { sidebarPanelConstraints } from './panelConstraints';
 import { StatusBar } from './StatusBar';
 import type { ShellSlots, StatusBarLabels } from './shellTypes';
 
@@ -111,46 +112,59 @@ export function AppShellView({
     >
       {slots.topChrome}
 
-      <PanelGroup
-        className="lm-workspace-shell"
-        defaultLayout={layout.defaultLayout ?? DEFAULT_LAYOUT}
-        id="lumamark-v1-main-panels"
-        onLayoutChanged={layout.onLayoutChanged}
-        orientation="horizontal"
-      >
-        <Panel
-          className="lm-sidebar-panel"
-          collapsible
-          collapsedSize="0%"
-          defaultSize="22%"
-          id="sidebar"
-          minSize="220px"
-          onResize={onSidebarResize}
-          panelRef={sidebarPanelRef}
+      <div className="lm-workspace-stage">
+        <div
+          aria-hidden={Boolean(slots.startScreen)}
+          className="lm-workspace-content"
+          data-testid="workspace-content"
+          inert={Boolean(slots.startScreen)}
         >
-          <div
-            aria-hidden={!sidebarOpen}
-            className="lm-sidebar-content"
-            data-testid="sidebar-content"
-            inert={!sidebarOpen}
-            onFocusCapture={() => {
-              sidebarHadFocusRef.current = true;
-            }}
-            ref={sidebarContentRef}
+          <PanelGroup
+            className="lm-workspace-shell"
+            defaultLayout={layout.defaultLayout ?? DEFAULT_LAYOUT}
+            id="lumamark-v1-main-panels"
+            onLayoutChanged={layout.onLayoutChanged}
+            orientation="horizontal"
           >
-            {slots.sidebar}
-          </div>
-        </Panel>
-        <PanelResizeHandle className="lm-resize-handle" />
-        <Panel
-          className="lm-editor-panel"
-          defaultSize="74%"
-          id="editor"
-          minSize="360px"
-        >
-          {slots.editor}
-        </Panel>
-      </PanelGroup>
+            <Panel
+              className="lm-sidebar-panel"
+              collapsible
+              collapsedSize="0%"
+              defaultSize={sidebarPanelConstraints.defaultSize}
+              id="sidebar"
+              maxSize={sidebarPanelConstraints.maxSize}
+              minSize={sidebarPanelConstraints.minSize}
+              onResize={onSidebarResize}
+              panelRef={sidebarPanelRef}
+            >
+              <div
+                aria-hidden={!sidebarOpen}
+                className="lm-sidebar-content"
+                data-testid="sidebar-content"
+                inert={!sidebarOpen}
+                onFocusCapture={() => {
+                  sidebarHadFocusRef.current = true;
+                }}
+                ref={sidebarContentRef}
+              >
+                {slots.sidebar}
+              </div>
+            </Panel>
+            <PanelResizeHandle className="lm-resize-handle" />
+            <Panel
+              className="lm-editor-panel"
+              defaultSize="74%"
+              id="editor"
+              minSize="360px"
+            >
+              {slots.editor}
+            </Panel>
+          </PanelGroup>
+        </div>
+        {slots.startScreen ? (
+          <div className="lm-start-screen-layer">{slots.startScreen}</div>
+        ) : null}
+      </div>
 
       <StatusBar
         currentFileName={currentFileName}

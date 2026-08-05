@@ -67,6 +67,7 @@ const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.strikethrough, class: 'lm-table-token-strikethrough' },
   { tag: tags.monospace, class: 'lm-table-token-code' },
   { tag: tags.link, class: 'lm-table-token-link' },
+  { tag: tags.url, class: 'lm-table-token-link-destination' },
   { tag: tags.processingInstruction, class: 'lm-table-token-mark' },
 ]);
 

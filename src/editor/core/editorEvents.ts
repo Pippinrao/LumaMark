@@ -13,6 +13,21 @@ export type EditorFocusChangedEvent = {
   focused: boolean;
 };
 
+export type EditorMediaPreviewRequest =
+  | {
+      kind: 'image';
+      alt: string;
+      src: string;
+    }
+  | {
+      kind: 'mermaid';
+      svg: string;
+    };
+
+export type EditorMediaPreviewRequestHandler = (
+  request: EditorMediaPreviewRequest,
+) => void;
+
 export type EditorEvent =
   | EditorDocumentChangedEvent
   | EditorFocusChangedEvent;

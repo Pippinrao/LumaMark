@@ -10,6 +10,7 @@ import type {
   CommandActionId,
   CommandHandlerMap,
   CommandMenuInvocation,
+  CommandShortcutLabels,
 } from '../../features/commands/commandTypes';
 import type { AppLanguage } from '../../shared/i18n';
 import type { ThemeMode } from '../stores/appStore';
@@ -17,16 +18,14 @@ import { useGlobalCommandShortcuts } from './useGlobalCommandShortcuts';
 
 type UseAppCommandModelsOptions = {
   editorDisplayMode: EditorDisplayMode;
+  editorAvailable: boolean;
   fileOpening: boolean;
   focusMode: boolean;
   handlers: CommandHandlerMap;
   language: AppLanguage;
   openRecentFile: (path: string) => void;
   recentFiles: readonly { name: string; path: string }[];
-  shortcuts: {
-    copy: string;
-    delete: string;
-  };
+  shortcuts: CommandShortcutLabels;
   sidebarOpen: boolean;
   t: (key: string) => string;
   theme: ThemeMode;
@@ -34,6 +33,7 @@ type UseAppCommandModelsOptions = {
 
 export function useAppCommandModels({
   editorDisplayMode,
+  editorAvailable,
   fileOpening,
   focusMode,
   handlers,
@@ -48,17 +48,20 @@ export function useAppCommandModels({
   const commands = useMemo(
     () =>
       createCommandPaletteModels({
+        editorAvailable,
         fileOpening,
         focusMode,
         handlers,
+        shortcuts,
         t,
       }),
-    [fileOpening, focusMode, handlers, t],
+    [editorAvailable, fileOpening, focusMode, handlers, shortcuts, t],
   );
   const topMenuGroups = useMemo(
     () =>
       createTopMenuModels({
         editorDisplayMode,
+        editorAvailable,
         fileOpening,
         focusMode,
         language,
@@ -71,6 +74,7 @@ export function useAppCommandModels({
       }),
     [
       editorDisplayMode,
+      editorAvailable,
       fileOpening,
       focusMode,
       language,

@@ -1,0 +1,61 @@
+import { act, cleanup, render } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useWorkspaceWorkflow, type WorkspaceWorkflow } from './useWorkspaceWorkflow';
+import { useWorkspaceStore } from './workspaceStore';
+
+const commandMocks = vi.hoisted(() => ({
+  listWorkspaceChildren: vi.fn(),
+  openWorkspaceDirectory: vi.fn(),
+  openWorkspacePath: vi.fn(),
+}));
+
+vi.mock('../../services/workspace/workspaceCommands', () => commandMocks);
+
+function Harness({ onWorkflow }: { onWorkflow: (workflow: WorkspaceWorkflow) => void }) {
+  onWorkflow(useWorkspaceWorkflow({
+    openDocumentPath: vi.fn().mockResolvedValue({ status: 'opened' }),
+    status: { setStatusKey: vi.fn() },
+  }));
+  return null;
+}
+
+describe('useWorkspaceWorkflow', () => {
+  beforeEach(() => {
+    useWorkspaceStore.getState().clearWorkspace();
+    commandMocks.listWorkspaceChildren.mockReset().mockResolvedValue({ ok: true, data: [] });
+    commandMocks.openWorkspaceDirectory.mockReset();
+    commandMocks.openWorkspacePath.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('returns the selected workspace after opening and loading it', async () => {
+    const workspace = { name: 'Notes', path: 'E:/notes' };
+    commandMocks.openWorkspaceDirectory.mockResolvedValue({ ok: true, data: workspace });
+    let workflow: WorkspaceWorkflow | undefined;
+    render(<Harness onWorkflow={(value) => { workflow = value; }} />);
+
+    let outcome: Awaited<ReturnType<WorkspaceWorkflow['openWorkspace']>> | undefined;
+    await act(async () => {
+      outcome = await workflow?.openWorkspace();
+    });
+
+    expect(outcome).toEqual({ status: 'opened', workspace });
+    expect(useWorkspaceStore.getState().root).toEqual(workspace);
+  });
+
+  it('restores a workspace from a path without showing the picker', async () => {
+    const workspace = { name: 'Archive', path: 'E:/archive' };
+    commandMocks.openWorkspacePath.mockResolvedValue({ ok: true, data: workspace });
+    let workflow: WorkspaceWorkflow | undefined;
+    render(<Harness onWorkflow={(value) => { workflow = value; }} />);
+
+    await act(async () => {
+      await workflow?.openPath('E:/archive');
+    });
+
+    expect(commandMocks.openWorkspacePath).toHaveBeenCalledWith('E:/archive');
+    expect(commandMocks.openWorkspaceDirectory).not.toHaveBeenCalled();
+    expect(useWorkspaceStore.getState().root).toEqual(workspace);
+  });
+});

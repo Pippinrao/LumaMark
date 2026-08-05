@@ -1,2 +1,4 @@
 packages:
   - "."
+patchedDependencies:
+  codemirror-markdown-tables@1.0.0: patches/codemirror-markdown-tables@1.0.0.patch

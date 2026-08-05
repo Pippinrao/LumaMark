@@ -1,8 +1,11 @@
-import { history, undo } from '@codemirror/commands';
+import { history, undo, undoDepth } from '@codemirror/commands';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { type DecorationSet, EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { i18n } from '../../../shared/i18n';
+import { createEditorApi } from '../../core/editorApi';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
+import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
 import { MermaidBlockWidget } from './MermaidBlockWidget';
 import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import {
@@ -28,7 +31,11 @@ vi.mock('./mermaidBlockDetection', async (importOriginal) => {
   };
 });
 
-function createView(doc: string, scheduler: MermaidRenderScheduler) {
+function createView(
+  doc: string,
+  scheduler: MermaidRenderScheduler,
+  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler,
+) {
   const parent = document.createElement('div');
   document.body.appendChild(parent);
   const view = new EditorView({
@@ -38,7 +45,7 @@ function createView(doc: string, scheduler: MermaidRenderScheduler) {
       extensions: [
         markdownLanguage(),
         history(),
-        mermaidPreviewExtension({ scheduler }),
+        mermaidPreviewExtension({ onMediaPreviewRequest, scheduler }),
       ],
       selection: EditorSelection.cursor(doc.length),
     }),
@@ -163,7 +170,7 @@ describe('mermaidPreviewExtension', () => {
       debounceMs: 0,
       render: vi.fn().mockResolvedValue('<svg></svg>'),
     });
-    const { parent, view } = createView(doc, scheduler);
+    const { parent, view } = createView(doc, scheduler, vi.fn());
     const initialDecorations = mermaidDecorationSet(view);
     const initialWidget = mermaidWidgets(view)[0];
     collectMermaidBlocksSpy.mockClear();
@@ -352,6 +359,142 @@ describe('mermaidPreviewExtension', () => {
     parent.remove();
   });
 
+  it('opens the existing successful SVG without rerendering or changing editor state', async () => {
+    vi.useFakeTimers();
+    const svg = '<svg data-render="exact"><title>Flow</title></svg>';
+    const doc = ['```mermaid', 'flowchart TD', '```', '', 'after'].join('\n');
+    const render = vi.fn().mockResolvedValue(svg);
+    const scheduler = new MermaidRenderScheduler({ debounceMs: 0, render });
+    const onMediaPreviewRequest = vi.fn();
+    const { parent, view } = createView(
+      doc,
+      scheduler,
+      onMediaPreviewRequest,
+    );
+    const selectionBefore = view.state.selection;
+    const historyBefore = undoDepth(view.state);
+
+    expect(parent.querySelector('.lm-media-preview-expand:not([hidden])')).toBeNull();
+    await vi.runAllTimersAsync();
+    const expand = parent.querySelector<HTMLButtonElement>(
+      '.lm-media-preview-expand:not([hidden])',
+    );
+    expect(expand).not.toBeNull();
+    expand?.click();
+
+    expect(onMediaPreviewRequest).toHaveBeenCalledWith({
+      kind: 'mermaid',
+      svg,
+    });
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(view.state)).toBe(historyBefore);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('relabels an existing Mermaid expand action without rerendering or changing editor state', async () => {
+    vi.useFakeTimers();
+    await i18n.changeLanguage('zh-CN');
+    const eqSpy = vi.spyOn(MermaidBlockWidget.prototype, 'eq');
+    const toDOMSpy = vi.spyOn(MermaidBlockWidget.prototype, 'toDOM');
+    const svg = '<svg data-render="exact"><title>Flow</title></svg>';
+    const doc = ['```mermaid', 'flowchart TD', '```', '', 'after'].join('\n');
+    const render = vi.fn().mockResolvedValue(svg);
+    const scheduler = new MermaidRenderScheduler({ debounceMs: 0, render });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc,
+      extensions: [
+        mermaidPreviewExtension({
+          onMediaPreviewRequest: vi.fn(),
+          scheduler,
+        }),
+      ],
+      language: 'zh-CN',
+      parent,
+    });
+    editor.view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('after')),
+    });
+    await vi.runAllTimersAsync();
+    const expand = parent.querySelector<HTMLButtonElement>(
+      '.lm-media-preview-expand:not([hidden])',
+    );
+    const selectionBefore = editor.view.state.selection;
+    const historyBefore = undoDepth(editor.view.state);
+    const widgetCallsBeforeLanguageChange = {
+      eq: eqSpy.mock.calls.length,
+      toDOM: toDOMSpy.mock.calls.length,
+    };
+
+    expect(expand?.getAttribute('aria-label')).toBe('展开查看');
+    expect(expand?.getAttribute('title')).toBe('展开查看');
+
+    editor.setLanguage('en');
+
+    expect({
+      eq: eqSpy.mock.calls.length,
+      toDOM: toDOMSpy.mock.calls.length,
+    }).toEqual(widgetCallsBeforeLanguageChange);
+    expect(expand?.getAttribute('aria-label')).toBe('Expand preview');
+    expect(expand?.getAttribute('title')).toBe('Expand preview');
+    expect(expand?.isConnected).toBe(true);
+    expect(
+      parent.querySelector<HTMLButtonElement>('[data-lm-media-preview-button]'),
+    ).toBe(expand);
+    expect(editor.view.state.doc.toString()).toBe(doc);
+    expect(editor.view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(editor.view.state)).toBe(historyBefore);
+    expect(render).toHaveBeenCalledTimes(1);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('uses the initial editor language for Mermaid labels when global i18n differs', async () => {
+    vi.useFakeTimers();
+    await i18n.changeLanguage('zh-CN');
+    const render = vi
+      .fn()
+      .mockResolvedValue('<svg data-render="exact"><title>Flow</title></svg>');
+    const scheduler = new MermaidRenderScheduler({ debounceMs: 0, render });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = ['```mermaid', 'flowchart TD', '```', '', 'after'].join('\n');
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc,
+      extensions: [
+        mermaidPreviewExtension({
+          onMediaPreviewRequest: vi.fn(),
+          scheduler,
+        }),
+      ],
+      language: 'en',
+      parent,
+    });
+    editor.view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('after')),
+    });
+
+    await vi.runAllTimersAsync();
+    const expand = parent.querySelector<HTMLButtonElement>(
+      '.lm-media-preview-expand:not([hidden])',
+    );
+
+    expect(expand?.getAttribute('aria-label')).toBe('Expand preview');
+    expect(expand?.getAttribute('title')).toBe('Expand preview');
+    expect(render).toHaveBeenCalledTimes(1);
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('keeps mermaid preview visible when the editor cursor is inside the block', () => {
     const doc = ['```mermaid', 'flowchart TD', '  A --> B', '```'].join('\n');
     const scheduler = new MermaidRenderScheduler({
@@ -447,6 +590,7 @@ describe('mermaidPreviewExtension', () => {
     );
     expect(parent.querySelector('.lm-mermaid-edit-source')).not.toBeNull();
     expect(parent.querySelector('.lm-mermaid-editor')).toBeNull();
+    expect(parent.querySelector('.lm-media-preview-expand:not([hidden])')).toBeNull();
 
     view.destroy();
     parent.remove();
@@ -498,7 +642,7 @@ describe('mermaidPreviewExtension', () => {
       render: vi.fn().mockResolvedValue('<svg></svg>'),
     });
 
-    const { parent, view } = createView(doc, scheduler);
+    const { parent, view } = createView(doc, scheduler, vi.fn());
     await vi.runAllTimersAsync();
 
     const editButton = parent.querySelector<HTMLButtonElement>(
@@ -507,13 +651,19 @@ describe('mermaidPreviewExtension', () => {
     const deleteButton = parent.querySelector<HTMLButtonElement>(
       '.lm-mermaid-delete',
     );
+    const expandButton = parent.querySelector<HTMLButtonElement>(
+      '.lm-media-preview-expand',
+    );
 
+    expect(expandButton?.getAttribute('aria-label')).toBe('展开查看');
     expect(editButton?.getAttribute('aria-label')).toBe('编辑源码');
     expect(deleteButton?.getAttribute('aria-label')).toBe('删除');
     expect(editButton?.textContent?.trim()).toBe('');
     expect(deleteButton?.textContent?.trim()).toBe('');
+    expect(expandButton?.textContent?.trim()).toBe('');
     expect(editButton?.querySelector('svg')).not.toBeNull();
     expect(deleteButton?.querySelector('svg')).not.toBeNull();
+    expect(expandButton?.querySelector('svg')).not.toBeNull();
 
     view.destroy();
     parent.remove();

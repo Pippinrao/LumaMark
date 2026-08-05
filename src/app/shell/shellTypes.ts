@@ -47,5 +47,6 @@ export type ShellSlots = {
   dialogs: ReactNode;
   editor: ReactNode;
   sidebar: ReactNode;
+  startScreen: ReactNode;
   topChrome: ReactNode;
 };

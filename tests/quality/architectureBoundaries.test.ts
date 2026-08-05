@@ -91,6 +91,7 @@ describe('architecture boundaries', () => {
       'src/app/controllers/useAppEditorCommands.ts',
       'src/app/controllers/useAppCommandModels.ts',
       'src/app/controllers/useSettingsModel.ts',
+      'src/app/controllers/useReadingAppearanceModel.ts',
       'src/app/controllers/useWindowControlsModel.ts',
     ];
 
@@ -133,6 +134,19 @@ describe('architecture boundaries', () => {
     expect(existsSync(join(root, 'src/features/workspace/workspaceCommands.ts'))).toBe(
       false,
     );
+  });
+
+  it('keeps direct browser storage access out of feature production code', () => {
+    const featureProductionFiles = listProjectFiles('src/features').filter(
+      (file) =>
+        /\.(ts|tsx)$/.test(file) &&
+        !file.endsWith('.test.ts') &&
+        !file.endsWith('.test.tsx'),
+    );
+
+    for (const file of featureProductionFiles) {
+      expectFileToAvoid(file, ['localStorage']);
+    }
   });
 
   it('keeps editor core and commands behind capability public entries', () => {

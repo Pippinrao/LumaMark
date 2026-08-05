@@ -225,6 +225,14 @@ try {
     fontScale: '1',
     pageWidth: '1040px',
   });
+  await page
+    .getByTestId('single-file-sidebar')
+    .getByText(fileName, { exact: true })
+    .waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByRole('menuitem', { name: /File|文件/, exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: /New Document|新建文档/ })
+    .click();
   await page.getByRole('button', { name: new RegExp(fileName) }).click();
   await page.locator('.lm-editor-title', { hasText: fileName }).waitFor({
     state: 'visible',

@@ -50,6 +50,7 @@ vi.mock('../../services/window/windowControls', () => ({
 
 describe('AppShell', () => {
   beforeEach(() => {
+    delete window.__LUMAMARK_E2E_OPEN_REQUESTS__;
     installResizeObserverStub();
     workspaceCommandMocks.listWorkspaceChildren.mockReset();
     workspaceCommandMocks.openWorkspaceDirectory.mockReset();
@@ -124,6 +125,34 @@ describe('AppShell', () => {
       'aria-disabled',
       'false',
     );
+  });
+
+  it('keeps a desktop open bridge failure localized and visible', async () => {
+    useStartupStore.setState({ startScreenOpen: true });
+    window.__LUMAMARK_E2E_OPEN_REQUESTS__ = {
+      drain: vi.fn(async () => ({
+        error: {
+          code: 'desktop.open_request_queue_unavailable',
+          message: 'backend detail',
+          recoverable: true,
+        },
+        ok: false as const,
+      })),
+      listen: vi.fn(async () => () => undefined),
+    };
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByText('桌面文件打开功能暂不可用'),
+    ).toBeVisible();
+    expect(screen.getByRole('main', { name: '开始' })).toBeVisible();
   });
 
   afterEach(() => {

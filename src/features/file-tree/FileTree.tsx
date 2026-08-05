@@ -32,6 +32,10 @@ export function FileTree({
   const [treeBodyRef, treeSize] = useElementSize();
   const treeRef = useRef<TreeApi<WorkspaceTreeNode> | undefined>(undefined);
   const pendingLoadPathsRef = useRef(new Set<string>());
+  const singleFileName = selectedPath
+    ?.split(/[\\/]/)
+    .filter(Boolean)
+    .at(-1);
   const requestLoadChildren = useCallback(
     (node: WorkspaceTreeNode) => {
       if (
@@ -62,13 +66,24 @@ export function FileTree({
         </button>
       </div>
 
-      <RecentFilesList files={recentFiles} onOpenFile={onOpenFile} />
+      {!root && singleFileName ? (
+        <div
+          className="lm-single-file-sidebar"
+          data-testid="single-file-sidebar"
+          title={selectedPath}
+        >
+          <FileText aria-hidden="true" size={15} />
+          <span>{singleFileName}</span>
+        </div>
+      ) : (
+        <RecentFilesList files={recentFiles} onOpenFile={onOpenFile} />
+      )}
 
       {root ? (
         <div className="lm-workspace-root" title={root.path}>
           {root.name}
         </div>
-      ) : (
+      ) : singleFileName ? null : (
         <div className="lm-sidebar-empty">{t('workspace.empty')}</div>
       )}
 

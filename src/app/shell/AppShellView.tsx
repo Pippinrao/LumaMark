@@ -8,7 +8,10 @@ import {
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { panelLayoutStorage } from './panelLayoutStorage';
-import { sidebarPanelConstraints } from './panelConstraints';
+import {
+  sidebarPanelConstraints,
+  sidebarWidthForMeasuredFileName,
+} from './panelConstraints';
 import { StatusBar } from './StatusBar';
 import type { ShellSlots, StatusBarLabels } from './shellTypes';
 
@@ -46,12 +49,14 @@ export function AppShellView({
 }: AppShellViewProps) {
   const layout = useDefaultLayout({
     id: 'lumamark-v1-main-panels',
+    onlySaveAfterUserInteractions: true,
     panelIds: ['sidebar', 'editor'],
     storage: panelLayoutStorage,
   });
   const sidebarPanelRef = usePanelRef();
   const sidebarContentRef = useRef<HTMLDivElement>(null);
   const sidebarHadFocusRef = useRef(false);
+  const sidebarWidthWasUserSetRef = useRef(Boolean(layout.defaultLayout));
   const restoredSidebarOpen =
     (layout.defaultLayout?.sidebar ?? DEFAULT_LAYOUT.sidebar) > 0;
   const sidebarHydratedRef = useRef(false);
@@ -65,6 +70,15 @@ export function AppShellView({
     },
     [onSidebarOpenChange, sidebarOpen],
   );
+  const onLayoutChanged = (
+    nextLayout: Parameters<typeof layout.onLayoutChanged>[0],
+    meta: Parameters<typeof layout.onLayoutChanged>[1],
+  ) => {
+    if (meta.isUserInteraction) {
+      sidebarWidthWasUserSetRef.current = true;
+    }
+    layout.onLayoutChanged(nextLayout, meta);
+  };
 
   useLayoutEffect(() => {
     if (sidebarHydratedRef.current) {
@@ -105,6 +119,28 @@ export function AppShellView({
     }
   }, [onSidebarCollapsedFocus, sidebarOpen, sidebarPanelRef]);
 
+  useLayoutEffect(() => {
+    if (
+      !sidebarOpen ||
+      !currentFileName ||
+      sidebarWidthWasUserSetRef.current
+    ) {
+      return;
+    }
+
+    const frame = globalThis.requestAnimationFrame(() => {
+      if (!sidebarWidthWasUserSetRef.current && sidebarOpen) {
+        sidebarPanelRef.current?.resize(
+          sidebarWidthForMeasuredFileName(measureFileName(currentFileName)),
+        );
+      }
+    });
+
+    return () => {
+      globalThis.cancelAnimationFrame(frame);
+    };
+  }, [currentFileName, sidebarOpen, sidebarPanelRef]);
+
   return (
     <div
       className={focusMode ? 'lm-app-shell lm-focus-mode' : 'lm-app-shell'}
@@ -123,7 +159,7 @@ export function AppShellView({
             className="lm-workspace-shell"
             defaultLayout={layout.defaultLayout ?? DEFAULT_LAYOUT}
             id="lumamark-v1-main-panels"
-            onLayoutChanged={layout.onLayoutChanged}
+            onLayoutChanged={onLayoutChanged}
             orientation="horizontal"
           >
             <Panel
@@ -131,6 +167,7 @@ export function AppShellView({
               collapsible
               collapsedSize="0%"
               defaultSize={sidebarPanelConstraints.defaultSize}
+              groupResizeBehavior="preserve-pixel-size"
               id="sidebar"
               maxSize={sidebarPanelConstraints.maxSize}
               minSize={sidebarPanelConstraints.minSize}
@@ -188,4 +225,24 @@ export function AppShellView({
       {slots.dialogs}
     </div>
   );
+}
+
+function measureFileName(fileName: string): number {
+  if (globalThis.navigator?.userAgent.toLowerCase().includes('jsdom')) {
+    return fileName.length * 8;
+  }
+
+  try {
+    const context = globalThis.document
+      ?.createElement('canvas')
+      .getContext('2d');
+    if (context) {
+      context.font = '13px system-ui, sans-serif';
+      return context.measureText(fileName).width;
+    }
+  } catch {
+    // The character-width estimate keeps desktop startup resilient if canvas is unavailable.
+  }
+
+  return fileName.length * 8;
 }

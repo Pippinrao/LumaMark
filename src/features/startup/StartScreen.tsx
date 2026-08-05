@@ -10,7 +10,9 @@ type StartScreenProps = {
   onOpenRecentWorkspace: (path: string) => void;
   onOpenWorkspace: () => void;
   recentFiles: readonly RecentFile[];
+  recentFilesPersistenceError?: boolean;
   recentWorkspaces: readonly RecentWorkspace[];
+  startupPersistenceError?: boolean;
 };
 
 export function StartScreen({
@@ -20,13 +22,25 @@ export function StartScreen({
   onOpenRecentWorkspace,
   onOpenWorkspace,
   recentFiles,
+  recentFilesPersistenceError = false,
   recentWorkspaces,
+  startupPersistenceError = false,
 }: StartScreenProps) {
   const { t } = useTranslation();
 
   return (
     <main aria-label={t('startup.title')} className="lm-start-screen">
       <div className="lm-start-screen-content">
+        {startupPersistenceError ? (
+          <p className="lm-start-error" role="alert">
+            {t('settings.startupPersistenceError')}
+          </p>
+        ) : null}
+        {recentFilesPersistenceError ? (
+          <p className="lm-start-error" role="alert">
+            {t('settings.recentFilesPersistenceError')}
+          </p>
+        ) : null}
         <header className="lm-start-screen-header">
           <h1>{t('app.name')}</h1>
           <p>{t('startup.description')}</p>

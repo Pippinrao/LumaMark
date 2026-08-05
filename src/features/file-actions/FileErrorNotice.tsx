@@ -20,6 +20,14 @@ function messageKeyForError(code: string): string {
       return 'fileError.invalidPath';
     case 'file.watch_error':
       return 'fileError.watchFailed';
+    case 'workspace.not_directory':
+      return 'fileError.workspaceNotDirectory';
+    case 'desktop.open_request_queue_unavailable':
+    case 'desktop.open_request_listener_unavailable':
+    case 'desktop.open_request_drain_failed':
+      return 'fileError.desktopOpenUnavailable';
+    case 'desktop.open_request_path_not_utf8':
+      return 'fileError.desktopPathUnsupported';
     default:
       return 'fileError.operationFailed';
   }

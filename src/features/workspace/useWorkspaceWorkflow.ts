@@ -8,6 +8,8 @@ import {
 import { useWorkspaceStore } from './workspaceStore';
 
 export type WorkspaceWorkflow = {
+  dismissError: () => void;
+  error: ReturnType<typeof useWorkspaceStore.getState>['error'];
   loadingPaths: Record<string, boolean>;
   loadChildren: (path: string, session?: number) => Promise<void>;
   openFile: (path: string) => Promise<void>;
@@ -35,6 +37,7 @@ export function useWorkspaceWorkflow({
   const workspaceLoadSessionRef = useRef(0);
   const workspaceLoadGenerationsRef = useRef(new Map<string, number>());
   const root = useWorkspaceStore((state) => state.root);
+  const error = useWorkspaceStore((state) => state.error);
   const tree = useWorkspaceStore((state) => state.tree);
   const loadingPaths = useWorkspaceStore((state) => state.loadingPaths);
   const finishLoading = useWorkspaceStore((state) => state.finishLoading);
@@ -133,6 +136,8 @@ export function useWorkspaceWorkflow({
   );
 
   return {
+    dismissError: () => setWorkspaceError(null),
+    error,
     loadChildren,
     loadingPaths,
     openFile,

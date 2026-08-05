@@ -17,6 +17,8 @@ import { useReadingAppearanceModel } from './useReadingAppearanceModel';
 import { useSettingsModel } from './useSettingsModel';
 import { useWindowControlsModel } from './useWindowControlsModel';
 import { useStartupExperience } from './useStartupExperience';
+import { useDesktopOpenRequests } from './useDesktopOpenRequests';
+import { useStartupStore } from '../../features/startup/startupStore';
 import { useAppStore } from '../stores/appStore';
 export function useAppShellModel() {
   const { t } = useTranslation();
@@ -43,9 +45,21 @@ export function useAppShellModel() {
     openDocumentPath: document.fileWorkflow.openPath,
     status: document.status,
   });
+  const desktopOpenRequests = useDesktopOpenRequests({
+    dirty: document.dirty,
+    editorReady: editor.editorReady,
+    onOpened: (path) => {
+      useStartupStore.getState().setLastSession({ kind: 'file', path });
+      useStartupStore.getState().setStartScreenOpen(false);
+    },
+    openPath: document.fileWorkflow.openPath,
+    recoveryChecked: document.recoveryDraft.recoveryChecked,
+    recoveryPending: Boolean(document.recoveryDraft.pendingRecoveryDraft),
+  });
   const startup = useStartupExperience({
     currentFilePath: document.currentFile?.path ?? null,
     dirty: document.dirty,
+    desktopOpenRequests,
     editorReady: editor.editorReady,
     fileWorkflow: document.fileWorkflow,
     recoveryDraft: document.recoveryDraft,
@@ -129,7 +143,6 @@ export function useAppShellModel() {
     t,
     theme: settings.theme,
   });
-
   return {
     aboutOpen,
     commandPaletteOpen: commandPalette.open,
@@ -137,6 +150,7 @@ export function useAppShellModel() {
     currentFile: document.currentFile,
     dismissFileError: document.dismissFileError,
     dirty: document.dirty,
+    desktopOpenRequests,
     documentStatistics: document.documentStatistics,
     documentTitle,
     focusMode,

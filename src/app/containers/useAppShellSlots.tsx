@@ -63,7 +63,18 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
             ) : null
           }
           discardChangesDialog={
-            model.newDocumentConfirmOpen ? (
+            model.desktopOpenRequests.pendingRequest ? (
+              <DiscardChangesDialog
+                onConfirm={model.desktopOpenRequests.confirmDiscard}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    model.desktopOpenRequests.cancelDiscard();
+                  }
+                }}
+                onReturnFocus={model.editor.focusEditor}
+                open
+              />
+            ) : model.newDocumentConfirmOpen ? (
               <DiscardChangesDialog
                 onConfirm={model.confirmNewDocument}
                 onOpenChange={model.setNewDocumentConfirmOpen}
@@ -86,7 +97,17 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
             ) : null
           }
           fileErrorNotice={
-            model.lastFileError ? (
+            model.workspace.error ? (
+              <FileErrorNotice
+                error={model.workspace.error}
+                onDismiss={model.workspace.dismissError}
+              />
+            ) : model.desktopOpenRequests.error ? (
+              <FileErrorNotice
+                error={model.desktopOpenRequests.error}
+                onDismiss={model.desktopOpenRequests.dismissError}
+              />
+            ) : model.lastFileError ? (
               <FileErrorNotice
                 error={model.lastFileError}
                 onDismiss={model.dismissFileError}
@@ -201,7 +222,9 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
           onOpenRecentWorkspace={(path) => { void model.startup.openRecentWorkspace(path); }}
           onOpenWorkspace={() => { void model.startup.openWorkspace(); }}
           recentFiles={model.recentFiles}
+          recentFilesPersistenceError={model.recentFilesPersistenceError}
           recentWorkspaces={model.startup.recentWorkspaces}
+          startupPersistenceError={model.startupPersistenceError}
         />
       ) : null,
       topChrome: (

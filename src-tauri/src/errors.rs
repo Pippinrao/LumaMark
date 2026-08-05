@@ -38,6 +38,22 @@ impl AppError {
             true,
         )
     }
+
+    pub fn open_request_queue_unavailable() -> Self {
+        Self::new(
+            "desktop.open_request_queue_unavailable",
+            "Desktop open request queue is unavailable.",
+            true,
+        )
+    }
+
+    pub fn open_request_path_not_utf8() -> Self {
+        Self::new(
+            "desktop.open_request_path_not_utf8",
+            "Desktop open request path cannot be represented as UTF-8.",
+            true,
+        )
+    }
 }
 
 impl From<io::Error> for AppError {

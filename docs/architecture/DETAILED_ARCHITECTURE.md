@@ -6,6 +6,8 @@
 
 更新：2026-08-04（开始页、会话恢复与工作区路径恢复）
 
+更新：2026-08-05（桌面文件关联、单实例转发与路径保真）
+
 当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；本轮编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 
 ## 设计结论
@@ -190,6 +192,7 @@ src/
 │  ├─ tauri/
 │  ├─ files/
 │  ├─ workspace/
+│  ├─ open-requests/
 │  ├─ render-jobs/
 │  └─ telemetry/
 ├─ shared/
@@ -336,6 +339,7 @@ feature workflow 规则：
 
 - workspace Tauri wrapper 位于 `services/workspace/`，`features/workspace/` 只保留 workflow、store 和 UI-facing 类型使用。
 - 文件监听 command/event wrapper 位于 `services/file-watch/`；打开结果 fingerprint 与 watch baseline 在这里形成竞态握手。图片 resolver 只向该 facade 串行同步已授权本地目标，editor capability 不直接依赖 Tauri。
+- 桌面打开请求 wrapper 位于 `services/open-requests/`；事件只通知队列可能变化，路径事实只能通过串行 `open_requests_drain` command 获取。路径与失败边界见 [ADR 0009](../decisions/0009-desktop-file-open-bridge.md)。
 - 浏览器/WebView 偏好存储适配位于 `services/preferences/`；它只暴露无业务方向的 key-value storage，不依赖 feature store，也不决定哪些字段持久化。
 - services 不能依赖 React 组件、Zustand store 或 app shell。
 
@@ -431,6 +435,7 @@ src-tauri/src/
 │  ├─ files.rs
 │  ├─ file_watch.rs
 │  ├─ workspace.rs
+│  ├─ open_requests.rs
 │  ├─ search.rs
 │  ├─ cache.rs
 │  └─ app.rs
@@ -438,6 +443,7 @@ src-tauri/src/
 │  ├─ file_service.rs
 │  ├─ file_watch_service.rs
 │  ├─ workspace_service.rs
+│  ├─ open_request_service.rs
 │  ├─ search_service.rs
 │  └─ cache_service.rs
 ├─ models/
@@ -480,6 +486,7 @@ workspace.open
 workspace.open_path
 workspace.list_children
 workspace.watch
+open_requests_drain
 search.query
 cache.get
 cache.set
@@ -513,6 +520,29 @@ interface AppError {
 - 用户可见错误信息走 i18n，不直接显示 Rust 原始错误。
 
 ## 核心数据流
+
+### 桌面文件打开
+
+```text
+first instance args_os / second instance Vec<String>
+-> Rust open_request_service selects the first valid Markdown path
+-> lexical normalization + pending-path deduplication
+-> queued path
+-> desktop-open-requests-available notification
+-> frontend listener-first serialized open_requests_drain
+-> dirty confirmation if required
+-> existing fileWorkflow.openPath
+```
+
+要求：
+
+- 首实例路径在 OS 层保持 `OsStr`/`Path`，禁止 lossy 转换；不能跨 JSON 边界的路径显式失败。
+- single-instance 上游的二次实例参数只能是 `Vec<String>`；该限制、平台差异和复审条件以 [ADR 0009](../decisions/0009-desktop-file-open-bridge.md) 为准。
+- 每次启动只接受第一个有效 Markdown，Rust 待处理队列按规范化路径去重。
+- `desktop-open-requests-available` 是可丢失通知而非事实来源；前端先监听再排空，并串行处理并发通知。
+- 监听失败仍尝试初始排空；初始排空失败时阻止会话恢复并显示本地化错误。
+- dirty 取消清空当前本地批次，确认只处理当前展示项；成功前不得关闭开始页或写入最后会话。
+- Windows 文件关联、资源管理器双击、二次启动和窗口聚焦必须在真实安装器上串行验收；浏览器 bridge mock 不能替代该门禁。
 
 ### 打开文件
 

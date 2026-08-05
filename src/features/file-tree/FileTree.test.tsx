@@ -197,6 +197,29 @@ describe('FileTree', () => {
     );
     expect(screen.getByText('载入中')).toBeInTheDocument();
   });
+
+  it('shows a compact current-file view when no workspace is open', () => {
+    render(
+      <I18nProvider>
+        <FileTree
+          loadingPaths={{}}
+          onLoadChildren={vi.fn()}
+          onOpenFile={vi.fn()}
+          onOpenWorkspace={vi.fn()}
+          recentFiles={[]}
+          root={null}
+          selectedPath="E:/notes/standalone.md"
+          tree={[]}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByTestId('single-file-sidebar')).toHaveTextContent(
+      'standalone.md',
+    );
+    expect(screen.queryByText('未打开工作区')).not.toBeInTheDocument();
+    expect(screen.queryByText('最近文件')).not.toBeInTheDocument();
+  });
 });
 
 type RenderFileTreeOptions = {

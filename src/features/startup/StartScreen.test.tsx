@@ -43,4 +43,28 @@ describe('StartScreen', () => {
     expect(onOpenRecentFile).toHaveBeenCalledWith('E:/notes/today.md');
     expect(onOpenRecentWorkspace).toHaveBeenCalledWith('E:/notes');
   });
+
+  it('keeps startup and recent-file persistence failures visible', () => {
+    useAppStore.setState({ language: 'zh-CN' });
+
+    render(
+      <I18nProvider>
+        <StartScreen
+          onNewDocument={vi.fn()}
+          onOpenFile={vi.fn()}
+          onOpenRecentFile={vi.fn()}
+          onOpenRecentWorkspace={vi.fn()}
+          onOpenWorkspace={vi.fn()}
+          recentFiles={[]}
+          recentFilesPersistenceError
+          recentWorkspaces={[]}
+          startupPersistenceError
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getAllByRole('alert')).toHaveLength(2);
+    expect(screen.getByText(/无法读取或保存启动设置/)).toBeVisible();
+    expect(screen.getByText(/无法读取或保存最近文件列表/)).toBeVisible();
+  });
 });

@@ -104,4 +104,27 @@ describe('useStartupExperience', () => {
     expect(options.fileWorkflow.openPath).not.toHaveBeenCalled();
     expect(result.current.visible).toBe(true);
   });
+
+  it('waits for desktop launch requests before deciding whether to restore a session', async () => {
+    useStartupStore.setState({
+      lastSession: { kind: 'file', path: 'E:/notes/last.md' },
+      startupBehavior: 'restoreLastSession',
+    });
+    const options = {
+      ...createOptions(),
+      desktopOpenRequests: {
+        blocksSessionRestore: false,
+        bootstrapComplete: false,
+      },
+    };
+    const { rerender } = renderHook(() => useStartupExperience(options));
+
+    expect(options.fileWorkflow.openPath).not.toHaveBeenCalled();
+    options.desktopOpenRequests.blocksSessionRestore = true;
+    options.desktopOpenRequests.bootstrapComplete = true;
+    rerender();
+    await act(async () => { await Promise.resolve(); });
+
+    expect(options.fileWorkflow.openPath).not.toHaveBeenCalled();
+  });
 });

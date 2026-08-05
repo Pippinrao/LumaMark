@@ -6,6 +6,10 @@ import type { WorkspaceWorkflow } from '../../features/workspace/useWorkspaceWor
 
 type UseStartupExperienceOptions = {
   currentFilePath: string | null;
+  desktopOpenRequests?: {
+    blocksSessionRestore: boolean;
+    bootstrapComplete: boolean;
+  };
   dirty: boolean;
   editorReady: boolean;
   fileWorkflow: Pick<FileWorkflow, 'createNewDocument' | 'openFromDialog' | 'openPath'>;
@@ -15,6 +19,10 @@ type UseStartupExperienceOptions = {
 
 export function useStartupExperience({
   currentFilePath,
+  desktopOpenRequests = {
+    blocksSessionRestore: false,
+    bootstrapComplete: true,
+  },
   dirty,
   editorReady,
   fileWorkflow,
@@ -81,10 +89,16 @@ export function useStartupExperience({
   useEffect(() => {
     if (
       restoreAttemptedRef.current ||
+      !desktopOpenRequests.bootstrapComplete ||
       !editorReady ||
       !recoveryDraft.recoveryChecked ||
       recoveryDraft.pendingRecoveryDraft
     ) {
+      return;
+    }
+
+    if (desktopOpenRequests.blocksSessionRestore) {
+      restoreAttemptedRef.current = true;
       return;
     }
 
@@ -126,6 +140,8 @@ export function useStartupExperience({
     })();
   }, [
     dirty,
+    desktopOpenRequests.blocksSessionRestore,
+    desktopOpenRequests.bootstrapComplete,
     editorReady,
     fileWorkflow,
     recoveryDraft.pendingRecoveryDraft,

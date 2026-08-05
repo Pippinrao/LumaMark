@@ -530,6 +530,30 @@ button {
   white-space: nowrap;
 }
 
+.lm-single-file-sidebar {
+  align-items: center;
+  color: var(--lm-text-primary);
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 12px;
+}
+
+.lm-single-file-sidebar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lm-start-error {
+  background: color-mix(in srgb, var(--lm-color-danger) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lm-color-danger) 28%, transparent);
+  border-radius: 8px;
+  color: var(--lm-text-primary);
+  margin: 0 0 12px;
+  padding: 9px 12px;
+}
+
 .lm-file-tree {
   display: flex;
   min-height: 0;

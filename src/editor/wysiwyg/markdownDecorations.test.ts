@@ -4,7 +4,7 @@ import {
   EditorState,
 } from '@codemirror/state';
 import { EditorView, runScopeHandlers } from '@codemirror/view';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   collectMarkdownDecorationRanges,
   markdownWysiwygExtension,
@@ -343,6 +343,97 @@ describe('markdown WYSIWYG extension', () => {
     ).toBe('keep');
   });
 
+  it('freezes layout-changing markers for the entire pointer gesture', () => {
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        documentChanged: false,
+        gestureActive: true,
+        requiresRebuild: true,
+        wasComposing: false,
+      }),
+    ).toBe('keep');
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        documentChanged: true,
+        gestureActive: true,
+        requiresRebuild: true,
+        wasComposing: false,
+      }),
+    ).toBe('map');
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        documentChanged: false,
+        gestureActive: false,
+        requiresRebuild: true,
+        wasComposing: false,
+      }),
+    ).toBe('rebuild');
+  });
+
+  it('removes document gesture listeners when the editor is destroyed', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const documentAdd = vi.spyOn(document, 'addEventListener');
+    const documentRemove = vi.spyOn(document, 'removeEventListener');
+    const windowAdd = vi.spyOn(window, 'addEventListener');
+    const windowRemove = vi.spyOn(window, 'removeEventListener');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'plain',
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      }),
+    });
+    let viewDestroyed = false;
+
+    try {
+      const documentCallStart = documentAdd.mock.calls.length;
+      const windowCallStart = windowAdd.mock.calls.length;
+      view.contentDOM.dispatchEvent(
+        new MouseEvent('mousedown', {
+          bubbles: true,
+          button: 0,
+          detail: 1,
+        }),
+      );
+
+      const documentGestureListeners = documentAdd.mock.calls
+        .slice(documentCallStart)
+        .filter(([, , options]) => options === true);
+      const windowGestureListeners = windowAdd.mock.calls
+        .slice(windowCallStart)
+        .filter(([, , options]) => options === true);
+      expect(documentGestureListeners.map(([type]) => type)).toEqual([
+        'mouseup',
+        'pointercancel',
+        'touchend',
+        'touchcancel',
+      ]);
+      expect(windowGestureListeners.map(([type]) => type)).toEqual(['blur']);
+
+      view.destroy();
+      viewDestroyed = true;
+      for (const listener of documentGestureListeners) {
+        expect(documentRemove).toHaveBeenCalledWith(...listener);
+      }
+      for (const listener of windowGestureListeners) {
+        expect(windowRemove).toHaveBeenCalledWith(...listener);
+      }
+    } finally {
+      if (!viewDestroyed) {
+        view.destroy();
+      }
+      documentAdd.mockRestore();
+      documentRemove.mockRestore();
+      windowAdd.mockRestore();
+      windowRemove.mockRestore();
+      parent.remove();
+    }
+  });
+
   it('reveals only the inline owner touched by the caret on the same line', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
@@ -508,11 +599,6 @@ describe('markdown WYSIWYG extension', () => {
         doc: '> first\n> second\n\nplain',
         expected: ['> second'],
       },
-      {
-        cursor: 'const',
-        doc: '```ts\nconst x = 1\n```\n\nplain',
-        expected: ['```ts', 'const x = 1', '```'],
-      },
     ] as const;
 
     for (const item of cases) {
@@ -536,6 +622,33 @@ describe('markdown WYSIWYG extension', () => {
       host.remove();
     }
 
+    parent.remove();
+  });
+
+  it('keeps fenced-code boundaries hidden while editing content and reveals only the active boundary', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '```ts\nconst x = 1\n```\n\nplain';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.indexOf('const') + 1),
+      }),
+    });
+
+    expect(visibleLineTexts(parent)).toEqual(['', 'const x = 1', '', '', 'plain']);
+
+    view.dispatch({ selection: EditorSelection.cursor(2) });
+    expect(visibleLineTexts(parent)).toEqual(['```ts', 'const x = 1', '', '', 'plain']);
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.lastIndexOf('```') + 1),
+    });
+    expect(visibleLineTexts(parent)).toEqual(['', 'const x = 1', '```', '', 'plain']);
+
+    view.destroy();
     parent.remove();
   });
 
@@ -573,7 +686,7 @@ describe('markdown WYSIWYG extension', () => {
     },
   );
 
-  it('reveals a complete and consistent quote path around an active fenced code block', () => {
+  it('reveals only the current quote path inside an active fenced code block', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const doc = '> ```ts\n> code\n> ```';
@@ -586,7 +699,7 @@ describe('markdown WYSIWYG extension', () => {
       }),
     });
 
-    expect(visibleLineTexts(parent)).toEqual(doc.split('\n'));
+    expect(visibleLineTexts(parent)).toEqual([' ', '> code', ' ']);
 
     view.destroy();
     parent.remove();

@@ -344,6 +344,27 @@ function createBlock(
   };
 }
 
+function scopeBlockDelimitersToSelection(
+  state: EditorState,
+  selection: SelectionRange,
+  block: EditorInteractionBlock,
+): EditorInteractionBlock {
+  if (block.kind !== 'FencedCode') {
+    return block;
+  }
+
+  return {
+    ...block,
+    delimiterRanges: block.delimiterRanges.filter(
+      (range) =>
+        selection.empty
+          ? state.doc.lineAt(range.from).from ===
+            state.doc.lineAt(selection.head).from
+          : selection.from < range.to && selection.to > range.from,
+    ),
+  };
+}
+
 function findSmallestBlockAt(
   state: EditorState,
   position: number,
@@ -484,7 +505,9 @@ function deriveSelectionInteraction(
     ? startBlock
     : findSmallestBlockAt(state, selection.to, -1);
   const crossesBlocks = !sameBlock(startBlock, endBlock);
-  const block = crossesBlocks ? null : startBlock;
+  const block = crossesBlocks || !startBlock
+    ? null
+    : scopeBlockDelimitersToSelection(state, selection, startBlock);
   const inlineOwners = collectInlineOwners(state, selection);
 
   return {

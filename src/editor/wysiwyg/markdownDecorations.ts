@@ -1,5 +1,10 @@
 import { syntaxTree } from '@codemirror/language';
-import { EditorState, type Extension, RangeSetBuilder } from '@codemirror/state';
+import {
+  EditorState,
+  type Extension,
+  RangeSetBuilder,
+  StateEffect,
+} from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
@@ -46,7 +51,22 @@ type DecorationItem = {
   to: number;
 };
 
+type InlinePointerCandidate = {
+  position: number;
+  x: number;
+  y: number;
+};
+
 const TASK_CHECKBOX_ARIA_LABEL = 'Toggle task completion';
+const INLINE_OWNER_FROM_ATTRIBUTE = 'data-lm-inline-owner-from';
+const INLINE_OWNER_TO_ATTRIBUTE = 'data-lm-inline-owner-to';
+const INLINE_DECORATION_KINDS = new Set<MarkdownDecorationRange['kind']>([
+  'emphasis',
+  'inlineCode',
+  'link',
+  'strikethrough',
+  'strong',
+]);
 
 export function relabelTaskCheckboxes(
   root: ParentNode,
@@ -343,7 +363,15 @@ function buildDecorations(view: EditorView): DecorationSet {
 
     if (range.from !== range.to) {
       decorations.push({
-        decoration: Decoration.mark({ class: range.className }),
+        decoration: Decoration.mark({
+          attributes: INLINE_DECORATION_KINDS.has(range.kind)
+            ? {
+                [INLINE_OWNER_FROM_ATTRIBUTE]: String(range.from),
+                [INLINE_OWNER_TO_ATTRIBUTE]: String(range.to),
+              }
+            : undefined,
+          class: range.className,
+        }),
         from: range.from,
         to: range.to,
       });
@@ -925,7 +953,11 @@ function shouldRevealSyntaxNode(
 
   const activeDelimiter = isActiveDelimiterRange(interaction, node);
 
-  if (node.name === 'QuoteMark') {
+  if (
+    node.name === 'CodeInfo' ||
+    node.name === 'CodeMark' ||
+    node.name === 'QuoteMark'
+  ) {
     return activeDelimiter;
   }
 
@@ -959,15 +991,25 @@ export type MarkdownDecorationUpdateMode =
 
 export function selectMarkdownDecorationUpdateMode({
   compositionStarted,
+  documentChanged = false,
+  gestureActive = false,
   requiresRebuild,
   wasComposing,
 }: {
   readonly compositionStarted: boolean;
+  readonly documentChanged?: boolean;
+  readonly gestureActive?: boolean;
   readonly requiresRebuild: boolean;
   readonly wasComposing: boolean;
 }): MarkdownDecorationUpdateMode {
-  if (compositionStarted) {
+  if (compositionStarted || (gestureActive && documentChanged)) {
     return 'map';
+  }
+
+  if (gestureActive) {
+    // Revealing a hidden delimiter between pointer-down and pointer-up changes
+    // the source position beneath the same screen coordinate.
+    return 'keep';
   }
 
   if (wasComposing || requiresRebuild) {
@@ -977,9 +1019,16 @@ export function selectMarkdownDecorationUpdateMode({
   return 'keep';
 }
 
+const settlePointerMarkdownDecorations = StateEffect.define<null>();
+
 const markdownDecorationsPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
+    private destroyed = false;
+    private gestureActive = false;
+    private gestureCleanup: (() => void) | null = null;
+    private inlinePointerCandidate: InlinePointerCandidate | null = null;
+    private settlementQueued = false;
     private wasComposing: boolean;
 
     constructor(view: EditorView) {
@@ -989,9 +1038,24 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
 
     update(update: ViewUpdate) {
       const compositionStarted = update.view.compositionStarted;
+      if (this.gestureActive && update.docChanged) {
+        // A document change can invalidate both the source offset and the
+        // Markdown owner captured at pointer-down. This includes IME commits,
+        // whose resulting caret must never be replaced by a stale click fixup.
+        this.inlinePointerCandidate = null;
+      }
+      const pointerSettlement = update.transactions.some((transaction) =>
+        transaction.effects.some((effect) =>
+          effect.is(settlePointerMarkdownDecorations),
+        ),
+      );
+
       const mode = selectMarkdownDecorationUpdateMode({
         compositionStarted,
+        documentChanged: update.docChanged,
+        gestureActive: this.gestureActive,
         requiresRebuild:
+          pointerSettlement ||
           update.docChanged ||
           update.selectionSet ||
           update.viewportChanged ||
@@ -1011,9 +1075,146 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
 
       this.wasComposing = compositionStarted;
     }
+
+    beginPointerSelection(event: MouseEvent, view: EditorView): void {
+      this.beginGesture(view);
+      this.inlinePointerCandidate = null;
+
+      if (
+        event.button !== 0 ||
+        event.detail !== 1 ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      const owner = target instanceof Element
+        ? target.closest<HTMLElement>(`[${INLINE_OWNER_FROM_ATTRIBUTE}]`)
+        : null;
+      const from = Number(owner?.getAttribute(INLINE_OWNER_FROM_ATTRIBUTE));
+      const to = Number(owner?.getAttribute(INLINE_OWNER_TO_ATTRIBUTE));
+
+      if (
+        !owner ||
+        !Number.isInteger(from) ||
+        !Number.isInteger(to) ||
+        to - from < 2
+      ) {
+        return;
+      }
+
+      const coordinatePosition = view.posAtCoords({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      this.inlinePointerCandidate = {
+        position: Math.max(
+          from + 1,
+          Math.min(coordinatePosition ?? from + 1, to - 1),
+        ),
+        x: event.clientX,
+        y: event.clientY,
+      };
+    }
+
+    beginTouchSelection(view: EditorView): void {
+      this.beginGesture(view);
+      this.inlinePointerCandidate = null;
+    }
+
+    private beginGesture(view: EditorView): void {
+      this.cleanupGestureListeners();
+      this.gestureActive = true;
+      this.settlementQueued = false;
+
+      const ownerDocument = view.dom.ownerDocument;
+      const ownerWindow = ownerDocument.defaultView;
+      const handleMouseUp = (event: MouseEvent) => {
+        this.queuePointerSettlement(view, event);
+      };
+      const handleCancel = () => {
+        this.queuePointerSettlement(view, null);
+      };
+
+      ownerDocument.addEventListener('mouseup', handleMouseUp, true);
+      ownerDocument.addEventListener('pointercancel', handleCancel, true);
+      ownerDocument.addEventListener('touchend', handleCancel, true);
+      ownerDocument.addEventListener('touchcancel', handleCancel, true);
+      ownerWindow?.addEventListener('blur', handleCancel, true);
+      this.gestureCleanup = () => {
+        ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
+        ownerDocument.removeEventListener('pointercancel', handleCancel, true);
+        ownerDocument.removeEventListener('touchend', handleCancel, true);
+        ownerDocument.removeEventListener('touchcancel', handleCancel, true);
+        ownerWindow?.removeEventListener('blur', handleCancel, true);
+      };
+    }
+
+    private queuePointerSettlement(
+      view: EditorView,
+      event: MouseEvent | null,
+    ): void {
+      if (this.destroyed || !this.gestureActive || this.settlementQueued) {
+        return;
+      }
+
+      this.settlementQueued = true;
+      queueMicrotask(() => {
+        this.settlementQueued = false;
+        this.settlePointerSelection(view, event);
+      });
+    }
+
+    settlePointerSelection(
+      view: EditorView,
+      event: MouseEvent | null,
+    ): void {
+      if (this.destroyed || !this.gestureActive) {
+        return;
+      }
+
+      this.gestureActive = false;
+      this.cleanupGestureListeners();
+      const candidate = this.inlinePointerCandidate;
+      this.inlinePointerCandidate = null;
+      const isPrimaryClick =
+        candidate !== null &&
+        event !== null &&
+        Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y) <= 3;
+
+      view.dispatch({
+        effects: settlePointerMarkdownDecorations.of(null),
+        ...(isPrimaryClick ? { selection: { anchor: candidate.position } } : {}),
+      });
+    }
+
+    private cleanupGestureListeners(): void {
+      this.gestureCleanup?.();
+      this.gestureCleanup = null;
+    }
+
+    destroy(): void {
+      this.destroyed = true;
+      this.gestureActive = false;
+      this.settlementQueued = false;
+      this.inlinePointerCandidate = null;
+      this.cleanupGestureListeners();
+    }
   },
   {
     decorations: (plugin) => plugin.decorations,
+    eventObservers: {
+      mousedown(event, view) {
+        this.beginPointerSelection(event, view);
+      },
+      touchstart(_event, view) {
+        this.beginTouchSelection(view);
+      },
+    },
   },
 );
 

@@ -326,7 +326,7 @@ describe('editor interaction context', () => {
     expect(delimiterPositions).toEqual([doc.indexOf('>')]);
   });
 
-  it('includes the outer quote path for every active fenced-code delimiter line', () => {
+  it('includes only the active-line quote path inside fenced code', () => {
     const doc = '> ```ts\n> code\n> ```';
     const state = createState(
       doc,
@@ -341,10 +341,43 @@ describe('editor interaction context', () => {
       .map((range) => range.from);
 
     expect(quotePositions).toEqual([
-      doc.indexOf('>'),
       doc.indexOf('>', doc.indexOf('\n') + 1),
-      doc.lastIndexOf('>'),
     ]);
+  });
+
+  it('exposes only the fenced-code delimiter on the active boundary line', () => {
+    const doc = '```ts\nconst value = 1\n```';
+    const contentState = createState(
+      doc,
+      EditorSelection.cursor(doc.indexOf('value')),
+    );
+    const openingState = createState(doc, EditorSelection.cursor(2));
+    const closingState = createState(
+      doc,
+      EditorSelection.cursor(doc.lastIndexOf('```') + 1),
+    );
+    const visibleDelimiters = (state: EditorState) =>
+      deriveEditorInteractionContext(state, false).selections[0].delimiterRanges
+        .filter((range) => range.kind === 'CodeInfo' || range.kind === 'CodeMark')
+        .map((range) => state.doc.sliceString(range.from, range.to));
+
+    expect(visibleDelimiters(contentState)).toEqual([]);
+    expect(visibleDelimiters(openingState)).toEqual(['```', 'ts']);
+    expect(visibleDelimiters(closingState)).toEqual(['```']);
+  });
+
+  it('keeps a fenced-code boundary visible while a selection includes it', () => {
+    const doc = '```ts\nconst value = 1\n```';
+    const state = createState(
+      doc,
+      EditorSelection.range(1, doc.indexOf('value')),
+    );
+
+    expect(
+      deriveEditorInteractionContext(state, false).selections[0].delimiterRanges
+        .filter((range) => range.kind === 'CodeInfo' || range.kind === 'CodeMark')
+        .map((range) => state.doc.sliceString(range.from, range.to)),
+    ).toEqual(['```', 'ts']);
   });
 
   it('keeps quote delimiter collection bounded for a large cross-block selection', () => {

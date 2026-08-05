@@ -1,4 +1,5 @@
 const fallbackPanelLayoutStorage = new Map<string, string>();
+const SIDEBAR_OPEN_STORAGE_KEY = 'lumamark.sidebar-open.v1';
 
 function isJsdomRuntime(): boolean {
   const userAgent = globalThis.navigator?.userAgent.toLowerCase() ?? '';
@@ -48,3 +49,21 @@ export const panelLayoutStorage = {
     fallbackPanelLayoutStorage.set(key, value);
   },
 };
+
+export function readPersistedSidebarOpen(): boolean | null {
+  const value = panelLayoutStorage.getItem(SIDEBAR_OPEN_STORAGE_KEY);
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  return null;
+}
+
+export function persistSidebarOpen(sidebarOpen: boolean): void {
+  panelLayoutStorage.setItem(SIDEBAR_OPEN_STORAGE_KEY, String(sidebarOpen));
+}

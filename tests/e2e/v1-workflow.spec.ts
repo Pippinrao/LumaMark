@@ -234,7 +234,7 @@ test('reopens a recent file from the files sidebar', async ({ page }) => {
   await runFileMenuAction(page, 'openFile');
   const editor = page.locator('.cm-content');
   await expect(editor).toContainText('Recent document');
-  await expect(page.getByRole('button', { name: 'recent.md' })).toBeVisible();
+  await expect(page.getByTestId('single-file-sidebar')).toContainText('recent.md');
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'recent.md' })).toBeVisible();

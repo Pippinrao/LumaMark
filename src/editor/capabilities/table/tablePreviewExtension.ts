@@ -11,6 +11,7 @@ import {
 } from 'codemirror-markdown-tables';
 import { Strikethrough } from '@lezer/markdown';
 import { markdownSyntaxHighlighting } from '../../markdown/markdownLanguage';
+import { tableCellEditingExtension } from './tableCellEditing';
 import { tableKeymap } from './tableCommands';
 import './table.css';
 
@@ -36,6 +37,7 @@ export function tablePreviewExtension(): Extension {
       extensions: [
         EditorView.lineWrapping,
         markdownSyntaxHighlighting(),
+        tableCellEditingExtension(),
         keymap.of(defaultKeymap),
       ],
       style: TableStyle.default.with({

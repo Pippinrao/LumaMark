@@ -8,6 +8,10 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShellView } from './AppShellView';
+import {
+  persistSidebarOpen,
+  readPersistedSidebarOpen,
+} from './panelLayoutStorage';
 
 const panelMocks = vi.hoisted(() => ({
   expand: vi.fn(),
@@ -84,23 +88,41 @@ describe('AppShellView sidebar sizing', () => {
       { isUserInteraction: true },
     );
   });
+
+  it('does not persist the temporary focus-mode sidebar collapse', async () => {
+    persistSidebarOpen(true);
+    const view = render(createShell('draft.md'));
+    await waitFor(() => expect(readPersistedSidebarOpen()).toBe(true));
+
+    view.rerender(
+      createShell('draft.md', { focusMode: true, sidebarOpen: false }),
+    );
+
+    await waitFor(() => expect(readPersistedSidebarOpen()).toBe(true));
+  });
 });
 
 function renderShell(fileName: string) {
   return render(createShell(fileName));
 }
 
-function createShell(fileName: string) {
+function createShell(
+  fileName: string,
+  {
+    focusMode = false,
+    sidebarOpen = true,
+  }: { focusMode?: boolean; sidebarOpen?: boolean } = {},
+) {
   return (
     <AppShellView
       currentFileName={fileName}
       dirty={false}
-      focusMode={false}
+      focusMode={focusMode}
       focusModeExitLabel="Exit focus mode"
       onExitFocusMode={vi.fn()}
       onSidebarCollapsedFocus={vi.fn()}
       onSidebarOpenChange={vi.fn()}
-      sidebarOpen
+      sidebarOpen={sidebarOpen}
       slots={{
         dialogs: null,
         editor: <div>Editor</div>,

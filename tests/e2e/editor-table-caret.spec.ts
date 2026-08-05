@@ -775,6 +775,80 @@ test('keeps wrapped formatted clicks, caret geometry, and source insertion align
     });
 });
 
+test('keeps End on the current visual line in a wrapped formatted cell', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+  const visible = `${'long wrapped content '.repeat(18)}tail`;
+  const sourceCell = `**${visible}**`;
+  await replaceEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| Content | Other |',
+      '| ------- | ----- |',
+      `| ${sourceCell} | value |`,
+      '',
+      'after',
+    ].join('\n'),
+  );
+
+  const cell = dataCell(page, 0, 0);
+  await expect
+    .poll(() =>
+      cell.locator('.tbl-cell-view').evaluate((surface) => {
+        const style = getComputedStyle(surface);
+
+        return (
+          surface.getBoundingClientRect().height /
+          Number.parseFloat(style.lineHeight)
+        );
+      }),
+    )
+    .toBeGreaterThan(2);
+
+  await clickVisibleGlyph(page, cell, 'long', 0.05);
+  const before = await readSelectionSnapshot(page);
+  await page.keyboard.press('End');
+  const after = await readSelectionSnapshot(page);
+
+  expect(after.nested.head).toBeGreaterThan(before.nested.head);
+  expect(after.nested.head).toBeLessThan(sourceCell.length - 2);
+  expect(after.dom.withinCellEditor).toBe(true);
+  expect(
+    Math.abs(after.caretRect.top - before.caretRect.top),
+  ).toBeLessThanOrEqual(1);
+
+  let finalVisualEnd = after;
+  for (
+    let index = 0;
+    index < 10 && finalVisualEnd.nested.head < sourceCell.length - 2;
+    index += 1
+  ) {
+    const previousHead = finalVisualEnd.nested.head;
+    await page.keyboard.press('End');
+    finalVisualEnd = await readSelectionSnapshot(page);
+    expect(finalVisualEnd.nested.head).toBeGreaterThan(previousHead);
+  }
+
+  expect(finalVisualEnd.nested.head).toBe(sourceCell.length - 2);
+  expectCaretGeometry(finalVisualEnd);
+
+  const insertionOffset = finalVisualEnd.nested.head;
+  await page.keyboard.insertText('!');
+  await expect
+    .poll(() => readSelectionSnapshot(page))
+    .toMatchObject({
+      nested: {
+        head: insertionOffset + 1,
+        text: `${sourceCell.slice(0, insertionOffset)}!${sourceCell.slice(
+          insertionOffset,
+        )}`,
+      },
+    });
+});
+
 test('keeps first and last table cell clicks out of surrounding text', async ({
   page,
 }) => {

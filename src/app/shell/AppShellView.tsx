@@ -5,9 +5,13 @@ import {
   useDefaultLayout,
   usePanelRef,
 } from 'react-resizable-panels';
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { panelLayoutStorage } from './panelLayoutStorage';
+import {
+  panelLayoutStorage,
+  persistSidebarOpen,
+  readPersistedSidebarOpen,
+} from './panelLayoutStorage';
 import {
   sidebarPanelConstraints,
   sidebarWidthForMeasuredFileName,
@@ -57,8 +61,11 @@ export function AppShellView({
   const sidebarContentRef = useRef<HTMLDivElement>(null);
   const sidebarHadFocusRef = useRef(false);
   const sidebarWidthWasUserSetRef = useRef(Boolean(layout.defaultLayout));
-  const restoredSidebarOpen =
-    (layout.defaultLayout?.sidebar ?? DEFAULT_LAYOUT.sidebar) > 0;
+  const [restoredSidebarOpen] = useState(
+    () =>
+      readPersistedSidebarOpen() ??
+      (layout.defaultLayout?.sidebar ?? DEFAULT_LAYOUT.sidebar) > 0,
+  );
   const sidebarHydratedRef = useRef(false);
   const onSidebarResize = useCallback(
     (size: { asPercentage: number }) => {
@@ -118,6 +125,12 @@ export function AppShellView({
       sidebarPanel.collapse();
     }
   }, [onSidebarCollapsedFocus, sidebarOpen, sidebarPanelRef]);
+
+  useLayoutEffect(() => {
+    if (sidebarHydratedRef.current && !focusMode) {
+      persistSidebarOpen(sidebarOpen);
+    }
+  }, [focusMode, sidebarOpen]);
 
   useLayoutEffect(() => {
     if (

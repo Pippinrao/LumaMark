@@ -16,6 +16,7 @@ export type CommandActionId =
   | 'openSettings'
   | 'openWorkspace'
   | 'redo'
+  | 'resetZoom'
   | 'save'
   | 'saveAs'
   | 'setChineseLanguage'

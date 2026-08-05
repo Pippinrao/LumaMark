@@ -133,14 +133,48 @@ describe('readingAppearanceStore', () => {
   it('clamps session zoom to the supported range', () => {
     const store = createReadingAppearanceStore(createMemoryStorage());
 
-    for (let index = 0; index < 20; index += 1) {
+    for (let index = 0; index < 40; index += 1) {
       store.getState().zoomOut();
     }
     expect(store.getState().fontZoomPercent).toBe(MIN_FONT_ZOOM_PERCENT);
 
-    for (let index = 0; index < 30; index += 1) {
+    for (let index = 0; index < 50; index += 1) {
       store.getState().zoomIn();
     }
     expect(store.getState().fontZoomPercent).toBe(MAX_FONT_ZOOM_PERCENT);
+
+    expect(MIN_FONT_ZOOM_PERCENT).toBe(20);
+    expect(MAX_FONT_ZOOM_PERCENT).toBe(300);
+  });
+
+  it('resets zoom to 100% without persisting it or emitting boundary no-ops', () => {
+    const storage = {
+      getItem: vi.fn(() => null),
+      removeItem: vi.fn(),
+      setItem: vi.fn(),
+    };
+    const store = createReadingAppearanceStore(storage);
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+
+    for (let index = 0; index < 8; index += 1) {
+      store.getState().zoomOut();
+    }
+    expect(store.getState().fontZoomPercent).toBe(MIN_FONT_ZOOM_PERCENT);
+
+    listener.mockClear();
+    store.getState().zoomOut();
+    expect(listener).not.toHaveBeenCalled();
+
+    store.getState().resetZoom();
+    expect(store.getState().fontZoomPercent).toBe(DEFAULT_FONT_ZOOM_PERCENT);
+    expect(listener).toHaveBeenCalledOnce();
+    expect(storage.setItem).not.toHaveBeenCalled();
+
+    listener.mockClear();
+    store.getState().resetZoom();
+    expect(listener).not.toHaveBeenCalled();
+
+    unsubscribe();
   });
 });

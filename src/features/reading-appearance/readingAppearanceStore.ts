@@ -10,8 +10,8 @@ export type EditorPageWidth = (typeof PAGE_WIDTHS)[number];
 
 export const DEFAULT_PAGE_WIDTH: EditorPageWidth = 'standard';
 export const DEFAULT_FONT_ZOOM_PERCENT = 100;
-export const MIN_FONT_ZOOM_PERCENT = 80;
-export const MAX_FONT_ZOOM_PERCENT = 200;
+export const MIN_FONT_ZOOM_PERCENT = 20;
+export const MAX_FONT_ZOOM_PERCENT = 300;
 export const FONT_ZOOM_STEP_PERCENT = 10;
 
 const PAGE_WIDTH_PIXELS: Record<EditorPageWidth, number | null> = {
@@ -28,6 +28,7 @@ export type ReadingAppearanceState = {
   fontZoomPercent: number;
   pageWidth: EditorPageWidth;
   pageWidthPersistenceError: boolean;
+  resetZoom: () => void;
   setPageWidth: (pageWidth: EditorPageWidth) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -108,21 +109,36 @@ export function createReadingAppearanceStore(
 
       set({ pageWidth, pageWidthPersistenceError });
     },
+    resetZoom: () => {
+      set((state) =>
+        state.fontZoomPercent === DEFAULT_FONT_ZOOM_PERCENT
+          ? state
+          : { fontZoomPercent: DEFAULT_FONT_ZOOM_PERCENT },
+      );
+    },
     zoomIn: () => {
-      set((state) => ({
-        fontZoomPercent: Math.min(
+      set((state) => {
+        const fontZoomPercent = Math.min(
           MAX_FONT_ZOOM_PERCENT,
           state.fontZoomPercent + FONT_ZOOM_STEP_PERCENT,
-        ),
-      }));
+        );
+
+        return fontZoomPercent === state.fontZoomPercent
+          ? state
+          : { fontZoomPercent };
+      });
     },
     zoomOut: () => {
-      set((state) => ({
-        fontZoomPercent: Math.max(
+      set((state) => {
+        const fontZoomPercent = Math.max(
           MIN_FONT_ZOOM_PERCENT,
           state.fontZoomPercent - FONT_ZOOM_STEP_PERCENT,
-        ),
-      }));
+        );
+
+        return fontZoomPercent === state.fontZoomPercent
+          ? state
+          : { fontZoomPercent };
+      });
     },
   }));
 }

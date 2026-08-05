@@ -103,6 +103,7 @@
   "menu.livePreviewMode": "实时预览",
   "menu.sourceMode": "源码模式",
   "menu.focusMode": "专注模式",
+  "menu.resetZoom": "重置缩放（100%）",
   "menu.about": "关于 LumaMark",
   "sidebar.files": "文件",
   "recentFiles.title": "最近文件",

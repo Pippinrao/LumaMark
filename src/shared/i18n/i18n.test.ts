@@ -37,6 +37,7 @@ const requiredCoreKeys = [
   'menu.heading6',
   'menu.horizontalRule',
   'menu.find',
+  'menu.resetZoom',
   'editor.search.find',
   'editor.search.replace',
   'editor.search.next',

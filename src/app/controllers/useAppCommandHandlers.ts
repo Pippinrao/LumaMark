@@ -43,6 +43,7 @@ type UseAppCommandHandlersOptions = {
   openSettings: () => void;
   openWorkspace: () => void;
   redo: () => void;
+  resetZoom: () => void;
   runFormat: (command: MarkdownFormatCommand) => void;
   save: () => void;
   saveAs: () => void;
@@ -73,6 +74,7 @@ export function useAppCommandHandlers({
   openSettings,
   openWorkspace,
   redo,
+  resetZoom,
   runFormat,
   save,
   saveAs,
@@ -112,6 +114,7 @@ export function useAppCommandHandlers({
       openSettings,
       openWorkspace,
       redo: guardEditorCommand(editorAvailable, redo),
+      resetZoom: guardEditorCommand(editorAvailable, resetZoom),
       save: guardEditorCommand(editorAvailable, save),
       saveAs: guardEditorCommand(editorAvailable, saveAs),
       setChineseLanguage: () => setLanguage('zh-CN'),
@@ -142,6 +145,7 @@ export function useAppCommandHandlers({
     openSettings,
     openWorkspace,
     redo,
+    resetZoom,
     runFormat,
     save,
     saveAs,

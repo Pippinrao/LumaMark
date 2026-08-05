@@ -6,7 +6,7 @@ import {
   useReadingAppearanceStore,
 } from '../../features/reading-appearance/readingAppearanceStore';
 
-export function useReadingAppearanceModel() {
+export function useReadingAppearanceModel(focusEditor: () => void) {
   const fontZoomPercent = useReadingAppearanceStore(
     (state) => state.fontZoomPercent,
   );
@@ -15,6 +15,7 @@ export function useReadingAppearanceModel() {
     (state) => state.pageWidthPersistenceError,
   );
   const setPageWidth = useReadingAppearanceStore((state) => state.setPageWidth);
+  const resetZoom = useReadingAppearanceStore((state) => state.resetZoom);
   const zoomIn = useReadingAppearanceStore((state) => state.zoomIn);
   const zoomOut = useReadingAppearanceStore((state) => state.zoomOut);
   const appearance = useMemo(
@@ -35,12 +36,17 @@ export function useReadingAppearanceModel() {
     },
     [zoomIn, zoomOut],
   );
+  const resetZoomAndFocus = useCallback(() => {
+    resetZoom();
+    focusEditor();
+  }, [focusEditor, resetZoom]);
 
   return {
     appearance,
     onZoomRequested,
     pageWidth,
     pageWidthPersistenceError,
+    resetZoom: resetZoomAndFocus,
     setPageWidth,
   };
 }

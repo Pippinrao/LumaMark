@@ -103,6 +103,7 @@
   "menu.livePreviewMode": "Live Preview",
   "menu.sourceMode": "Source Mode",
   "menu.focusMode": "Focus Mode",
+  "menu.resetZoom": "Reset zoom (100%)",
   "menu.about": "About LumaMark",
   "sidebar.files": "Files",
   "recentFiles.title": "Recent Files",

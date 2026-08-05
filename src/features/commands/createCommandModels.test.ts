@@ -64,6 +64,7 @@ describe('createCommandPaletteModels', () => {
       'redo',
       'focus-editor',
       'toggle-focus-mode',
+      'reset-zoom',
       'heading-1',
       'heading-2',
       'heading-3',
@@ -205,6 +206,7 @@ describe('createTopMenuModels', () => {
         'source-mode:setSourceMode:Ctrl+/',
         'sidebar:toggleSidebar:Ctrl+\\',
         'focus-mode:toggleFocusMode:Ctrl+Shift+F',
+        'reset-zoom:resetZoom:',
         'focus-editor:focusEditor:',
       ],
     });
@@ -317,6 +319,7 @@ describe('createTopMenuModels', () => {
       'live-preview-mode',
       'source-mode',
       'focus-mode',
+      'reset-zoom',
       'focus-editor',
     ]);
     expect(

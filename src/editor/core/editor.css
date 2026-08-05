@@ -49,8 +49,11 @@
 }
 
 .lm-codemirror .cm-content {
+  flex-grow: 0;
+  flex-shrink: 0;
   width: min(calc(100% - 96px), var(--lm-editor-page-width, 810px));
   max-width: var(--lm-editor-page-width, 810px);
+  min-width: 0;
   min-height: 100%;
   margin: 0 auto;
   caret-color: var(--lm-color-accent);

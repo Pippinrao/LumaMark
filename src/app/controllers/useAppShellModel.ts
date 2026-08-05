@@ -35,7 +35,7 @@ export function useAppShellModel() {
     editor.refreshLocalImage,
   );
   const settings = useSettingsModel();
-  const readingAppearance = useReadingAppearanceModel();
+  const readingAppearance = useReadingAppearanceModel(editor.focusEditor);
   const { openAbout, openSettings, restoreDialogFocus } = useMenuDialogFocus({
     setAboutOpen,
     setSettingsOpen: settings.setSettingsOpen,
@@ -106,6 +106,7 @@ export function useAppShellModel() {
       void startup.openWorkspace();
     },
     redo: editor.redo,
+    resetZoom: readingAppearance.resetZoom,
     runFormat: editor.runFormat,
     save: () => {
       void document.fileWorkflow.save();

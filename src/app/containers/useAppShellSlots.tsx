@@ -140,6 +140,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
                 open={model.settingsOpen}
                 pageWidth={model.pageWidth}
                 pageWidthPersistenceError={model.pageWidthPersistenceError}
+                preferencesPersistenceError={model.preferencesPersistenceError}
                 recentFilesPersistenceError={model.recentFilesPersistenceError}
                 startupBehavior={model.startupBehavior}
                 startupPersistenceError={model.startupPersistenceError}

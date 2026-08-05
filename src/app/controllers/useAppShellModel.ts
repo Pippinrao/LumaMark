@@ -184,6 +184,7 @@ export function useAppShellModel() {
     newDocumentConfirmOpen: newDocumentConfirmation.open,
     recentFiles: document.recentFiles,
     recentFilesPersistenceError: settings.recentFilesPersistenceError,
+    preferencesPersistenceError: settings.preferencesPersistenceError,
     recoveryDraft: document.recoveryDraft,
     runAction: commandModels.runAction,
     runMenuInvocation: commandModels.runMenuInvocation,

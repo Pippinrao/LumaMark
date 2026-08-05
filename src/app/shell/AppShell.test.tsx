@@ -23,6 +23,7 @@ import type {
 import { installResizeObserverStub } from '../../test/resizeObserverStub';
 import { I18nProvider } from '../providers/I18nProvider';
 import { ThemeProvider } from '../providers/ThemeProvider';
+import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import { useAppStore } from '../stores/appStore';
 import { AppShell } from './AppShell';
 
@@ -82,9 +83,12 @@ describe('AppShell', () => {
       dirty: false,
       dirtyRevision: 0,
       lastFileError: null,
-      language: 'zh-CN',
       sidebarOpen: true,
       statusKey: 'status.ready',
+    });
+    useAppPreferencesStore.setState({
+      language: 'zh-CN',
+      preferencesPersistenceError: false,
       theme: 'light',
     });
   });
@@ -161,9 +165,12 @@ describe('AppShell', () => {
 
   it('renders the localized Typora-like shell structure without hardcoded English UI', async () => {
     useAppStore.setState({
-      language: 'zh-CN',
       sidebarOpen: true,
       statusKey: 'status.ready',
+    });
+    useAppPreferencesStore.setState({
+      language: 'zh-CN',
+      preferencesPersistenceError: false,
       theme: 'light',
     });
     const warnings = captureProcessWarnings();

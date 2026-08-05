@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormatCommands';
 import type { CommandHandlerMap } from '../../features/commands/commandTypes';
 import type { AppLanguage } from '../../shared/i18n';
-import type { ThemeMode } from '../stores/appStore';
+import type { ThemeMode } from '../stores/appPreferencesStore';
 import { guardEditorCommand } from './editorCommandGuard';
 
 const markdownCommands: readonly MarkdownFormatCommand[] = [

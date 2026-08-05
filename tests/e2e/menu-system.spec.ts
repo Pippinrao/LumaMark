@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { verifyPackagedMenuWorkflows } from '../../scripts/release/packagedMenuVerification.mjs';
 
 const reportDirectory = resolve('artifacts/menu-system-report');
 const packageVersion = JSON.parse(
@@ -121,6 +122,13 @@ test('executes menu state, recent-file, and About workflows end to end', async (
   await openTopMenu(page, '视图');
   await page.getByRole('menuitem', { name: '聚焦编辑器' }).click();
   await expect(page.locator('.cm-content').first()).toBeFocused();
+});
+
+test('persists language and theme after a mouse-only menu workflow', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+  await verifyPackagedMenuWorkflows(page);
 });
 
 test('returns editor focus after menu formatting and keeps one-step undo', async ({

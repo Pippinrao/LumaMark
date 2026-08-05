@@ -13,7 +13,7 @@ import type {
   CommandShortcutLabels,
 } from '../../features/commands/commandTypes';
 import type { AppLanguage } from '../../shared/i18n';
-import type { ThemeMode } from '../stores/appStore';
+import type { ThemeMode } from '../stores/appPreferencesStore';
 import { useGlobalCommandShortcuts } from './useGlobalCommandShortcuts';
 
 type UseAppCommandModelsOptions = {

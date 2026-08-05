@@ -83,6 +83,7 @@ const requiredCoreKeys = [
   'settings.pageWidthWide',
   'settings.pageWidthFluid',
   'settings.pageWidthPersistenceError',
+  'settings.preferencesPersistenceError',
   'settings.images',
   'settings.copyImagesToAssets',
   'image.loadFailed',

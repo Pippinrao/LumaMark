@@ -21,6 +21,7 @@ type SettingsDialogProps = {
   open: boolean;
   pageWidth: EditorPageWidth;
   pageWidthPersistenceError: boolean;
+  preferencesPersistenceError: boolean;
   recentFilesPersistenceError: boolean;
   startupBehavior: StartupBehavior;
   startupPersistenceError: boolean;
@@ -40,6 +41,7 @@ export function SettingsDialog({
   open,
   pageWidth,
   pageWidthPersistenceError,
+  preferencesPersistenceError,
   recentFilesPersistenceError,
   startupBehavior,
   startupPersistenceError,
@@ -149,6 +151,11 @@ export function SettingsDialog({
                   {t('settings.pageWidthPersistenceError')}
                 </p>
               ) : null}
+              {preferencesPersistenceError ? (
+                <p className="lm-setting-error" role="alert">
+                  {t('settings.preferencesPersistenceError')}
+                </p>
+              ) : null}
             </Tabs.Content>
             <Tabs.Content value="language" className="lm-settings-panel">
               <div className="lm-setting-row">
@@ -174,6 +181,11 @@ export function SettingsDialog({
                   </button>
                 </div>
               </div>
+              {preferencesPersistenceError ? (
+                <p className="lm-setting-error" role="alert">
+                  {t('settings.preferencesPersistenceError')}
+                </p>
+              ) : null}
             </Tabs.Content>
             <Tabs.Content value="images" className="lm-settings-panel">
               <label className="lm-setting-row">

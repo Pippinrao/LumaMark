@@ -2,14 +2,14 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../app/providers/I18nProvider';
-import { useAppStore } from '../../app/stores/appStore';
+import { useAppPreferencesStore } from '../../app/stores/appPreferencesStore';
 import { StartScreen } from './StartScreen';
 
 describe('StartScreen', () => {
   afterEach(cleanup);
 
   it('offers localized primary actions and recent items', () => {
-    useAppStore.setState({ language: 'zh-CN' });
+    useAppPreferencesStore.setState({ language: 'zh-CN' });
     const onNewDocument = vi.fn();
     const onOpenFile = vi.fn();
     const onOpenRecentFile = vi.fn();
@@ -45,7 +45,7 @@ describe('StartScreen', () => {
   });
 
   it('keeps startup and recent-file persistence failures visible', () => {
-    useAppStore.setState({ language: 'zh-CN' });
+    useAppPreferencesStore.setState({ language: 'zh-CN' });
 
     render(
       <I18nProvider>

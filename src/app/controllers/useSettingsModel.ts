@@ -1,20 +1,26 @@
 import { useState } from 'react';
 import { useAppStore } from '../stores/appStore';
+import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
 import { useStartupStore } from '../../features/startup/startupStore';
 
 export function useSettingsModel() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const copyImagesToAssets = useAppStore((state) => state.copyImagesToAssets);
-  const language = useAppStore((state) => state.language);
-  const theme = useAppStore((state) => state.theme);
-  const setLanguage = useAppStore((state) => state.setLanguage);
+  const language = useAppPreferencesStore((state) => state.language);
+  const preferencesPersistenceError = useAppPreferencesStore(
+    (state) => state.preferencesPersistenceError,
+  );
+  const theme = useAppPreferencesStore((state) => state.theme);
+  const setLanguage = useAppPreferencesStore((state) => state.setLanguage);
   const setCopyImagesToAssets = useAppStore(
     (state) => state.setCopyImagesToAssets,
   );
-  const setTheme = useAppStore((state) => state.setTheme);
-  const toggleLanguage = useAppStore((state) => state.toggleLanguage);
-  const toggleTheme = useAppStore((state) => state.toggleTheme);
+  const setTheme = useAppPreferencesStore((state) => state.setTheme);
+  const toggleLanguage = useAppPreferencesStore(
+    (state) => state.toggleLanguage,
+  );
+  const toggleTheme = useAppPreferencesStore((state) => state.toggleTheme);
   const recentFilesPersistenceError = useRecentFilesStore(
     (state) => state.recentFilesPersistenceError,
   );
@@ -27,6 +33,7 @@ export function useSettingsModel() {
   return {
     copyImagesToAssets,
     language,
+    preferencesPersistenceError,
     recentFilesPersistenceError,
     setCopyImagesToAssets,
     setLanguage,

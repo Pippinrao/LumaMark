@@ -135,6 +135,7 @@
   "settings.pageWidthWide": "Wide",
   "settings.pageWidthFluid": "Fit window",
   "settings.pageWidthPersistenceError": "The page width was applied, but settings could not be read or saved. It may reset to the default next time.",
+  "settings.preferencesPersistenceError": "Unable to read or save language and theme settings. Your current choices may only last for this run.",
   "settings.languageChinese": "简体中文",
   "settings.languageEnglish": "English",
   "settings.images": "Images",

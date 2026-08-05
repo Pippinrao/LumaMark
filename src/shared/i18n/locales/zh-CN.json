@@ -135,6 +135,7 @@
   "settings.pageWidthWide": "宽",
   "settings.pageWidthFluid": "适应窗口",
   "settings.pageWidthPersistenceError": "页面宽度已应用，但无法读取或保存设置；下次启动可能恢复默认值。",
+  "settings.preferencesPersistenceError": "无法读取或保存语言与主题设置。当前选择可能仅在本次运行期间有效。",
   "settings.languageChinese": "简体中文",
   "settings.languageEnglish": "English",
   "settings.images": "图片",

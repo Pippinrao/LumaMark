@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { useAppStore } from '../stores/appStore';
+import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 
 type ThemeProviderProps = {
   children: ReactNode;
 };
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const theme = useAppStore((state) => state.theme);
+  const theme = useAppPreferencesStore((state) => state.theme);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

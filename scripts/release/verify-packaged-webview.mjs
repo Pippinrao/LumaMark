@@ -10,6 +10,7 @@ import {
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
+import { verifyPackagedMenuWorkflows } from './packagedMenuVerification.mjs';
 
 const root = new URL('../..', import.meta.url);
 const executablePath = fileURLToPath(
@@ -18,6 +19,7 @@ const executablePath = fileURLToPath(
 const recentFilesKey = 'lumamark.recent-files.v1';
 const recoveryDraftKey = 'lumamark-recovery-draft-v1';
 const startupStorageKey = 'lumamark.startup.v1';
+const appPreferencesStorageKey = 'lumamark.app-preferences.v1';
 const fileName = 'parity-native.md';
 const unicodeText = '中文输入路径';
 const initialMarkdown = [
@@ -116,12 +118,13 @@ try {
     });
 
   originalStorage = await page.evaluate(
-    ({ recentFilesKey, recoveryDraftKey, startupStorageKey }) => ({
+    ({ appPreferencesStorageKey, recentFilesKey, recoveryDraftKey, startupStorageKey }) => ({
+      appPreferences: localStorage.getItem(appPreferencesStorageKey),
       recentFiles: localStorage.getItem(recentFilesKey),
       recoveryDraft: localStorage.getItem(recoveryDraftKey),
       startup: localStorage.getItem(startupStorageKey),
     }),
-    { recentFilesKey, recoveryDraftKey, startupStorageKey },
+    { appPreferencesStorageKey, recentFilesKey, recoveryDraftKey, startupStorageKey },
   );
   await page.evaluate(
     ({
@@ -165,6 +168,11 @@ try {
   const editor = page.locator('.cm-content');
   await editor.waitFor({ state: 'visible', timeout: 10_000 });
   await page.waitForTimeout(500);
+  await verifyPackagedMenuWorkflows(page);
+  await page.locator('.cm-content').waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  });
   await expectEditorAppearance(page, {
     fontScale: '1',
     pageWidth: '810px',
@@ -351,6 +359,7 @@ try {
         cdpEndpoint: endpoint.webSocketDebuggerUrl ? 'available' : 'missing',
         editorAcceptedInput: true,
         mermaidRendered: true,
+        menuWorkflows: true,
         modeRoundTrip: true,
         appearanceLayoutDurationMs: Number(appearanceLayoutDurationMs.toFixed(2)),
         pageWidthPersisted: true,
@@ -371,8 +380,17 @@ try {
           recentFilesKey,
           recoveryDraftKey,
           startupStorageKey,
+          appPreferencesStorageKey,
           originalStorage,
         }) => {
+          if (originalStorage.appPreferences === null) {
+            localStorage.removeItem(appPreferencesStorageKey);
+          } else {
+            localStorage.setItem(
+              appPreferencesStorageKey,
+              originalStorage.appPreferences,
+            );
+          }
           if (originalStorage.recentFiles === null) {
             localStorage.removeItem(recentFilesKey);
           } else {
@@ -399,6 +417,7 @@ try {
           recentFilesKey,
           recoveryDraftKey,
           startupStorageKey,
+          appPreferencesStorageKey,
           originalStorage,
         },
       )

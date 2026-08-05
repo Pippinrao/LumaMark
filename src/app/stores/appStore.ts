@@ -1,13 +1,6 @@
 import { create } from 'zustand';
-import {
-  defaultLanguage,
-  supportedLanguages,
-  type AppLanguage,
-} from '../../shared/i18n';
 import type { FileMetadata } from '../../services/files/fileTypes';
 import type { CommandError } from '../../services/tauri/invokeCommand';
-
-export type ThemeMode = 'light' | 'dark';
 
 export type StatusKey =
   | 'status.ready'
@@ -27,21 +20,15 @@ type AppState = {
   dirty: boolean;
   dirtyRevision: number;
   lastFileError: CommandError | null;
-  language: AppLanguage;
   sidebarOpen: boolean;
   statusKey: StatusKey;
-  theme: ThemeMode;
   setCopyImagesToAssets: (copyImagesToAssets: boolean) => void;
   setCurrentFile: (currentFile: FileMetadata | null) => void;
   setDirty: (dirty: boolean) => void;
-  setLanguage: (language: AppLanguage) => void;
   setLastFileError: (lastFileError: CommandError | null) => void;
   setSidebarOpen: (sidebarOpen: boolean) => void;
   setStatusKey: (statusKey: StatusKey) => void;
-  setTheme: (theme: ThemeMode) => void;
-  toggleLanguage: () => void;
   toggleSidebar: () => void;
-  toggleTheme: () => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -50,10 +37,8 @@ export const useAppStore = create<AppState>((set) => ({
   dirty: false,
   dirtyRevision: 0,
   lastFileError: null,
-  language: defaultLanguage,
   sidebarOpen: true,
   statusKey: 'status.ready',
-  theme: 'light',
   setCopyImagesToAssets: (copyImagesToAssets) => {
     set({ copyImagesToAssets });
   },
@@ -79,9 +64,6 @@ export const useAppStore = create<AppState>((set) => ({
       return { dirty, statusKey };
     });
   },
-  setLanguage: (language) => {
-    set({ language });
-  },
   setLastFileError: (lastFileError) => {
     set((state) => ({
       lastFileError,
@@ -98,21 +80,7 @@ export const useAppStore = create<AppState>((set) => ({
   setStatusKey: (statusKey) => {
     set({ statusKey });
   },
-  setTheme: (theme) => {
-    set({ theme });
-  },
-  toggleLanguage: () => {
-    set((state) => ({
-      language:
-        state.language === supportedLanguages[0]
-          ? supportedLanguages[1]
-          : supportedLanguages[0],
-    }));
-  },
   toggleSidebar: () => {
     set((state) => ({ sidebarOpen: !state.sidebarOpen }));
-  },
-  toggleTheme: () => {
-    set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' }));
   },
 }));

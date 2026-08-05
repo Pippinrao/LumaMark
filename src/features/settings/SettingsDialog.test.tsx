@@ -2,14 +2,14 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../app/providers/I18nProvider';
-import { useAppStore } from '../../app/stores/appStore';
+import { useAppPreferencesStore } from '../../app/stores/appPreferencesStore';
 import { SettingsDialog } from './SettingsDialog';
 
 describe('SettingsDialog', () => {
   afterEach(cleanup);
 
   it('changes the persisted startup behavior from a localized startup tab', () => {
-    useAppStore.setState({ language: 'zh-CN' });
+    useAppPreferencesStore.setState({ language: 'zh-CN' });
     const onStartupBehaviorChange = vi.fn();
     render(
       <I18nProvider>
@@ -26,6 +26,7 @@ describe('SettingsDialog', () => {
           open
           pageWidth="standard"
           pageWidthPersistenceError={false}
+          preferencesPersistenceError={false}
           recentFilesPersistenceError={false}
           startupBehavior="home"
           startupPersistenceError={false}
@@ -44,7 +45,7 @@ describe('SettingsDialog', () => {
   });
 
   it('shows a localized alert when startup settings cannot be persisted', () => {
-    useAppStore.setState({ language: 'zh-CN' });
+    useAppPreferencesStore.setState({ language: 'zh-CN' });
 
     render(
       <I18nProvider>
@@ -61,6 +62,7 @@ describe('SettingsDialog', () => {
           open
           pageWidth="standard"
           pageWidthPersistenceError={false}
+          preferencesPersistenceError={false}
           recentFilesPersistenceError={false}
           startupBehavior="home"
           startupPersistenceError
@@ -79,7 +81,7 @@ describe('SettingsDialog', () => {
   });
 
   it('shows the startup persistence alert in English', () => {
-    useAppStore.setState({ language: 'en' });
+    useAppPreferencesStore.setState({ language: 'en' });
 
     render(
       <I18nProvider>
@@ -96,6 +98,7 @@ describe('SettingsDialog', () => {
           open
           pageWidth="standard"
           pageWidthPersistenceError={false}
+          preferencesPersistenceError={false}
           recentFilesPersistenceError={false}
           startupBehavior="home"
           startupPersistenceError
@@ -126,7 +129,7 @@ describe('SettingsDialog', () => {
       tab: 'Startup',
     },
   ])('shows the recent-file persistence alert in $language', ({ language, message, tab }) => {
-    useAppStore.setState({ language });
+    useAppPreferencesStore.setState({ language });
 
     render(
       <I18nProvider>
@@ -143,6 +146,7 @@ describe('SettingsDialog', () => {
           open
           pageWidth="standard"
           pageWidthPersistenceError={false}
+          preferencesPersistenceError={false}
           recentFilesPersistenceError
           startupBehavior="home"
           startupPersistenceError={false}
@@ -154,6 +158,49 @@ describe('SettingsDialog', () => {
     const startupTab = screen.getByRole('tab', { name: tab });
     startupTab.focus();
     fireEvent.keyDown(startupTab, { key: 'Enter' });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(message);
+  });
+
+  it.each([
+    {
+      language: 'zh-CN' as const,
+      message: '无法读取或保存语言与主题设置。当前选择可能仅在本次运行期间有效。',
+    },
+    {
+      language: 'en' as const,
+      message:
+        'Unable to read or save language and theme settings. Your current choices may only last for this run.',
+    },
+  ])('shows the app-preference persistence alert in $language', ({
+    language,
+    message,
+  }) => {
+    useAppPreferencesStore.setState({ language });
+
+    render(
+      <I18nProvider>
+        <SettingsDialog
+          copyImagesToAssets={false}
+          language={language}
+          onCopyImagesToAssetsChange={vi.fn()}
+          onLanguageChange={vi.fn()}
+          onOpenChange={vi.fn()}
+          onPageWidthChange={vi.fn()}
+          onReturnFocus={vi.fn()}
+          onStartupBehaviorChange={vi.fn()}
+          onThemeChange={vi.fn()}
+          open
+          pageWidth="standard"
+          pageWidthPersistenceError={false}
+          preferencesPersistenceError
+          recentFilesPersistenceError={false}
+          startupBehavior="home"
+          startupPersistenceError={false}
+          theme="light"
+        />
+      </I18nProvider>,
+    );
 
     expect(screen.getByRole('alert')).toHaveTextContent(message);
   });

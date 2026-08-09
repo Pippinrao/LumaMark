@@ -17,9 +17,9 @@ import {
 import { verifyPackagedMenuWorkflows } from './packagedMenuVerification.mjs';
 
 const root = new URL('../..', import.meta.url);
-const executablePath = fileURLToPath(
-  new URL('src-tauri/target/release/lumamark.exe', root),
-);
+const executablePath =
+  process.env.LUMAMARK_EXECUTABLE?.trim() ||
+  fileURLToPath(new URL('src-tauri/target/release/lumamark.exe', root));
 
 if (process.platform !== 'win32') {
   process.stderr.write(

@@ -16,9 +16,9 @@ import {
 } from './packagedWebviewHarness.mjs';
 
 const root = new URL('../..', import.meta.url);
-const executablePath = fileURLToPath(
-  new URL('src-tauri/target/release/lumamark.exe', root),
-);
+const executablePath =
+  process.env.LUMAMARK_EXECUTABLE?.trim() ||
+  fileURLToPath(new URL('src-tauri/target/release/lumamark.exe', root));
 const marker = `argv-open-${Date.now()}`;
 const fileName = 'argv-open-probe.md';
 const markdown = [

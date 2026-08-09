@@ -16,9 +16,9 @@ import {
 } from './packagedWebviewHarness.mjs';
 
 const root = new URL('../..', import.meta.url);
-const executablePath = fileURLToPath(
-  new URL('src-tauri/target/release/lumamark.exe', root),
-);
+const executablePath =
+  process.env.LUMAMARK_EXECUTABLE?.trim() ||
+  fileURLToPath(new URL('src-tauri/target/release/lumamark.exe', root));
 const fileName = 'table-caret-probe.md';
 const marker = `tbl-${Date.now()}`;
 const markdown = [

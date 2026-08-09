@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -32,7 +32,8 @@
     "release:packaged-table-caret": "node scripts/release/verify-packaged-table-caret.mjs",
     "release:packaged-parity-gaps": "node scripts/release/verify-packaged-argv-open.mjs && node scripts/release/verify-packaged-menu-cold-start.mjs && node scripts/release/verify-packaged-table-caret.mjs",
     "release:installer-smoke:plan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -PlanOnly",
-    "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis"
+    "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis",
+    "release:installer-acceptance:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis -AllowExistingInstall -RunInstalledAcceptance"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

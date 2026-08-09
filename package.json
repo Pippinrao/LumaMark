@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.2.12",
+  "version": "0.2.14",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -33,12 +33,9 @@
     "release:packaged-parity-gaps": "node scripts/release/verify-packaged-argv-open.mjs && node scripts/release/verify-packaged-menu-cold-start.mjs && node scripts/release/verify-packaged-table-caret.mjs",
     "release:installer-smoke:plan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -PlanOnly",
     "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis",
-<<<<<<< HEAD
+    "release:installer-acceptance:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis -AllowExistingInstall -RunInstalledAcceptance",
     "release:verify-versions": "node scripts/release/verify-version-consistency.mjs",
     "release:installed-webview": "node scripts/release/verify-installed-webview.mjs"
-=======
-    "release:installer-acceptance:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis -AllowExistingInstall -RunInstalledAcceptance"
->>>>>>> verify/main-gaps
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

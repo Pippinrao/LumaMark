@@ -15,6 +15,7 @@ Windows 资源管理器双击 Markdown 文件时，首实例必须直接打开�
 ## 决策
 
 - 使用官方 `tauri-plugin-single-instance`，并在其他插件之前注册。Windows bundle 声明 `md`、`markdown`、`mdown` 文件关联；macOS/Linux 保留同一 bundle 声明和直接命令行启动能力，但安装器/桌面环境是否注册关联必须分别验收。
+- 文件关联 ProgId / NSIS `FILECLASS` 必须使用稳定标识符（例如 `LumaMark.Markdown`），禁止空格或任意描述文案；描述文案只放在 description 字段。
 - 首实例使用 `std::env::args_os()`，解析层只接收 `OsString`/`OsStr` 与 `Path`。路径先做词法规范化，只有在进入 JSON IPC 边界时才调用 `Path::to_str()`；不可表示为 UTF-8 时返回 `desktop.open_request_path_not_utf8`，禁止 `to_string_lossy`。
 - single-instance 插件回调由上游固定提供 `Vec<String>` 和 UTF-8 cwd，因此二次启动无法恢复已经被插件边界拒绝或转换的非 UTF-8 参数。该限制只存在于二次实例；若它成为真实用户问题，复审原生 Windows IPC 或 Tauri 上游能力。
 - 每次进程启动只接受参数中的第一个有效 Markdown 路径。Rust 待处理队列按词法规范化后的路径去重，排空后同一路径可再次作为新的用户操作进入队列。

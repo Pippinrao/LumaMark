@@ -10,7 +10,14 @@ param(
 
   [int]$LaunchSeconds = 3,
 
-  [switch]$KeepInstallOnFailure
+  [switch]$KeepInstallOnFailure,
+
+  # Allow a side-by-side smoke install while another LumaMark is present.
+  # Associations may be rewritten for the smoke install and restored on uninstall.
+  [switch]$AllowExistingInstall,
+
+  # After install, run argv/menu/table CDP against the installed executable.
+  [switch]$RunInstalledAcceptance = $true
 )
 
 $ErrorActionPreference = 'Stop'
@@ -161,6 +168,89 @@ function Stop-SmokeApp {
   }
 }
 
+function Assert-MarkdownFileAssociation {
+  param(
+    [Parameter(Mandatory = $true)][string]$ExecutablePath,
+    [Parameter(Mandatory = $true)][string]$ExpectedProgId
+  )
+
+  $normalizedExe = (Get-FullPath $ExecutablePath).ToLowerInvariant()
+  $extensionKeys = @('.md', '.markdown', '.mdown')
+
+  foreach ($extension in $extensionKeys) {
+    $extKeyPath = "HKCU:\Software\Classes\$extension"
+    if (-not (Test-Path -LiteralPath $extKeyPath)) {
+      throw "Missing HKCU file association key for $extension after install."
+    }
+
+    $progId = [string](Get-Item -LiteralPath $extKeyPath).GetValue('')
+    if ($progId -ne $ExpectedProgId) {
+      throw "Extension $extension ProgId was '$progId', expected '$ExpectedProgId'."
+    }
+  }
+
+  $commandKeyPath = "HKCU:\Software\Classes\$ExpectedProgId\shell\open\command"
+  if (-not (Test-Path -LiteralPath $commandKeyPath)) {
+    throw "Missing open command for ProgId $ExpectedProgId after install."
+  }
+
+  $openCommand = [string](Get-Item -LiteralPath $commandKeyPath).GetValue('')
+  if ([string]::IsNullOrWhiteSpace($openCommand)) {
+    throw "Open command for ProgId $ExpectedProgId is empty."
+  }
+
+  if ($openCommand.ToLowerInvariant() -notlike "*$normalizedExe*") {
+    throw "Open command does not target installed exe.`nCommand: $openCommand`nExe: $ExecutablePath"
+  }
+
+  if ($openCommand -notmatch '%1') {
+    throw "Open command does not pass the document path (%1): $openCommand"
+  }
+
+  return [ordered]@{
+    progId = $ExpectedProgId
+    openCommand = $openCommand
+    extensions = $extensionKeys
+  }
+}
+
+function Invoke-InstalledAcceptance {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$ExecutablePath
+  )
+
+  $env:LUMAMARK_EXECUTABLE = $ExecutablePath
+  try {
+    $scripts = @(
+      'scripts\release\verify-packaged-argv-open.mjs',
+      'scripts\release\verify-packaged-menu-cold-start.mjs',
+      'scripts\release\verify-packaged-table-caret.mjs'
+    )
+
+    foreach ($relativeScript in $scripts) {
+      $scriptPath = Join-Path $RepoRoot $relativeScript
+      if (-not (Test-Path -LiteralPath $scriptPath)) {
+        throw "Installed acceptance script missing: $scriptPath"
+      }
+
+      $process = Start-Process `
+        -FilePath 'node' `
+        -ArgumentList @($scriptPath) `
+        -WorkingDirectory $RepoRoot `
+        -Wait `
+        -PassThru `
+        -NoNewWindow
+
+      if ($process.ExitCode -ne 0) {
+        throw "Installed acceptance failed: $relativeScript (exit $($process.ExitCode))."
+      }
+    }
+  } finally {
+    Remove-Item Env:LUMAMARK_EXECUTABLE -ErrorAction SilentlyContinue
+  }
+}
+
 $repoRoot = Get-FullPath (Join-Path $PSScriptRoot '..\..')
 $tauriConfigPath = Join-Path $repoRoot 'src-tauri\tauri.conf.json'
 $appVersion = (Get-Content -LiteralPath $tauriConfigPath -Raw | ConvertFrom-Json).version
@@ -229,6 +319,8 @@ $plan = [ordered]@{
   uninstallCommand = $uninstallCommand
   uninstallArguments = $uninstallArguments
   launchSeconds = $LaunchSeconds
+  allowExistingInstall = $AllowExistingInstall.IsPresent
+  runInstalledAcceptance = $RunInstalledAcceptance.IsPresent
 }
 
 if ($PlanOnly) {
@@ -246,9 +338,10 @@ if ($requiresAdmin -and -not (Test-IsAdministrator)) {
 
 if (
   $existingInstallDir -and
-  -not (Test-PathUnderRoot -Path $existingInstallDir -Root $smokeRoot)
+  -not (Test-PathUnderRoot -Path $existingInstallDir -Root $smokeRoot) -and
+  -not $AllowExistingInstall.IsPresent
 ) {
-  throw "Existing LumaMark install detected at $existingInstallDir. Refusing to mutate a non-smoke installation."
+  throw "Existing LumaMark install detected at $existingInstallDir. Refusing to mutate a non-smoke installation. Re-run with -AllowExistingInstall for an isolated smoke dir (associations may be rewritten temporarily)."
 }
 
 if (Test-Path -LiteralPath $resolvedInstallDir) {
@@ -268,6 +361,17 @@ try {
 
   if (-not (Test-Path -LiteralPath $executablePath)) {
     throw "Installed executable not found: $executablePath"
+  }
+
+  $installedVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($executablePath).FileVersion
+  $association = Assert-MarkdownFileAssociation `
+    -ExecutablePath $executablePath `
+    -ExpectedProgId 'LumaMark.Markdown'
+
+  if ($RunInstalledAcceptance.IsPresent) {
+    Invoke-InstalledAcceptance `
+      -RepoRoot $repoRoot `
+      -ExecutablePath $executablePath
   }
 
   $launchedProcess = Start-Process `
@@ -302,10 +406,13 @@ try {
   [ordered]@{
     installerKind = $InstallerKind
     installedExecutableLaunched = $true
+    installedVersion = $installedVersion
+    fileAssociation = $association
+    installedAcceptance = $RunInstalledAcceptance.IsPresent
     launchSeconds = $LaunchSeconds
     uninstalled = $true
     installDir = $resolvedInstallDir
-  } | ConvertTo-Json -Depth 3
+  } | ConvertTo-Json -Depth 5
 } finally {
   Stop-SmokeApp -Process $launchedProcess
 

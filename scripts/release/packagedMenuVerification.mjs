@@ -1,6 +1,15 @@
 import { expect } from '@playwright/test';
 
-export async function verifyPackagedMenuWorkflows(page) {
+/**
+ * @param {import('@playwright/test').Page} page
+ * @param {{ persistViaReload?: boolean }} [options]
+ *   persistViaReload defaults to true for backward-compatible smoke.
+ *   Cold-start scripts should pass false and assert after a real process restart.
+ */
+export async function verifyPackagedMenuWorkflows(
+  page,
+  { persistViaReload = true } = {},
+) {
   await openTopMenuWithMouse(page, '视图');
   const sourceMode = page.getByRole('menuitemradio', { name: /^源码模式/ });
   await expect(sourceMode).toHaveAttribute('aria-checked', 'false');
@@ -34,7 +43,12 @@ export async function verifyPackagedMenuWorkflows(page) {
   await openTopMenuWithMouse(page, 'Help');
   await page.getByRole('menuitem', { name: 'About LumaMark' }).click();
   await expect(page.getByRole('dialog', { name: 'About LumaMark' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /Settings|设置/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close' }).click();
+
+  if (!persistViaReload) {
+    return;
+  }
 
   await page.reload({ waitUntil: 'domcontentloaded' });
 

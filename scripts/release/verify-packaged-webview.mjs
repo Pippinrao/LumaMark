@@ -68,7 +68,8 @@ try {
   const documentPath = join(tempDirectory, fileName);
   await writeFile(documentPath, initialMarkdown, 'utf8');
 
-  app = spawn(executablePath, [], {
+  app = spawn(executablePath, [documentPath], {
+    cwd: tempDirectory,
     env: createPackagedWebviewEnvironment({
       baseEnvironment: process.env,
       debugPort: port,
@@ -126,45 +127,12 @@ try {
     }),
     { appPreferencesStorageKey, recentFilesKey, recoveryDraftKey, startupStorageKey },
   );
-  await page.evaluate(
-    ({
-      recentFilesKey,
-      recoveryDraftKey,
-      startupStorageKey,
-      documentPath,
-      fileName,
-    }) => {
-      localStorage.setItem(
-        recentFilesKey,
-        JSON.stringify([
-          {
-            name: fileName,
-            path: documentPath,
-            openedAt: Date.now(),
-          },
-        ]),
-      );
-      localStorage.removeItem(recoveryDraftKey);
-      localStorage.setItem(
-        startupStorageKey,
-        JSON.stringify({
-          lastSession: { kind: 'file', path: documentPath },
-          recentWorkspaces: [],
-          startupBehavior: 'restoreLastSession',
-          version: 1,
-        }),
-      );
-    },
-    {
-      recentFilesKey,
-      recoveryDraftKey,
-      startupStorageKey,
-      documentPath,
-      fileName,
-    },
-  );
-  await page.reload({ waitUntil: 'domcontentloaded' });
 
+  // Argv open must win without seeding session restore.
+  await page.locator('.lm-editor-title', { hasText: fileName }).waitFor({
+    state: 'visible',
+    timeout: 20_000,
+  });
   const editor = page.locator('.cm-content');
   await editor.waitFor({ state: 'visible', timeout: 10_000 });
   await page.waitForTimeout(500);

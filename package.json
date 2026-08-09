@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -28,7 +28,9 @@
     "release:verify-artifacts": "node scripts/release/verify-windows-artifacts.mjs",
     "release:packaged-webview": "pnpm build && node scripts/release/verify-packaged-webview.mjs",
     "release:installer-smoke:plan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -PlanOnly",
-    "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis"
+    "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis",
+    "release:verify-versions": "node scripts/release/verify-version-consistency.mjs",
+    "release:installed-webview": "node scripts/release/verify-installed-webview.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

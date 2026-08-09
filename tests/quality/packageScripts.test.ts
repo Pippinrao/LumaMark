@@ -48,6 +48,15 @@ describe('package quality scripts', () => {
     );
   });
 
+  it('defines a release version consistency verification script', async () => {
+    const packageJson = await readPackageJson();
+
+    expect(packageJson.scripts['release:verify-versions']).toBe(
+      'node scripts/release/verify-version-consistency.mjs',
+    );
+    await expectFile('scripts', 'release', 'verify-version-consistency.mjs');
+  });
+
   it('defines a focused V1 UX prototype quality script', async () => {
     const packageJson = await readPackageJson();
 

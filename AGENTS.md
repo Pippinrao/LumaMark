@@ -271,8 +271,10 @@ LumaMark 默认支持多语言。
 - i18n 资源覆盖
 - Mermaid 渲染生命周期
 - 快捷键
+- 表格/widget 点击→光标几何（含 inactive/active 对齐）
+- 标题栏拖拽与 portal 菜单真实指针路径（安装包或等价桌面路径）
 
-纯逻辑优先写聚焦的单元测试，编辑器行为优先写集成测试。
+纯逻辑优先写聚焦的单元测试，编辑器行为优先写集成测试。涉及 Tauri 拖拽、嵌套编辑器激活或 OS 指针命中的缺陷，浏览器 E2E 之外还必须有安装包/OS 鼠标证据；详见「高成本缺陷复盘」。
 
 测试、构建和发布脚本的输出必须尽量保持 warning-free。新增 warning 必须定位根因；确认为既有外部限制时，必须记录风险和后续治理项，不能静默忽略。
 
@@ -433,6 +435,57 @@ LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通�
 - 是否需要同步 `README.md`、`AGENTS.md` 或 `DEVELOPMENT_PROCESS.md`。
 
 文档任务的最终回复必须说明读取或检索过哪些文件来验证落盘结果。
+
+## 高成本缺陷复盘（强制遵守）
+
+以下两条缺陷曾长期误判、反复“修好又坏”，最终才在安装包真实路径上闭环。后续 agent 遇到同类症状时，必须先按本节排查，禁止从“功能没接线”“随便改 CSS”起步。
+
+### 1. 菜单打开后点击没反应
+
+**真实根因（不是“handler 没写”）：**
+
+1. 标题栏把 `data-tauri-drag-region` 或等价拖拽逻辑盖到了菜单宿主上。
+2. Radix 等菜单内容 portal 到 `document.body`；DOM 上目标已不在 header 子树内，但 React 合成事件仍会冒泡回 header 的 `onMouseDown`。
+3. header 误启动窗口拖拽并捕获指针，随后的 `pointerup` / `click` 被吃掉。
+4. 体感是“关于 / 主题 / 语言点了没反应”；Playwright/CDP 合成点击经常复现不出，只有真实 OS 鼠标 + 安装包路径稳定复现。
+
+**强制规则：**
+
+- 原生拖拽区域只能落在空白标题条，绝不能覆盖菜单、按钮、输入框等可交互控件。
+- 标题栏 `mousedown` 启动拖拽前必须调用与 `shouldStartChromeDragging` 同级的判定：portal / 非子孙目标一律不拖；`[data-lm-window-interactive]`、`[role="menu"]` / `menuitem*`、`.lm-menu-content` 一律不拖。
+- 诊断“点了没反应”时，优先查窗口拖拽、指针捕获、portal 事件路径，再查 action 是否接线。
+- 此类 bug 的完成证据必须包含安装包或等价 WebView 路径下的真实指针操作；仅浏览器 E2E 通过不得宣称已修。
+
+参考实现：`src/app/controllers/chromeDragging.ts`、`src/app/shell/TopChrome.tsx`。
+
+### 2. 表格与所见即所得光标异常
+
+**真实根因（常叠加，不是单一 CSS）：**
+
+1. 非编辑态单元格与嵌套 CodeMirror 编辑态 padding / line padding / 隐藏 mark 几何不一致，激活瞬间命中盒漂移。
+2. 点击激活会卸载/挂载嵌套编辑器，原始指针坐标丢失；若不在 root 捕获并用 `posAtCoords` 回放，光标会落到默认首位或错误偏移。
+3. 表格 block widget 的装饰性 `margin` / `padding` 会造出“看起来像空行、实际不可选”的假空隙；点上下空隙会进首行/末行。
+4. 用 `max-width` + `overflow-x: auto`“压窄宽列”会引入内层滚动条，点击坐标系跟着漂，表现为光标乱跳、表格显示不全。
+5. “假空格 / 假光标”掩盖几何问题，会把缺陷拖得更久。
+
+**强制规则：**
+
+- 表格（及同类 WYSIWYG widget）的 inactive view 与 active nested editor 必须共享同一 padding box；隐藏 mark 在两态行为一致。禁止靠假空格或装饰性光标冒充对齐。
+- 单元格激活必须保留激活前的指针坐标，并在嵌套编辑器就绪后用 CodeMirror `posAtCoords` 落到真实文档位置；空 padding 点击应落到可见文本端，而不是发明占位字符。
+- 禁止给 block widget 增加会变成不可选命中区的装饰性上下 `margin`/`padding`。表格与正文的间距只能来自真实 Markdown 空行（可点的 `cm-line`）。
+- 禁止用内层横向滚动或表头 `max-width` 裁切表格来“美化列宽”。宽表应完整可见；滚动条与裁切会破坏点击→光标映射。
+- 修光标时若改动 overflow、transform、缩放、滚动容器或 widget 几何，必须重新跑表格光标矩阵，并至少用安装包 + OS 级鼠标验证一轮。
+- 做 OS 级点击复现时，屏幕坐标必须从 WebView 客户区原点换算（例如 Win32 `ClientToScreen`）。`GetWindowRect` 含窗口边框，会系统性偏数像素并制造假失败/假通过。
+
+参考实现：`src/editor/capabilities/table/tableCellClickSync.ts`、`src/editor/capabilities/table/table.css`；回归：`tests/e2e/editor-table-caret*.spec.ts`、`scripts/release/repro-installed-table-caret*.mjs`。
+
+### 3. 从这两次修复提炼的通用经验
+
+1. **症状分类先于改代码。** “没反应”可能是事件被吞；“光标飘”可能是几何/坐标系，不是选区 API 写错。
+2. **桌面壳层 bug 与浏览器 bug 分层验证。** Tauri 拖拽、安装路径、OS 鼠标量化与 CDP 点击不是同一条证据链。
+3. **先固定几何契约，再谈交互增强。** 任何让 hit-test 区域与可见文本脱节的 CSS，都会在表格/widget 上放大成光标灾难。
+4. **禁止用新的视觉约束掩盖命中问题。** 滚动条、裁切、假空白、假光标都是高风险捷径。
+5. **回归要防“修好又坏”。** 光标类修复合并后，后续 UI 美化若动到表格 overflow/padding，必须当作高风险变更，而不是纯样式。
 
 ## Agent 工作流程
 

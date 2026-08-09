@@ -4,6 +4,7 @@ import {
   browserPreferenceStorage,
   type PreferenceStorage,
 } from '../../services/preferences/browserPreferenceStorage';
+import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 import {
   defaultLanguage,
   supportedLanguages,
@@ -64,9 +65,11 @@ export function createAppPreferencesStore(
     return {
       ...initialState,
       setLanguage: (language) => {
+        logMenuInteraction(`store.setLanguage(${language})`);
         updatePreferences({ language });
       },
       setTheme: (theme) => {
+        logMenuInteraction(`store.setTheme(${theme})`);
         updatePreferences({ theme });
       },
       toggleLanguage: () => {

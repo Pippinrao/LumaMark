@@ -23,12 +23,14 @@ export function TopChrome({
   return (
     <header
       className="lm-top-chrome"
-      data-tauri-drag-region
       onMouseDown={windowChrome.onChromeMouseDown}
     >
       <h1 className="lm-app-heading">{labels.appName}</h1>
 
       <AppMenu groups={groups} onInvoke={onInvoke} />
+
+      {/* Native drag only on this strip — not on the menu host. */}
+      <div className="lm-titlebar-drag" data-tauri-drag-region aria-hidden="true" />
 
       <nav
         className="lm-window-controls"

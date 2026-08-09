@@ -1,10 +1,16 @@
+import { useEffect } from 'react';
 import { useAppShellSlots } from '../containers/useAppShellSlots';
 import { useAppShellModel } from '../controllers/useAppShellModel';
+import { ensureMenuDebugDomCapture } from '../../shared/debug/menuInteractionLog';
 import { AppShellView } from './AppShellView';
 
 export function AppShell() {
   const model = useAppShellModel();
   const slots = useAppShellSlots(model);
+
+  useEffect(() => {
+    ensureMenuDebugDomCapture();
+  }, []);
 
   return (
     <AppShellView

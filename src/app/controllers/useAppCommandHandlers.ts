@@ -3,6 +3,7 @@ import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormat
 import type { CommandHandlerMap } from '../../features/commands/commandTypes';
 import type { AppLanguage } from '../../shared/i18n';
 import type { ThemeMode } from '../stores/appPreferencesStore';
+import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 import { guardEditorCommand } from './editorCommandGuard';
 
 const markdownCommands: readonly MarkdownFormatCommand[] = [
@@ -107,7 +108,10 @@ export function useAppCommandHandlers({
       focusEditor: guardEditorCommand(editorAvailable, focusEditor),
       image: guardEditorCommand(editorAvailable, insertImage),
       newDocument,
-      openAbout,
+      openAbout: () => {
+        logMenuInteraction('handler openAbout()');
+        openAbout();
+      },
       openCommandPalette,
       openFile,
       openSearch: guardEditorCommand(editorAvailable, openSearch),
@@ -117,10 +121,22 @@ export function useAppCommandHandlers({
       resetZoom: guardEditorCommand(editorAvailable, resetZoom),
       save: guardEditorCommand(editorAvailable, save),
       saveAs: guardEditorCommand(editorAvailable, saveAs),
-      setChineseLanguage: () => setLanguage('zh-CN'),
-      setDarkTheme: () => setTheme('dark'),
-      setEnglishLanguage: () => setLanguage('en'),
-      setLightTheme: () => setTheme('light'),
+      setChineseLanguage: () => {
+        logMenuInteraction('handler setLanguage(zh-CN)');
+        setLanguage('zh-CN');
+      },
+      setDarkTheme: () => {
+        logMenuInteraction('handler setTheme(dark)');
+        setTheme('dark');
+      },
+      setEnglishLanguage: () => {
+        logMenuInteraction('handler setLanguage(en)');
+        setLanguage('en');
+      },
+      setLightTheme: () => {
+        logMenuInteraction('handler setTheme(light)');
+        setTheme('light');
+      },
       setLivePreviewMode: guardEditorCommand(editorAvailable, setLivePreviewMode),
       setSourceMode: guardEditorCommand(editorAvailable, setSourceMode),
       toggleDisplayMode: guardEditorCommand(editorAvailable, toggleDisplayMode),

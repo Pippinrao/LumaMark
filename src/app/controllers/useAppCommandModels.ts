@@ -14,6 +14,7 @@ import type {
 } from '../../features/commands/commandTypes';
 import type { AppLanguage } from '../../shared/i18n';
 import type { ThemeMode } from '../stores/appPreferencesStore';
+import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 import { useGlobalCommandShortcuts } from './useGlobalCommandShortcuts';
 
 type UseAppCommandModelsOptions = {
@@ -104,10 +105,12 @@ export function useAppCommandModels({
   const runMenuInvocation = useMemo(
     () => (invocation: CommandMenuInvocation) => {
       if (invocation.kind === 'callback') {
+        logMenuInteraction('runMenuInvocation callback');
         invocation.run();
         return;
       }
 
+      logMenuInteraction(`runMenuInvocation action=${invocation.action}`);
       runCommandAction(handlers, invocation.action);
     },
     [handlers],

@@ -172,7 +172,7 @@ async function readSelectionSnapshot(page: Page): Promise<SelectionSnapshot> {
 
   return cellEditor.evaluate((content) => {
     type EditorViewBridge = {
-      coordsAtPos(position: number): DOMRect | null;
+      coordsAtPos(position: number, side?: -1 | 1): DOMRect | null;
       state: {
         doc: { toString(): string };
         selection: { main: { anchor: number; head: number } };
@@ -190,7 +190,10 @@ async function readSelectionSnapshot(page: Page): Promise<SelectionSnapshot> {
     const rangeRect = range?.getBoundingClientRect();
     const nestedView = (content as ContentBridge).cmTile.view;
     const nestedSelection = nestedView.state.selection.main;
-    const nestedCaret = nestedView.coordsAtPos(nestedSelection.head);
+    const nestedCaret =
+      nestedView.coordsAtPos(nestedSelection.head, -1) ??
+      nestedView.coordsAtPos(nestedSelection.head, 1) ??
+      nestedView.coordsAtPos(nestedSelection.head);
     const rootContent = document.querySelector<HTMLElement>(
       '.lm-editor-live-preview-mode .cm-content',
     );
@@ -290,7 +293,7 @@ test('maps a real click at a nested formatted boundary to the visual source end'
     .toContain('**中文**尾部X');
 });
 
-test('shows all source markers in the active cell and aligns the caret with insertion', async ({
+test('keeps click point and caret aligned after activating a formatted cell', async ({
   page,
 }) => {
   await openNewDocument(page);
@@ -308,15 +311,48 @@ test('shows all source markers in the active cell and aligns the caret with inse
   );
 
   const cell = dataCell(page, 0, 0);
-  await clickVisibleGlyph(page, cell, 'p');
+  const click = await cell.locator('.tbl-cell-view').evaluate((surface) => {
+    const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+
+    while (walker.nextNode()) {
+      const textNode = walker.currentNode as Text;
+      const index = textNode.data.indexOf('a');
+
+      if (index < 0 || getComputedStyle(textNode.parentElement!).display === 'none') {
+        continue;
+      }
+
+      const range = document.createRange();
+      range.setStart(textNode, index);
+      range.setEnd(textNode, index + 1);
+      const rect = range.getBoundingClientRect();
+
+      return {
+        x: rect.left + 1,
+        y: rect.top + rect.height / 2,
+      };
+    }
+
+    throw new Error('Visible glyph a was not found');
+  });
+
+  await page.mouse.click(click.x, click.y);
 
   const cellEditor = page.locator('.tbl-cell-editor .cm-content:visible');
   await expect(cellEditor).toHaveText('**alpha**');
   await expect(cellEditor.locator('.lm-table-token-mark')).toHaveCount(2);
-  await expect(cellEditor.locator('.lm-table-token-mark').first()).toBeVisible();
+  await expect(cellEditor.locator('.lm-table-token-mark').first()).toBeHidden();
 
   const snapshot = await readSelectionSnapshot(page);
   expectCaretGeometry(snapshot);
+  expect(snapshot.nested.caretRect).not.toBeNull();
+  expect(
+    Math.abs((snapshot.nested.caretRect?.left ?? 0) - click.x),
+  ).toBeLessThanOrEqual(3);
+  expect(
+    Math.abs((snapshot.nested.caretRect?.top ?? 0) - click.y),
+  ).toBeLessThanOrEqual(12);
+
   const insertionOffset = snapshot.nested.head;
   await page.keyboard.insertText('X');
   await expect

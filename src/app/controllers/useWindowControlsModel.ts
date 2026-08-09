@@ -4,8 +4,10 @@ import {
   useEffect,
   useState,
 } from 'react';
+import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 import { windowControls } from '../../services/window/windowControls';
 import type { WindowControlsModel } from '../shell/shellTypes';
+import { shouldStartChromeDragging } from './chromeDragging';
 
 export function useWindowControlsModel(): WindowControlsModel {
   const [maximized, setMaximized] = useState(false);
@@ -30,15 +32,14 @@ export function useWindowControlsModel(): WindowControlsModel {
         return;
       }
 
-      const target = event.target;
-
-      if (
-        target instanceof Element &&
-        target.closest('[data-lm-window-interactive="true"]')
-      ) {
+      if (!shouldStartChromeDragging(event.currentTarget, event.target)) {
+        logMenuInteraction(
+          'chrome mousedown ignored (interactive or portaled menu)',
+        );
         return;
       }
 
+      logMenuInteraction('chrome mousedown → startDragging');
       void windowControls.startDragging();
     },
     [],

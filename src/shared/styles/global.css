@@ -72,12 +72,19 @@ button {
   position: relative;
   z-index: 40;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(48px, 1fr) auto;
   align-items: center;
   gap: var(--lm-space-2);
   padding-left: 10px;
   background: color-mix(in srgb, var(--lm-color-bg) 88%, var(--lm-color-surface));
   user-select: none;
+}
+
+.lm-titlebar-drag {
+  align-self: stretch;
+  min-width: 48px;
+  min-height: 100%;
+  cursor: default;
 }
 
 .lm-app-heading {

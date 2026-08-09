@@ -147,6 +147,21 @@ describe('AppMenu', () => {
     ).toHaveAttribute('aria-checked', 'false');
   });
 
+  it('dispatches radio invocation when selecting an unchecked item', async () => {
+    const onInvoke = vi.fn();
+    render(<AppMenu groups={groups} onInvoke={onInvoke} />);
+
+    await openMenu('视图');
+    fireEvent.click(
+      screen.getByRole('menuitemradio', { name: /^源码模式/ }),
+    );
+
+    expect(onInvoke).toHaveBeenCalledWith({
+      kind: 'action',
+      action: 'setSourceMode',
+    });
+  });
+
   it('returns focus to the trigger after a state menu action', async () => {
     render(<AppMenu groups={groups} onInvoke={vi.fn()} />);
 

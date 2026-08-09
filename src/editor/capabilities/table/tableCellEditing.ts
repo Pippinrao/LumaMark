@@ -46,7 +46,8 @@ export function moveToTableCellVisualLineEnd(view: EditorView): boolean {
   if (visualEnd !== selection.head) {
     view.dispatch({
       scrollIntoView: true,
-      selection: EditorSelection.cursor(visualEnd),
+      // Prefer the visible side when visualEnd sits on a CSS-hidden trailing mark.
+      selection: EditorSelection.cursor(visualEnd, -1),
       userEvent: 'select',
     });
   }

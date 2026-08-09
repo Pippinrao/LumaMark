@@ -11,12 +11,17 @@ import {
 } from 'codemirror-markdown-tables';
 import { Strikethrough } from '@lezer/markdown';
 import { markdownSyntaxHighlighting } from '../../markdown/markdownLanguage';
+import {
+  tableCellClickSyncNestedExtension,
+  tableCellClickSyncRootExtension,
+} from './tableCellClickSync';
 import { tableCellEditingExtension } from './tableCellEditing';
 import { tableKeymap } from './tableCommands';
 import './table.css';
 
 export function tablePreviewExtension(): Extension {
   return [
+    tableCellClickSyncRootExtension(),
     codemirrorMarkdownLanguage.data.of({
       autocomplete: markdownTableAutocompleter({
         options: [
@@ -38,6 +43,7 @@ export function tablePreviewExtension(): Extension {
         EditorView.lineWrapping,
         markdownSyntaxHighlighting(),
         tableCellEditingExtension(),
+        tableCellClickSyncNestedExtension(),
         keymap.of(defaultKeymap),
       ],
       style: TableStyle.default.with({

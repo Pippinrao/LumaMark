@@ -1,5 +1,6 @@
 pub mod commands {
     pub mod assets;
+    pub mod debug_log;
     pub mod file_watch;
     pub mod files;
     pub mod open_requests;
@@ -10,6 +11,7 @@ pub mod errors;
 
 pub mod services {
     pub mod asset_service;
+    pub mod debug_log_service;
     pub mod file_service;
     pub mod file_watch_service;
     pub mod open_request_service;
@@ -20,6 +22,7 @@ use commands::assets::{
     assets_authorize_local_image, assets_cache_remote_image, assets_copy_local_image,
     assets_finalize_draft_images, assets_import_document_image, assets_import_draft_image,
 };
+use commands::debug_log::debug_append_log;
 use commands::file_watch::{replace_local_image_targets, unwatch_document, watch_document};
 use commands::files::{
     files_read_text, files_show_open_file_dialog, files_show_open_image_dialog,
@@ -27,6 +30,7 @@ use commands::files::{
 };
 use commands::open_requests::open_requests_drain;
 use commands::workspace::{workspace_list_children, workspace_open_directory, workspace_open_path};
+use services::debug_log_service::DebugLogService;
 use services::file_watch_service::{FileWatchService, FILE_WATCH_CHANGED_EVENT};
 use services::open_request_service::{OpenRequestQueue, OPEN_REQUESTS_AVAILABLE_EVENT};
 use tauri::{Emitter, Manager};
@@ -35,6 +39,7 @@ use tauri::{Emitter, Manager};
 pub fn run() {
     tauri::Builder::default()
         .manage(OpenRequestQueue::default())
+        .manage(DebugLogService::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             let should_notify = match app
                 .state::<OpenRequestQueue>()
@@ -104,7 +109,8 @@ pub fn run() {
             workspace_open_directory,
             workspace_open_path,
             workspace_list_children,
-            open_requests_drain
+            open_requests_drain,
+            debug_append_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running LumaMark");

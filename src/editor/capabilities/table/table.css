@@ -1,24 +1,47 @@
+/*
+ * Block-widget chrome must not invent fake blank lines. Upstream ships
+ * padding: 16px and we previously added margin 22/28 — both create visual
+ * gaps that look selectable but map clicks into the first/last table row.
+ * Spacing comes from real markdown blank lines (clickable cm-lines) only.
+ */
 .cm-content .tbl-table-widget {
-  margin: 22px 0 28px;
+  margin: 0;
+  padding: 0;
 }
 
+/* Do not clip or scroll the table; wide content should remain fully visible. */
 .cm-content .tbl-table-wrapper {
   overflow: visible;
 }
 
-.cm-content .tbl-table {
+.cm-content .tbl-table-widget .tbl-table {
   border-radius: var(--lm-radius-1);
   box-shadow: 0 0 0 1px var(--lm-color-border-subtle);
 }
 
-.cm-content .tbl-cell {
+.cm-content .tbl-table-widget .tbl-cell {
   min-width: 4.25rem;
   position: relative;
 }
 
-.cm-content .tbl-header-cell {
+.cm-content .tbl-table-widget .tbl-header-cell {
   color: var(--lm-color-text-soft);
   font-weight: 680;
+}
+
+/*
+ * Geometry contract (ADR 0003): inactive view and nested editor must share the
+ * same padding box so click → caret mapping does not shift on activation.
+ * Upstream uses 7px 10px on view and 7px 9px + 1px line padding on editor.
+ */
+.cm-content .tbl-table-widget .tbl-cell-view,
+.cm-content .tbl-table-widget .tbl-cell-editor .cm-content {
+  box-sizing: border-box;
+  padding: 7px 10px;
+}
+
+.cm-content .tbl-table-widget .tbl-cell-editor .cm-line {
+  padding: 0;
 }
 
 .cm-content .tbl-cell-editor .cm-editor {
@@ -30,17 +53,23 @@
   font-family: var(--lm-font-editor);
 }
 
-.cm-content .tbl-table-widget .tbl-cell-view .lm-table-token-mark {
+.cm-content .tbl-table-widget .tbl-cell-view .lm-table-token-mark,
+.cm-content .tbl-table-widget .tbl-cell-editor .lm-table-token-mark {
   display: none;
 }
 
-.cm-content .tbl-table-widget .tbl-cell-view .lm-table-token-link-destination {
+.cm-content .tbl-table-widget .tbl-cell-view .lm-table-token-link-destination,
+.cm-content .tbl-table-widget .tbl-cell-editor .lm-table-token-link-destination {
   display: none;
 }
 
 .cm-content
   .tbl-table-widget
   .tbl-cell-view
+  .lm-table-token-strong:not(.lm-table-token-mark),
+.cm-content
+  .tbl-table-widget
+  .tbl-cell-editor
   .lm-table-token-strong:not(.lm-table-token-mark) {
   font-weight: 700;
 }
@@ -48,6 +77,10 @@
 .cm-content
   .tbl-table-widget
   .tbl-cell-view
+  .lm-table-token-emphasis:not(.lm-table-token-mark),
+.cm-content
+  .tbl-table-widget
+  .tbl-cell-editor
   .lm-table-token-emphasis:not(.lm-table-token-mark) {
   font-style: italic;
 }
@@ -55,6 +88,10 @@
 .cm-content
   .tbl-table-widget
   .tbl-cell-view
+  .lm-table-token-strikethrough:not(.lm-table-token-mark),
+.cm-content
+  .tbl-table-widget
+  .tbl-cell-editor
   .lm-table-token-strikethrough:not(.lm-table-token-mark) {
   text-decoration: line-through;
 }
@@ -62,6 +99,10 @@
 .cm-content
   .tbl-table-widget
   .tbl-cell-view
+  .lm-table-token-code:not(.lm-table-token-mark),
+.cm-content
+  .tbl-table-widget
+  .tbl-cell-editor
   .lm-table-token-code:not(.lm-table-token-mark) {
   border-radius: 3px;
   background: var(--lm-color-surface-muted);
@@ -72,6 +113,10 @@
 .cm-content
   .tbl-table-widget
   .tbl-cell-view
+  .lm-table-token-link:not(.lm-table-token-mark, .lm-table-token-link-destination),
+.cm-content
+  .tbl-table-widget
+  .tbl-cell-editor
   .lm-table-token-link:not(.lm-table-token-mark, .lm-table-token-link-destination) {
   color: var(--lm-color-accent);
   text-decoration: underline;

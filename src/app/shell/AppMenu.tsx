@@ -6,6 +6,7 @@ import type {
   CommandMenuInvocation,
   CommandMenuNode,
 } from '../../features/commands/commandTypes';
+import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 
 type AppMenuProps = {
   groups: CommandMenuGroup[];
@@ -14,6 +15,11 @@ type AppMenuProps = {
 
 export function AppMenu({ groups, onInvoke }: AppMenuProps) {
   const invoke = (invocation: CommandMenuInvocation) => {
+    logMenuInteraction(
+      `AppMenu.invoke kind=${invocation.kind} action=${
+        invocation.kind === 'action' ? invocation.action : 'callback'
+      }`,
+    );
     for (const content of globalThis.document.querySelectorAll<HTMLElement>(
       '.lm-menu-content[data-state="open"]',
     )) {
@@ -86,6 +92,9 @@ function renderNodes(
               disabled={item.disabled}
               key={item.id}
               onSelect={() => {
+                logMenuInteraction(
+                  `RadioItem.onSelect id=${item.id} label=${item.label}`,
+                );
                 onInvoke(item.invocation);
               }}
               value={item.id}
@@ -138,6 +147,9 @@ function renderNode(
           disabled={node.disabled}
           key={node.id}
           onSelect={() => {
+            logMenuInteraction(
+              `CheckboxItem.onSelect id=${node.id} label=${node.label}`,
+            );
             onInvoke(node.invocation);
           }}
         >
@@ -151,6 +163,9 @@ function renderNode(
           disabled={node.disabled}
           key={node.id}
           onSelect={() => {
+            logMenuInteraction(
+              `Item.onSelect id=${node.id} label=${node.label}`,
+            );
             onInvoke(node.invocation);
           }}
         >

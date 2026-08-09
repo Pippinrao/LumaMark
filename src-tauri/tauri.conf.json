@@ -36,7 +36,7 @@
     "fileAssociations": [
       {
         "ext": ["md", "markdown", "mdown"],
-        "name": "Markdown Document",
+        "name": "LumaMark.Markdown",
         "description": "Markdown document",
         "mimeType": "text/markdown",
         "role": "Editor"

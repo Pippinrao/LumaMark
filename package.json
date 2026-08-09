@@ -27,6 +27,10 @@
     "quality:web-build": "node scripts/quality/verify-web-build.mjs",
     "release:verify-artifacts": "node scripts/release/verify-windows-artifacts.mjs",
     "release:packaged-webview": "pnpm build && node scripts/release/verify-packaged-webview.mjs",
+    "release:packaged-argv-open": "node scripts/release/verify-packaged-argv-open.mjs",
+    "release:packaged-menu-cold-start": "node scripts/release/verify-packaged-menu-cold-start.mjs",
+    "release:packaged-table-caret": "node scripts/release/verify-packaged-table-caret.mjs",
+    "release:packaged-parity-gaps": "node scripts/release/verify-packaged-argv-open.mjs && node scripts/release/verify-packaged-menu-cold-start.mjs && node scripts/release/verify-packaged-table-caret.mjs",
     "release:installer-smoke:plan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -PlanOnly",
     "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis"
   },

@@ -12,7 +12,12 @@ describe('desktop file-open bridge contract', () => {
   it('registers the supported Markdown file associations', () => {
     const config = JSON.parse(read('src-tauri/tauri.conf.json')) as {
       bundle: {
-        fileAssociations?: Array<{ ext: string[]; role?: string }>;
+        fileAssociations?: Array<{
+          description?: string;
+          ext: string[];
+          name?: string;
+          role?: string;
+        }>;
       };
     };
 
@@ -22,6 +27,32 @@ describe('desktop file-open bridge contract', () => {
         role: 'Editor',
       }),
     ]);
+
+    const association = config.bundle.fileAssociations?.[0];
+    // NSIS maps `name` onto the Windows ProgId / FILECLASS. Spaces and punctuation
+    // other than `. _ -` produce fragile Software\Classes keys and can break
+    // Explorer "Open with" / double-click registration on real installs.
+    expect(association?.name).toMatch(/^[A-Za-z][A-Za-z0-9._-]*$/);
+    expect(association?.name).toMatch(/^LumaMark\./);
+  });
+
+  it('keeps generated NSIS association macros on a stable ProgId when present', () => {
+    const nsisPath = join(
+      root,
+      'src-tauri/target/release/nsis/x64/installer.nsi',
+    );
+    if (!existsSync(nsisPath)) {
+      return;
+    }
+
+    const nsis = readFileSync(nsisPath, 'utf8');
+    expect(nsis).toContain('!insertmacro APP_ASSOCIATE "md"');
+    expect(nsis).not.toMatch(
+      /!insertmacro APP_ASSOCIATE "[^"]+" "Markdown Document"/,
+    );
+    expect(nsis).toMatch(
+      /!insertmacro APP_ASSOCIATE "md" "LumaMark\.[^"]+"/,
+    );
   });
 
   it('keeps first-instance OS paths lossless and registers single-instance before other plugins', () => {

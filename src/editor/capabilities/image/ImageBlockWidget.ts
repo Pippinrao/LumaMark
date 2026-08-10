@@ -6,6 +6,7 @@ import type {
   ImageAssetResolver,
 } from '../../core/editorDisplayMode';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
+import { syncBlockWidgetHeight } from '../blockWidgetGeometry';
 import {
   createMediaPreviewButton,
   getMediaPreviewButtonLabel,
@@ -24,6 +25,8 @@ export type ImagePreviewContext = {
 };
 
 export class ImageBlockWidget extends WidgetType {
+  private measuredHeight = -1;
+
   constructor(
     private readonly block: ImageBlock,
     private readonly context: ImagePreviewContext,
@@ -43,6 +46,10 @@ export class ImageBlockWidget extends WidgetType {
     );
   }
 
+  get estimatedHeight(): number {
+    return this.measuredHeight;
+  }
+
   toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement('figure');
     const getExpandLabel = () => getMediaPreviewButtonLabel(view.state);
@@ -58,11 +65,19 @@ export class ImageBlockWidget extends WidgetType {
       view.focus();
     });
 
+    const syncHeight = () => {
+      this.measuredHeight = syncBlockWidgetHeight(
+        view,
+        wrapper,
+        this.measuredHeight,
+      );
+    };
+
     if (
       this.context.imageAssetResolver &&
       !/^(?:data:|blob:)/i.test(this.block.source)
     ) {
-      return this.renderRemotePlaceholder(wrapper, getExpandLabel);
+      return this.renderRemotePlaceholder(wrapper, getExpandLabel, syncHeight);
     }
 
     const resolved = resolveMarkdownImageSource({
@@ -73,6 +88,7 @@ export class ImageBlockWidget extends WidgetType {
     if (resolved.kind === 'error') {
       wrapper.classList.add('lm-image-preview-error');
       wrapper.appendChild(createCaption(i18n.t('image.relativePathUnavailable')));
+      queueMicrotask(syncHeight);
       return wrapper;
     }
 
@@ -82,6 +98,7 @@ export class ImageBlockWidget extends WidgetType {
       resolved.src,
       getExpandLabel,
       this.context.onMediaPreviewRequest,
+      syncHeight,
     );
     return wrapper;
   }
@@ -89,6 +106,7 @@ export class ImageBlockWidget extends WidgetType {
   private renderRemotePlaceholder(
     wrapper: HTMLElement,
     getExpandLabel: () => string,
+    syncHeight: () => void,
   ): HTMLElement {
     if (
       !this.context.documentPath &&
@@ -99,10 +117,12 @@ export class ImageBlockWidget extends WidgetType {
       wrapper.appendChild(
         createCaption(i18n.t('image.unsavedRemoteCacheUnavailable')),
       );
+      queueMicrotask(syncHeight);
       return wrapper;
     }
 
     wrapper.appendChild(createCaption(i18n.t('image.downloading')));
+    queueMicrotask(syncHeight);
     void this.context
       .imageAssetResolver?.({
         documentPath: this.context.documentPath,
@@ -115,6 +135,7 @@ export class ImageBlockWidget extends WidgetType {
           resolution,
           getExpandLabel,
           this.context.onMediaPreviewRequest,
+          syncHeight,
         );
       })
       .catch(() => {
@@ -124,6 +145,7 @@ export class ImageBlockWidget extends WidgetType {
           { kind: 'error', reason: 'remote_cache_failed' },
           getExpandLabel,
           this.context.onMediaPreviewRequest,
+          syncHeight,
         );
       });
 
@@ -143,7 +165,8 @@ function renderRemoteResolution(
   alt: string,
   resolution: ImageAssetResolution,
   getExpandLabel: () => string,
-  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler,
+  onMediaPreviewRequest: EditorMediaPreviewRequestHandler | undefined,
+  syncHeight: () => void,
 ): void {
   wrapper.textContent = '';
 
@@ -158,6 +181,7 @@ function renderRemoteResolution(
         ),
       ),
     );
+    queueMicrotask(syncHeight);
     return;
   }
 
@@ -168,6 +192,7 @@ function renderRemoteResolution(
     resolution.src,
     getExpandLabel,
     onMediaPreviewRequest,
+    syncHeight,
   );
 }
 
@@ -176,7 +201,8 @@ function renderResolvedImage(
   alt: string,
   src: string,
   getExpandLabel: () => string,
-  onMediaPreviewRequest?: EditorMediaPreviewRequestHandler,
+  onMediaPreviewRequest: EditorMediaPreviewRequestHandler | undefined,
+  syncHeight: () => void,
 ): void {
   const media = document.createElement('span');
   media.className = 'lm-image-preview-media';
@@ -190,6 +216,8 @@ function renderResolvedImage(
     getExpandLabel,
     onMediaPreviewRequest,
   );
+  image.addEventListener('load', syncHeight);
+  image.addEventListener('error', syncHeight);
   image.src = src;
   image.addEventListener('error', () => {
     wrapper.classList.add('lm-image-preview-error');
@@ -205,6 +233,12 @@ function renderResolvedImage(
   if (alt.trim()) {
     wrapper.appendChild(createCaption(alt));
   }
+
+  queueMicrotask(() => {
+    if (image.complete) {
+      syncHeight();
+    }
+  });
 }
 
 function attachImagePreviewAction(

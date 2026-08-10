@@ -1,9 +1,15 @@
+/*
+ * Block-widget chrome must not invent fake blank lines. Vertical margin on
+ * replace widgets is invisible to CodeMirror's height map and shifts every
+ * click → caret mapping below the diagram. Spacing comes from real markdown
+ * blank lines (clickable cm-lines) only.
+ */
 .cm-content .lm-mermaid-preview {
   position: relative;
   display: block;
   box-sizing: border-box;
   width: 100%;
-  margin: 26px 0 34px;
+  margin: 0;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--lm-color-border-subtle);
@@ -108,10 +114,6 @@
 .cm-content .lm-mermaid-preview-error {
   border-color: color-mix(in srgb, #d92d20 38%, var(--lm-color-border-subtle));
   background: color-mix(in srgb, var(--lm-color-surface) 90%, #fce8e6);
-}
-
-.cm-content .lm-mermaid-preview-editing {
-  margin-top: var(--lm-space-3);
 }
 
 .cm-content .lm-mermaid-svg:empty {

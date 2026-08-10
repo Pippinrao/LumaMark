@@ -1,7 +1,13 @@
+/*
+ * Block-widget chrome must not invent fake blank lines. Vertical margin on
+ * replace widgets is invisible to CodeMirror's height map and shifts every
+ * click → caret mapping below the image. Spacing comes from real markdown
+ * blank lines (clickable cm-lines) only.
+ */
 .cm-content .lm-image-preview {
   position: relative;
   display: block;
-  margin: 22px 0 28px;
+  margin: 0;
   text-align: center;
 }
 

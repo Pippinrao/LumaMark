@@ -472,7 +472,8 @@ LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通�
 
 - 表格（及同类 WYSIWYG widget）的 inactive view 与 active nested editor 必须共享同一 padding box；隐藏 mark 在两态行为一致。禁止靠假空格或装饰性光标冒充对齐。
 - 单元格激活必须保留激活前的指针坐标，并在嵌套编辑器就绪后用 CodeMirror `posAtCoords` 落到真实文档位置；空 padding 点击应落到可见文本端，而不是发明占位字符。
-- 禁止给 block widget 增加会变成不可选命中区的装饰性上下 `margin`/`padding`。表格与正文的间距只能来自真实 Markdown 空行（可点的 `cm-line`）。
+- 禁止给 block widget 增加会变成不可选命中区的装饰性上下 `margin`/`padding`。表格与正文的间距只能来自真实 Markdown 空行（可点的 `cm-line`）。图片、Mermaid 等同理；垂直 margin 不会进入 CodeMirror height map，会导致下方所有点击→光标映射漂移。
+- 异步变高的 block widget（图片 load、Mermaid render）必须在尺寸变化后刷新 height map；仅 `requestMeasure()` 对视口外 widget 不够时，需要强制完整高度刷新。
 - 禁止用内层横向滚动或表头 `max-width` 裁切表格来“美化列宽”。宽表应完整可见；滚动条与裁切会破坏点击→光标映射。
 - 修光标时若改动 overflow、transform、缩放、滚动容器或 widget 几何，必须重新跑表格光标矩阵，并至少用安装包 + OS 级鼠标验证一轮。
 - 做 OS 级点击复现时，屏幕坐标必须从 WebView 客户区原点换算（例如 Win32 `ClientToScreen`）。`GetWindowRect` 含窗口边框，会系统性偏数像素并制造假失败/假通过。

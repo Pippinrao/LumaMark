@@ -13,6 +13,7 @@ import {
 import type { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import { safeMermaidConfig } from './mermaidRenderAdapter';
 import { getMediaPreviewButtonLabel } from '../mediaPreviewButton';
+import { syncBlockWidgetHeight } from '../blockWidgetGeometry';
 import {
   createMermaidWidgetDom,
   type MermaidWidgetDom,
@@ -24,8 +25,11 @@ type MermaidBlockWidgetOptions = {
   onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
 };
 
+const MERMAID_LOADING_HEIGHT_ESTIMATE = 48;
+
 export class MermaidBlockWidget extends WidgetType {
   private cancelRender: (() => void) | null = null;
+  private measuredHeight = MERMAID_LOADING_HEIGHT_ESTIMATE;
   private renderedSvg: string | null = null;
 
   constructor(
@@ -48,6 +52,10 @@ export class MermaidBlockWidget extends WidgetType {
       widget.options.onMediaPreviewRequest === this.options.onMediaPreviewRequest &&
       widget.editing === this.editing
     );
+  }
+
+  get estimatedHeight(): number {
+    return this.measuredHeight;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -75,7 +83,14 @@ export class MermaidBlockWidget extends WidgetType {
       dom.wrapper.classList.add('lm-mermaid-preview-editing');
     }
 
-    this.requestPreviewRender(dom, this.block.content);
+    this.requestPreviewRender(view, dom, this.block.content);
+    queueMicrotask(() => {
+      this.measuredHeight = syncBlockWidgetHeight(
+        view,
+        dom.wrapper,
+        this.measuredHeight,
+      );
+    });
 
     return dom.wrapper;
   }
@@ -91,6 +106,7 @@ export class MermaidBlockWidget extends WidgetType {
   }
 
   private requestPreviewRender(
+    view: EditorView,
     dom: MermaidWidgetDom,
     source: string,
   ): void {
@@ -106,6 +122,11 @@ export class MermaidBlockWidget extends WidgetType {
         dom.status.hidden = false;
         dom.status.className = 'lm-mermaid-error';
         dom.status.textContent = i18n.t('mermaid.renderFailed');
+        this.measuredHeight = syncBlockWidgetHeight(
+          view,
+          dom.wrapper,
+          this.measuredHeight,
+        );
       },
       onLoading: () => {
         this.renderedSvg = null;
@@ -116,6 +137,11 @@ export class MermaidBlockWidget extends WidgetType {
         dom.status.className = 'lm-mermaid-status';
         dom.status.textContent = i18n.t('mermaid.loading');
         dom.svgContainer.replaceChildren();
+        this.measuredHeight = syncBlockWidgetHeight(
+          view,
+          dom.wrapper,
+          this.measuredHeight,
+        );
       },
       onSuccess: ({ svg }) => {
         this.renderedSvg = svg;
@@ -125,6 +151,11 @@ export class MermaidBlockWidget extends WidgetType {
         dom.status.hidden = true;
         dom.status.textContent = '';
         dom.svgContainer.innerHTML = svg;
+        this.measuredHeight = syncBlockWidgetHeight(
+          view,
+          dom.wrapper,
+          this.measuredHeight,
+        );
       },
       source,
       theme: this.theme,

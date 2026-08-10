@@ -54,6 +54,7 @@ pnpm release:generate-updater-manifest
 
 - 公钥写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
 - 私钥只存 GitHub Secrets / 离线保险位置；丢失后已安装用户无法继续接收签名更新。
+- 粘贴私钥到 GitHub Secrets 时避免带 UTF-8 BOM；发布 workflow 会清洗 BOM，但密钥本身仍须是 `tauri signer generate` 产出的合法内容。
 - 私钥文件不得提交仓库；`.gitignore` 已忽略 `*.key` / `*.key.pub`。
 
 回滚：

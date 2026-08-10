@@ -87,6 +87,34 @@ jobs:
             throw 'TAURI_SIGNING_PRIVATE_KEY secret is required to publish updater artifacts.'
           }
 
+          # GitHub secret values are sometimes pasted from UTF-8 files with a BOM.
+          # Tauri's minisign base64 decoder then fails with "Invalid symbol 239".
+          $key = $env:TAURI_SIGNING_PRIVATE_KEY.Trim().TrimStart([char]0xFEFF)
+          $utf8 = [System.Text.Encoding]::UTF8
+          $bytes = $utf8.GetBytes($key)
+          if (
+            $bytes.Length -ge 3 -and
+            $bytes[0] -eq 0xEF -and
+            $bytes[1] -eq 0xBB -and
+            $bytes[2] -eq 0xBF
+          ) {
+            $key = $utf8.GetString($bytes, 3, $bytes.Length - 3).Trim()
+          }
+
+          if ([string]::IsNullOrWhiteSpace($key)) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY is empty after BOM/whitespace sanitization.'
+          }
+
+          $keyPath = Join-Path $env:RUNNER_TEMP 'tauri-signing.key'
+          [System.IO.File]::WriteAllText($keyPath, $key, [System.Text.UTF8Encoding]::new($false))
+          # Overwrite the job-level secret env (may contain UTF-8 BOM) for later steps.
+          @(
+            "TAURI_SIGNING_PRIVATE_KEY_PATH=$keyPath"
+            'TAURI_SIGNING_PRIVATE_KEY<<__TAURI_KEY_EOF__'
+            $key
+            '__TAURI_KEY_EOF__'
+          ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Build NSIS installer with updater artifacts
         run: pnpm build:nsis
 

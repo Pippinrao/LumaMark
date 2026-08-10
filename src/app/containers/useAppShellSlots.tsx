@@ -29,6 +29,11 @@ const LazyAboutDialog = lazy(() =>
     default: module.AboutDialog,
   })),
 );
+const LazyUpdateDialog = lazy(() =>
+  import('../../features/updates/UpdateDialog').then((module) => ({
+    default: module.UpdateDialog,
+  })),
+);
 const LazyMediaViewerDialog = lazy(() =>
   import('../../features/media-viewer/MediaViewerDialog').then((module) => ({
     default: module.MediaViewerDialog,
@@ -49,6 +54,23 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
                 onReturnFocus={model.restoreDialogFocus}
                 open={model.aboutOpen}
                 version={packageMetadata.version}
+              />
+            ) : null
+          }
+          updateDialog={
+            model.updateDialog.dialogOpen ? (
+              <LazyUpdateDialog
+                currentVersion={model.updateDialog.currentVersion}
+                errorCode={model.updateDialog.errorCode}
+                errorMessage={model.updateDialog.errorMessage}
+                notes={model.updateDialog.notes}
+                onInstall={model.updateDialog.installAvailableUpdate}
+                onOpenChange={model.updateDialog.setDialogOpen}
+                onReturnFocus={model.restoreDialogFocus}
+                open={model.updateDialog.dialogOpen}
+                progress={model.updateDialog.progress}
+                status={model.updateDialog.status}
+                version={model.updateDialog.version}
               />
             ) : null
           }
@@ -128,8 +150,10 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
           settingsDialog={
             model.settingsOpen ? (
               <LazySettingsDialog
+                autoCheckUpdates={model.updateDialog.autoCheckOnStartup}
                 copyImagesToAssets={model.copyImagesToAssets}
                 language={model.language}
+                onAutoCheckUpdatesChange={model.updateDialog.setAutoCheckOnStartup}
                 onCopyImagesToAssetsChange={model.setCopyImagesToAssets}
                 onLanguageChange={model.setLanguage}
                 onOpenChange={model.setSettingsOpen}
@@ -145,6 +169,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
                 startupBehavior={model.startupBehavior}
                 startupPersistenceError={model.startupPersistenceError}
                 theme={model.theme}
+                updatePersistenceError={model.updateDialog.updatePersistenceError}
               />
             ) : null
           }

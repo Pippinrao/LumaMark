@@ -90,6 +90,7 @@ describe('createCommandPaletteModels', () => {
       'toggle-language',
       'toggle-sidebar',
       'open-settings',
+      'check-for-updates',
     ]);
   });
 });
@@ -179,7 +180,7 @@ describe('createTopMenuModels', () => {
         'link:link:',
         'image:image:Ctrl+Shift+I',
       ],
-      help: ['about:openAbout:'],
+      help: ['check-for-updates:checkForUpdates:', 'about:openAbout:'],
       language: [
         'language-zh:setChineseLanguage:',
         'language-en:setEnglishLanguage:',
@@ -335,6 +336,7 @@ describe('createTopMenuModels', () => {
       'theme-dark',
       'language-zh',
       'language-en',
+      'check-for-updates',
       'about',
     ]);
   });

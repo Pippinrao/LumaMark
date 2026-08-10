@@ -9,6 +9,7 @@ type AppDialogsProps = {
   mediaViewer: ReactNode;
   recoveryDraftDialog: ReactNode;
   settingsDialog: ReactNode;
+  updateDialog: ReactNode;
 };
 
 export function AppDialogs({
@@ -20,6 +21,7 @@ export function AppDialogs({
   mediaViewer,
   recoveryDraftDialog,
   settingsDialog,
+  updateDialog,
 }: AppDialogsProps) {
   return (
     <Suspense fallback={null}>
@@ -31,6 +33,7 @@ export function AppDialogs({
       {mediaViewer}
       {recoveryDraftDialog}
       {settingsDialog}
+      {updateDialog}
     </Suspense>
   );
 }

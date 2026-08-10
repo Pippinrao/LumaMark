@@ -1,0 +1,120 @@
+name: Windows Release Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (must match package.json version, e.g. v0.2.17)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-windows-nsis:
+    name: Publish Windows NSIS release
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    env:
+      npm_config_registry: https://registry.npmmirror.com/
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmmirror.com/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $tag = $env:GITHUB_REF_NAME
+          } elseif ($env:INPUT_TAG) {
+            $tag = $env:INPUT_TAG
+          } else {
+            $tag = "v$packageVersion"
+          }
+
+          if ($tag -notmatch '^v(.+)$') {
+            throw "Release tag must look like v0.2.17, got: $tag"
+          }
+          $tagVersion = $Matches[1]
+          if ($tagVersion -ne $packageVersion) {
+            throw "Tag version $tagVersion does not match package.json version $packageVersion"
+          }
+
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version=$packageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+
+      - name: Verify version consistency
+        run: pnpm release:verify-versions -- --expected-version ${{ steps.version.outputs.version }}
+
+      - name: Require updater signing key
+        shell: pwsh
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY secret is required to publish updater artifacts.'
+          }
+
+      - name: Build NSIS installer with updater artifacts
+        run: pnpm build:nsis
+
+      - name: Generate updater manifest
+        run: pnpm release:generate-updater-manifest
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $nsisDir = 'src-tauri/target/release/bundle/nsis'
+          $setup = Join-Path $nsisDir "LumaMark_${env:VERSION}_x64-setup.exe"
+          $sig = "$setup.sig"
+          $latest = Join-Path $nsisDir 'latest.json'
+
+          foreach ($path in @($setup, $sig, $latest)) {
+            if (-not (Test-Path $path)) {
+              throw "Missing release asset: $path"
+            }
+          }
+
+          gh release create $env:TAG `
+            $setup `
+            $sig `
+            $latest `
+            --title "LumaMark $env:VERSION" `
+            --generate-notes `
+            --latest

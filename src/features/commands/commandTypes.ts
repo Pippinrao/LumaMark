@@ -10,6 +10,7 @@ export type CommandActionId =
   | 'focusEditor'
   | 'newDocument'
   | 'openAbout'
+  | 'checkForUpdates'
   | 'openCommandPalette'
   | 'openFile'
   | 'openSearch'

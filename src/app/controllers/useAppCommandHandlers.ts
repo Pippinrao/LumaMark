@@ -38,6 +38,7 @@ type UseAppCommandHandlersOptions = {
   insertImage: () => void;
   newDocument: () => void;
   openAbout: () => void;
+  checkForUpdates: () => void;
   openCommandPalette: () => void;
   openFile: () => void;
   openSearch: () => void;
@@ -69,6 +70,7 @@ export function useAppCommandHandlers({
   insertImage,
   newDocument,
   openAbout,
+  checkForUpdates,
   openCommandPalette,
   openFile,
   openSearch,
@@ -111,6 +113,10 @@ export function useAppCommandHandlers({
       openAbout: () => {
         logMenuInteraction('handler openAbout()');
         openAbout();
+      },
+      checkForUpdates: () => {
+        logMenuInteraction('handler checkForUpdates()');
+        checkForUpdates();
       },
       openCommandPalette,
       openFile,
@@ -155,6 +161,7 @@ export function useAppCommandHandlers({
     insertImage,
     newDocument,
     openAbout,
+    checkForUpdates,
     openCommandPalette,
     openFile,
     openSearch,

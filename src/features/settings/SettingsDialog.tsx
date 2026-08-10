@@ -9,8 +9,10 @@ import type { StartupBehavior } from '../startup/startupStore';
 type ThemeMode = 'light' | 'dark';
 
 type SettingsDialogProps = {
+  autoCheckUpdates: boolean;
   copyImagesToAssets: boolean;
   language: AppLanguage;
+  onAutoCheckUpdatesChange: (autoCheckUpdates: boolean) => void;
   onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
   onLanguageChange: (language: AppLanguage) => void;
   onOpenChange: (open: boolean) => void;
@@ -26,11 +28,14 @@ type SettingsDialogProps = {
   startupBehavior: StartupBehavior;
   startupPersistenceError: boolean;
   theme: ThemeMode;
+  updatePersistenceError: boolean;
 };
 
 export function SettingsDialog({
+  autoCheckUpdates,
   copyImagesToAssets,
   language,
+  onAutoCheckUpdatesChange,
   onCopyImagesToAssetsChange,
   onLanguageChange,
   onOpenChange,
@@ -46,6 +51,7 @@ export function SettingsDialog({
   startupBehavior,
   startupPersistenceError,
   theme,
+  updatePersistenceError,
 }: SettingsDialogProps) {
   const { t } = useTranslation();
 
@@ -227,6 +233,21 @@ export function SettingsDialog({
               {recentFilesPersistenceError ? (
                 <p className="lm-setting-error" role="alert">
                   {t('settings.recentFilesPersistenceError')}
+                </p>
+              ) : null}
+              <label className="lm-setting-row">
+                <span>{t('settings.autoCheckUpdates')}</span>
+                <input
+                  checked={autoCheckUpdates}
+                  onChange={(event) => {
+                    onAutoCheckUpdatesChange(event.currentTarget.checked);
+                  }}
+                  type="checkbox"
+                />
+              </label>
+              {updatePersistenceError ? (
+                <p className="lm-setting-error" role="alert">
+                  {t('settings.updatePersistenceError')}
                 </p>
               ) : null}
             </Tabs.Content>

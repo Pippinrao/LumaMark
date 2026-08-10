@@ -124,6 +124,23 @@ test('executes menu state, recent-file, and About workflows end to end', async (
   await expect(page.locator('.cm-content').first()).toBeFocused();
 });
 
+test('opens the check-for-updates dialog from the Help menu', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
+
+  await openTopMenu(page, '帮助');
+  await page.getByRole('menuitem', { name: '检查更新' }).click();
+
+  const dialog = page.getByRole('dialog', { name: '检查更新' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(packageVersion);
+  await expect(dialog).toContainText('应用内更新仅在已安装的桌面应用中可用');
+  await dialog.locator('.lm-dialog-actions').getByRole('button', { name: '关闭' }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test('persists language and theme after a mouse-only menu workflow', async ({
   page,
 }) => {

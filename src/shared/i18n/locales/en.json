@@ -178,6 +178,22 @@
   "status.unsaved": "Unsaved",
   "status.workspaceOpened": "Workspace opened",
   "status.workspaceOpenFailed": "Workspace open failed",
-  "status.dirtyIndicator": "Unsaved changes"
-  ,"status.documentStatistics": "{{lines}} lines · {{words}} words · {{characters}} characters"
+  "status.dirtyIndicator": "Unsaved changes",
+  "status.documentStatistics": "{{lines}} lines · {{words}} words · {{characters}} characters",
+  "menu.checkForUpdates": "Check for Updates",
+  "settings.autoCheckUpdates": "Check for updates when LumaMark starts",
+  "settings.updatePersistenceError": "Unable to read or save update settings. Your current choices may only last for this run.",
+  "update.title": "Check for Updates",
+  "update.checking": "Checking for updates…",
+  "update.available": "Version {{version}} is available.",
+  "update.upToDate": "You are already on the latest version.",
+  "update.currentVersion": "Current version",
+  "update.newVersion": "New version",
+  "update.releaseNotes": "Release notes",
+  "update.downloading": "Downloading update…",
+  "update.installNow": "Update Now",
+  "update.later": "Later",
+  "update.checkFailed": "Failed to check for updates. Please try again later.",
+  "update.downloadFailed": "Failed to download or install the update. Portable builds may not support in-app updates.",
+  "update.unsupported": "In-app updates are only available in the installed desktop app."
 }

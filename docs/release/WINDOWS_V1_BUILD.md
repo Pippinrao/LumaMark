@@ -4,6 +4,65 @@
 
 > **历史记录：** 下列分支、版本号、文件大小与 SHA-256 只描述对应 Alpha 构建，不能当作当前工作树的发布产物。Parity Reliability 只有在当前执行计划的自动化门禁、Windows 实测和真实自用退出条件全部满足后，才具备 Beta 候选资格；一次本地 `pnpm build` 成功不等于已发布。
 
+## 自动更新发布（NSIS + GitHub Release）
+
+当前正式发布路径：
+
+1. 确认 `package.json` / `Cargo.toml` / `tauri.conf.json` 版本一致。
+2. 确认 GitHub Secrets 已配置：
+   - `TAURI_SIGNING_PRIVATE_KEY`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（无口令时可为空）
+3. 打 tag 并推送，例如 `git tag v0.2.17 && git push origin v0.2.17`。
+4. `.github/workflows/windows-release-publish.yml` 会：
+   - 校验 tag 与 `package.json` 版本一致
+   - 注入签名密钥后执行 `pnpm build:nsis`
+   - 生成 `latest.json`
+   - 创建 GitHub Release，并上传：
+     - `LumaMark_{version}_x64-setup.exe`
+     - `LumaMark_{version}_x64-setup.exe.sig`
+     - `latest.json`
+
+应用内 updater endpoint：
+
+```text
+https://github.com/Pippinrao/LumaMark/releases/latest/download/latest.json
+```
+
+`latest.json` 契约（静态清单）：
+
+```json
+{
+  "version": "0.2.17",
+  "notes": "",
+  "pub_date": "2026-08-09T00:00:00.000Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "<contents of .sig>",
+      "url": "https://github.com/Pippinrao/LumaMark/releases/download/v0.2.17/LumaMark_0.2.17_x64-setup.exe"
+    }
+  }
+}
+```
+
+本地生成清单：
+
+```powershell
+pnpm release:generate-updater-manifest
+```
+
+密钥管理：
+
+- 公钥写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
+- 私钥只存 GitHub Secrets / 离线保险位置；丢失后已安装用户无法继续接收签名更新。
+- 私钥文件不得提交仓库；`.gitignore` 已忽略 `*.key` / `*.key.pub`。
+
+回滚：
+
+- 删除或取消标记有问题的 GitHub Release，使 `latest` 回退到上一版。
+- 如需紧急停用自动更新，可临时从 Release 移除 `latest.json`；已安装客户端会检查失败并显示错误，而不会强制安装。
+
+手动全量构建校验仍使用 `.github/workflows/windows-release-build.yml`（上传 exe/MSI/NSIS artifacts，不创建 Release）。
+
 ## 0.2.3 NSIS-only 发布候选
 
 - 日期：2026-08-05

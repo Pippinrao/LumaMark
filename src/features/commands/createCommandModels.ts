@@ -25,6 +25,7 @@ import {
   Pilcrow,
   Quote,
   Redo2,
+  RefreshCw,
   RotateCcw,
   Save,
   SaveAll,
@@ -65,6 +66,7 @@ const ACTION_MANAGED_FOCUS = new Set<CommandActionId>([
   'link',
   'newDocument',
   'openAbout',
+  'checkForUpdates',
   'openCommandPalette',
   'openSearch',
   'openSettings',
@@ -207,6 +209,12 @@ export function createCommandPaletteModels({
       'openSettings',
       Settings,
       t('settings.title'),
+    ),
+    actionCommand(
+      'check-for-updates',
+      'checkForUpdates',
+      RefreshCw,
+      t('menu.checkForUpdates'),
     ),
     actionCommand('heading-1', 'heading1', Heading, t('menu.heading1')),
     actionCommand('heading-2', 'heading2', Heading, t('menu.heading2')),
@@ -415,7 +423,15 @@ export function createTopMenuModels({
     {
       id: 'help',
       label: t('menu.help'),
-      items: [menuItem('about', 'openAbout', Info, t('menu.about'))],
+      items: [
+        menuItem(
+          'check-for-updates',
+          'checkForUpdates',
+          RefreshCw,
+          t('menu.checkForUpdates'),
+        ),
+        menuItem('about', 'openAbout', Info, t('menu.about')),
+      ],
     },
   ];
 

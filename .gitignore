@@ -16,6 +16,9 @@ artifacts/typora-observe/__pycache__/
 tests/fixtures/markdown/.lumamark/
 .env
 .env.*
+*.key
+*.key.pub
+.tauri/
 .worktrees/
 worktrees/
 .claude/

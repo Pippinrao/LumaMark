@@ -923,7 +923,8 @@ button {
 
 .lm-command-palette,
 .lm-settings-dialog,
-.lm-about-dialog {
+.lm-about-dialog,
+.lm-update-dialog {
   position: fixed;
   z-index: 90;
   top: 72px;
@@ -991,10 +992,21 @@ button {
   padding: var(--lm-space-4);
 }
 
+
+
+
+
+
+
 .lm-about-dialog {
   width: min(420px, calc(100vw - 32px));
   padding: var(--lm-space-5);
   text-align: center;
+}
+
+.lm-update-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: var(--lm-space-5);
 }
 
 .lm-about-identity {
@@ -1008,6 +1020,96 @@ button {
   margin-top: var(--lm-space-4);
   background: var(--lm-color-accent-soft);
   color: var(--lm-color-accent-strong);
+}
+
+.lm-update-identity {
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lm-color-border);
+  border-radius: 12px;
+  margin: var(--lm-space-3) auto var(--lm-space-2);
+  background: var(--lm-color-accent-soft);
+  color: var(--lm-color-accent-strong);
+}
+
+.lm-update-description {
+  text-align: center;
+}
+
+.lm-update-versions {
+  display: grid;
+  gap: var(--lm-space-2);
+  margin: 0 0 var(--lm-space-3);
+}
+
+.lm-update-versions div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lm-space-3);
+}
+
+.lm-update-versions dt {
+  color: var(--lm-color-text-muted);
+}
+
+.lm-update-versions dd {
+  margin: 0;
+}
+
+.lm-update-notes {
+  margin-bottom: var(--lm-space-3);
+  text-align: left;
+}
+
+.lm-update-notes h3 {
+  margin: 0 0 var(--lm-space-2);
+  font-size: 0.84rem;
+}
+
+.lm-update-notes pre {
+  max-height: 160px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--lm-space-3);
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-1);
+  background: var(--lm-color-surface-muted);
+  color: var(--lm-color-text);
+  font: inherit;
+  font-size: 0.84rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lm-update-progress {
+  margin-bottom: var(--lm-space-3);
+}
+
+.lm-update-progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lm-color-accent-strong);
+  transition: width 120ms ease;
+}
+
+.lm-update-progress p {
+  margin: var(--lm-space-2) 0 0;
+  color: var(--lm-color-text-muted);
+  font-size: 0.84rem;
+}
+
+.lm-update-install-button {
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--lm-radius-1);
+  background: var(--lm-color-accent-strong);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  padding: 0 var(--lm-space-3);
 }
 
 .lm-about-description {

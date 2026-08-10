@@ -178,6 +178,22 @@
   "status.unsaved": "未保存",
   "status.workspaceOpened": "工作区已打开",
   "status.workspaceOpenFailed": "打开工作区失败",
-  "status.dirtyIndicator": "有未保存修改"
-  ,"status.documentStatistics": "{{lines}} 行 · {{words}} 词 · {{characters}} 个字符"
+  "status.dirtyIndicator": "有未保存修改",
+  "status.documentStatistics": "{{lines}} 行 · {{words}} 词 · {{characters}} 个字符",
+  "menu.checkForUpdates": "检查更新",
+  "settings.autoCheckUpdates": "启动时检查更新",
+  "settings.updatePersistenceError": "无法读取或保存更新设置。当前选择可能仅在本次运行期间有效。",
+  "update.title": "检查更新",
+  "update.checking": "正在检查更新…",
+  "update.available": "发现新版本 {{version}}。",
+  "update.upToDate": "当前已是最新版本。",
+  "update.currentVersion": "当前版本",
+  "update.newVersion": "新版本",
+  "update.releaseNotes": "更新说明",
+  "update.downloading": "正在下载更新…",
+  "update.installNow": "立即更新",
+  "update.later": "稍后",
+  "update.checkFailed": "检查更新失败。请稍后重试。",
+  "update.downloadFailed": "下载或安装更新失败。绿色版可能不支持应用内更新。",
+  "update.unsupported": "应用内更新仅在已安装的桌面应用中可用。"
 }

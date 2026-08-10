@@ -14,8 +14,10 @@ describe('SettingsDialog', () => {
     render(
       <I18nProvider>
         <SettingsDialog
+          autoCheckUpdates={true}
           copyImagesToAssets={false}
           language="zh-CN"
+          onAutoCheckUpdatesChange={vi.fn()}
           onCopyImagesToAssetsChange={vi.fn()}
           onLanguageChange={vi.fn()}
           onOpenChange={vi.fn()}
@@ -30,6 +32,7 @@ describe('SettingsDialog', () => {
           recentFilesPersistenceError={false}
           startupBehavior="home"
           startupPersistenceError={false}
+          updatePersistenceError={false}
           theme="light"
         />
       </I18nProvider>,
@@ -50,8 +53,10 @@ describe('SettingsDialog', () => {
     render(
       <I18nProvider>
         <SettingsDialog
+          autoCheckUpdates={true}
           copyImagesToAssets={false}
           language="zh-CN"
+          onAutoCheckUpdatesChange={vi.fn()}
           onCopyImagesToAssetsChange={vi.fn()}
           onLanguageChange={vi.fn()}
           onOpenChange={vi.fn()}
@@ -66,6 +71,7 @@ describe('SettingsDialog', () => {
           recentFilesPersistenceError={false}
           startupBehavior="home"
           startupPersistenceError
+          updatePersistenceError={false}
           theme="light"
         />
       </I18nProvider>,
@@ -86,8 +92,10 @@ describe('SettingsDialog', () => {
     render(
       <I18nProvider>
         <SettingsDialog
+          autoCheckUpdates={true}
           copyImagesToAssets={false}
           language="en"
+          onAutoCheckUpdatesChange={vi.fn()}
           onCopyImagesToAssetsChange={vi.fn()}
           onLanguageChange={vi.fn()}
           onOpenChange={vi.fn()}
@@ -102,6 +110,7 @@ describe('SettingsDialog', () => {
           recentFilesPersistenceError={false}
           startupBehavior="home"
           startupPersistenceError
+          updatePersistenceError={false}
           theme="light"
         />
       </I18nProvider>,
@@ -134,8 +143,10 @@ describe('SettingsDialog', () => {
     render(
       <I18nProvider>
         <SettingsDialog
+          autoCheckUpdates={true}
           copyImagesToAssets={false}
           language={language}
+          onAutoCheckUpdatesChange={vi.fn()}
           onCopyImagesToAssetsChange={vi.fn()}
           onLanguageChange={vi.fn()}
           onOpenChange={vi.fn()}
@@ -150,6 +161,7 @@ describe('SettingsDialog', () => {
           recentFilesPersistenceError
           startupBehavior="home"
           startupPersistenceError={false}
+          updatePersistenceError={false}
           theme="light"
         />
       </I18nProvider>,
@@ -181,8 +193,10 @@ describe('SettingsDialog', () => {
     render(
       <I18nProvider>
         <SettingsDialog
+          autoCheckUpdates={true}
           copyImagesToAssets={false}
           language={language}
+          onAutoCheckUpdatesChange={vi.fn()}
           onCopyImagesToAssetsChange={vi.fn()}
           onLanguageChange={vi.fn()}
           onOpenChange={vi.fn()}
@@ -197,6 +211,7 @@ describe('SettingsDialog', () => {
           recentFilesPersistenceError={false}
           startupBehavior="home"
           startupPersistenceError={false}
+          updatePersistenceError={false}
           theme="light"
         />
       </I18nProvider>,

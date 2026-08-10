@@ -18,22 +18,20 @@ import { useSettingsModel } from './useSettingsModel';
 import { useWindowControlsModel } from './useWindowControlsModel';
 import { useStartupExperience } from './useStartupExperience';
 import { useDesktopOpenRequests } from './useDesktopOpenRequests';
+import { useUpdateModel } from './useUpdateModel';
 import { useStartupStore } from '../../features/startup/startupStore';
 import { useAppStore } from '../stores/appStore';
 export function useAppShellModel() {
   const { t } = useTranslation();
   const [aboutOpen, setAboutOpen] = useState(false);
-  const sidebarOpen = useAppStore((state) => state.sidebarOpen);
-  const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
-  const toggleSidebar = useAppStore((state) => state.toggleSidebar);
+  const updates = useUpdateModel();
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const commandPalette = useCommandPaletteModel();
   const editor = useAppEditorCommands();
   const mediaViewer = useMediaViewer(editor.focusEditor);
-  const document = useAppDocumentModel(
-    editor.documentPortRef,
-    editor.editorReady,
-    editor.refreshLocalImage,
-  );
+  const document = useAppDocumentModel(editor.documentPortRef, editor.editorReady, editor.refreshLocalImage);
   const settings = useSettingsModel();
   const readingAppearance = useReadingAppearanceModel(editor.focusEditor);
   const { openAbout, openSettings, restoreDialogFocus } = useMenuDialogFocus({
@@ -73,13 +71,10 @@ export function useAppShellModel() {
     focusEditor: editor.focusEditor,
   });
   const shortcuts = useMemo(() => createCommandShortcutLabels(globalThis.navigator.userAgent), []);
-  const onEditorReady = useCallback(
-    (editorApi: EditorApi) => {
-      editor.onEditorReady(editorApi);
-      document.scheduleOutlineRefresh();
-    },
-    [document, editor],
-  );
+  const onEditorReady = useCallback((editorApi: EditorApi) => {
+    editor.onEditorReady(editorApi);
+    document.scheduleOutlineRefresh();
+  }, [document, editor]);
   const { exitFocusMode, focusMode, toggleFocusMode } = useFocusMode({
     focusEditor: editor.focusEditor,
     setSidebarOpen,
@@ -96,6 +91,7 @@ export function useAppShellModel() {
     },
     newDocument: startup.visible ? startup.newDocument : newDocumentConfirmation.requestNewDocument,
     openAbout,
+    checkForUpdates: updates.checkForUpdatesManually,
     openCommandPalette: commandPalette.openPalette,
     openFile: () => {
       void startup.openFile();
@@ -207,6 +203,7 @@ export function useAppShellModel() {
     toggleFocusMode,
     confirmNewDocument: newDocumentConfirmation.confirmNewDocument,
     theme: settings.theme,
+    updateDialog: updates,
     startup,
     startupBehavior: settings.startupBehavior,
     startupPersistenceError: settings.startupPersistenceError,

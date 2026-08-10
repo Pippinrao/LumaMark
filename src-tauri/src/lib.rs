@@ -70,6 +70,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
             let cwd = std::env::current_dir()?;

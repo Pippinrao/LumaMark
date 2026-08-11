@@ -55,6 +55,15 @@ test('generates a visual report for live preview rendering and editing states', 
     hasText: 'const value: number = 1',
   });
   await codeLine.click();
+  const codeOpeningLine = page.locator('.lm-md-code-block-start');
+  await expect(codeOpeningLine).toHaveAttribute(
+    'data-lm-code-language',
+    'TypeScript',
+  );
+  const codeLanguage = await codeOpeningLine.evaluate((line) =>
+    getComputedStyle(line, '::after').content.replaceAll('"', ''),
+  );
+  expect(codeLanguage).toBe('TypeScript');
   await capture(page, screenshots, '02-code-focused.png', 'Code block focused');
   const codeKeywordTokenCount = await page.locator('.lm-code-token-keyword').count();
 
@@ -109,6 +118,10 @@ test('generates a visual report for live preview rendering and editing states', 
     {
       name: 'code keyword tokens',
       value: String(codeKeywordTokenCount),
+    },
+    {
+      name: 'focused code language',
+      value: codeLanguage,
     },
     {
       name: 'table source preserved',

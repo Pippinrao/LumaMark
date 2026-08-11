@@ -75,3 +75,29 @@ test('boots the production bundle and loads the lazy Mermaid renderer', async ({
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
+
+test('auto-completes a typed fenced code block in the production bundle', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
+
+  const editor = page.locator('.cm-content').first();
+  await editor.click();
+  await page.keyboard.type('~~~shell');
+  await page.keyboard.press('Enter');
+
+  await expect(page.locator('.lm-md-code-block-line')).toHaveCount(3);
+  await expect(page.locator('.lm-md-code-block-start')).toHaveAttribute(
+    'data-lm-code-language',
+    'Shell',
+  );
+
+  await page.getByRole('menuitem', { exact: true, name: '视图' }).click();
+  await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();
+  await expect(page.locator('.lm-editor-source-mode .cm-line')).toHaveText([
+    '~~~shell',
+    '',
+    '~~~',
+  ]);
+});

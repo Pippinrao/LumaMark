@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
-import { EditorSelection } from '@codemirror/state';
+import { forceParsing } from '@codemirror/language';
+import { EditorSelection, Transaction } from '@codemirror/state';
+import { runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import {
   createEditorApi,
@@ -11,11 +13,14 @@ import {
   formatLatencySamples,
   inputHardLimitMs,
   measureLatencySamples,
+  summarizeLatencySamples,
 } from './performanceSamples';
 
 const selectionProbeCount = 12;
 const denseCodeBlockCount = 2_048;
 const denseCodeBlockBudgetsMs = {
+  activation: 16,
+  completion: 16,
   input: 16,
   load: 300,
 };
@@ -159,6 +164,68 @@ describe('editor interaction latency baseline', () => {
       const inputHardLimit = inputHardLimitMs(
         denseCodeBlockBudgetsMs.input,
       );
+      const firstCodeBody = source.indexOf('type Document0');
+      const firstParagraph = source.indexOf('Paragraph after code block 0.');
+      const activationSamples = measureLatencySamples((sampleIndex) => {
+        editor.view.dispatch({
+          selection: EditorSelection.cursor(
+            sampleIndex % 2 === 0 ? firstCodeBody : firstParagraph,
+          ),
+        });
+      });
+      const activationHardLimit = inputHardLimitMs(
+        denseCodeBlockBudgetsMs.activation,
+      );
+      const completionDurations: number[] = [];
+
+      for (
+        let sampleIndex = 0;
+        sampleIndex < inputSamples.values.length;
+        sampleIndex += 1
+      ) {
+        const baselineLength = editor.view.state.doc.length;
+        const opening = sampleIndex % 2 === 0 ? '\n```ts' : '\n~~~shell';
+
+        editor.view.dispatch({
+          annotations: Transaction.addToHistory.of(false),
+          changes: { from: baselineLength, insert: opening },
+          selection: { anchor: baselineLength + opening.length },
+        });
+        expect(forceParsing(editor.view, editor.view.state.doc.length, 1_000)).toBe(
+          true,
+        );
+
+        const completionStartedAt = performance.now();
+        const handled = runScopeHandlers(
+          editor.view,
+          new KeyboardEvent('keydown', {
+            bubbles: true,
+            code: 'Enter',
+            key: 'Enter',
+          }),
+          'editor',
+        );
+        completionDurations.push(performance.now() - completionStartedAt);
+
+        expect(handled).toBe(true);
+        expect(
+          editor.view.state.doc.sliceString(baselineLength),
+        ).toBe(`${opening}\n\n${opening.includes('~') ? '~~~' : '```'}`);
+
+        editor.view.dispatch({
+          annotations: Transaction.addToHistory.of(false),
+          changes: {
+            from: baselineLength,
+            to: editor.view.state.doc.length,
+          },
+          selection: { anchor: baselineLength },
+        });
+      }
+
+      const completionSamples = summarizeLatencySamples(completionDurations);
+      const completionHardLimit = inputHardLimitMs(
+        denseCodeBlockBudgetsMs.completion,
+      );
 
       process.stdout.write(
         [
@@ -167,8 +234,14 @@ describe('editor interaction latency baseline', () => {
           `load ${loadDurationMs.toFixed(2)} ms,`,
           `input p80 ${inputSamples.p80.toFixed(2)} ms / median ${inputSamples.median.toFixed(2)} ms / max ${inputSamples.maximum.toFixed(2)} ms`,
           `samples ${formatLatencySamples(inputSamples)}`,
+          `activation p80 ${activationSamples.p80.toFixed(2)} ms / max ${activationSamples.maximum.toFixed(2)} ms`,
+          `samples ${formatLatencySamples(activationSamples)}`,
+          `fence completion p80 ${completionSamples.p80.toFixed(2)} ms / max ${completionSamples.maximum.toFixed(2)} ms`,
+          `samples ${formatLatencySamples(completionSamples)}`,
           `(budgets load <${denseCodeBlockBudgetsMs.load} ms,`,
-          `input p80 <${denseCodeBlockBudgetsMs.input} ms / max <${inputHardLimit} ms)`,
+          `input p80 <${denseCodeBlockBudgetsMs.input} ms / max <${inputHardLimit} ms,`,
+          `activation p80 <${denseCodeBlockBudgetsMs.activation} ms / max <${activationHardLimit} ms,`,
+          `completion p80 <${denseCodeBlockBudgetsMs.completion} ms / max <${completionHardLimit} ms)`,
           '\n',
         ].join(' '),
       );
@@ -187,6 +260,14 @@ describe('editor interaction latency baseline', () => {
         denseCodeBlockBudgetsMs.input,
       );
       expect(inputSamples.maximum).toBeLessThan(inputHardLimit);
+      expect(activationSamples.p80).toBeLessThan(
+        denseCodeBlockBudgetsMs.activation,
+      );
+      expect(activationSamples.maximum).toBeLessThan(activationHardLimit);
+      expect(completionSamples.p80).toBeLessThan(
+        denseCodeBlockBudgetsMs.completion,
+      );
+      expect(completionSamples.maximum).toBeLessThan(completionHardLimit);
     } finally {
       editor.destroy();
       parent.remove();

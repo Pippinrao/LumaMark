@@ -9,9 +9,10 @@
 - 0.2.0 发布校准日期：2026-08-01
 - 阅读外观增补日期：2026-08-04
 - 阅读外观真实布局校准日期：2026-08-05
+- 代码块围栏可靠性增补日期：2026-08-12
 - 平台：Windows，本地开发工作树
 - 命令：`pnpm perf:bench`
-- 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、selection-only dispatch、显示模式往返、阅读外观 compartment dispatch 往返、代码块密集文档，以及简单/复杂 Mermaid pending render 与 active-edit 输入 dispatch
+- 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、selection-only dispatch、显示模式往返、阅读外观 compartment dispatch 往返、代码块密集文档输入/激活/真实 Enter 围栏补齐，以及简单/复杂 Mermaid pending render 与 active-edit 输入 dispatch
 - 运行口径：`pnpm test` 排除 `tests/perf/**`，性能基准必须通过 `pnpm perf:bench` 单独串行执行。大纲面板 benchmark 会先预热一次极小渲染。输入与默认编辑器创建固定采集 5 个样本、保留首样本并输出全部数值；默认 editor 首次输入、Mermaid 冷路径和 pending-render 的每个样本都使用独立 editor/activation/render 生命周期。既有主预算约束 P80（第 4 个有序样本，最多允许 1 次超过主预算），最大值按 `max(50 ms, 2 × 主预算)` 约束；默认编辑器创建还要求首样本和 P80 `< 300 ms`、最大值 `< 600 ms`，详细决策见 [ADR 0007](../decisions/0007-stable-performance-sampling.md)。Mermaid 1/5/10MB active-edit P80 预算仍保持 `< 16/50/100 ms`；pending-render 的 P80 与最大值都必须 `< 50 ms`。
 
 ## 自动化门禁
@@ -48,8 +49,10 @@
 | 1MB 文档阅读外观 compartment dispatch 往返 | < 50 ms | 0.88 ms | 通过 |
 | 5MB 文档阅读外观 compartment dispatch 往返 | < 75 ms | 0.69 ms | 通过 |
 | 10MB 文档阅读外观 compartment dispatch 往返 | < 100 ms | 0.84 ms | 通过 |
-| 2048 个 fenced blocks（0.46 MiB）载入 | < 300 ms | 24.86 ms | 通过 |
-| 2048 个 fenced blocks 尾部输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 1.97 ms；中位数 1.35 ms；最大值 4.03 ms；样本 [4.03, 1.97, 1.35, 1.19, 1.21] | 通过 |
+| 2048 个 fenced blocks（0.46 MiB）载入 | < 300 ms | 23.74 ms | 通过 |
+| 2048 个 fenced blocks 尾部输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 2.10 ms；中位数 1.30 ms；最大值 3.97 ms；样本 [3.97, 2.10, 1.30, 1.25, 1.14] | 通过 |
+| 2048 个 fenced blocks 聚焦激活 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 0.79 ms；最大值 1.38 ms；样本 [1.38, 0.77, 0.78, 0.67, 0.79] | 通过 |
+| 2048 个 fenced blocks 尾部真实 Enter 围栏补齐 | P80 < 16 ms；最大值 < 50 ms | P80 11.29 ms；最大值 14.58 ms；样本 [14.58, 11.29, 6.67, 9.91, 6.29] | 通过 |
 | 复杂 Mermaid pending 时主文档输入 dispatch | P80 < 50 ms；最大值 < 50 ms | 180 节点 / 17,348 bytes；P80 0.74 ms；中位数 0.62 ms；最大值 2.64 ms；样本 [2.64, 0.62, 0.60, 0.56, 0.74] | 通过 |
 | 小文档首次 Mermaid active-edit 输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 2.08 ms；中位数 1.85 ms；最大值 2.84 ms；样本 [2.84, 2.08, 1.85, 1.74, 1.51] | 通过 |
 | 1MB 文档 Mermaid active-edit 输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 2.23 ms；中位数 2.12 ms；最大值 2.44 ms；样本 [2.44, 2.23, 2.12, 2.06, 1.86] | 通过 |
@@ -63,7 +66,7 @@
 - 1MB、5MB 和 10MB 的自动化性能门禁通过，覆盖读取、应用文件动作打开、打开后大纲刷新、虚拟化大纲面板初始渲染、编辑器载入和尾部输入 dispatch。
 - 10MB 文件满足当前自动化 “不冻结” 门禁：可通过文件动作打开、完成 debounce 后大纲刷新、只初始渲染 23 / 7892 个大纲项、创建编辑器并完成一次尾部输入。
 - Mermaid 渲染通过 scheduler 异步执行；pending render 下普通与复杂输入均在 5 个独立 render 生命周期上执行 P80/最大值 `< 50 ms` 门禁。active-edit 冷路径在 5 个独立 activation 上执行 P80 `< 16 ms`、最大值 `< 50 ms` 门禁；同一文档内的 1/5/10MB 连续输入保持近似常数时间且 P80 分别通过 `< 16/50/100 ms` 预算。
-- Parity Reliability 增补门禁证明：selection-only 更新不会修改文档，显示模式往返保持 selection；代码块密集文档沿用 1MB 输入的 `< 16 ms` 严格预算；复杂 Mermaid 长任务 pending 时主 `EditorApi` 文档立即接收输入，且不会为块外输入启动第二个渲染任务。
+- Parity Reliability 增补门禁证明：selection-only 更新不会修改文档，显示模式往返保持 selection；代码块密集文档的尾部输入、聚焦语言激活和真实 Enter 围栏补齐均沿用 1MB 输入的 P80 `< 16 ms`、最大值 `< 50 ms` 严格预算；复杂 Mermaid 长任务 pending 时主 `EditorApi` 文档立即接收输入，且不会为块外输入启动第二个渲染任务。
 - 阅读外观通过 CodeMirror compartment 与 CSS variable 往返重配置；Vitest + jsdom 中 1/5/10MB 文档的同步 dispatch 本机实测分别为 0.88/0.69/0.84 ms，并由 `< 50/75/100 ms` 自动化预算约束，过程不修改正文或 selection。该数值不包含浏览器样式计算、真实排版或绘制成本，不能用作“完成页面重排”的延迟声明。打包 WebView2 烟测会在切换宽度后等待两帧并读取 `.cm-content` 边界以强制观察真实布局，预算为 `< 500 ms`。
 - Web 构建已通过 `pnpm quality:web-build` 门禁：首屏入口从大 vendor 包中拆出，React、CodeMirror、UI 依赖和 Mermaid 重依赖分组加载。CodeMirror 启动核心与 Lezer 基础包保持为一个 600.41 KiB 的拓扑完整 chunk，代码语言包继续按需加载；禁止用任意 `maxSize` 再拆这个核心组，因为会破坏循环模块的初始化顺序并造成生产白屏。最大 chunk 是 Mermaid 动态渲染链路中的 `vscode-languageserver-types` / Langium 等上游解析依赖，不进入首屏入口。
 - Mermaid 重依赖的体积分组会形成循环输出 chunk，因此 Rolldown 输出启用 `strictExecutionOrder`。`pnpm test:e2e:production` 在实际 `dist/` 上触发 Mermaid 动态 import 并要求 SVG 成功、无 `pageerror` 或非预期 console error；`pnpm release:packaged-webview` 再对真实 release WebView 与 Rust 文件写入验证 active-save。两项功能门禁都不能由“构建成功”或 chunk 体积预算替代。

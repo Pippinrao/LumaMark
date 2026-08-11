@@ -5,7 +5,10 @@ import {
   tsxLanguage,
   typescriptLanguage,
 } from '@codemirror/lang-javascript';
-import type { Language, LanguageDescription } from '@codemirror/language';
+import {
+  type Language,
+  LanguageDescription,
+} from '@codemirror/language';
 import { languages } from '@codemirror/language-data';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
@@ -18,9 +21,40 @@ export function markdownLanguage(): Extension {
   });
 }
 
-function codeLanguageForInfo(info: string): Language | LanguageDescription | null {
-  const languageName = info.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? '';
+type CodeLanguageResolution = {
+  displayName: string;
+  language: Language | LanguageDescription | null;
+};
 
+function codeLanguageForInfo(info: string): Language | LanguageDescription | null {
+  return resolveCodeLanguage(info)?.language ?? null;
+}
+
+export function codeLanguageDisplayName(info: string): string | null {
+  return resolveCodeLanguage(info)?.displayName ?? null;
+}
+
+function resolveCodeLanguage(info: string): CodeLanguageResolution | null {
+  const rawName = info.trim().split(/\s+/, 1)[0] ?? '';
+
+  if (!rawName) {
+    return null;
+  }
+
+  const languageName = rawName.toLowerCase();
+  const description = LanguageDescription.matchLanguageName(
+    languages,
+    rawName,
+    false,
+  );
+
+  return {
+    displayName: description?.name ?? rawName,
+    language: directlyBundledCodeLanguage(languageName) ?? description,
+  };
+}
+
+function directlyBundledCodeLanguage(languageName: string): Language | null {
   switch (languageName) {
     case 'js':
     case 'javascript':
@@ -33,13 +67,7 @@ function codeLanguageForInfo(info: string): Language | LanguageDescription | nul
     case 'tsx':
       return tsxLanguage;
     default:
-      return (
-        languages.find((language) =>
-          language.alias.some((alias) => alias.toLowerCase() === languageName),
-        ) ??
-        languages.find((language) => language.name.toLowerCase() === languageName) ??
-        null
-      );
+      return null;
   }
 }
 

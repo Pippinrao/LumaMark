@@ -1,4 +1,8 @@
-import { EditorSelection, EditorState } from '@codemirror/state';
+import {
+  EditorSelection,
+  EditorState,
+  type Extension,
+} from '@codemirror/state';
 import {
   type DecorationSet,
   EditorView,
@@ -40,14 +44,22 @@ afterEach(() => {
   }
 });
 
-function createView(doc: string, selection = 0): EditorView {
+function createView(
+  doc: string,
+  selection = 0,
+  ...extensions: Extension[]
+): EditorView {
   const parent = document.createElement('div');
   document.body.appendChild(parent);
   const view = new EditorView({
     parent,
     state: EditorState.create({
       doc,
-      extensions: [markdownLanguage(), codeBlockPreviewExtension()],
+      extensions: [
+        markdownLanguage(),
+        codeBlockPreviewExtension(),
+        ...extensions,
+      ],
       selection: EditorSelection.cursor(selection),
     }),
   });
@@ -57,6 +69,8 @@ function createView(doc: string, selection = 0): EditorView {
 
 type CodeBlockLineDecoration = {
   className: string;
+  description?: string;
+  language?: string;
   position: number;
 };
 
@@ -74,7 +88,15 @@ function codeBlockLineDecorations(view: EditorView): CodeBlockLineDecoration[] {
         typeof className === 'string' &&
         className.split(' ').includes('lm-md-code-block-line')
       ) {
-        lineDecorations.push({ className, position: from });
+        const language = decoration.spec.attributes?.['data-lm-code-language'];
+        const description = decoration.spec.attributes?.['aria-description'];
+
+        lineDecorations.push({
+          className,
+          ...(typeof description === 'string' ? { description } : {}),
+          ...(typeof language === 'string' ? { language } : {}),
+          position: from,
+        });
       }
     });
   }
@@ -181,23 +203,93 @@ describe('code block line decorations', () => {
   });
 
   it('applies start and end classes only to the real fence lines', () => {
-    const doc = ['```ts', 'const value = 1', '```'].join('\n');
+    const doc = ['paragraph', '', '```ts', 'const value = 1', '```'].join('\n');
     const view = createView(doc);
 
     expect(codeBlockLineDecorations(view)).toEqual([
       {
         className: 'lm-md-code-block-line lm-md-code-block-start',
-        position: view.state.doc.line(1).from,
+        position: view.state.doc.line(3).from,
       },
       {
         className: 'lm-md-code-block-line',
-        position: view.state.doc.line(2).from,
+        position: view.state.doc.line(4).from,
       },
       {
         className: 'lm-md-code-block-line lm-md-code-block-end',
-        position: view.state.doc.line(3).from,
+        position: view.state.doc.line(5).from,
       },
     ]);
+  });
+
+  it.each([
+    ['```ts', '```', 'TypeScript'],
+    ['~~~bash', '~~~', 'Shell'],
+    ['```MyDSL option=value', '```', 'MyDSL'],
+  ])(
+    'shows the canonical language on an active code block for %s',
+    (opening, closing, expectedLanguage) => {
+      const doc = [opening, 'const value = 1', closing, '', 'paragraph'].join('\n');
+      const bodyPosition = doc.indexOf('const') + 2;
+      const paragraphPosition = doc.lastIndexOf('paragraph') + 2;
+      const view = createView(doc, bodyPosition);
+
+      const activeDecorations = codeBlockLineDecorations(view);
+      expect(
+        activeDecorations.every(({ className }) =>
+          className.split(' ').includes('lm-md-code-block-active'),
+        ),
+      ).toBe(true);
+      expect(activeDecorations[0]).toMatchObject({
+        language: expectedLanguage,
+        position: 0,
+      });
+      expect(
+        activeDecorations.slice(1).every(({ language }) => language === undefined),
+      ).toBe(true);
+      expect(
+        activeDecorations.every(
+          ({ description }) => description === expectedLanguage,
+        ),
+      ).toBe(true);
+
+      view.dispatch({ selection: EditorSelection.cursor(paragraphPosition) });
+
+      expect(
+        codeBlockLineDecorations(view).every(
+          ({ className, description, language }) =>
+            !className.split(' ').includes('lm-md-code-block-active') &&
+            description === undefined &&
+            language === undefined,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('does not invent a language label for an empty info string', () => {
+    const doc = ['```', 'plain code', '```'].join('\n');
+    const view = createView(doc, doc.indexOf('plain'));
+
+    expect(
+      codeBlockLineDecorations(view).every(({ language }) => language === undefined),
+    ).toBe(true);
+  });
+
+  it('does not expose an active editing affordance in read-only mode', () => {
+    const doc = ['```ts', 'const value = 1', '```'].join('\n');
+    const view = createView(
+      doc,
+      doc.indexOf('const'),
+      EditorState.readOnly.of(true),
+    );
+
+    expect(
+      codeBlockLineDecorations(view).every(
+        ({ className, language }) =>
+          !className.split(' ').includes('lm-md-code-block-active') &&
+          language === undefined,
+      ),
+    ).toBe(true);
   });
 
   it('keeps line decorations stable while selection moves within a fenced block', () => {

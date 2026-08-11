@@ -56,8 +56,48 @@ describe('editor visual style contract', () => {
     expect(mermaidCss).toContain('.cm-content .lm-mermaid-preview:hover .lm-mermaid-actions');
     expect(mermaidCss).toContain('width: 30px;');
   });
+
+  it('keeps focused code block visuals inside CodeMirror line geometry', async () => {
+    const wysiwygCss = await readCss('src', 'editor', 'wysiwyg', 'wysiwyg.css');
+    const lineRule = cssDeclarationBlock(
+      wysiwygCss,
+      '.cm-content .lm-md-code-block-line',
+    );
+    const activeRule = cssDeclarationBlock(
+      wysiwygCss,
+      '.cm-editor.cm-focused .cm-content .lm-md-code-block-active',
+    );
+    const languageRule = cssDeclarationBlock(
+      wysiwygCss,
+      '.cm-editor.cm-focused .cm-content .lm-md-code-block-start[data-lm-code-language]::after',
+    );
+
+    expect(lineRule).not.toBeNull();
+    expect(lineRule).toContain('position: relative;');
+    expect(lineRule).not.toMatch(/\b(?:margin|padding|line-height)\s*:/);
+    expect(activeRule).toContain('--lm-code-block-border-color:');
+    expect(activeRule).not.toMatch(/\b(?:margin|padding|line-height)\s*:/);
+    expect(languageRule).toContain('content: attr(data-lm-code-language);');
+    expect(languageRule).toContain('position: absolute;');
+    expect(languageRule).toContain('pointer-events: none;');
+  });
 });
 
 async function readCss(...segments: string[]): Promise<string> {
   return readFile(join(process.cwd(), ...segments), 'utf8');
+}
+
+function cssDeclarationBlock(css: string, selector: string): string | null {
+  const start = css.indexOf(`${selector} {`);
+
+  if (start < 0) {
+    return null;
+  }
+
+  const declarationStart = css.indexOf('{', start) + 1;
+  const declarationEnd = css.indexOf('}', declarationStart);
+
+  return declarationEnd < 0
+    ? null
+    : css.slice(declarationStart, declarationEnd);
 }

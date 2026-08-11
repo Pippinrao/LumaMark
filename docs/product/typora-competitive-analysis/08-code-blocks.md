@@ -1,5 +1,7 @@
 # 08：代码块竞品分析
 
+> **围栏可靠性实施更新（2026-08-12）：** 下方主体保留为历史专题审计快照；本次 code-block capability 已在 live preview 中补齐“真实 opening fence 后按 Enter”的闭合行为。实现以 Lezer `FencedCode`/`CodeMark` 为结构事实，保留反引号或波浪线、围栏长度、0–3 个前导空格和完整 info string；已有 closing fence 不重复生成，paste、IME composition、非空选区、程序化载入、undo/redo 和 source mode 不被误当作触发源。聚焦代码块时，opening 行通过行级 decoration 显示官方语言名称，未知语言显示用户原始 info 首词；活动代码行与聚焦的 CodeMirror content DOM 同步 `aria-description`。提示为绝对定位且不可命中的伪元素，不增加 block widget、假空行或代码块专属 vertical margin/padding/line-height。专项测试覆盖一次 undo/redo、退出围栏、CRLF+BOM 保存往返、明暗主题对比度、active/inactive height-map 几何与代码块密集交互延迟；安装包门禁只用 CDP 观察，并以精确子进程 PID、`ClientToScreen` 和 Win32 `SendInput` 驱动真实鼠标/键盘。当前范围不包含语言选择器、复制按钮、通用 Markdown 自动配对或数学/图表围栏。
+
 > **菜单系统实施更新（2026-08-02）：** “段落 → 块 → 代码块”、命令面板和 `Ctrl+Shift+K` 现在调用同一 fenced-code command，菜单可见键位与 Typora 已核实 Windows/Linux 快捷键一致。用例覆盖菜单创建、快捷键创建、源码模式检查和一次撤销；下方旧摘要中“没有注册快捷键、命令面板没有入口”已经过期。该更新只补齐创建入口，不代表未知语言、复杂粘贴、IME、可访问性或代码块密集滚动已经追平。
 
 > **Parity Reliability 实施更新（2026-07-27）：** 下方主体保留为旧专题审计快照。当前代码块 decoration 与退出行为已迁移到共享 editing context，并补齐逐键围栏、关闭围栏退出、未闭合围栏及 YAML/Setext 安全降级回归；不再新增独立“活动行”特例。独立性能门禁覆盖 2048 个 fenced blocks（0.46 MiB），本轮载入 23.86 ms、尾部输入 4.19 ms，分别低于 300 ms 与 16 ms 预算。专用创建入口、完整未知语言/粘贴/真实 IME 和长期滚动体验仍未追平，代码块创建入口继续属于 Next。当前范围以 [当前执行计划](../../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 和 [ADR 0006](../../decisions/0006-parity-reliability-editor-contracts.md) 为准。

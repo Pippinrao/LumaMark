@@ -10,6 +10,8 @@
 
 更新：2026-08-04（取消 sibling overlay，改为组件源码 DOM 的 token 级呈现）
 
+更新：2026-08-12（明确代码块语言提示、围栏补齐与行盒几何合同）
+
 ## 背景
 
 V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同时继续遵守源码保真、成熟组件优先和 editor capability 边界。远程图片如果直接使用网络 URL，离线和跨平台稳定性较弱；如果自动改写 Markdown，又会破坏用户源码意图。代码块需要常见语言语法高亮，但不应替换 CodeMirror。表格交互已经由 `codemirror-markdown-tables` 承担，不能回退到自研整表编辑器。
@@ -40,6 +42,14 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - decoration 会重建图片 widget 候选，但 widget identity 包含对应 source 的 revision；只有命中该 path 的图片获得新 asset URL（`lmv=<revision>`），无关 widget 复用，Markdown source 不发生 transaction。
 - 首次保存前，file workflow 从 editor 的精确序列化快照调用 `finalizeAllDraftImages`，按文档中首次出现顺序迁移各 draft batch 并替换 `lumamark-draft://` 引用。只有文件写入成功且原快照仍是当前文档时，转换文本才以最小 CodeMirror changes 映射回主文档并标记保存点；失败时不把占位替换提交到正文，并保留 dirty。
 - 当前 finalize 会先原子复制目标图片，再写 Markdown 文件；若图片迁移成功而后续文档写入失败，可能留下未被文档引用的 asset 文件。这不是完整文件系统事务，图片策略持久化与事务回滚仍属于 [当前计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)的 Next 阶段。精确快照与最小 changes 合同见 [ADR 0006](0006-parity-reliability-editor-contracts.md)。
+
+### 2026-08-12 代码块实现更新
+
+- “上下空一行”按稳定视觉节奏实现，不作为打开、渲染或保存时的源码规范化规则。已有 Markdown 不会被补写块外空行；只有用户在 live preview 中对一个真实、尚未闭合的 opening fence 明确按 Enter 时，输入 transaction 才生成可编辑的空正文行和匹配 closing fence。
+- 自动闭合保留反引号或波浪线字符、围栏长度、0–3 个前导空格和完整 info string；已有 closing fence 不重复生成。paste、IME composition、非空选区、程序化载入、undo/redo 与 source mode 不被当作自动闭合触发源。
+- 语言提示继续复用 `@codemirror/language-data` 的名称与 alias。已知语言显示官方规范名称，未知语言只显示用户原始 info 首词并保持无高亮降级；不引入语言选择器或另一份 alias 表。
+- 聚焦提示消费 ADR 0006 的共享 `EditorInteractionContext.activeBlocks`，在 code-block capability 的 opening `Decoration.line` 上附加视觉属性，并把语言描述同步到活动代码行及当前聚焦的 CodeMirror content DOM。视觉由绝对定位、`pointer-events: none` 的伪元素呈现；它不是 block widget，不创建第二份可交互文本，也不修改通用 fence/source reveal 合同。
+- 代码块 focused/inactive 两态只改变背景色和 inset border token。禁止在代码块行或多行 mark 上增加专属 vertical margin、padding、line-height、transform 或不可选占位；真实 `.cm-line` 的 DOM 边界与 CodeMirror height map 必须保持一致。
 
 ## 被否决方案
 

@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   installRootEditorViewTestBridge,
   type RootEditorContentTestBridge,
+  type RootEditorViewTestBridge,
 } from './support/rootEditorViewTestBridge';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
@@ -140,6 +141,115 @@ async function expectEditorSource(
   await expect(
     page.locator('.lm-editor-source-mode .cm-line'),
   ).toHaveText(source.split('\n'));
+}
+
+type CodeBlockGeometry = {
+  backgroundColor: string;
+  language: string | null;
+  pseudoColor: string;
+  pseudoContent: string;
+  rows: Array<{
+    blockTop: number;
+    drift: number;
+    height: number;
+    marginBottom: string;
+    marginTop: string;
+    paddingBottom: string;
+    paddingTop: string;
+    top: number;
+  }>;
+};
+
+async function readCodeBlockGeometry(
+  editor: Locator,
+): Promise<CodeBlockGeometry> {
+  return editor.evaluate((content) => {
+    type GeometryView = RootEditorViewTestBridge & {
+      contentDOM: HTMLElement;
+      lineBlockAt(position: number): { top: number };
+      state: RootEditorViewTestBridge['state'] & {
+        doc: RootEditorViewTestBridge['state']['doc'] & {
+          line(number: number): { from: number };
+          lineAt(position: number): { number: number };
+        };
+      };
+      viewState: { paddingTop: number };
+    };
+
+    const view = (content as RootEditorContentTestBridge)
+      .resolveRootEditorViewForTest() as GeometryView;
+    const source = view.state.doc.toString();
+    const openingFrom = source.indexOf('```ts');
+    const rows = [
+      ...content.querySelectorAll<HTMLElement>('.lm-md-code-block-line'),
+    ];
+
+    if (openingFrom < 0 || rows.length !== 3) {
+      throw new Error('Expected one three-line TypeScript code block.');
+    }
+
+    const firstLineNumber = view.state.doc.lineAt(openingFrom).number;
+
+    const contentBounds = view.contentDOM.getBoundingClientRect();
+    const documentTop = contentBounds.top + view.viewState.paddingTop;
+    const startStyle = getComputedStyle(rows[0]);
+    const pseudoStyle = getComputedStyle(rows[0], '::after');
+
+    return {
+      backgroundColor: startStyle.backgroundColor,
+      language: rows[0].getAttribute('data-lm-code-language'),
+      pseudoColor: pseudoStyle.color,
+      pseudoContent: pseudoStyle.content,
+      rows: rows.map((row, index) => {
+        const bounds = row.getBoundingClientRect();
+        const style = getComputedStyle(row);
+        const block = view.lineBlockAt(
+          view.state.doc.line(firstLineNumber + index).from,
+        );
+
+        return {
+          blockTop: block.top,
+          drift: bounds.top - documentTop - block.top,
+          height: bounds.height,
+          marginBottom: style.marginBottom,
+          marginTop: style.marginTop,
+          paddingBottom: style.paddingBottom,
+          paddingTop: style.paddingTop,
+          top: bounds.top,
+        };
+      }),
+    };
+  });
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const luminance = (color: string) => {
+    const channels = parseCssColor(color).map((channel) =>
+      channel <= 0.04045
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4,
+    );
+
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const foregroundLuminance = luminance(foreground);
+  const backgroundLuminance = luminance(background);
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+  const darker = Math.min(foregroundLuminance, backgroundLuminance);
+
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function parseCssColor(color: string): [number, number, number] {
+  const channels = color.match(/\d*\.?\d+/g)?.slice(0, 3).map(Number);
+
+  if (!channels || channels.length !== 3) {
+    throw new Error(`Unsupported CSS color: ${color}`);
+  }
+
+  return color.startsWith('rgb')
+    ? [channels[0] / 255, channels[1] / 255, channels[2] / 255]
+    : [channels[0], channels[1], channels[2]];
 }
 
 async function moveCaretToOffset(page: Page, offset: number): Promise<void> {
@@ -549,6 +659,227 @@ test('keeps fenced code blocks editable with stable preview row layout', async (
   for (const height of layout.codeHeights) {
     expect(height).toBeLessThanOrEqual(layout.plainHeight * 1.2);
   }
+});
+
+test('auto-completes a genuinely typed fence as one undoable live-preview event', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+  await replaceEditorSource(page, 'anchor');
+
+  const editor = page.locator('.cm-content').first();
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('```ts');
+  await page.keyboard.press('Enter');
+  await installRootEditorViewTestBridge(editor);
+
+  const readState = () =>
+    editor.evaluate((content) => {
+      const view = (content as RootEditorContentTestBridge)
+        .resolveRootEditorViewForTest();
+
+      return {
+        anchor: view.state.selection.main.anchor,
+        source: view.state.doc.toString(),
+      };
+    });
+  const completedSource = 'anchor\n\n```ts\n\n```';
+
+  await expect.poll(readState).toEqual({
+    anchor: 'anchor\n\n```ts\n'.length,
+    source: completedSource,
+  });
+  await expect(page.locator('.lm-md-code-block-line')).toHaveCount(3);
+
+  await page.keyboard.press(`${primaryModifier}+Z`);
+  await expect.poll(readState).toMatchObject({ source: 'anchor\n\n```ts' });
+
+  const redoShortcut =
+    process.platform === 'darwin' ? 'Meta+Shift+Z' : 'Control+Y';
+  await page.keyboard.press(redoShortcut);
+  await expect.poll(readState).toEqual({
+    anchor: 'anchor\n\n```ts\n'.length,
+    source: completedSource,
+  });
+
+  await page.keyboard.press(`${primaryModifier}+End`);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('outside');
+  await expect.poll(readState).toMatchObject({
+    source: `${completedSource}\n\noutside`,
+  });
+
+  await switchEditorMode(page, 'source');
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+A`);
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('~~~shell');
+  await page.keyboard.press('Enter');
+
+  await expect.poll(readState).toMatchObject({ source: '~~~shell\n' });
+});
+
+test('keeps clipboard paste and IME composition literal until explicit Enter', async ({
+  context,
+  page,
+}) => {
+  await openNewDocument(page);
+  await replaceEditorSource(page, '');
+
+  const editor = page.locator('.cm-content').first();
+  await installRootEditorViewTestBridge(editor);
+  const readSource = () =>
+    editor.evaluate((content) =>
+      (content as RootEditorContentTestBridge)
+        .resolveRootEditorViewForTest()
+        .state.doc.toString(),
+    );
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await editor.click();
+  await page.evaluate(async (text) => navigator.clipboard.writeText(text), '```ts');
+  await page.keyboard.press(`${primaryModifier}+V`);
+  await expect.poll(readSource).toBe('```ts');
+
+  await page.keyboard.press('Enter');
+  await expect.poll(readSource).toBe('```ts\n\n```');
+  await page.keyboard.press(`${primaryModifier}+Z`);
+  await expect.poll(readSource).toBe('```ts');
+
+  await replaceEditorSource(page, '');
+  await editor.click();
+  const cdp = await context.newCDPSession(page);
+
+  try {
+    await cdp.send('Input.imeSetComposition', {
+      selectionEnd: '~~~shell'.length,
+      selectionStart: '~~~shell'.length,
+      text: '~~~shell',
+    });
+    await expect.poll(readSource).toBe('~~~shell');
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(readSource)
+      .toMatch(/^~~~shell(?:\n\n)?$/);
+
+    await replaceEditorSource(page, '');
+    await editor.click();
+    await cdp.send('Input.imeSetComposition', {
+      selectionEnd: '~~~shell'.length,
+      selectionStart: '~~~shell'.length,
+      text: '~~~shell',
+    });
+    await expect.poll(readSource).toBe('~~~shell');
+    await cdp.send('Input.insertText', { text: '~~~shell' });
+    await expect.poll(readSource).toBe('~~~shell');
+  } finally {
+    await cdp.detach();
+  }
+
+  await page.keyboard.press('Enter');
+  await expect.poll(readSource).toBe('~~~shell\n\n~~~');
+  await page.keyboard.press(`${primaryModifier}+Z`);
+  await expect.poll(readSource).toBe('~~~shell');
+});
+
+test('shows a focused language badge without changing code block geometry', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+  const source = [
+    'before',
+    '',
+    '```ts',
+    'const value = 1',
+    '```',
+    '',
+    'after',
+  ].join('\n');
+  await replaceEditorSource(page, source);
+
+  const editor = page.locator('.cm-content').first();
+  await installRootEditorViewTestBridge(editor);
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+  const inactive = await readCodeBlockGeometry(editor);
+
+  expect(inactive.language).toBeNull();
+  for (const row of inactive.rows) {
+    expect(Math.abs(row.drift)).toBeLessThanOrEqual(0.5);
+    expect(row).toMatchObject({
+      marginBottom: '0px',
+      marginTop: '0px',
+    });
+    expect(row.paddingBottom).toBe(inactive.rows[0].paddingBottom);
+    expect(row.paddingTop).toBe(inactive.rows[0].paddingTop);
+  }
+
+  const codeBody = page.locator('.lm-md-code-block-line').nth(1);
+  await codeBody.click();
+  await expect(page.locator('.lm-md-code-block-active')).toHaveCount(3);
+  const openingLine = page.locator('.lm-md-code-block-start');
+  await expect(openingLine).toHaveAttribute(
+    'data-lm-code-language',
+    'TypeScript',
+  );
+  await expect(openingLine).toHaveAttribute('aria-description', 'TypeScript');
+  await expect(codeBody).toHaveAttribute('aria-description', 'TypeScript');
+  await expect(editor).toHaveAttribute('aria-description', 'TypeScript');
+
+  const lightActive = await readCodeBlockGeometry(editor);
+  expect(lightActive.pseudoContent.replaceAll('"', '')).toBe('TypeScript');
+  expect(
+    contrastRatio(lightActive.pseudoColor, lightActive.backgroundColor),
+  ).toBeGreaterThanOrEqual(4.5);
+
+  for (const [index, row] of lightActive.rows.entries()) {
+    expect(Math.abs(row.top - inactive.rows[index].top)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(row.height - inactive.rows[index].height)).toBeLessThanOrEqual(
+      0.5,
+    );
+    expect(Math.abs(row.blockTop - inactive.rows[index].blockTop)).toBeLessThanOrEqual(
+      0.5,
+    );
+    expect(Math.abs(row.drift)).toBeLessThanOrEqual(0.5);
+    expect(row.paddingBottom).toBe(inactive.rows[index].paddingBottom);
+    expect(row.paddingTop).toBe(inactive.rows[index].paddingTop);
+  }
+
+  await page.getByRole('menuitem', { exact: true, name: '主题' }).click();
+  await page.getByRole('menuitemradio', { name: '暗色' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await codeBody.click();
+
+  const darkActive = await readCodeBlockGeometry(editor);
+  expect(
+    contrastRatio(darkActive.pseudoColor, darkActive.backgroundColor),
+  ).toBeGreaterThanOrEqual(4.5);
+
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+  await expect(page.locator('.lm-md-code-block-active')).toHaveCount(0);
+  await expect(openingLine).not.toHaveAttribute('data-lm-code-language', /.+/);
+  await expect(editor).not.toHaveAttribute('aria-description', /.+/);
+
+  const readSelectionLineNumber = () =>
+    editor.evaluate((content) => {
+      const view = (content as RootEditorContentTestBridge)
+        .resolveRootEditorViewForTest();
+      const head = view.state.selection.main.head;
+
+      return view.state.doc.toString().slice(0, head).split('\n').length;
+    });
+  await page.locator('.cm-line').nth(1).click({ position: { x: 4, y: 4 } });
+  await expect.poll(readSelectionLineNumber).toBe(2);
+  await page.locator('.cm-line').nth(5).click({ position: { x: 4, y: 4 } });
+  await expect.poll(readSelectionLineNumber).toBe(6);
+
+  await switchEditorMode(page, 'source');
+  await expect(
+    editor.evaluate((content) =>
+      (content as RootEditorContentTestBridge)
+        .resolveRootEditorViewForTest()
+        .state.doc.toString(),
+    ),
+  ).resolves.toBe(source);
 });
 
 test('leaves a final fenced code block when Enter is pressed on its closing fence', async ({

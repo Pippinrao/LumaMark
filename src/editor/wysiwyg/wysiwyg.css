@@ -98,38 +98,70 @@
 }
 
 .cm-content .lm-md-code-block-line {
+  --lm-code-block-border-color: var(--lm-color-border-subtle);
   background: color-mix(in srgb, var(--lm-color-surface-muted) 92%, transparent);
   box-shadow:
-    inset 1px 0 0 var(--lm-color-border-subtle),
-    inset -1px 0 0 var(--lm-color-border-subtle);
+    inset 1px 0 0 var(--lm-code-block-border-color),
+    inset -1px 0 0 var(--lm-code-block-border-color);
   color: var(--lm-color-text);
   font-family: var(--lm-font-mono);
+  position: relative;
 }
 
 .cm-content .lm-md-code-block-start {
   box-shadow:
-    inset 1px 0 0 var(--lm-color-border-subtle),
-    inset -1px 0 0 var(--lm-color-border-subtle),
-    inset 0 1px 0 var(--lm-color-border-subtle);
+    inset 1px 0 0 var(--lm-code-block-border-color),
+    inset -1px 0 0 var(--lm-code-block-border-color),
+    inset 0 1px 0 var(--lm-code-block-border-color);
   border-top-left-radius: var(--lm-radius-2);
   border-top-right-radius: var(--lm-radius-2);
 }
 
 .cm-content .lm-md-code-block-end {
   box-shadow:
-    inset 1px 0 0 var(--lm-color-border-subtle),
-    inset -1px 0 0 var(--lm-color-border-subtle),
-    inset 0 -1px 0 var(--lm-color-border-subtle);
+    inset 1px 0 0 var(--lm-code-block-border-color),
+    inset -1px 0 0 var(--lm-code-block-border-color),
+    inset 0 -1px 0 var(--lm-code-block-border-color);
   border-bottom-left-radius: var(--lm-radius-2);
   border-bottom-right-radius: var(--lm-radius-2);
 }
 
 .cm-content .lm-md-code-block-start.lm-md-code-block-end {
   box-shadow:
-    inset 1px 0 0 var(--lm-color-border-subtle),
-    inset -1px 0 0 var(--lm-color-border-subtle),
-    inset 0 1px 0 var(--lm-color-border-subtle),
-    inset 0 -1px 0 var(--lm-color-border-subtle);
+    inset 1px 0 0 var(--lm-code-block-border-color),
+    inset -1px 0 0 var(--lm-code-block-border-color),
+    inset 0 1px 0 var(--lm-code-block-border-color),
+    inset 0 -1px 0 var(--lm-code-block-border-color);
+}
+
+.cm-editor.cm-focused .cm-content .lm-md-code-block-active {
+  --lm-code-block-border-color: var(--lm-color-accent);
+  background: color-mix(
+    in srgb,
+    var(--lm-color-surface-muted) 94%,
+    var(--lm-color-accent)
+  );
+}
+
+.cm-editor.cm-focused .cm-content .lm-md-code-block-start[data-lm-code-language]::after {
+  color: var(--lm-color-text-soft);
+  content: attr(data-lm-code-language);
+  font-family: var(--lm-font-sans);
+  font-size: 0.72em;
+  font-weight: 650;
+  inset-block-start: 0;
+  inset-inline-end: var(--lm-space-2);
+  max-width: 45%;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  text-overflow: ellipsis;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.cm-editor.cm-focused .cm-content .lm-md-code-block-start[data-lm-code-language]:has(.lm-md-source-mark-block)::after {
+  content: none;
 }
 
 .cm-content .lm-code-token-keyword,

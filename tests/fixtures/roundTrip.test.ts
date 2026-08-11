@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { createEditorApi } from '../../src/editor/core/editorApi';
 import {
@@ -90,6 +91,79 @@ function createFileClient(): FileCommandClient {
 }
 
 describe('markdown fixture round-trip', () => {
+  it('saves an auto-completed CRLF fence without changing the source envelope', async () => {
+    const source = Buffer.from(
+      '\uFEFF# CRLF document\r\n\r\n```ts',
+      'utf8',
+    );
+    const expected = Buffer.from(
+      '\uFEFF# CRLF document\r\n\r\n```ts\r\n\r\n```',
+      'utf8',
+    );
+    const tempDirectory = await mkdtemp(
+      join(tmpdir(), 'lumamark-round-trip-code-block-'),
+    );
+    const tempPath = join(tempDirectory, 'code-block-crlf.md');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'livePreview',
+      doc: '',
+      parent,
+    });
+    const actions = createFileActions({
+      commands: createFileClient(),
+      editor,
+      prepareTextForSave: async (path, text) =>
+        finalizeAllDraftImages({ documentPath: path, text }),
+      recentFiles: { addRecentFile: () => undefined },
+      state: createState(tempPath, 'code-block-crlf.md'),
+    });
+
+    try {
+      await writeFile(tempPath, source);
+      expect((await actions.openFile(tempPath)).ok).toBe(true);
+      editor.view.dispatch({
+        selection: { anchor: editor.view.state.doc.length },
+      });
+
+      expect(
+        runScopeHandlers(
+          editor.view,
+          new KeyboardEvent('keydown', {
+            bubbles: true,
+            code: 'Enter',
+            key: 'Enter',
+          }),
+          'editor',
+        ),
+      ).toBe(true);
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(
+        expected.toString('utf8'),
+      );
+
+      editor.setDisplayMode('source');
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(
+        expected.toString('utf8'),
+      );
+      editor.setDisplayMode('livePreview');
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(
+        expected.toString('utf8'),
+      );
+
+      expect((await actions.saveCurrentFile()).ok).toBe(true);
+      expect(Buffer.compare(await readFile(tempPath), expected)).toBe(0);
+      expect((await actions.openFile(tempPath)).ok).toBe(true);
+      expect(editor.captureDocumentSnapshot().serializedText).toBe(
+        expected.toString('utf8'),
+      );
+    } finally {
+      editor.destroy();
+      parent.remove();
+      await rm(tempDirectory, { recursive: true, force: true });
+    }
+  });
+
   it('changes one line without changing unrelated mixed line-ending bytes', async () => {
     const source = Buffer.from(
       '\uFEFFfirst\r\nsecond\rthird\nfourth',

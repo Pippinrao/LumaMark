@@ -92,4 +92,72 @@ describe('packaged WebView release harness', () => {
       /^pnpm build && /,
     );
   });
+
+  it('keeps packaged code-block interaction on the real Win32 input path', async () => {
+    const packageJson = JSON.parse(
+      await readFile(join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    const acceptanceScript = await readFile(
+      join(
+        process.cwd(),
+        'scripts',
+        'release',
+        'verify-packaged-code-block.mjs',
+      ),
+      'utf8',
+    );
+
+    expect(packageJson.scripts['release:packaged-code-block']).toBe(
+      'pnpm build && node scripts/release/verify-packaged-code-block.mjs',
+    );
+    expect(packageJson.scripts['release:packaged-parity-gaps']).toMatch(
+      /^pnpm release:packaged-code-block &&/,
+    );
+    expect(packageJson.scripts['release:packaged-parity-gaps']).toContain(
+      'verify-packaged-table-caret.mjs',
+    );
+    expect(packageJson.scripts['release:packaged-parity-gaps']).toContain(
+      'verify-packaged-media-caret.mjs',
+    );
+    expect(acceptanceScript).toContain('ClientToScreen');
+    expect(acceptanceScript).toContain('SendInput');
+    expect(acceptanceScript).toContain('SetThreadDpiAwarenessContext');
+    expect(acceptanceScript).toContain('GetDpiForWindow');
+    expect(acceptanceScript).toContain('GetForegroundWindow');
+    expect(acceptanceScript).toContain('Get-Process -Id $ProcessId');
+    expect(acceptanceScript).toContain('Last native input error:');
+    expect(acceptanceScript).toContain(
+      'Only a real OS click may acquire foreground before keyboard input.',
+    );
+    expect(acceptanceScript).toContain(
+      'The native click did not foreground spawned process',
+    );
+    expect(acceptanceScript).toContain('$expectedActionCount');
+    expect(acceptanceScript).toContain('SetWindowPos');
+    expect(acceptanceScript).toContain('HWND_TOPMOST');
+    expect(acceptanceScript).toContain('WindowFromPoint');
+    expect(acceptanceScript).toContain('GetWindowThreadProcessId');
+    expect(acceptanceScript).toContain('GetClientRect');
+    expect(acceptanceScript).toContain('expected client bounds');
+    expect(acceptanceScript).toContain('ShowWindowAsync($windowHandle, 9)');
+    expect(acceptanceScript).toContain('IsWindowVisible');
+    expect(acceptanceScript).toContain('IsIconic');
+    expect(acceptanceScript).toContain('DwmGetWindowAttribute');
+    expect(acceptanceScript).toContain('cloaked');
+    expect(acceptanceScript).toContain('lumamark-native-input.ps1');
+    expect(acceptanceScript).toContain("'-File'");
+    expect(acceptanceScript).not.toContain("'-EncodedCommand'");
+    expect(acceptanceScript).toContain(
+      'const completedMarkdown = `${initialMarkdown}\\n\\n',
+    );
+    expect(acceptanceScript).toContain("'CTRL_END'");
+    expect(acceptanceScript).toContain(
+      'snapshot.selectionHead === snapshot.bodyClickHead',
+    );
+    expect(acceptanceScript).not.toContain("row.paddingTop !== '0px'");
+    expect(acceptanceScript).not.toContain('LUMAMARK_EXECUTABLE');
+    expect(acceptanceScript).not.toMatch(
+      /page\.(?:mouse|keyboard)|\.(?:check|click|dispatchEvent|fill|focus|hover|press|selectOption|setInputFiles|tap|type|uncheck)\(|GetWindowRect|mouse_event|Get-Process\s+lumamark/,
+    );
+  });
 });

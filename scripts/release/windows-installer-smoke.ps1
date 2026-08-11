@@ -225,7 +225,8 @@ function Invoke-InstalledAcceptance {
     $scripts = @(
       'scripts\release\verify-packaged-argv-open.mjs',
       'scripts\release\verify-packaged-menu-cold-start.mjs',
-      'scripts\release\verify-packaged-table-caret.mjs'
+      'scripts\release\verify-packaged-table-caret.mjs',
+      'scripts\release\verify-packaged-media-caret.mjs'
     )
 
     foreach ($relativeScript in $scripts) {

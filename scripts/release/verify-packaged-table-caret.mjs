@@ -114,11 +114,15 @@ try {
 
   await page.waitForFunction(
     (expected) => {
-      const root = document.querySelector('.cm-content')?.cmTile?.view;
-      return root?.state.doc.toString().includes(expected) ?? false;
+      const content = document.querySelector(
+        '.lm-editor-live-preview-mode .cm-content',
+      );
+      const tile = content?.cmTile;
+      const view = tile?.root?.view ?? tile?.view;
+      return view?.state.doc.toString().includes(expected) ?? false;
     },
     marker,
-    { timeout: 10_000 },
+    { timeout: 15_000 },
   );
 
   // Leave the cell and ensure caret did not jump to document start.

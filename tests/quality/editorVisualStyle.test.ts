@@ -47,7 +47,10 @@ describe('editor visual style contract', () => {
     expect(wysiwygCss).toContain('.cm-content .lm-md-table-row');
     expect(wysiwygCss).toContain('.cm-content .lm-md-code-block-line');
     expect(mermaidCss).toContain('border: 1px solid var(--lm-color-border-subtle);');
-    expect(mermaidCss).toContain('margin: 26px 0 34px;');
+    expect(mermaidCss).toContain('margin: 0;');
+    expect(mermaidCss).toContain(
+      "Vertical margin on\n * replace widgets is invisible to CodeMirror's height map",
+    );
     expect(mermaidCss).toContain('position: relative;');
     expect(mermaidCss).toContain('visibility: hidden;');
     expect(mermaidCss).toContain('.cm-content .lm-mermaid-preview:hover .lm-mermaid-actions');

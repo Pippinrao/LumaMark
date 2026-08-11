@@ -147,10 +147,12 @@ app/shell 菜单渲染 ──► 类型安全 dispatcher ──► editor / feat
 
 ### 视图
 
-- 实时预览 / 源码模式 radio group
+- 实时预览 / 源码模式 / 阅读模式 radio group
 - 侧边栏 checkbox
 - 专注模式 checkbox
 - 聚焦编辑器
+
+阅读模式与实时预览、源码互斥。它锁定渲染态、拒绝文档变更、隐藏光标并保留选区与查找，属于会话级状态，不写入设置。只读实现方式、控件行为边界和反馈方式见 [ADR 0010](../decisions/0010-reading-mode-readonly-contract.md)。
 
 ### 主题与语言
 
@@ -175,7 +177,7 @@ app/shell 菜单渲染 ──► 类型安全 dispatcher ──► editor / feat
 | 代码块 | `Ctrl+Shift+K` | 对齐 Typora；三个入口调用同一 command |
 | 表格 | `Ctrl+T` | 对齐 Typora；当前 `Ctrl+Alt+T` 在迁移期兼容，菜单只显示 `Ctrl+T` |
 | 删除整张表 | 独立 LumaMark 键位 | 不复用 Typora `Ctrl+Shift+Backspace`，避免把删行冒充删表 |
-| 源码模式 | `Ctrl+/` | 与 Typora 基线一致；radio 状态同步 |
+| 显示模式循环 | `Ctrl+/` | 键位与 Typora 基线一致，但循环实时预览 → 源码 → 阅读；三个 radio 状态同步，菜单不把该键标注为只属于源码模式 |
 | 侧边栏 / 专注模式 | 现有 LumaMark 键位 | 在菜单显示，但不声明为 Typora 基线键位 |
 
 `Ctrl+Shift+C` 复制为 Markdown、`Ctrl+Shift+V` 粘贴为纯文本、表格选行/选单元格/删行和数学块属于已知差距。本轮不注册空动作；它们保留在覆盖矩阵中，由对应 capability 和剪贴板合同实现后接入。

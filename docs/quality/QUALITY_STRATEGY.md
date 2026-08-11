@@ -145,7 +145,7 @@ AI agent 必须遵守：
 
 ## GitHub 质量门禁
 
-仓库必须维护 `.github/workflows/v1-quality.yml`，在 `v1-implementation` 的 push 和 pull request 上自动运行 V1 质量门禁。
+仓库必须维护 `.github/workflows/v1-quality.yml`，在默认分支 `main`（以及遗留的 `v1-implementation`）的 push 和 pull request 上自动运行 V1 质量门禁，并支持 `workflow_dispatch` 手动触发。
 
 该门禁至少覆盖：
 

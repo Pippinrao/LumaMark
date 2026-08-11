@@ -3,10 +3,13 @@ name: V1 Quality Gate
 on:
   push:
     branches:
+      - main
       - v1-implementation
   pull_request:
     branches:
+      - main
       - v1-implementation
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -947,6 +947,12 @@ function shouldRevealSyntaxNode(
   interaction: EditorInteractionContext,
   node: SyntaxNode,
 ): boolean {
+  // Reading mode keeps the rendered view still: revealing source under the
+  // caret is an editing affordance, and the page must not reflow while reading.
+  if (view.state.readOnly) {
+    return false;
+  }
+
   if (isInsideActiveMermaidBlock(view, node)) {
     return true;
   }

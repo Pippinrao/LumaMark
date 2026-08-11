@@ -58,6 +58,12 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Reading mode keeps selection and keyboard navigation; hide the caret so
+   the surface does not look editable. */
+.lm-codemirror .lm-editor-reading-mode .cm-content {
+  caret-color: transparent;
+}
+
 .lm-codemirror > .cm-editor > .cm-scroller > .cm-content {
   flex-grow: 0;
   flex-shrink: 0;

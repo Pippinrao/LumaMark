@@ -36,6 +36,7 @@ type EditorPaneProps = {
   onEditorReady: (editor: EditorApi) => void;
   onZoomRequested: EditorZoomRequestedHandler;
   onMediaPreviewRequest: EditorMediaPreviewRequestHandler;
+  onReadOnlyEditAttempt?: () => void;
   imageAssetResolver?: ImageAssetResolver;
   imageImportErrorHandler?: ImageImportErrorHandler;
   imageImportHandler?: ImageImportHandler;
@@ -53,6 +54,7 @@ export function EditorPane({
   onEditorReady,
   onZoomRequested,
   onMediaPreviewRequest,
+  onReadOnlyEditAttempt,
   imageAssetResolver,
   imageImportErrorHandler,
   imageImportHandler,
@@ -91,6 +93,7 @@ export function EditorPane({
                   onEditorReady={onEditorReady}
                   onZoomRequested={onZoomRequested}
                   onMediaPreviewRequest={onMediaPreviewRequest}
+                  onReadOnlyEditAttempt={onReadOnlyEditAttempt}
                 />
               </Suspense>
             </div>

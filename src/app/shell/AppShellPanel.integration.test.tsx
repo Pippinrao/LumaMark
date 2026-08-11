@@ -56,26 +56,39 @@ describe('AppShellView real resizable panel integration', () => {
   });
 
   it('applies the adaptive pixel width through the real panel API', async () => {
-    render(createShell('a-very-long-standalone-markdown-file-name.md'));
+    render(createShell(1200));
 
     await waitFor(() => {
       expect(screen.getByTestId('sidebar')).toHaveStyle({
-        flexGrow: '36',
+        flexGrow: '48',
+      });
+    });
+  });
+
+  it('lets a sparse file tree settle at the adaptive minimum', async () => {
+    render(createShell(20));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar')).toHaveStyle({
+        flexGrow: '20',
       });
     });
   });
 });
 
-function createShell(fileName: string) {
+function createShell(sidebarContentWidth: number) {
   return (
     <AppShellView
-      currentFileName={fileName}
+      currentFileName="draft.md"
       dirty={false}
       focusMode={false}
       focusModeExitLabel="Exit"
       onExitFocusMode={vi.fn()}
       onSidebarCollapsedFocus={vi.fn()}
       onSidebarOpenChange={vi.fn()}
+      readingMode={false}
+      readOnlyFlashing={false}
+      sidebarContentWidth={sidebarContentWidth}
       sidebarOpen
       slots={{
         dialogs: null,
@@ -86,6 +99,8 @@ function createShell(fileName: string) {
       }}
       statusLabels={{
         dirtyIndicator: 'Dirty',
+        readOnly: 'Read-only',
+        readOnlyFlash: 'Document is read-only',
         statistics: 'Statistics',
         status: 'Status',
       }}

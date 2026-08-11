@@ -79,6 +79,9 @@ test('executes menu state, recent-file, and About workflows end to end', async (
     page.getByRole('menuitemradio', { name: /^源码模式/ }),
   ).toHaveAttribute('aria-checked', 'false');
   await expect(
+    page.getByRole('menuitemradio', { name: /^阅读模式/ }),
+  ).toHaveAttribute('aria-checked', 'false');
+  await expect(
     page.getByRole('menuitemcheckbox', { name: /^切换侧边栏/ }),
   ).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('menuitemradio', { name: /^源码模式/ }).click();

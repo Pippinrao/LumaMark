@@ -106,6 +106,7 @@ export class CodeMirrorEditorApi implements EditorApi {
         language: this.language,
         onDocumentChanged: options.onDocumentChanged,
         onFocusChanged: options.onFocusChanged,
+        onReadOnlyEditAttempt: options.onReadOnlyEditAttempt,
         onZoomRequested: options.onZoomRequested,
         searchPhrases: this.searchPhrases,
       }),

@@ -44,6 +44,18 @@
   padding: 0;
 }
 
+/*
+ * Upstream column handles are absolutely positioned at z-index 200 and overlap
+ * the first cell's text box by 1px. Without this the leftmost pixel of an
+ * active cell starts a column resize instead of placing the caret, and whether
+ * it does depends on where sub-pixel rounding lands the table. Stay below the
+ * 300 layer so row handles and the table menu keep priority.
+ */
+.cm-content .tbl-table-widget .tbl-cell-editor {
+  position: relative;
+  z-index: 210;
+}
+
 .cm-content .tbl-cell-editor .cm-editor {
   background: transparent;
   outline: none;

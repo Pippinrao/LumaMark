@@ -11,6 +11,7 @@ import type {
   EditorFocusChangedHandler,
   EditorMediaPreviewRequestHandler,
 } from './editorEvents';
+import type { ReadOnlyEditAttemptHandler } from './readOnlyEditAttempt';
 import type {
   EditorAppearance,
   EditorZoomRequestedHandler,
@@ -34,6 +35,7 @@ export type EditorViewHostProps = {
   onFocusChanged?: EditorFocusChangedHandler;
   onZoomRequested: EditorZoomRequestedHandler;
   onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
+  onReadOnlyEditAttempt?: ReadOnlyEditAttemptHandler;
 };
 
 export function EditorViewHost({
@@ -51,6 +53,7 @@ export function EditorViewHost({
   onFocusChanged,
   onZoomRequested,
   onMediaPreviewRequest,
+  onReadOnlyEditAttempt,
 }: EditorViewHostProps) {
   const editorParentRef = useRef<HTMLDivElement>(null);
   const initialDocRef = useRef(initialDoc);
@@ -65,6 +68,7 @@ export function EditorViewHost({
   const onEditorReadyRef = useRef(onEditorReady);
   const onFocusChangedRef = useRef(onFocusChanged);
   const onZoomRequestedRef = useRef(onZoomRequested);
+  const onReadOnlyEditAttemptRef = useRef(onReadOnlyEditAttempt);
   const titleId = useId();
 
   useEffect(() => {
@@ -82,6 +86,10 @@ export function EditorViewHost({
   useEffect(() => {
     onZoomRequestedRef.current = onZoomRequested;
   }, [onZoomRequested]);
+
+  useEffect(() => {
+    onReadOnlyEditAttemptRef.current = onReadOnlyEditAttempt;
+  }, [onReadOnlyEditAttempt]);
 
   useEffect(() => {
     editorRef.current?.setLanguage(language);
@@ -106,6 +114,9 @@ export function EditorViewHost({
       },
       onFocusChanged: (event) => {
         onFocusChangedRef.current?.(event);
+      },
+      onReadOnlyEditAttempt: () => {
+        onReadOnlyEditAttemptRef.current?.();
       },
       onZoomRequested: (direction) => {
         onZoomRequestedRef.current(direction);

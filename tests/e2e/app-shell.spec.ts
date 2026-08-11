@@ -70,8 +70,8 @@ test('matches the high fidelity editor gutter and sidebar sizing contract', asyn
     throw new Error('Expected high fidelity shell regions to be measurable.');
   }
 
-  expect(sidebarBox.width).toBeGreaterThanOrEqual(236);
-  expect(sidebarBox.width).toBeLessThanOrEqual(380);
+  expect(sidebarBox.width).toBeGreaterThanOrEqual(196);
+  expect(sidebarBox.width).toBeLessThanOrEqual(488);
   expect(paperBox.x).toBeCloseTo(editorPaneBox.x, 1);
   expect(paperBox.width).toBeCloseTo(editorPaneBox.width, 1);
   expect(treeBodyBox.height).toBeGreaterThan(360);
@@ -106,10 +106,43 @@ for (const viewport of [
     await page.getByRole('button', { name: '新建文档' }).click();
 
     const sidebarBox = await page.locator('.lm-sidebar-panel').boundingBox();
-    expect(sidebarBox?.width ?? 0).toBeGreaterThanOrEqual(239);
-    expect(sidebarBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(361);
+    expect(sidebarBox?.width ?? 0).toBeGreaterThanOrEqual(199);
+    expect(sidebarBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(481);
   });
 }
+
+test('lets dragging take the sidebar below the former 240 pixel floor', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
+
+  const sidebar = page.locator('.lm-sidebar-panel');
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(0);
+
+  const handleBox = await page.locator('.lm-resize-handle').boundingBox();
+
+  if (!handleBox) {
+    throw new Error('Expected the sidebar resize handle to be measurable.');
+  }
+
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2,
+    handleBox.y + handleBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(150, handleBox.y + handleBox.height / 2, { steps: 12 });
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeLessThan(200);
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeGreaterThanOrEqual(120);
+});
 
 test('collapses, restores, and persists an accessible sidebar state from the view menu', async ({ page }) => {
   await page.goto('/');
@@ -118,7 +151,7 @@ test('collapses, restores, and persists an accessible sidebar state from the vie
   const sidebar = page.locator('.lm-sidebar-panel');
   await expect
     .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
-    .toBeGreaterThan(200);
+    .toBeGreaterThanOrEqual(199);
 
   await page.getByRole('menuitem', { name: '视图' }).click();
   await page.getByRole('menuitemcheckbox', { name: /^切换侧边栏/ }).click();
@@ -143,7 +176,7 @@ test('collapses, restores, and persists an accessible sidebar state from the vie
   await page.getByRole('menuitemcheckbox', { name: /^切换侧边栏/ }).click();
   await expect
     .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
-    .toBeGreaterThan(200);
+    .toBeGreaterThanOrEqual(199);
   await expect(page.getByTestId('sidebar-content')).toHaveAttribute(
     'aria-hidden',
     'false',
@@ -199,7 +232,7 @@ test('moves focus into the editor when a sidebar shortcut collapses it', async (
 
   await expect
     .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
-    .toBeGreaterThan(200);
+    .toBeGreaterThanOrEqual(199);
   await expect(page.locator('.cm-content')).toBeVisible();
 
   await page.getByRole('tab', { name: '文件' }).focus();
@@ -237,7 +270,7 @@ test('enters and exits a distraction-free focus mode without changing the editor
   await expect(page.locator('.lm-status-bar')).toBeVisible();
   await expect
     .poll(async () => (await page.locator('.lm-sidebar-panel').boundingBox())?.width ?? 0)
-    .toBeGreaterThan(200);
+    .toBeGreaterThanOrEqual(199);
   await expect(page.locator('.cm-content')).toContainText('# Focus document');
 });
 

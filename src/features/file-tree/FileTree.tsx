@@ -1,4 +1,11 @@
-import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
 import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist';
 import { useTranslation } from 'react-i18next';
@@ -6,9 +13,15 @@ import type { WorkspaceDirectory } from '../../services/workspace/workspaceComma
 import { RecentFilesList } from '../recent-files/RecentFilesList';
 import type { RecentFile } from '../recent-files/recentFilesStore';
 import type { WorkspaceTreeNode } from '../workspace/workspaceStore';
+import {
+  measureFileTreeContentWidth,
+  measureFileTreeLabel,
+  type FileTreeContentRow,
+} from './fileTreeContentWidth';
 
 type FileTreeProps = {
   loadingPaths: Record<string, boolean>;
+  onContentWidthChange?: (contentWidth: number) => void;
   onLoadChildren: (path: string) => void;
   onOpenFile: (path: string) => void;
   onOpenWorkspace: () => void;
@@ -20,6 +33,7 @@ type FileTreeProps = {
 
 export function FileTree({
   loadingPaths,
+  onContentWidthChange,
   onLoadChildren,
   onOpenFile,
   onOpenWorkspace,
@@ -32,6 +46,7 @@ export function FileTree({
   const [treeBodyRef, treeSize] = useElementSize();
   const treeRef = useRef<TreeApi<WorkspaceTreeNode> | undefined>(undefined);
   const pendingLoadPathsRef = useRef(new Set<string>());
+  const [expansionVersion, setExpansionVersion] = useState(0);
   const singleFileName = selectedPath
     ?.split(/[\\/]/)
     .filter(Boolean)
@@ -55,6 +70,41 @@ export function FileTree({
     },
     [loadingPaths, onLoadChildren],
   );
+
+  useEffect(() => {
+    if (!onContentWidthChange) {
+      return;
+    }
+
+    const rows: FileTreeContentRow[] = [];
+
+    if (root) {
+      rows.push({ depth: 0, label: root.name });
+    }
+
+    if (!root && singleFileName) {
+      rows.push({ depth: 0, label: singleFileName });
+    } else {
+      for (const file of recentFiles) {
+        rows.push({ depth: 0, label: file.name });
+      }
+    }
+
+    for (const node of treeRef.current?.visibleNodes ?? []) {
+      rows.push({ depth: node.level, label: node.data.name });
+    }
+
+    onContentWidthChange(
+      measureFileTreeContentWidth(rows, measureFileTreeLabel),
+    );
+  }, [
+    expansionVersion,
+    onContentWidthChange,
+    recentFiles,
+    root,
+    singleFileName,
+    tree,
+  ]);
 
   return (
     <section className="lm-file-tree" aria-label={t('workspace.fileTree')}>
@@ -106,6 +156,8 @@ export function FileTree({
               if (node?.isOpen) {
                 requestLoadChildren(node.data);
               }
+
+              setExpansionVersion((version) => version + 1);
             }}
             openByDefault={false}
             overscanCount={8}

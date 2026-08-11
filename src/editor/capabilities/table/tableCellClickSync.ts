@@ -1,6 +1,7 @@
 import { EditorSelection } from '@codemirror/state';
 import { EditorView, ViewPlugin, type EditorView as EditorViewType } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
+import { announceReadOnlyEditAttempt } from '../../core/readOnlyEditAttempt';
 
 export type PendingTableClick = {
   at: number;
@@ -79,7 +80,7 @@ export function applyPendingTableClickToView(view: EditorViewType): boolean {
  */
 export function tableCellClickSyncRootExtension(): Extension {
   return EditorView.domEventHandlers({
-    pointerdown(event) {
+    pointerdown(event, view) {
       const target = event.target;
       if (!(target instanceof Element)) {
         return false;
@@ -95,6 +96,15 @@ export function tableCellClickSyncRootExtension(): Extension {
 
       if (event.button !== 0) {
         return false;
+      }
+
+      // Reading mode must not mount nested cell editors. Upstream tables still
+      // listen for the same click; stopPropagation keeps that path closed.
+      if (view.state.readOnly) {
+        event.preventDefault();
+        event.stopPropagation();
+        announceReadOnlyEditAttempt(view);
+        return true;
       }
 
       rememberTablePointerClick(event.clientX, event.clientY);

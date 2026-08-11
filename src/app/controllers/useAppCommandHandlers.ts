@@ -51,6 +51,7 @@ type UseAppCommandHandlersOptions = {
   saveAs: () => void;
   setLanguage: (language: AppLanguage) => void;
   setLivePreviewMode: () => void;
+  setReadingMode: () => void;
   setSourceMode: () => void;
   setTheme: (theme: ThemeMode) => void;
   toggleDisplayMode: () => void;
@@ -83,6 +84,7 @@ export function useAppCommandHandlers({
   saveAs,
   setLanguage,
   setLivePreviewMode,
+  setReadingMode,
   setSourceMode,
   setTheme,
   toggleDisplayMode,
@@ -144,6 +146,7 @@ export function useAppCommandHandlers({
         setTheme('light');
       },
       setLivePreviewMode: guardEditorCommand(editorAvailable, setLivePreviewMode),
+      setReadingMode: guardEditorCommand(editorAvailable, setReadingMode),
       setSourceMode: guardEditorCommand(editorAvailable, setSourceMode),
       toggleDisplayMode: guardEditorCommand(editorAvailable, toggleDisplayMode),
       toggleLanguage,
@@ -174,6 +177,7 @@ export function useAppCommandHandlers({
     saveAs,
     setLanguage,
     setLivePreviewMode,
+    setReadingMode,
     setSourceMode,
     setTheme,
     toggleDisplayMode,

@@ -878,6 +878,9 @@ describe('AppShell', () => {
     expect(
       await screen.findByRole('menuitemradio', { name: /^源码模式/ }),
     ).toHaveAttribute('aria-checked', 'false');
+    expect(
+      screen.getByRole('menuitemradio', { name: /^阅读模式/ }),
+    ).toHaveAttribute('aria-checked', 'false');
     fireEvent.keyDown(document, { key: 'Escape' });
 
     fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
@@ -888,10 +891,22 @@ describe('AppShell', () => {
     viewMenu.focus();
     fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
     expect(
-      await screen.findByRole('menuitemradio', { name: '实时预览' }),
+      await screen.findByRole('menuitemradio', { name: /^实时预览/ }),
     ).toHaveAttribute('aria-checked', 'false');
     expect(
       screen.getByRole('menuitemradio', { name: /^源码模式/ }),
+    ).toHaveAttribute('aria-checked', 'true');
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: '/' });
+
+    await waitFor(() => {
+      expect(document.querySelector('.lm-editor-reading-mode')).not.toBeNull();
+    });
+    viewMenu.focus();
+    fireEvent.keyDown(viewMenu, { key: 'ArrowDown' });
+    expect(
+      await screen.findByRole('menuitemradio', { name: /^阅读模式/ }),
     ).toHaveAttribute('aria-checked', 'true');
     fireEvent.keyDown(document, { key: 'Escape' });
 

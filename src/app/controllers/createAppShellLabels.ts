@@ -25,6 +25,8 @@ export function createAppShellLabels({
     },
     status: {
       dirtyIndicator: t('status.dirtyIndicator'),
+      readOnly: t('status.readOnly'),
+      readOnlyFlash: t('status.readOnlyFlash'),
       statistics: t('status.documentStatistics', documentStatistics),
       status: t(statusKey),
     },

@@ -1,4 +1,10 @@
-import { redo, undo, undoDepth } from '@codemirror/commands';
+import {
+  deleteCharBackward,
+  insertNewlineAndIndent,
+  redo,
+  undo,
+  undoDepth,
+} from '@codemirror/commands';
 import { startCompletion } from '@codemirror/autocomplete';
 import { openSearchPanel } from '@codemirror/search';
 import { EditorSelection } from '@codemirror/state';
@@ -531,6 +537,52 @@ describe('editorApi', () => {
 
     expect(undo(editor.view)).toBe(true);
     expect(editor.getDocumentText()).toBe('# Initial\n');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('makes reading mode reject edits while keeping the rendered view', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    const editor = createEditorApi({
+      doc: '# Initial\n\n**Bold**\n',
+      parent,
+    });
+
+    editor.setDisplayMode('reading');
+
+    expect(editor.getDisplayMode()).toBe('reading');
+    expect(editor.view.state.readOnly).toBe(true);
+    expect(parent.querySelector('.lm-editor-reading-mode')).not.toBeNull();
+    expect(parent.querySelector('.lm-editor-source-mode')).toBeNull();
+    expect(parent.textContent).not.toContain('**Bold**');
+    // User-facing edit commands refuse while readOnly is set. Programmatic
+    // loadDocument still writes through dispatch, which is intentional.
+    expect(deleteCharBackward(editor.view)).toBe(false);
+    expect(insertNewlineAndIndent(editor.view)).toBe(false);
+    expect(editor.getDocumentText()).toBe('# Initial\n\n**Bold**\n');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('restores editing when leaving reading mode', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    const editor = createEditorApi({ doc: '# Initial\n', parent });
+
+    editor.setDisplayMode('reading');
+    editor.setDisplayMode('livePreview');
+
+    expect(editor.view.state.readOnly).toBe(false);
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: 'tail' },
+    });
+
+    expect(editor.getDocumentText()).toBe('# Initial\ntail');
 
     editor.destroy();
     parent.remove();

@@ -1,30 +1,52 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SIDEBAR_ADAPTIVE_MAX_WIDTH,
+  SIDEBAR_ADAPTIVE_MIN_WIDTH,
   sidebarPanelConstraints,
-  sidebarWidthForMeasuredFileName,
+  sidebarWidthForContentWidth,
 } from './panelConstraints';
 
 describe('sidebar panel constraints', () => {
-  it('uses an adaptive default with practical pixel bounds', () => {
+  it('lets dragging reach a narrow floor and leaves the ceiling to the editor panel', () => {
     expect(sidebarPanelConstraints).toEqual({
       defaultSize: '26%',
-      maxSize: '360px',
-      minSize: '240px',
+      minSize: '120px',
     });
   });
 
-  it('keeps short file names at the 240 pixel minimum', () => {
-    expect(sidebarWidthForMeasuredFileName(64)).toBe(240);
+  it('does not declare a maximum width, so the editor minimum defines the ceiling', () => {
+    expect('maxSize' in sidebarPanelConstraints).toBe(false);
+  });
+});
+
+describe('sidebarWidthForContentWidth', () => {
+  it('raises narrow content to the adaptive minimum', () => {
+    expect(sidebarWidthForContentWidth(40)).toBe(SIDEBAR_ADAPTIVE_MIN_WIDTH);
+    expect(SIDEBAR_ADAPTIVE_MIN_WIDTH).toBe(200);
   });
 
-  it('gives medium file names enough room without using the maximum', () => {
-    const width = sidebarWidthForMeasuredFileName(180);
+  it('caps wide content at the adaptive maximum', () => {
+    expect(sidebarWidthForContentWidth(2000)).toBe(SIDEBAR_ADAPTIVE_MAX_WIDTH);
+    expect(SIDEBAR_ADAPTIVE_MAX_WIDTH).toBe(480);
+  });
+
+  it('adds room for the sidebar chrome around the measured content', () => {
+    const width = sidebarWidthForContentWidth(240);
 
     expect(width).toBeGreaterThan(240);
-    expect(width).toBeLessThan(360);
+    expect(width).toBeLessThan(SIDEBAR_ADAPTIVE_MAX_WIDTH);
   });
 
-  it('caps long file names at 360 pixels', () => {
-    expect(sidebarWidthForMeasuredFileName(480)).toBe(360);
+  it('grows with the measured content between both bounds', () => {
+    expect(sidebarWidthForContentWidth(300)).toBeGreaterThan(
+      sidebarWidthForContentWidth(240),
+    );
+  });
+
+  it('treats missing measurements as the adaptive minimum', () => {
+    expect(sidebarWidthForContentWidth(0)).toBe(SIDEBAR_ADAPTIVE_MIN_WIDTH);
+    expect(sidebarWidthForContentWidth(Number.NaN)).toBe(
+      SIDEBAR_ADAPTIVE_MIN_WIDTH,
+    );
   });
 });

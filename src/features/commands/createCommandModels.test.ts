@@ -203,8 +203,9 @@ describe('createTopMenuModels', () => {
       ],
       theme: ['theme-light:setLightTheme:', 'theme-dark:setDarkTheme:'],
       view: [
-        'live-preview-mode:setLivePreviewMode:',
-        'source-mode:setSourceMode:Ctrl+/',
+        'live-preview-mode:setLivePreviewMode:Ctrl+/',
+        'source-mode:setSourceMode:',
+        'reading-mode:setReadingMode:',
         'sidebar:toggleSidebar:Ctrl+\\',
         'focus-mode:toggleFocusMode:Ctrl+Shift+F',
         'reset-zoom:resetZoom:',
@@ -250,9 +251,17 @@ describe('createTopMenuModels', () => {
   it('projects display, sidebar, focus, theme, and language state', () => {
     const groups = createModels();
 
+    expect(findNode(groups.flatMap((group) => group.items), 'live-preview-mode')).toMatchObject({
+      checked: false,
+      shortcut: 'Ctrl+/',
+      type: 'radio',
+    });
     expect(findNode(groups.flatMap((group) => group.items), 'source-mode')).toMatchObject({
       checked: true,
-      shortcut: 'Ctrl+/',
+      type: 'radio',
+    });
+    expect(findNode(groups.flatMap((group) => group.items), 'reading-mode')).toMatchObject({
+      checked: false,
       type: 'radio',
     });
     expect(findNode(groups.flatMap((group) => group.items), 'sidebar')).toMatchObject({
@@ -319,6 +328,7 @@ describe('createTopMenuModels', () => {
       'image',
       'live-preview-mode',
       'source-mode',
+      'reading-mode',
       'focus-mode',
       'reset-zoom',
       'focus-editor',

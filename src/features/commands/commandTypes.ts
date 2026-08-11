@@ -25,6 +25,7 @@ export type CommandActionId =
   | 'setEnglishLanguage'
   | 'setLightTheme'
   | 'setLivePreviewMode'
+  | 'setReadingMode'
   | 'setSourceMode'
   | 'toggleDisplayMode'
   | 'toggleLanguage'

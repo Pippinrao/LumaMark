@@ -992,3 +992,48 @@ test('preserves IME, undo-redo, and live-source-live round trips after a real cl
   await expect(page.locator('.tbl-table-widget')).toBeVisible();
   expect((await readRootSource(page)).text).toBe(editedSource);
 });
+
+test('keeps the active cell text ahead of the column handle at its left edge', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+  await replaceEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| Content | Other |',
+      '| ------- | ----- |',
+      '| iiiiiiQ | one   |',
+      '',
+      'after',
+    ].join('\n'),
+  );
+
+  await clickVisibleGlyph(page, dataCell(page, 0, 0), 'Q', 0.05);
+  await expect(page.locator('.tbl-cell-editor .cm-content:visible')).toHaveCount(
+    1,
+  );
+
+  const topmost = await page
+    .locator('.tbl-cell-editor .cm-content:visible')
+    .evaluate((content) => {
+      const rect = content.getBoundingClientRect();
+      const element = document.elementFromPoint(
+        rect.left + 1,
+        rect.top + rect.height / 2,
+      );
+
+      return {
+        onHandle: Boolean(element?.closest('.tbl-handle')),
+        withinCellEditor: Boolean(element?.closest('.tbl-cell-editor')),
+      };
+    });
+
+  expect(topmost).toEqual({ onHandle: false, withinCellEditor: true });
+
+  await clickActiveCellAtStart(page);
+  await expect(page.locator('.tbl-cell-editor .cm-content:visible')).toHaveCount(
+    1,
+  );
+});

@@ -788,6 +788,19 @@ button {
   flex: 1;
 }
 
+.lm-status-readonly {
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-1);
+  color: var(--lm-color-text-soft);
+  padding: 0.1rem 0.45rem;
+}
+
+.lm-status-readonly-flash {
+  border-color: color-mix(in srgb, var(--lm-color-accent) 55%, var(--lm-color-border));
+  background: color-mix(in srgb, var(--lm-color-accent) 14%, transparent);
+  color: var(--lm-color-accent-strong);
+}
+
 .lm-file-error-notice {
   position: fixed;
   z-index: 30;

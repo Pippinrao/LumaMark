@@ -123,8 +123,8 @@ describe('useAppEditorCommands', () => {
     });
 
     expect(result.current.toggleDisplayMode).toBe(toggleDisplayMode);
-    expect(result.current.editorDisplayMode).toBe('livePreview');
-    expect(editor.getDisplayMode()).toBe('livePreview');
+    expect(result.current.editorDisplayMode).toBe('reading');
+    expect(editor.getDisplayMode()).toBe('reading');
 
     act(() => {
       result.current.setDisplayMode('source');
@@ -132,6 +132,13 @@ describe('useAppEditorCommands', () => {
 
     expect(result.current.editorDisplayMode).toBe('source');
     expect(editor.getDisplayMode()).toBe('source');
+
+    act(() => {
+      toggleDisplayMode();
+    });
+
+    expect(result.current.editorDisplayMode).toBe('reading');
+    expect(editor.getDisplayMode()).toBe('reading');
 
     act(() => {
       toggleDisplayMode();

@@ -42,7 +42,17 @@ const LazyMediaViewerDialog = lazy(() =>
 
 type AppShellModel = ReturnType<typeof useAppShellModel>;
 
-export function useAppShellSlots(model: AppShellModel): ShellSlots {
+type AppShellSlotHandlers = {
+  onReadOnlyEditAttempt: () => void;
+  onSidebarContentWidthChange: (contentWidth: number) => void;
+};
+
+export function useAppShellSlots(
+  model: AppShellModel,
+  handlers: AppShellSlotHandlers,
+): ShellSlots {
+  const { onReadOnlyEditAttempt, onSidebarContentWidthChange } = handlers;
+
   return useMemo(
     () => ({
       dialogs: (
@@ -210,6 +220,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
           onEditorReady={model.editor.onReady}
           onZoomRequested={model.editor.onZoomRequested}
           onMediaPreviewRequest={model.mediaViewer.openMedia}
+          onReadOnlyEditAttempt={onReadOnlyEditAttempt}
           imageAssetResolver={model.editor.imageAssetResolver}
           imageImportErrorHandler={model.editor.imageImportErrorHandler}
           imageImportHandler={model.editor.imageImportHandler}
@@ -222,6 +233,7 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
           fileTree={
             <FileTree
               loadingPaths={model.workspace.loadingPaths}
+              onContentWidthChange={onSidebarContentWidthChange}
               onLoadChildren={model.workspace.loadChildren}
               onOpenFile={model.workspace.openFile}
               onOpenWorkspace={model.workspace.openWorkspace}
@@ -262,6 +274,6 @@ export function useAppShellSlots(model: AppShellModel): ShellSlots {
         />
       ),
     }),
-    [model],
+    [model, onReadOnlyEditAttempt, onSidebarContentWidthChange],
   );
 }

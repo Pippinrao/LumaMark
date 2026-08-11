@@ -9,6 +9,10 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShellView } from './AppShellView';
 import {
+  SIDEBAR_ADAPTIVE_MAX_WIDTH,
+  SIDEBAR_ADAPTIVE_MIN_WIDTH,
+} from './panelConstraints';
+import {
   persistSidebarOpen,
   readPersistedSidebarOpen,
 } from './panelLayoutStorage';
@@ -16,7 +20,6 @@ import {
 const panelMocks = vi.hoisted(() => ({
   expand: vi.fn(),
   resize: vi.fn(),
-  saveLayout: vi.fn(),
 }));
 
 vi.mock('react-resizable-panels', () => ({
@@ -45,10 +48,6 @@ vi.mock('react-resizable-panels', () => ({
     <div data-testid={id}>{children}</div>
   ),
   Separator: () => <div role="separator" />,
-  useDefaultLayout: () => ({
-    defaultLayout: undefined,
-    onLayoutChanged: panelMocks.saveLayout,
-  }),
   usePanelRef: () => ({
     current: {
       collapse: vi.fn(),
@@ -62,66 +61,82 @@ describe('AppShellView sidebar sizing', () => {
   beforeEach(() => {
     panelMocks.expand.mockReset();
     panelMocks.resize.mockReset();
-    panelMocks.saveLayout.mockReset();
   });
   afterEach(cleanup);
 
-  it('resizes the actual shell sidebar from the current file name', async () => {
-    renderShell('a-very-long-standalone-markdown-file-name-that-needs-room.md');
+  it('adapts the shell sidebar to the reported file tree content width', async () => {
+    renderShell({ sidebarContentWidth: 260 });
 
     await waitFor(() => {
-      expect(panelMocks.resize).toHaveBeenCalledWith(360);
+      expect(panelMocks.resize).toHaveBeenCalledWith(332);
     });
   });
 
-  it('preserves a manual panel width when the current file name changes', async () => {
-    const view = renderShell('short.md');
+  it('keeps a sparse file tree at the adaptive minimum', async () => {
+    renderShell({ sidebarContentWidth: 40 });
+
+    await waitFor(() => {
+      expect(panelMocks.resize).toHaveBeenCalledWith(SIDEBAR_ADAPTIVE_MIN_WIDTH);
+    });
+  });
+
+  it('caps a deeply nested file tree at the adaptive maximum', async () => {
+    renderShell({ sidebarContentWidth: 1200 });
+
+    await waitFor(() => {
+      expect(panelMocks.resize).toHaveBeenCalledWith(SIDEBAR_ADAPTIVE_MAX_WIDTH);
+    });
+  });
+
+  it('stops adapting once the user has dragged the sidebar in this session', async () => {
+    const view = renderShell({ sidebarContentWidth: 100 });
     await waitFor(() => expect(panelMocks.resize).toHaveBeenCalledOnce());
 
     fireEvent.click(screen.getByTestId('manual-panel-resize'));
-    view.rerender(createShell('a-very-long-file-name-that-would-auto-resize.md'));
+    view.rerender(createShell({ sidebarContentWidth: 900 }));
 
     await new Promise((resolve) => setTimeout(resolve, 32));
     expect(panelMocks.resize).toHaveBeenCalledOnce();
-    expect(panelMocks.saveLayout).toHaveBeenCalledWith(
-      { editor: 68, sidebar: 32 },
-      { isUserInteraction: true },
-    );
   });
 
   it('does not persist the temporary focus-mode sidebar collapse', async () => {
     persistSidebarOpen(true);
-    const view = render(createShell('draft.md'));
+    const view = render(createShell({}));
     await waitFor(() => expect(readPersistedSidebarOpen()).toBe(true));
 
-    view.rerender(
-      createShell('draft.md', { focusMode: true, sidebarOpen: false }),
-    );
+    view.rerender(createShell({ focusMode: true, sidebarOpen: false }));
 
     await waitFor(() => expect(readPersistedSidebarOpen()).toBe(true));
   });
 });
 
-function renderShell(fileName: string) {
-  return render(createShell(fileName));
+type ShellOptions = {
+  focusMode?: boolean;
+  sidebarContentWidth?: number;
+  sidebarOpen?: boolean;
+};
+
+function renderShell(options: ShellOptions) {
+  return render(createShell(options));
 }
 
-function createShell(
-  fileName: string,
-  {
-    focusMode = false,
-    sidebarOpen = true,
-  }: { focusMode?: boolean; sidebarOpen?: boolean } = {},
-) {
+function createShell({
+  focusMode = false,
+  sidebarContentWidth = 0,
+  sidebarOpen = true,
+}: ShellOptions) {
   return (
     <AppShellView
-      currentFileName={fileName}
+      currentFileName="draft.md"
       dirty={false}
       focusMode={focusMode}
       focusModeExitLabel="Exit focus mode"
       onExitFocusMode={vi.fn()}
       onSidebarCollapsedFocus={vi.fn()}
       onSidebarOpenChange={vi.fn()}
+      readingMode={false}
+      readOnlyFlashing={false}
+      sidebarContentWidth={sidebarContentWidth}
       sidebarOpen={sidebarOpen}
       slots={{
         dialogs: null,
@@ -132,6 +147,8 @@ function createShell(
       }}
       statusLabels={{
         dirtyIndicator: 'Unsaved',
+        readOnly: 'Read-only',
+        readOnlyFlash: 'Document is read-only',
         statistics: 'Statistics',
         status: 'Status',
       }}

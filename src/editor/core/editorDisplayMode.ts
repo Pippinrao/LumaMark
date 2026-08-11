@@ -1,9 +1,9 @@
-import { Compartment, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { createLivePreviewExtensions } from '../capabilities';
 import type { EditorMediaPreviewRequestHandler } from './editorEvents';
 
-export type EditorDisplayMode = 'livePreview' | 'source';
+export type EditorDisplayMode = 'livePreview' | 'reading' | 'source';
 export type ImageAssetRequest = {
   documentPath: string | null;
   source: string;
@@ -56,6 +56,18 @@ export function editorDisplayModeExtension(
     return EditorView.editorAttributes.of({
       class: 'lm-editor-source-mode',
     });
+  }
+
+  if (mode === 'reading') {
+    return [
+      EditorView.editorAttributes.of({
+        class: 'lm-editor-reading-mode',
+      }),
+      // contenteditable stays on so selection, copy, find and keyboard
+      // navigation keep working; only document changes are refused.
+      EditorState.readOnly.of(true),
+      ...createLivePreviewExtensions(context),
+    ];
   }
 
   return [

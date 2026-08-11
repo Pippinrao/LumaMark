@@ -165,10 +165,13 @@ export function useAppEditorCommands() {
   }, [setEditorDisplayMode]);
 
   const toggleDisplayMode = useCallback(() => {
+    const current = editorDisplayModeRef.current;
     const mode =
-      editorDisplayModeRef.current === 'livePreview'
+      current === 'livePreview'
         ? 'source'
-        : 'livePreview';
+        : current === 'source'
+          ? 'reading'
+          : 'livePreview';
     commandPortRef.current?.setDisplayMode(mode);
     editorDisplayModeRef.current = mode;
     setEditorDisplayMode(mode);

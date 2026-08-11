@@ -39,6 +39,10 @@ import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
 } from './editorEvents';
+import {
+  readOnlyEditAttemptExtension,
+  type ReadOnlyEditAttemptHandler,
+} from './readOnlyEditAttempt';
 import { editorZoomWheelExtension } from './editorZoomWheelExtension';
 import {
   documentSourceFormatExtension,
@@ -59,6 +63,7 @@ export type CreateEditorStateOptions = {
   searchPhrases?: Record<string, string>;
   onDocumentChanged?: EditorDocumentChangedHandler;
   onFocusChanged?: EditorFocusChangedHandler;
+  onReadOnlyEditAttempt?: ReadOnlyEditAttemptHandler;
   onZoomRequested?: EditorZoomRequestedHandler;
 };
 
@@ -137,6 +142,7 @@ export function createEditorState(
     searchPhrases = getEditorSearchPhrases(language),
     onDocumentChanged,
     onFocusChanged,
+    onReadOnlyEditAttempt,
     onZoomRequested,
   } = options;
   const parsedDocument = parseDocumentSource(doc);
@@ -213,6 +219,7 @@ export function createEditorState(
       documentChangeListener,
       ...focusExtensions,
       ...zoomExtensions,
+      readOnlyEditAttemptExtension(onReadOnlyEditAttempt),
       keymap.of(markdownFormatKeymap),
       keymap.of([
         ...defaultKeymap,

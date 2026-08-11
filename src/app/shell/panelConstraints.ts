@@ -1,16 +1,25 @@
 export const sidebarPanelConstraints = {
   defaultSize: '26%',
-  maxSize: '360px',
-  minSize: '240px',
+  minSize: '120px',
 } as const;
 
-const SIDEBAR_FILENAME_CHROME_WIDTH = 96;
-const SIDEBAR_MIN_WIDTH = 240;
-const SIDEBAR_MAX_WIDTH = 360;
+export const SIDEBAR_ADAPTIVE_MIN_WIDTH = 200;
+export const SIDEBAR_ADAPTIVE_MAX_WIDTH = 480;
 
-export function sidebarWidthForMeasuredFileName(measuredWidth: number): number {
+// Chevron, file icon, row gaps and the section padding that sit around the
+// measured label text.
+const SIDEBAR_CONTENT_CHROME_WIDTH = 72;
+
+export function sidebarWidthForContentWidth(contentWidth: number): number {
+  if (!Number.isFinite(contentWidth) || contentWidth <= 0) {
+    return SIDEBAR_ADAPTIVE_MIN_WIDTH;
+  }
+
   return Math.min(
-    SIDEBAR_MAX_WIDTH,
-    Math.max(SIDEBAR_MIN_WIDTH, measuredWidth + SIDEBAR_FILENAME_CHROME_WIDTH),
+    SIDEBAR_ADAPTIVE_MAX_WIDTH,
+    Math.max(
+      SIDEBAR_ADAPTIVE_MIN_WIDTH,
+      Math.round(contentWidth + SIDEBAR_CONTENT_CHROME_WIDTH),
+    ),
   );
 }

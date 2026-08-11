@@ -1107,6 +1107,68 @@ describe('markdown WYSIWYG extension', () => {
     parent.remove();
   });
 
+  it('keeps markdown syntax hidden under the caret while read-only', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '**first** and **second**';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+          EditorState.readOnly.of(true),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('first') + 1),
+      }),
+    });
+
+    expect(parent.textContent).not.toContain('**first**');
+    expect(parent.textContent).toContain('first');
+    expect(parent.textContent).toContain('second');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('re-hides revealed syntax when the editor becomes read-only', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const readOnly = new Compartment();
+    const doc = '**first** and **second**';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          markdownWysiwygExtension(),
+          readOnly.of(EditorState.readOnly.of(false)),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('first') + 1),
+      }),
+    });
+
+    expect(parent.textContent).toContain('**first**');
+
+    view.dispatch({
+      effects: readOnly.reconfigure(EditorState.readOnly.of(true)),
+    });
+
+    expect(parent.textContent).not.toContain('**first**');
+    expect(parent.textContent).toContain('first');
+
+    view.dispatch({
+      effects: readOnly.reconfigure(EditorState.readOnly.of(false)),
+    });
+
+    expect(parent.textContent).toContain('**first**');
+
+    view.destroy();
+    parent.remove();
+  });
+
   it('updates a task checkbox when read-only is reconfigured', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

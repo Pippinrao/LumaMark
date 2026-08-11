@@ -1,6 +1,7 @@
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { createEditorCapabilityCommands } from '../capabilities';
+import { announceReadOnlyEditAttempt } from '../core/readOnlyEditAttempt';
 import { toggleBlockquote } from './blockquoteCommands';
 
 export type MarkdownFormatCommand =
@@ -29,6 +30,11 @@ export function applyMarkdownFormatCommand(
   view: EditorView,
   command: MarkdownFormatCommand,
 ): boolean {
+  if (view.state.readOnly) {
+    announceReadOnlyEditAttempt(view);
+    return true;
+  }
+
   switch (command) {
     case 'bold':
       return wrapSelection(view, '**', '**', 'bold', true);

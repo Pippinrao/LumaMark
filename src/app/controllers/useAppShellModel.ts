@@ -112,6 +112,7 @@ export function useAppShellModel() {
     },
     setLanguage: settings.setLanguage,
     setLivePreviewMode: () => editor.setDisplayMode('livePreview'),
+    setReadingMode: () => editor.setDisplayMode('reading'),
     setSourceMode: () => editor.setDisplayMode('source'),
     setTheme: settings.setTheme,
     toggleDisplayMode: editor.toggleDisplayMode,
@@ -149,7 +150,7 @@ export function useAppShellModel() {
     documentTitle,
     focusMode,
     editor: {
-      appearance: readingAppearance.appearance,
+      appearance: readingAppearance.appearance, editorDisplayMode: editor.editorDisplayMode,
       getContextMenuItems: commandModels.getEditorContextMenuItems,
       focusEditor: editor.focusEditor,
       imageAssetResolver: editor.imageAssetResolver,

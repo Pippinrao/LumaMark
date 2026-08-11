@@ -1003,7 +1003,7 @@ test('switches between live preview and source mode without changing markdown so
   await expect(page.locator('.lm-md-strong')).not.toContainText('**');
 });
 
-test('toggles display mode twice with Mod+/ without changing editor state', async ({
+test('cycles display modes with Mod+/ without changing editor state', async ({
   context,
   page,
 }) => {
@@ -1070,6 +1070,19 @@ test('toggles display mode twice with Mod+/ without changing editor state', asyn
           });
         }),
     );
+  const expectViewportMatches = async (
+    expected: Awaited<ReturnType<typeof readViewport>>,
+  ) => {
+    expect(await readSelection()).toBe('ANCHOR_SELECTION');
+    const viewport = await readViewport();
+    expect(viewport.firstVisibleText).toBe(expected.firstVisibleText);
+    expect(Math.abs(viewport.scrollTop - expected.scrollTop)).toBeLessThanOrEqual(
+      1,
+    );
+    expect(
+      Math.abs((viewport.firstVisibleTop ?? 0) - (expected.firstVisibleTop ?? 0)),
+    ).toBeLessThanOrEqual(1);
+  };
 
   await editor.click();
   await page.keyboard.press(`${primaryModifier}+A`);
@@ -1096,43 +1109,21 @@ test('toggles display mode twice with Mod+/ without changing editor state', asyn
   expect(initialViewport.firstVisibleText).not.toBeNull();
   expect(initialViewport.firstVisibleTop).not.toBeNull();
 
+  // livePreview → source → reading → livePreview
   await page.keyboard.press(modeShortcut);
   await expect(page.locator('.lm-editor-source-mode')).toBeVisible();
   await settleEditorLayout();
+  await expectViewportMatches(initialViewport);
 
-  expect(await readSelection()).toBe('ANCHOR_SELECTION');
-  const sourceViewport = await readViewport();
-  expect(sourceViewport.firstVisibleText).toBe(
-    initialViewport.firstVisibleText,
-  );
-  expect(
-    Math.abs(sourceViewport.scrollTop - initialViewport.scrollTop),
-  ).toBeLessThanOrEqual(1);
-  expect(
-    Math.abs(
-      (sourceViewport.firstVisibleTop ?? 0) -
-        (initialViewport.firstVisibleTop ?? 0),
-    ),
-  ).toBeLessThanOrEqual(1);
+  await page.keyboard.press(modeShortcut);
+  await expect(page.locator('.lm-editor-reading-mode')).toBeVisible();
+  await settleEditorLayout();
+  await expectViewportMatches(initialViewport);
 
   await page.keyboard.press(modeShortcut);
   await expect(page.locator('.lm-editor-live-preview-mode')).toBeVisible();
   await settleEditorLayout();
-
-  expect(await readSelection()).toBe('ANCHOR_SELECTION');
-  const restoredViewport = await readViewport();
-  expect(restoredViewport.firstVisibleText).toBe(
-    initialViewport.firstVisibleText,
-  );
-  expect(
-    Math.abs(restoredViewport.scrollTop - initialViewport.scrollTop),
-  ).toBeLessThanOrEqual(1);
-  expect(
-    Math.abs(
-      (restoredViewport.firstVisibleTop ?? 0) -
-        (initialViewport.firstVisibleTop ?? 0),
-    ),
-  ).toBeLessThanOrEqual(1);
+  await expectViewportMatches(initialViewport);
   expect(await readSourceFromClipboard()).toBe(documentAfterEdit);
 
   await page.keyboard.press(`${primaryModifier}+Z`);

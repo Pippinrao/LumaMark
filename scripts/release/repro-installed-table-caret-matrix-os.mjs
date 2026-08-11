@@ -323,12 +323,11 @@ const emptyCell = dataCell(2, 0);
 const emptyBox = await emptyCell.locator('.tbl-cell-view').boundingBox();
 await osClickCss(emptyBox.x + 8, emptyBox.y + emptyBox.height / 2);
 const emptyActive = await readActive();
-let typedOk = false;
 if (emptyActive.hasEditor && emptyActive.head === 0 && emptyActive.text === '') {
   await page.keyboard.insertText('空');
   await delay(300);
   const afterType = await readActive();
-  typedOk = afterType.text === '空';
+  const typedOk = afterType.text === '空';
   pass('empty-cell-type', typedOk, {
     before: emptyActive,
     after: afterType,

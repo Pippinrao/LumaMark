@@ -207,7 +207,6 @@ const plainCell = page.locator('.tbl-table-body .tbl-table-row').nth(0).locator(
 const boldCell = page.locator('.tbl-table-body .tbl-table-row').nth(1).locator('.tbl-cell-view').nth(0);
 
 const plainBox = await plainCell.boundingBox();
-const boldBox = await boldCell.boundingBox();
 const plainGlyph = await plainCell.evaluate((surface) => {
   const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {

@@ -119,10 +119,10 @@ public static class HwndRect {
 }
 "@
 [void][HwndRect]::SetProcessDPIAware()
-\$p = Get-Process lumamark | Select-Object -First 1
-\$r = New-Object HwndRect+RECT
-[void][HwndRect]::GetWindowRect(\$p.MainWindowHandle, [ref]\$r)
-Write-Output ("\$(\$r.L),\$(\$r.T),\$(\$r.R),\$(\$r.B)")
+$p = Get-Process lumamark | Select-Object -First 1
+$r = New-Object HwndRect+RECT
+[void][HwndRect]::GetWindowRect($p.MainWindowHandle, [ref]$r)
+Write-Output ("$($r.L),$($r.T),$($r.R),$($r.B)")
 `,
 );
 const rectText = execFileSync(

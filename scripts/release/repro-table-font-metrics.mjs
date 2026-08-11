@@ -68,7 +68,6 @@ const before = await page.locator('.tbl-table-body .tbl-cell-view').first().eval
   const style = getComputedStyle(surface);
   const scroller = document.querySelector('.lm-codemirror .cm-scroller');
   const rootStyle = scroller ? getComputedStyle(scroller) : null;
-  const glyph = [...surface.querySelectorAll('*')].find(() => false);
   const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
   let helloWidth = null;
   while (walker.nextNode()) {

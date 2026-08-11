@@ -4,7 +4,7 @@
  * Then open a file via File menu path simulation (recent-free argv already covered).
  */
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -69,7 +69,6 @@ try {
     .getByRole('heading', { name: /lumamark/i })
     .waitFor({ state: 'visible', timeout: 20_000 });
 
-  const startScreen = page.getByRole('main', { name: /开始|Start|LumaMark/i });
   const openFileButton = page.getByRole('button', { name: /打开文件|Open File/ });
   await expect(openFileButton).toBeVisible({ timeout: 10_000 });
 

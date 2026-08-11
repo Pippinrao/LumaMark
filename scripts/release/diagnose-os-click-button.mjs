@@ -68,10 +68,10 @@ public static class R3 {
 }
 "@
 [void][R3]::SetProcessDPIAware()
-\$p = Get-Process lumamark | Select-Object -First 1
-\$r = New-Object R3+RECT
-[void][R3]::GetWindowRect(\$p.MainWindowHandle, [ref]\$r)
-Write-Output ("\$(\$r.L),\$(\$r.T)")
+$p = Get-Process lumamark | Select-Object -First 1
+$r = New-Object R3+RECT
+[void][R3]::GetWindowRect($p.MainWindowHandle, [ref]$r)
+Write-Output ("$($r.L),$($r.T)")
 `,
   );
   const text = execFileSync(

@@ -148,7 +148,7 @@ async function measure(label, cssX, cssY) {
   osClick(Math.round(left + cssX * dpr), Math.round(top + cssY * dpr));
   await delay(600);
   return page.evaluate(
-    ({ label, cssX, cssY }) => {
+    ({ label, cssX }) => {
       const content = document.querySelector('.tbl-cell-editor .cm-content');
       const view = content?.cmTile?.view;
       const head = view?.state.selection.main.head ?? null;
@@ -164,7 +164,7 @@ async function measure(label, cssX, cssY) {
         deltaX: caret ? caret.left - cssX : null,
       };
     },
-    { label, cssX, cssY },
+    { label, cssX },
   );
 }
 

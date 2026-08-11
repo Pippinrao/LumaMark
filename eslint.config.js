@@ -10,6 +10,7 @@ export default [
       '.codex',
       '.cursor',
       '.agents',
+      '.worktrees',
       'dist',
       'node_modules',
       'src-tauri/target',

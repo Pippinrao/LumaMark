@@ -10,6 +10,7 @@ const scriptPath = join(
   'release',
   'windows-installer-smoke.ps1',
 );
+const WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS = 15_000;
 
 describe.skipIf(process.platform !== 'win32')('windows installer smoke script', () => {
   it('prints a safe NSIS plan without running the installer', () => {
@@ -33,7 +34,7 @@ describe.skipIf(process.platform !== 'win32')('windows installer smoke script', 
     expect(plan.installArguments.at(-1)).toMatch(/^\/D=/);
     expect(plan.executablePath).toMatch(/\\lumamark\.exe$/);
     expect(plan.uninstallPath).toMatch(/\\uninstall\.exe$/);
-  });
+  }, WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS);
 
   it('rejects install directories outside the smoke sandbox', () => {
     const outsideSandbox = join(tmpdir(), 'lumamark-outside-smoke');
@@ -46,7 +47,7 @@ describe.skipIf(process.platform !== 'win32')('windows installer smoke script', 
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('InstallDir must stay under');
-  });
+  }, WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS);
 
   it('rejects the smoke root itself as an install directory', () => {
     const plan = parsePlan(runPlan('-InstallerKind', 'Nsis').stdout);
@@ -60,7 +61,7 @@ describe.skipIf(process.platform !== 'win32')('windows installer smoke script', 
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('strict child of');
-  });
+  }, WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS);
 
   it('marks MSI plans as administrator-gated', () => {
     const result = runPlan('-InstallerKind', 'Msi');
@@ -73,7 +74,7 @@ describe.skipIf(process.platform !== 'win32')('windows installer smoke script', 
     expect(plan.requiresAdmin).toBe(true);
     expect(plan.installCommand).toBe('msiexec.exe');
     expect(plan.uninstallCommand).toBe('msiexec.exe');
-  });
+  }, WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS);
 
   it('runs the real installed window chrome acceptance before uninstalling', () => {
     const script = readFileSync(scriptPath, 'utf8');

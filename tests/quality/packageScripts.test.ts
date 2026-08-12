@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
+const WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS = 15_000;
 
 type PackageJson = {
   dependencies: Record<string, string>;
@@ -259,6 +260,7 @@ describe('package quality scripts', () => {
         await rm(temporaryDirectory, { force: true, recursive: true });
       }
     },
+    WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS,
   );
 
   it('defines a release version consistency verification script', async () => {

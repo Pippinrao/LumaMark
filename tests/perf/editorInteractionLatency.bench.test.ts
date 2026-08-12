@@ -20,7 +20,7 @@ const selectionProbeCount = 12;
 const denseCodeBlockCount = 2_048;
 const denseCodeBlockBudgetsMs = {
   activation: 16,
-  completion: 16,
+  completion: 50,
   input: 16,
   load: 300,
 };

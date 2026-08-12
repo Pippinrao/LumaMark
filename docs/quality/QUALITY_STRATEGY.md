@@ -107,7 +107,7 @@ Mermaid 采用分层语料：
 - Mermaid 渲染耗时。
 - 保存耗时。
 
-性能基准必须独立于默认单元测试运行：`pnpm test` 不包含 `tests/perf/**`，性能数据和预算判断通过 `pnpm perf:bench` 单独执行。`pnpm perf:bench` 必须串行运行性能测试文件，避免大文档基准在同一机器上互相抢占资源并产生假回归。输入路径固定采集 5 个样本，既有主预算约束 P80，并对所有单次样本设置明确最大值；冷路径和 pending-render 的每个样本必须使用独立 editor/activation/render 生命周期。不得丢弃首样本、失败重跑或取最小值，详细口径见 [ADR 0007](../decisions/0007-stable-performance-sampling.md)。
+性能基准必须独立于默认单元测试运行：`pnpm test` 不包含 `tests/perf/**`，性能数据和预算判断通过 `pnpm perf:bench` 单独执行。`pnpm perf:bench` 必须串行运行性能测试文件，避免大文档基准在同一机器上互相抢占资源并产生假回归。输入路径固定采集 5 个样本，既有主预算约束 P80，并对所有单次样本设置明确最大值；冷路径和 pending-render 的每个样本必须使用独立 editor/activation/render 生命周期。不得丢弃首样本、失败重跑或取最小值，详细口径见 [ADR 0007](../decisions/0007-stable-performance-sampling.md)。复杂编辑命令若有实测证据证明成本边界不同，必须单独命名、单独设预算并用新 ADR 说明，不能借此放宽普通输入门禁；代码块围栏补齐的边界见 [ADR 0013](../decisions/0013-code-block-completion-performance-budget.md)。
 
 初始目标：
 

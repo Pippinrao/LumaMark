@@ -4,11 +4,28 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPackagedWebviewEnvironment,
+  isRetryableCodeMirrorSnapshotError,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
 
 describe('packaged WebView release harness', () => {
+  it('retries only CodeMirror missing-tile snapshot races', () => {
+    expect(
+      isRetryableCodeMirrorSnapshotError(
+        new Error('page.evaluate: Error: No tile at position 48'),
+      ),
+    ).toBe(true);
+    expect(
+      isRetryableCodeMirrorSnapshotError(
+        new Error('Expected the root CodeMirror EditorView.'),
+      ),
+    ).toBe(false);
+    expect(isRetryableCodeMirrorSnapshotError('No tile at position 48')).toBe(
+      false,
+    );
+  });
+
   it('reserves a different available debug port for each run', async () => {
     const first = await reserveDebugPort();
     const second = await reserveDebugPort();
@@ -133,6 +150,10 @@ describe('packaged WebView release harness', () => {
       'The native click did not foreground spawned process',
     );
     expect(acceptanceScript).toContain('$expectedActionCount');
+    expect(acceptanceScript).toContain(
+      '$actions = @($decodedActions)',
+    );
+    expect(acceptanceScript).not.toContain('$actions = if (');
     expect(acceptanceScript).toContain('SetWindowPos');
     expect(acceptanceScript).toContain('HWND_TOPMOST');
     expect(acceptanceScript).toContain('WindowFromPoint');
@@ -153,6 +174,15 @@ describe('packaged WebView release harness', () => {
     expect(acceptanceScript).toContain("'CTRL_END'");
     expect(acceptanceScript).toContain(
       'snapshot.selectionHead === snapshot.bodyClickHead',
+    );
+    expect(acceptanceScript).toContain(
+      'bodyPosition < 0 ? null : pointAt(bodyPosition + 3)',
+    );
+    expect(acceptanceScript).toContain(
+      'tailPoint: openingPosition < 0 ? pointAt(source.length) : null',
+    );
+    expect(acceptanceScript).not.toContain(
+      "openingPosition + '```ts\\n'.length",
     );
     expect(acceptanceScript).not.toContain("row.paddingTop !== '0px'");
     expect(acceptanceScript).not.toContain('LUMAMARK_EXECUTABLE');

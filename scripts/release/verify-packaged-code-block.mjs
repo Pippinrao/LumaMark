@@ -15,6 +15,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import {
   createPackagedWebviewEnvironment,
+  isRetryableCodeMirrorSnapshotError,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -674,7 +675,11 @@ Start-Sleep -Milliseconds 100
 $actionsJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedActions}'))
 $expectedActionCount = ${actions.length}
 $decodedActions = $actionsJson | ConvertFrom-Json
-$actions = if ($expectedActionCount -eq 0) { @() } else { @($decodedActions) }
+if ($expectedActionCount -eq 0) {
+  $actions = @()
+} else {
+  $actions = @($decodedActions)
+}
 if ($actions.Count -ne $expectedActionCount) {
   throw "Native input action count changed while decoding: expected $expectedActionCount, received $($actions.Count)."
 }
@@ -792,15 +797,27 @@ foreach ($action in $actions) {
 
 async function waitForSnapshot(currentPage, predicate, description) {
   let lastSnapshot = null;
+  let lastSnapshotError = null;
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    lastSnapshot = await readEditorSnapshot(currentPage);
+    try {
+      lastSnapshot = await readEditorSnapshot(currentPage);
+      lastSnapshotError = null;
+    } catch (error) {
+      if (!isRetryableCodeMirrorSnapshotError(error)) {
+        throw error;
+      }
+      lastSnapshotError = error.message;
+      await delay(125);
+      continue;
+    }
     if (predicate(lastSnapshot)) {
       return lastSnapshot;
     }
     await delay(125);
   }
   throw new Error(
-    `Timed out waiting for ${description}. Last snapshot: ${JSON.stringify(lastSnapshot)}`,
+    `Timed out waiting for ${description}. Last snapshot: ${JSON.stringify(lastSnapshot)}. ` +
+      `Last retryable snapshot error: ${lastSnapshotError ?? 'none'}`,
   );
 }
 
@@ -875,13 +892,7 @@ async function readEditorSnapshot(currentPage) {
       anchorPoint: pointAt(
         tailPosition < 0 ? -1 : tailPosition + 'fence-target'.length,
       ),
-      bodyPoint: pointAt(
-        bodyPosition >= 0
-          ? bodyPosition + 3
-          : openingPosition < 0
-            ? -1
-            : openingPosition + '```ts\n'.length,
-      ),
+      bodyPoint: bodyPosition < 0 ? null : pointAt(bodyPosition + 3),
       bodyClickHead: bodyPosition < 0 ? null : bodyPosition + 3,
       devicePixelRatio: window.devicePixelRatio,
       docHeight: view.viewState.docHeight,
@@ -907,7 +918,7 @@ async function readEditorSnapshot(currentPage) {
       source,
       startBackground: startStyle?.backgroundColor ?? '',
       startShadow: startStyle?.boxShadow ?? '',
-      tailPoint: pointAt(source.length),
+      tailPoint: openingPosition < 0 ? pointAt(source.length) : null,
     };
   });
 }

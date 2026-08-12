@@ -4,6 +4,13 @@ import { join } from 'node:path';
 
 const issuedPorts = new Set();
 
+export function isRetryableCodeMirrorSnapshotError(error) {
+  return (
+    error instanceof Error &&
+    /\bNo tile at position \d+\b/u.test(error.message)
+  );
+}
+
 export function createPackagedWebviewEnvironment({
   baseEnvironment,
   debugPort,

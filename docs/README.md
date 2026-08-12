@@ -74,7 +74,7 @@ docs/
 | [ADR 0009：桌面 Markdown 文件打开桥](decisions/0009-desktop-file-open-bridge.md) | 决策 | 文件关联、单实例转发、路径保真、事件竞态和 dirty 决策边界 | 桌面文件关联、单窗口/多窗口策略、路径 IPC 或 single-instance 依赖变化 |
 | [ADR 0010：阅读模式的只读与渲染锁定合同](decisions/0010-reading-mode-readonly-contract.md) | 决策 | 只读实现方式、渲染态锁定、控件交互边界、反馈方式和显示模式循环 | 显示模式集合、只读语义、源码展开策略或只读反馈方式变化 |
 | [ADR 0011：侧边栏内容自适应宽度与约束放开](decisions/0011-sidebar-adaptive-width.md) | 决策 | 侧栏拖拽上下限、自适应依据与重算时机、宽度持久化边界 | 侧栏宽度约束、自适应算法、重算触发条件或宽度持久化策略变化 |
-| [ADR 0012：GitHub NSIS 自动更新](decisions/0012-github-nsis-auto-update.md) | 决策 | 官方 updater 插件、NSIS-only、GitHub `latest.json`、签名密钥与发布 workflow | 更新源、签名策略、发布产物形态或安装确认交互变化 |
+| [ADR 0012：GitHub NSIS 自动更新](decisions/0012-github-nsis-auto-update.md) | 决策 | 官方 updater 插件、NSIS-only、GitHub `latest.json`、签名密钥、发布 workflow 与 Windows 手动系统代理边界 | 更新源、签名策略、发布产物形态、代理边界或安装确认交互变化 |
 | [ADR 0013：代码块围栏补齐的独立性能预算](decisions/0013-code-block-completion-performance-budget.md) | 决策 | 复杂围栏补齐命令与普通输入的预算边界、采样口径和复审条件 | 围栏补齐实现、CodeMirror 更新成本、主预算或最大值变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果和已知限制 | 性能预算、基准命令或实测结果变化 |

@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.2.33",
+  "version": "0.2.34",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -25,6 +25,7 @@
     "perf:bench": "vitest run tests/perf --no-file-parallelism",
     "quality:v1-ux-prototype": "playwright test tests/e2e/v1-ux-prototype.spec.ts",
     "quality:v1-ux-screenshots": "node scripts/quality/capture-v1-ux-screenshots.mjs",
+    "quality:updater-proxy": "node scripts/quality/verify-updater-proxy.mjs",
     "quality:web-build": "node scripts/quality/verify-web-build.mjs",
     "release:verify-artifacts": "node scripts/release/verify-windows-artifacts.mjs",
     "release:generate-updater-manifest": "node scripts/release/generate-updater-manifest.mjs",

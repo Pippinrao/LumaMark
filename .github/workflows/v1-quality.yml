@@ -71,6 +71,9 @@ jobs:
       - name: Markdown corpus parser tests
         run: pnpm test:markdown-corpus
 
+      - name: Windows updater proxy dependency gate
+        run: pnpm quality:updater-proxy
+
       - name: Rust check
         run: cargo check --manifest-path src-tauri/Cargo.toml
 

@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.2.27",
+  "version": "0.2.28",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -33,10 +33,11 @@
     "release:packaged-menu-cold-start": "node scripts/release/verify-packaged-menu-cold-start.mjs",
     "release:packaged-table-caret": "node scripts/release/verify-packaged-table-caret.mjs",
     "release:packaged-media-caret": "node scripts/release/verify-packaged-media-caret.mjs",
+    "release:installed-window-chrome": "node scripts/release/verify-installed-window-chrome.mjs",
     "release:packaged-parity-gaps": "node scripts/release/verify-packaged-argv-open.mjs && node scripts/release/verify-packaged-menu-cold-start.mjs && node scripts/release/verify-packaged-table-caret.mjs && node scripts/release/verify-packaged-media-caret.mjs",
     "release:installer-smoke:plan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -PlanOnly",
     "release:installer-smoke:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis",
-    "release:installer-acceptance:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis -AllowExistingInstall -RunInstalledAcceptance",
+    "release:installer-acceptance:nsis": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/windows-installer-smoke.ps1 -InstallerKind Nsis -RunInstalledAcceptance",
     "release:verify-versions": "node scripts/release/verify-version-consistency.mjs",
     "release:installed-webview": "node scripts/release/verify-installed-webview.mjs"
   },

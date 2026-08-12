@@ -21,10 +21,7 @@ export function TopChrome({
   windowChrome,
 }: TopChromeProps) {
   return (
-    <header
-      className="lm-top-chrome"
-      onMouseDown={windowChrome.onChromeMouseDown}
-    >
+    <header className="lm-top-chrome">
       <h1 className="lm-app-heading">{labels.appName}</h1>
 
       <AppMenu groups={groups} onInvoke={onInvoke} />

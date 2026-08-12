@@ -36,7 +36,7 @@ const windowControlMocks = vi.hoisted(() => ({
   close: vi.fn(),
   isMaximized: vi.fn(),
   minimize: vi.fn(),
-  startDragging: vi.fn(),
+  onResized: vi.fn(),
   toggleMaximize: vi.fn(),
 }));
 
@@ -58,7 +58,7 @@ describe('AppShell', () => {
     windowControlMocks.close.mockReset().mockResolvedValue(true);
     windowControlMocks.isMaximized.mockReset().mockResolvedValue(false);
     windowControlMocks.minimize.mockReset().mockResolvedValue(true);
-    windowControlMocks.startDragging.mockReset().mockResolvedValue(true);
+    windowControlMocks.onResized.mockReset().mockResolvedValue(vi.fn());
     windowControlMocks.toggleMaximize.mockReset().mockResolvedValue(true);
     useWorkspaceStore.getState().clearWorkspace();
     useReadingAppearanceStore.setState({
@@ -718,10 +718,6 @@ describe('AppShell', () => {
   });
 
   it('shows a restore control after maximizing the window', async () => {
-    windowControlMocks.isMaximized
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
-
     render(
       <I18nProvider>
         <ThemeProvider>
@@ -733,7 +729,13 @@ describe('AppShell', () => {
     expect(
       await screen.findByRole('button', { name: '最大化窗口' }),
     ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        windowControlMocks.isMaximized.mock.calls.length,
+      ).toBeGreaterThanOrEqual(2);
+    });
 
+    windowControlMocks.isMaximized.mockResolvedValueOnce(true);
     fireEvent.click(screen.getByRole('button', { name: '最大化窗口' }));
 
     await waitFor(() => {
@@ -742,6 +744,117 @@ describe('AppShell', () => {
         screen.getByRole('button', { name: '还原窗口' }),
       ).toBeInTheDocument();
     });
+  });
+
+  it('tracks native maximize and restore changes from window resize events', async () => {
+    const unlisten = vi.fn();
+    windowControlMocks.onResized.mockResolvedValueOnce(unlisten);
+    const { unmount } = render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByRole('button', { name: '最大化窗口' }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(windowControlMocks.onResized).toHaveBeenCalledOnce();
+      expect(
+        windowControlMocks.isMaximized.mock.calls.length,
+      ).toBeGreaterThanOrEqual(2);
+    });
+
+    windowControlMocks.isMaximized.mockResolvedValueOnce(true);
+    const onResized = windowControlMocks.onResized.mock.calls[0]?.[0] as
+      | (() => void)
+      | undefined;
+    expect(onResized).toBeTypeOf('function');
+    act(() => {
+      onResized?.();
+    });
+
+    expect(
+      await screen.findByRole('button', { name: '还原窗口' }),
+    ).toBeInTheDocument();
+
+    windowControlMocks.isMaximized.mockResolvedValueOnce(false);
+    act(() => {
+      onResized?.();
+    });
+
+    expect(
+      await screen.findByRole('button', { name: '最大化窗口' }),
+    ).toBeInTheDocument();
+
+    unmount();
+    expect(unlisten).toHaveBeenCalledOnce();
+  });
+
+  it('unsubscribes when the native resize listener resolves after unmount', async () => {
+    const subscription = createDeferred<() => void>();
+    const unlisten = vi.fn();
+    windowControlMocks.onResized.mockReturnValueOnce(subscription.promise);
+
+    const { unmount } = render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(windowControlMocks.onResized).toHaveBeenCalledOnce();
+    });
+    unmount();
+
+    await act(async () => {
+      subscription.resolve(unlisten);
+      await subscription.promise;
+      await Promise.resolve();
+    });
+
+    expect(unlisten).toHaveBeenCalledOnce();
+  });
+
+  it('ignores a stale initial maximize read after a newer resize read', async () => {
+    const initialRead = createDeferred<boolean | null>();
+    windowControlMocks.isMaximized
+      .mockReturnValueOnce(initialRead.promise)
+      .mockResolvedValue(true);
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(windowControlMocks.onResized).toHaveBeenCalledOnce();
+    });
+    const onResized = windowControlMocks.onResized.mock.calls[0]?.[0] as
+      | (() => void)
+      | undefined;
+
+    act(() => {
+      onResized?.();
+    });
+    expect(
+      await screen.findByRole('button', { name: '还原窗口' }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      initialRead.resolve(false);
+      await initialRead.promise;
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('button', { name: '还原窗口' })).toBeInTheDocument();
   });
 
   it('exposes shared creation shortcuts without context-only table actions', async () => {

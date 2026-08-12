@@ -18,7 +18,6 @@ export type ShellContextMenuItem = {
 
 export type WindowControlsModel = {
   maximized: boolean;
-  onChromeMouseDown: (event: React.MouseEvent<HTMLElement>) => void;
   onControl: (action: 'close' | 'minimize' | 'toggleMaximize') => void;
 };
 

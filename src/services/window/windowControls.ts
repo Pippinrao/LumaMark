@@ -2,7 +2,7 @@ export type WindowControlHandle = {
   close: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
   minimize: () => Promise<void>;
-  startDragging: () => Promise<void>;
+  onResized: (listener: () => void) => Promise<() => void>;
   toggleMaximize: () => Promise<void>;
 };
 
@@ -12,7 +12,7 @@ export type WindowControls = {
   close: () => Promise<boolean>;
   isMaximized: () => Promise<boolean | null>;
   minimize: () => Promise<boolean>;
-  startDragging: () => Promise<boolean>;
+  onResized: (listener: () => void) => Promise<(() => void) | null>;
   toggleMaximize: () => Promise<boolean>;
 };
 
@@ -32,7 +32,7 @@ async function resolveTauriWindow(): Promise<WindowControlHandle | null> {
 
 async function runWindowAction(
   resolveWindow: WindowControlResolver,
-  action: 'close' | 'minimize' | 'startDragging' | 'toggleMaximize',
+  action: 'close' | 'minimize' | 'toggleMaximize',
 ): Promise<boolean> {
   const currentWindow = await resolveWindow();
 
@@ -46,6 +46,23 @@ async function runWindowAction(
     return true;
   } catch {
     return false;
+  }
+}
+
+async function subscribeToWindowResize(
+  resolveWindow: WindowControlResolver,
+  listener: () => void,
+): Promise<(() => void) | null> {
+  const currentWindow = await resolveWindow();
+
+  if (!currentWindow) {
+    return null;
+  }
+
+  try {
+    return await currentWindow.onResized(listener);
+  } catch {
+    return null;
   }
 }
 
@@ -72,7 +89,7 @@ export function createWindowControls(
     close: () => runWindowAction(resolveWindow, 'close'),
     isMaximized: () => readWindowMaximized(resolveWindow),
     minimize: () => runWindowAction(resolveWindow, 'minimize'),
-    startDragging: () => runWindowAction(resolveWindow, 'startDragging'),
+    onResized: (listener) => subscribeToWindowResize(resolveWindow, listener),
     toggleMaximize: () => runWindowAction(resolveWindow, 'toggleMaximize'),
   };
 }

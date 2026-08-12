@@ -12,11 +12,7 @@ param(
 
   [switch]$KeepInstallOnFailure,
 
-  # Allow a side-by-side smoke install while another LumaMark is present.
-  # Associations may be rewritten for the smoke install and restored on uninstall.
-  [switch]$AllowExistingInstall,
-
-  # After install, run argv/menu/table checks plus the Win32 OS media caret matrix.
+  # After install, run window chrome, argv/menu/table, and Win32 media caret checks.
   [switch]$RunInstalledAcceptance = $true
 )
 
@@ -83,6 +79,21 @@ function Invoke-SmokeProcess {
   if ($process.ExitCode -ne 0) {
     throw "$Description failed with exit code $($process.ExitCode)."
   }
+}
+
+function Assert-NoRunningLumaMarkProcesses {
+  $running = @(Get-Process -Name lumamark -ErrorAction SilentlyContinue)
+  if ($running.Count -eq 0) {
+    return
+  }
+
+  $details = @(
+    $running | ForEach-Object {
+      $path = try { [string]$_.Path } catch { '<path unavailable>' }
+      "PID=$($_.Id), Path=$path"
+    }
+  ) -join '; '
+  throw "Refusing silent installer input because LumaMark is running: $details"
 }
 
 function Remove-SmokeRegistryEntries {
@@ -155,6 +166,197 @@ function Get-ExistingLumaMarkInstallDir {
   return ''
 }
 
+function Get-LumaMarkSharedRegistryState {
+  $existingState = [System.Collections.Generic.List[string]]::new()
+  $exclusiveKeys = @(
+    'HKCU:\Software\lumamark\LumaMark',
+    'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\LumaMark',
+    'HKLM:\Software\lumamark\LumaMark'
+  )
+
+  foreach ($registryPath in $exclusiveKeys) {
+    if (Test-Path -LiteralPath $registryPath) {
+      [void]$existingState.Add($registryPath)
+    }
+  }
+
+  $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+  if (Test-Path -LiteralPath $runKeyPath) {
+    $runKey = Get-Item -LiteralPath $runKeyPath
+    if ($runKey.GetValueNames() -contains 'LumaMark') {
+      [void]$existingState.Add("$runKeyPath [LumaMark value]")
+    }
+  }
+
+  $machineUninstallRoots = @(
+    'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
+    'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+  )
+  foreach ($uninstallRoot in $machineUninstallRoots) {
+    if (-not (Test-Path -LiteralPath $uninstallRoot)) {
+      continue
+    }
+
+    foreach ($uninstallKey in Get-ChildItem -LiteralPath $uninstallRoot -ErrorAction Stop) {
+      $properties = Get-ItemProperty -LiteralPath $uninstallKey.PSPath
+      if (
+        $uninstallKey.PSChildName -eq 'LumaMark' -or
+        [string]$properties.DisplayName -eq 'LumaMark'
+      ) {
+        [void]$existingState.Add("$uninstallRoot\$($uninstallKey.PSChildName)")
+      }
+    }
+  }
+
+  $machineInstallerProductsRoot = 'HKLM:\Software\Classes\Installer\Products'
+  if (Test-Path -LiteralPath $machineInstallerProductsRoot) {
+    foreach (
+      $productKey in Get-ChildItem -LiteralPath $machineInstallerProductsRoot -ErrorAction Stop
+    ) {
+      $properties = Get-ItemProperty -LiteralPath $productKey.PSPath
+      if ([string]$properties.ProductName -eq 'LumaMark') {
+        [void]$existingState.Add("$machineInstallerProductsRoot\$($productKey.PSChildName)")
+      }
+    }
+  }
+
+  $installerUserDataRoot = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Installer\UserData'
+  if (Test-Path -LiteralPath $installerUserDataRoot) {
+    $installPropertyKeys = @(
+      Get-ChildItem `
+        -Path "$installerUserDataRoot\*\Products\*\InstallProperties" `
+        -ErrorAction SilentlyContinue
+    )
+    foreach ($installPropertyKey in $installPropertyKeys) {
+      $properties = Get-ItemProperty -LiteralPath $installPropertyKey.PSPath
+      if ([string]$properties.DisplayName -eq 'LumaMark') {
+        [void]$existingState.Add($installPropertyKey.Name)
+      }
+    }
+  }
+
+  return $existingState.ToArray()
+}
+
+function Get-MarkdownAssociationRegistryKeys {
+  return @(
+    [pscustomobject]@{
+      PowerShellPath = 'HKCU:\Software\Classes\.md'
+      NativePath = 'HKCU\Software\Classes\.md'
+      Name = 'md'
+    },
+    [pscustomobject]@{
+      PowerShellPath = 'HKCU:\Software\Classes\.markdown'
+      NativePath = 'HKCU\Software\Classes\.markdown'
+      Name = 'markdown'
+    },
+    [pscustomobject]@{
+      PowerShellPath = 'HKCU:\Software\Classes\.mdown'
+      NativePath = 'HKCU\Software\Classes\.mdown'
+      Name = 'mdown'
+    },
+    [pscustomobject]@{
+      PowerShellPath = 'HKCU:\Software\Classes\LumaMark.Markdown'
+      NativePath = 'HKCU\Software\Classes\LumaMark.Markdown'
+      Name = 'lumamark-markdown'
+    }
+  )
+}
+
+function New-MarkdownAssociationRegistrySnapshot {
+  param(
+    [Parameter(Mandatory = $true)][string]$SnapshotRoot,
+    [Parameter(Mandatory = $true)][object[]]$RegistryKeys
+  )
+
+  New-Item -ItemType Directory -Path $SnapshotRoot -Force | Out-Null
+  $snapshots = [System.Collections.Generic.List[object]]::new()
+
+  foreach ($registryKey in $RegistryKeys) {
+    $snapshotPath = Join-Path $SnapshotRoot "$($registryKey.Name).reg"
+    $existed = Test-Path -LiteralPath $registryKey.PowerShellPath
+    $originalHash = ''
+
+    if ($existed) {
+      & reg.exe export $registryKey.NativePath $snapshotPath /y | Out-Host
+      if ($LASTEXITCODE -ne 0) {
+        throw "Registry snapshot export failed for $($registryKey.NativePath) with exit code $LASTEXITCODE."
+      }
+      $originalHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $snapshotPath).Hash
+    }
+
+    [void]$snapshots.Add([pscustomobject]@{
+      PowerShellPath = $registryKey.PowerShellPath
+      NativePath = $registryKey.NativePath
+      Name = $registryKey.Name
+      SnapshotPath = $snapshotPath
+      Existed = $existed
+      OriginalHash = $originalHash
+    })
+  }
+
+  return $snapshots.ToArray()
+}
+
+function Restore-MarkdownAssociationRegistrySnapshot {
+  param(
+    [Parameter(Mandatory = $true)][string]$SnapshotRoot,
+    [Parameter(Mandatory = $true)][object[]]$Snapshots
+  )
+
+  $restoreErrors = [System.Collections.Generic.List[string]]::new()
+
+  foreach ($snapshot in $Snapshots) {
+    try {
+      if (Test-Path -LiteralPath $snapshot.PowerShellPath) {
+        Remove-Item -LiteralPath $snapshot.PowerShellPath -Recurse -Force
+      }
+
+      if ($snapshot.Existed) {
+        & reg.exe import $snapshot.SnapshotPath | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+          throw "reg import exited with code $LASTEXITCODE"
+        }
+      }
+    } catch {
+      [void]$restoreErrors.Add("$($snapshot.NativePath) restore: $($_.Exception.Message)")
+    }
+  }
+
+  foreach ($snapshot in $Snapshots) {
+    try {
+      if (-not $snapshot.Existed) {
+        if (Test-Path -LiteralPath $snapshot.PowerShellPath) {
+          throw 'originally absent key still exists'
+        }
+        continue
+      }
+
+      if (-not (Test-Path -LiteralPath $snapshot.PowerShellPath)) {
+        throw 'original key was not recreated'
+      }
+
+      $verificationPath = Join-Path $SnapshotRoot "$($snapshot.Name).restored.reg"
+      & reg.exe export $snapshot.NativePath $verificationPath /y | Out-Host
+      if ($LASTEXITCODE -ne 0) {
+        throw "verification export exited with code $LASTEXITCODE"
+      }
+
+      $restoredHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $verificationPath).Hash
+      if ($restoredHash -ne $snapshot.OriginalHash) {
+        throw "Registry restoration hash mismatch: $restoredHash != $($snapshot.OriginalHash)"
+      }
+    } catch {
+      [void]$restoreErrors.Add("$($snapshot.NativePath) verification: $($_.Exception.Message)")
+    }
+  }
+
+  if ($restoreErrors.Count -gt 0) {
+    $errorDetails = $restoreErrors -join "`n- "
+    throw "Registry restoration failed for one or more keys. Snapshot retained at $SnapshotRoot.`n- $errorDetails"
+  }
+}
+
 function Stop-SmokeApp {
   param([System.Diagnostics.Process]$Process)
 
@@ -165,6 +367,9 @@ function Stop-SmokeApp {
   $Process.Refresh()
   if (-not $Process.HasExited) {
     Stop-Process -Id $Process.Id -Force
+    if (-not $Process.WaitForExit(5000)) {
+      throw "LumaMark PID $($Process.Id) did not exit after Stop-Process."
+    }
   }
 }
 
@@ -223,6 +428,7 @@ function Invoke-InstalledAcceptance {
   $env:LUMAMARK_EXECUTABLE = $ExecutablePath
   try {
     $scripts = @(
+      'scripts\release\verify-installed-window-chrome.mjs',
       'scripts\release\verify-packaged-argv-open.mjs',
       'scripts\release\verify-packaged-menu-cold-start.mjs',
       'scripts\release\verify-packaged-table-caret.mjs',
@@ -266,6 +472,12 @@ if (-not (Test-PathUnderRoot -Path $resolvedInstallDir -Root $smokeRoot)) {
   throw "InstallDir must stay under $smokeRoot. Received: $resolvedInstallDir"
 }
 
+$normalizedInstallDir = $resolvedInstallDir.TrimEnd('\')
+$normalizedSmokeRoot = $smokeRoot.TrimEnd('\')
+if ($normalizedInstallDir.Equals($normalizedSmokeRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+  throw "InstallDir must be a strict child of $smokeRoot. Received: $resolvedInstallDir"
+}
+
 $defaultInstallerPath = if ($InstallerKind -eq 'Nsis') {
   Join-Path $repoRoot "src-tauri\target\release\bundle\nsis\LumaMark_${appVersion}_x64-setup.exe"
 } else {
@@ -280,6 +492,13 @@ $resolvedInstallerPath = if ($InstallerPath) {
 $requiresAdmin = $InstallerKind -eq 'Msi'
 $executablePath = Join-Path $resolvedInstallDir 'lumamark.exe'
 $existingInstallDir = Get-ExistingLumaMarkInstallDir
+$associationRegistryKeys = @(Get-MarkdownAssociationRegistryKeys)
+$existingAssociationState = @(
+  $associationRegistryKeys |
+    Where-Object { Test-Path -LiteralPath $_.PowerShellPath } |
+    ForEach-Object { $_.PowerShellPath }
+)
+$blockingRegistryState = @(Get-LumaMarkSharedRegistryState)
 $uninstallPath = if ($InstallerKind -eq 'Nsis') {
   Join-Path $resolvedInstallDir 'uninstall.exe'
 } else {
@@ -313,6 +532,8 @@ $plan = [ordered]@{
   installerExists = Test-Path -LiteralPath $resolvedInstallerPath
   installDir = $resolvedInstallDir
   existingInstallDir = $existingInstallDir
+  blockingRegistryState = $blockingRegistryState
+  existingAssociationState = $existingAssociationState
   executablePath = $executablePath
   uninstallPath = $uninstallPath
   installCommand = $installCommand
@@ -320,7 +541,6 @@ $plan = [ordered]@{
   uninstallCommand = $uninstallCommand
   uninstallArguments = $uninstallArguments
   launchSeconds = $LaunchSeconds
-  allowExistingInstall = $AllowExistingInstall.IsPresent
   runInstalledAcceptance = $RunInstalledAcceptance.IsPresent
 }
 
@@ -337,23 +557,42 @@ if ($requiresAdmin -and -not (Test-IsAdministrator)) {
   throw 'MSI smoke requires an elevated PowerShell session.'
 }
 
+if ($blockingRegistryState.Count -gt 0) {
+  $stateDetails = $blockingRegistryState -join '; '
+  throw "Shared LumaMark product registry state already exists: $stateDetails. Run installer acceptance in Windows Sandbox or a clean Windows user profile."
+}
+
 if (
   $existingInstallDir -and
-  -not (Test-PathUnderRoot -Path $existingInstallDir -Root $smokeRoot) -and
-  -not $AllowExistingInstall.IsPresent
+  -not (Test-PathUnderRoot -Path $existingInstallDir -Root $smokeRoot)
 ) {
-  throw "Existing LumaMark install detected at $existingInstallDir. Refusing to mutate a non-smoke installation. Re-run with -AllowExistingInstall for an isolated smoke dir (associations may be rewritten temporarily)."
+  throw "Existing LumaMark install detected at $existingInstallDir. Refusing to mutate shared product, uninstall, or file-association registry state. Run this acceptance in Windows Sandbox or a clean Windows user profile."
 }
 
-if (Test-Path -LiteralPath $resolvedInstallDir) {
-  Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
-}
-New-Item -ItemType Directory -Path $resolvedInstallDir -Force | Out-Null
-
+Assert-NoRunningLumaMarkProcesses
+$associationSnapshotRoot = Get-FullPath (
+  Join-Path `
+    ([System.IO.Path]::GetTempPath()) `
+    "lumamark-installer-registry-snapshot-$([guid]::NewGuid().ToString('N'))"
+)
+$associationRegistrySnapshot = @(
+  New-MarkdownAssociationRegistrySnapshot `
+    -SnapshotRoot $associationSnapshotRoot `
+    -RegistryKeys $associationRegistryKeys
+)
+$associationRegistryRestored = $false
 $installed = $false
 $launchedProcess = $null
+$result = $null
 
 try {
+  Assert-NoRunningLumaMarkProcesses
+  if (Test-Path -LiteralPath $resolvedInstallDir) {
+    Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
+  }
+  New-Item -ItemType Directory -Path $resolvedInstallDir -Force | Out-Null
+
+  Assert-NoRunningLumaMarkProcesses
   Invoke-SmokeProcess `
     -FilePath $installCommand `
     -Arguments $installArguments `
@@ -389,6 +628,7 @@ try {
   Stop-SmokeApp -Process $launchedProcess
   $launchedProcess = $null
 
+  Assert-NoRunningLumaMarkProcesses
   Invoke-SmokeProcess `
     -FilePath $uninstallCommand `
     -Arguments $uninstallArguments `
@@ -404,7 +644,13 @@ try {
   }
   Remove-SmokeRegistryEntries -InstallDir $resolvedInstallDir
 
-  [ordered]@{
+  $remainingBlockingRegistryState = @(Get-LumaMarkSharedRegistryState)
+  if ($remainingBlockingRegistryState.Count -gt 0) {
+    $remainingStateDetails = $remainingBlockingRegistryState -join '; '
+    throw "Uninstall left blocking registry state behind: $remainingStateDetails"
+  }
+
+  $result = [ordered]@{
     installerKind = $InstallerKind
     installedExecutableLaunched = $true
     installedVersion = $installedVersion
@@ -413,21 +659,39 @@ try {
     launchSeconds = $LaunchSeconds
     uninstalled = $true
     installDir = $resolvedInstallDir
-  } | ConvertTo-Json -Depth 5
-} finally {
-  Stop-SmokeApp -Process $launchedProcess
-
-  if ($installed -and -not $KeepInstallOnFailure) {
-    if (Test-Path -LiteralPath $uninstallPath) {
-      Invoke-SmokeProcess `
-        -FilePath $uninstallPath `
-        -Arguments $uninstallArguments `
-        -Description "$InstallerKind cleanup uninstall"
-    }
-
-    if (Test-Path -LiteralPath $resolvedInstallDir) {
-      Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
-    }
-    Remove-SmokeRegistryEntries -InstallDir $resolvedInstallDir
+    registryAssociationsRestored = $false
   }
+} finally {
+  try {
+    Stop-SmokeApp -Process $launchedProcess
+
+    if ($installed -and -not $KeepInstallOnFailure) {
+      if (Test-Path -LiteralPath $uninstallPath) {
+        Assert-NoRunningLumaMarkProcesses
+        Invoke-SmokeProcess `
+          -FilePath $uninstallPath `
+          -Arguments $uninstallArguments `
+          -Description "$InstallerKind cleanup uninstall"
+      }
+
+      if (Test-Path -LiteralPath $resolvedInstallDir) {
+        Remove-Item -LiteralPath $resolvedInstallDir -Recurse -Force
+      }
+      Remove-SmokeRegistryEntries -InstallDir $resolvedInstallDir
+    }
+  } finally {
+    Restore-MarkdownAssociationRegistrySnapshot `
+      -SnapshotRoot $associationSnapshotRoot `
+      -Snapshots $associationRegistrySnapshot
+    $associationRegistryRestored = $true
+
+    if (Test-Path -LiteralPath $associationSnapshotRoot) {
+      Remove-Item -LiteralPath $associationSnapshotRoot -Recurse -Force
+    }
+  }
+}
+
+if ($null -ne $result) {
+  $result.registryAssociationsRestored = $associationRegistryRestored
+  $result | ConvertTo-Json -Depth 5
 }

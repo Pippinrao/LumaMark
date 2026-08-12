@@ -1,49 +1,59 @@
 import {
-  type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
-import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 import { windowControls } from '../../services/window/windowControls';
 import type { WindowControlsModel } from '../shell/shellTypes';
-import { shouldStartChromeDragging } from './chromeDragging';
 
 export function useWindowControlsModel(): WindowControlsModel {
   const [maximized, setMaximized] = useState(false);
+  const mountedRef = useRef(false);
+  const refreshGenerationRef = useRef(0);
 
-  useEffect(() => {
-    let canceled = false;
+  const refreshMaximized = useCallback(async () => {
+    const generation = ++refreshGenerationRef.current;
+    const nextMaximized = await windowControls.isMaximized();
 
-    void windowControls.isMaximized().then((nextMaximized) => {
-      if (!canceled && nextMaximized !== null) {
-        setMaximized(nextMaximized);
-      }
-    });
-
-    return () => {
-      canceled = true;
-    };
+    if (
+      mountedRef.current &&
+      generation === refreshGenerationRef.current &&
+      nextMaximized !== null
+    ) {
+      setMaximized(nextMaximized);
+    }
   }, []);
 
-  const onChromeMouseDown = useCallback(
-    (event: ReactMouseEvent<HTMLElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    mountedRef.current = true;
 
-      if (!shouldStartChromeDragging(event.currentTarget, event.target)) {
-        logMenuInteraction(
-          'chrome mousedown ignored (interactive or portaled menu)',
-        );
-        return;
-      }
+    void windowControls
+      .onResized(() => {
+        void refreshMaximized();
+      })
+      .then((nextUnlisten) => {
+        if (disposed) {
+          nextUnlisten?.();
+          return;
+        }
 
-      logMenuInteraction('chrome mousedown → startDragging');
-      void windowControls.startDragging();
-    },
-    [],
-  );
+        unlisten = nextUnlisten ?? undefined;
+        void refreshMaximized();
+      });
+    void refreshMaximized();
+
+    return () => {
+      disposed = true;
+      mountedRef.current = false;
+      refreshGenerationRef.current += 1;
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [refreshMaximized]);
 
   const onControl = useCallback(
     (action: 'close' | 'minimize' | 'toggleMaximize') => {
@@ -57,16 +67,14 @@ export function useWindowControlsModel(): WindowControlsModel {
           return;
         }
 
-        const nextMaximized = await windowControls.isMaximized();
-        setMaximized((current) => nextMaximized ?? !current);
+        await refreshMaximized();
       });
     },
-    [],
+    [refreshMaximized],
   );
 
   return {
     maximized,
-    onChromeMouseDown,
     onControl,
   };
 }

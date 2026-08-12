@@ -270,6 +270,19 @@ describe('package quality scripts', () => {
     await expectFile('scripts', 'release', 'verify-version-consistency.mjs');
   });
 
+  it('defines a real installed Windows titlebar acceptance script', async () => {
+    const packageJson = await readPackageJson();
+
+    expect(packageJson.scripts['release:installed-window-chrome']).toBe(
+      'node scripts/release/verify-installed-window-chrome.mjs',
+    );
+    await expectFile(
+      'scripts',
+      'release',
+      'verify-installed-window-chrome.mjs',
+    );
+  });
+
   it('defines a focused V1 UX prototype quality script', async () => {
     const packageJson = await readPackageJson();
 

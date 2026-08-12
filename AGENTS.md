@@ -452,11 +452,12 @@ LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通�
 **强制规则：**
 
 - 原生拖拽区域只能落在空白标题条，绝不能覆盖菜单、按钮、输入框等可交互控件。
-- 标题栏 `mousedown` 启动拖拽前必须调用与 `shouldStartChromeDragging` 同级的判定：portal / 非子孙目标一律不拖；`[data-lm-window-interactive]`、`[role="menu"]` / `menuitem*`、`.lm-menu-content` 一律不拖。
+- 当前标题栏采用单一原生 owner：仅空白 `.lm-titlebar-drag` 可带 `data-tauri-drag-region`；header 或其祖先禁止再绑定手动 `startDragging`，避免单击双调用、双击时拖拽与最大化竞争。
+- 若未来确需切换为全手动拖拽，必须先移除原生 drag-region，并在启动拖拽前拒绝 portal / 非子孙目标、`[data-lm-window-interactive]`、`[role="menu"]` / `menuitem*` 与 `.lm-menu-content`；原生和手动方案不得叠加。
 - 诊断“点了没反应”时，优先查窗口拖拽、指针捕获、portal 事件路径，再查 action 是否接线。
 - 此类 bug 的完成证据必须包含安装包或等价 WebView 路径下的真实指针操作；仅浏览器 E2E 通过不得宣称已修。
 
-参考实现：`src/app/controllers/chromeDragging.ts`、`src/app/shell/TopChrome.tsx`。
+参考实现：`src/app/shell/TopChrome.tsx`、`src/app/controllers/useWindowControlsModel.ts`。
 
 ### 2. 表格与所见即所得光标异常
 

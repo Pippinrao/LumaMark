@@ -148,7 +148,7 @@
   "settings.startupPersistenceError": "Unable to read or save startup settings. Your current choices may only last for this run.",
   "settings.recentFilesPersistenceError": "Unable to read or save recent files. The current list may only last for this run.",
   "settings.copyImagesToAssets": "Copy inserted local images to the document asset folder",
-  "about.description": "A high-performance Typora-like Markdown editor",
+  "about.description": "A modern, high-performance Markdown editor",
   "about.version": "Version",
   "table.copyTable": "Copy table",
   "table.deleteTable": "Delete table",

@@ -3,91 +3,17 @@
  * Exit 0 only when every case passes; prints JSON evidence either way.
  */
 import { execFileSync, spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-
-function reservePort() {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      const port = typeof address === 'object' && address ? address.port : 0;
-      server.close(() => resolve(port));
-    });
-    server.on('error', reject);
-  });
-}
-
-function osClick(x, y) {
-  const scriptPath = join(tmpdir(), 'lm-matrix-os-click.ps1');
-  writeFileSync(
-    scriptPath,
-    `
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public static class Mx {
-  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
-  [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, UIntPtr e);
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-}
-"@
-[void][Mx]::SetProcessDPIAware()
-$p = Get-Process lumamark | Select-Object -First 1
-[void][Mx]::SetForegroundWindow($p.MainWindowHandle)
-[void][Mx]::SetCursorPos(${x}, ${y})
-Start-Sleep -Milliseconds 100
-[Mx]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-Start-Sleep -Milliseconds 50
-[Mx]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-`,
-  );
-  execFileSync('powershell', [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    scriptPath,
-  ]);
-}
-
-/** Physical screen origin of the window client area (not the outer frame). */
-function clientOrigin() {
-  const scriptPath = join(tmpdir(), 'lm-matrix-os-client.ps1');
-  writeFileSync(
-    scriptPath,
-    `
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public static class MxC {
-  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
-  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
-  public struct POINT { public int X,Y; }
-}
-"@
-[void][MxC]::SetProcessDPIAware()
-$p = Get-Process lumamark | Select-Object -First 1
-$pt = New-Object MxC+POINT
-$pt.X = 0; $pt.Y = 0
-[void][MxC]::ClientToScreen($p.MainWindowHandle, [ref]$pt)
-Write-Output ("$($pt.X),$($pt.Y)")
-`,
-  );
-  const text = execFileSync(
-    'powershell',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
-    { encoding: 'utf8' },
-  ).trim();
-  const [left, top] = text.split(',').map(Number);
-  return { left, top };
-}
+import {
+  createPackagedWebviewEnvironment,
+  removePackagedWebviewTempDirectory,
+  reserveDebugPort,
+} from './packagedWebviewHarness.mjs';
 
 const executablePath =
   process.env.LUMAMARK_EXECUTABLE?.trim() ||
@@ -108,18 +34,41 @@ const markdown = [
   '',
 ].join('\n');
 
-const port = await reservePort();
-const tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-matrix-'));
-const documentPath = join(tempDirectory, 'matrix.md');
-await writeFile(documentPath, markdown, 'utf8');
+const inputDeadline = Date.now() + 180_000;
+const mediaAcceptancePath = fileURLToPath(
+  new URL('./verify-installed-media-caret-os.mjs', import.meta.url),
+);
+let app;
+let appExit;
+let browser;
+let finalOutput;
+let finalExitCode;
+let tempDirectory;
 
-const app = spawn(executablePath, [documentPath], {
-  env: {
-    ...process.env,
-    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
-  },
+try {
+const port = await reserveDebugPort();
+tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-matrix-'));
+const documentPath = join(tempDirectory, 'matrix.md');
+const win32HelperPath = join(tempDirectory, 'lumamark-win32-input.ps1');
+await writeFile(documentPath, markdown, 'utf8');
+execFileSync(
+  process.execPath,
+  [mediaAcceptancePath, '--write-win32-helper', win32HelperPath],
+  { stdio: 'pipe', timeout: 15_000, windowsHide: true },
+);
+
+app = spawn(executablePath, [documentPath], {
+  env: createPackagedWebviewEnvironment({
+    baseEnvironment: process.env,
+    debugPort: port,
+    tempDirectory,
+  }),
   stdio: ['ignore', 'pipe', 'pipe'],
   windowsHide: false,
+});
+appExit = new Promise((resolveExit) => {
+  app.once('exit', resolveExit);
+  app.once('error', resolveExit);
 });
 
 let failedBoot = null;
@@ -134,29 +83,98 @@ for (let i = 0; i < 60; i += 1) {
 }
 
 if (failedBoot) {
-  console.error(failedBoot);
-  app.kill();
-  process.exit(1);
+  throw new Error(failedBoot);
 }
 
-const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
 const page = browser.contexts()[0].pages()[0];
-await page
-  .getByRole('banner')
-  .getByRole('heading', { name: /lumamark/i })
-  .waitFor({ state: 'visible', timeout: 20_000 });
+try {
+  await page
+    .getByRole('banner')
+    .getByRole('heading', { name: /lumamark/i })
+    .waitFor({ state: 'visible', timeout: 20_000 });
+} catch (error) {
+  const pages = await Promise.all(
+    browser
+      .contexts()
+      .flatMap((context) => context.pages())
+      .map(async (candidate) => ({
+        body: (await candidate.locator('body').innerText().catch(() => '')).slice(
+          0,
+          500,
+        ),
+        title: await candidate.title().catch(() => ''),
+        url: candidate.url(),
+      })),
+  );
+  console.error(
+    JSON.stringify({ appExitCode: app.exitCode, pages, port }, null, 2),
+  );
+  throw error;
+}
 await page.locator('.tbl-table-widget').waitFor({ state: 'visible', timeout: 15_000 });
 await delay(1000);
 
+const osEvidence = [invokeWin32('Probe')];
+
+function invokeWin32(action, options = {}) {
+  if (!app?.pid) {
+    throw new Error('The table OS matrix has no PID-bound application.');
+  }
+  const stdout = execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      win32HelperPath,
+      '-TargetProcessId',
+      String(app.pid),
+      '-Action',
+      action,
+      '-CssX',
+      String(options.cssX ?? 0),
+      '-CssY',
+      String(options.cssY ?? 0),
+      '-Dpr',
+      String(options.dpr ?? 1),
+      '-DeadlineUnixMilliseconds',
+      String(inputDeadline),
+    ],
+    { encoding: 'utf8', timeout: 15_000, windowsHide: true },
+  ).trim();
+  const parsed = JSON.parse(stdout);
+  if (parsed.processId !== app.pid || parsed.action !== action) {
+    throw new Error(`Win32 helper returned mismatched ownership: ${stdout}`);
+  }
+  if (parsed.perMonitorV2 !== true || !Number.isFinite(parsed.dpi)) {
+    throw new Error(`Win32 helper is not per-monitor-v2 DPI aware: ${stdout}`);
+  }
+  if (
+    action === 'Click' &&
+    (parsed.targetVerifiedBeforeInput !== true ||
+      parsed.pointRootProcessId !== app.pid)
+  ) {
+    throw new Error(`Win32 click was not proven inside app.pid: ${stdout}`);
+  }
+  if (
+    options.dpr !== undefined &&
+    Math.abs(parsed.dpi / 96 - options.dpr) > 0.05
+  ) {
+    throw new Error(`WebView DPR and Win32 DPI disagree: ${stdout}`);
+  }
+  return parsed;
+}
+
 async function blurTable() {
-  await page.locator('.cm-line').filter({ hasText: 'before' }).click();
+  await page.locator('.cm-line').filter({ hasText: 'after' }).click();
   await delay(250);
 }
 
 async function osClickCss(cssX, cssY) {
   const dpr = await page.evaluate(() => window.devicePixelRatio);
-  const { left, top } = clientOrigin();
-  osClick(Math.round(left + cssX * dpr), Math.round(top + cssY * dpr));
+  osEvidence.push(invokeWin32('Click', { cssX, cssY, dpr }));
   await delay(650);
 }
 
@@ -368,10 +386,80 @@ pass(
   },
 );
 
-await browser.close();
-app.kill();
-
 const failed = results.filter((r) => !r.ok);
-console.log(JSON.stringify({ executablePath, results, failed: failed.map((f) => f.name) }, null, 2));
-console.log(`\nSUMMARY pass=${results.length - failed.length}/${results.length}`);
-process.exit(failed.length ? 1 : 0);
+finalOutput = {
+  executablePath,
+  failed: failed.map((failure) => failure.name),
+  osEvidence,
+  results,
+};
+finalExitCode = failed.length ? 1 : 0;
+} catch (error) {
+  console.error(error instanceof Error ? error.stack ?? error.message : error);
+  finalExitCode = 1;
+} finally {
+  const cleanupFailures = [];
+  if (app?.pid && isProcessRunning(app.pid)) {
+    try {
+      terminateProcessTree(app.pid);
+    } catch (error) {
+      if (isProcessRunning(app.pid)) {
+        cleanupFailures.push(`process tree termination: ${String(error)}`);
+      }
+    }
+    if (appExit) {
+      await Promise.race([appExit, delay(5_000)]);
+    }
+    if (isProcessRunning(app.pid)) {
+      cleanupFailures.push(`spawned process ${app.pid} did not exit`);
+    }
+  }
+  if (browser) {
+    try {
+      await Promise.race([
+        browser.close(),
+        delay(5_000).then(() => {
+          throw new Error('CDP browser.close exceeded 5 seconds.');
+        }),
+      ]);
+    } catch (error) {
+      cleanupFailures.push(`CDP close: ${String(error)}`);
+    }
+  }
+  if (tempDirectory) {
+    try {
+      await removePackagedWebviewTempDirectory(tempDirectory);
+    } catch (error) {
+      cleanupFailures.push(`temporary directory removal: ${String(error)}`);
+    }
+  }
+  if (cleanupFailures.length > 0) {
+    console.error(`Cleanup failed:\n${cleanupFailures.join('\n')}`);
+    finalExitCode = 1;
+  }
+}
+
+if (finalOutput) {
+  console.log(JSON.stringify(finalOutput, null, 2));
+  console.log(
+    `\nSUMMARY pass=${finalOutput.results.length - finalOutput.failed.length}/${finalOutput.results.length}`,
+  );
+}
+process.exitCode = finalExitCode;
+
+function terminateProcessTree(processId) {
+  execFileSync(
+    'taskkill.exe',
+    ['/PID', String(processId), '/T', '/F'],
+    { encoding: 'utf8', timeout: 15_000, windowsHide: true },
+  );
+}
+
+function isProcessRunning(processId) {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -11,7 +11,7 @@
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--lm-color-border-subtle);
   border-radius: var(--lm-radius-2);
   background: color-mix(in srgb, var(--lm-color-surface) 88%, transparent);
@@ -126,6 +126,6 @@
 }
 
 .cm-content .lm-mermaid-svg {
-  padding: var(--lm-space-6);
-  overflow: auto;
+  padding: 0;
+  overflow: visible;
 }

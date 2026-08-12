@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '../../../shared/i18n';
 import { createEditorApi } from '../../core/editorApi';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
+import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
 import { ImageBlockWidget } from './ImageBlockWidget';
 import * as imagePreviewModule from './imagePreviewExtension';
 import {
@@ -16,6 +17,21 @@ import { createImageCapability } from './createImageCapability';
 
 async function waitForMicrotasks(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function imageWidgets(view: EditorView): ImageBlockWidget[] {
+  const widgets: ImageBlockWidget[] = [];
+
+  for (const source of view.state.facet(EditorView.decorations)) {
+    const decorations = typeof source === 'function' ? source(view) : source;
+    decorations.between(0, view.state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof ImageBlockWidget) {
+        widgets.push(decoration.spec.widget);
+      }
+    });
+  }
+
+  return widgets;
 }
 
 describe('image preview extension', () => {
@@ -50,6 +66,29 @@ describe('image preview extension', () => {
         to: 36,
       }),
     ]);
+  });
+
+  it('uses a geometry key precomputed by the decoration build', () => {
+    const doc = '![Large](data:image/png;base64,AAAA)';
+    const state = EditorState.create({
+      doc,
+      extensions: [markdownLanguage()],
+    });
+    const [block] = collectImageBlocksInRanges(state, [
+      { from: 0, to: doc.length },
+    ]);
+    const cache = new BlockWidgetGeometryCache();
+    cache.record('image:precomputed', 321, -1);
+
+    const widget = new ImageBlockWidget(
+      block,
+      { documentPath: null },
+      undefined,
+      cache,
+      'image:precomputed',
+    );
+
+    expect(widget.estimatedHeight).toBe(321);
   });
 
   it('collects only image-only paragraphs for block previews', () => {
@@ -189,6 +228,7 @@ describe('image preview extension', () => {
     expect(expand).not.toBeNull();
 
     expand?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(expand?.isConnected).toBe(true);
     expand?.click();
 
     expect(onMediaPreviewRequest).toHaveBeenCalledWith({
@@ -394,6 +434,45 @@ describe('image preview extension', () => {
 
     expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
     expect(parent.textContent).toContain('![Alt](https://example.com/pic.png)');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps image DOM stable across inactive and active states', () => {
+    const doc = ['![Alt](https://example.com/pic.png)', '', 'after'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('after')),
+      }),
+    });
+    const inactive = parent.querySelector('.lm-image-preview');
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('Alt')),
+    });
+    const active = parent.querySelector('.lm-image-preview');
+
+    expect(active).not.toBeNull();
+    expect(active).toBe(inactive);
+    expect(inactive?.isConnected).toBe(true);
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('after')),
+    });
+    const inactiveAgain = parent.querySelector('.lm-image-preview');
+
+    expect(inactiveAgain).not.toBeNull();
+    expect(inactiveAgain).toBe(active);
+    expect(active?.isConnected).toBe(true);
 
     view.destroy();
     parent.remove();
@@ -671,7 +750,19 @@ describe('image preview extension', () => {
     const initialImages = [
       ...parent.querySelectorAll<HTMLImageElement>('.lm-image-preview img'),
     ];
+    const initialWidget = imageWidgets(view)[0];
+    const changedRoot = initialImages[0].closest('.lm-image-preview');
+    if (!(changedRoot instanceof HTMLElement)) {
+      throw new Error('Expected changed image widget root.');
+    }
+    vi.spyOn(changedRoot, 'getBoundingClientRect').mockReturnValue({
+      height: 240,
+    } as DOMRect);
+    initialImages[0].dispatchEvent(new Event('load'));
+    await waitForMicrotasks();
+    view.posAtCoords({ x: 0, y: 0 }, false);
     expect(resolver).toHaveBeenCalledTimes(2);
+    expect(initialWidget.estimatedHeight).toBe(240);
 
     revisions.set('./assets/changed.png', 7);
     view.dispatch({
@@ -682,10 +773,13 @@ describe('image preview extension', () => {
     const refreshedImages = [
       ...parent.querySelectorAll<HTMLImageElement>('.lm-image-preview img'),
     ];
+    const refreshedWidget = imageWidgets(view)[0];
     expect(resolver).toHaveBeenCalledTimes(3);
     expect(view.state.doc.toString()).toBe(doc);
     expect(refreshedImages[0]).not.toBe(initialImages[0]);
     expect(refreshedImages[1]).toBe(initialImages[1]);
+    expect(refreshedWidget).not.toBe(initialWidget);
+    expect(refreshedWidget.estimatedHeight).toBe(240);
 
     view.destroy();
     parent.remove();

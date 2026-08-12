@@ -5,6 +5,7 @@ import {
   type Transaction,
 } from '@codemirror/state';
 import { Decoration, type DecorationSet } from '@codemirror/view';
+import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
 import {
   collectMermaidBlocksInRanges,
   type AbsoluteMermaidBlock,
@@ -14,7 +15,10 @@ import {
   type ActiveMermaidBlock,
   isActiveMermaidBlock,
 } from './mermaidEditingState';
-import { MermaidBlockWidget } from './MermaidBlockWidget';
+import {
+  MermaidBlockWidget,
+  mermaidBlockGeometryKey,
+} from './MermaidBlockWidget';
 import type { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
 
@@ -26,6 +30,7 @@ type MermaidDecorationOptions = {
 
 type MermaidDecorationContext = {
   defaultMermaidVersion: string;
+  geometryCache: BlockWidgetGeometryCache;
   options: MermaidDecorationOptions;
   scheduler: MermaidRenderScheduler;
   theme: 'dark' | 'default';
@@ -35,13 +40,24 @@ export function buildMermaidDecorations(
   state: EditorState,
   context: MermaidDecorationContext,
 ): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
-
-  for (const block of collectMermaidBlocksInRanges(
+  const blocks = collectMermaidBlocksInRanges(
     state,
     [{ from: 0, to: state.doc.length }],
-  )) {
-    const decoration = createMermaidDecoration(state, block, context);
+  );
+  const keyedBlocks = blocks.map((block) => ({
+    block,
+    geometryKey: mermaidBlockGeometryKey(block),
+  }));
+  context.geometryCache.retain(keyedBlocks.map(({ geometryKey }) => geometryKey));
+  const builder = new RangeSetBuilder<Decoration>();
+
+  for (const { block, geometryKey } of keyedBlocks) {
+    const decoration = createMermaidDecoration(
+      state,
+      block,
+      context,
+      geometryKey,
+    );
     builder.add(decoration.from, decoration.to, decoration.value);
   }
 
@@ -77,14 +93,29 @@ export function rebuildActiveMermaidRange(
   );
   const rebuildFrom = Math.min(mappedPreviousFrom, activeBlock.from);
   const rebuildTo = Math.max(mappedPreviousTo, activeBlock.to);
-  const additions = collectMermaidBlocksInRanges(
+  const previousBlocks = collectMermaidBlocksInRanges(
+    transaction.startState,
+    [{ from: previousActiveBlock.from, to: previousActiveBlock.to }],
+  );
+  const nextBlocks = collectMermaidBlocksInRanges(
     transaction.state,
     [{ from: rebuildFrom, to: rebuildTo }],
-  ).map((block) => createMermaidDecoration(
-    transaction.state,
+  );
+  const keyedNextBlocks = nextBlocks.map((block) => ({
     block,
-    context,
-  ));
+    geometryKey: mermaidBlockGeometryKey(block),
+  }));
+  context.geometryCache.updateRetained(
+    previousBlocks.map(mermaidBlockGeometryKey),
+    keyedNextBlocks.map(({ geometryKey }) => geometryKey),
+  );
+  const additions = keyedNextBlocks.map(({ block, geometryKey }) =>
+    createMermaidDecoration(
+      transaction.state,
+      block,
+      context,
+      geometryKey,
+    ));
 
   return mappedDecorations.update({
     add: additions,
@@ -125,6 +156,7 @@ function createMermaidDecoration(
   state: EditorState,
   block: AbsoluteMermaidBlock,
   context: MermaidDecorationContext,
+  geometryKey = mermaidBlockGeometryKey(block),
 ): Range<Decoration> {
   const editing = isActiveMermaidBlock(state, block);
   const widget = new MermaidBlockWidget(
@@ -134,6 +166,8 @@ function createMermaidDecoration(
     context.theme,
     context.defaultMermaidVersion,
     editing,
+    context.geometryCache,
+    geometryKey,
   );
 
   return editing

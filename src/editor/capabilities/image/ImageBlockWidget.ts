@@ -6,7 +6,11 @@ import type {
   ImageAssetResolver,
 } from '../../core/editorDisplayMode';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
-import { syncBlockWidgetHeight } from '../blockWidgetGeometry';
+import {
+  BlockWidgetGeometryCache,
+  BlockWidgetGeometryTracker,
+  blockWidgetGeometryKey,
+} from '../blockWidgetGeometry';
 import {
   createMediaPreviewButton,
   getMediaPreviewButtonLabel,
@@ -25,14 +29,20 @@ export type ImagePreviewContext = {
 };
 
 export class ImageBlockWidget extends WidgetType {
-  private measuredHeight = -1;
+  private readonly geometry: BlockWidgetGeometryTracker;
 
   constructor(
     private readonly block: ImageBlock,
     private readonly context: ImagePreviewContext,
     private readonly revision: number | undefined,
+    geometryCache = new BlockWidgetGeometryCache(),
+    geometryKey = imageBlockGeometryKey(block),
   ) {
     super();
+    this.geometry = new BlockWidgetGeometryTracker(
+      geometryCache,
+      geometryKey,
+    );
   }
 
   eq(widget: ImageBlockWidget): boolean {
@@ -47,13 +57,14 @@ export class ImageBlockWidget extends WidgetType {
   }
 
   get estimatedHeight(): number {
-    return this.measuredHeight;
+    return this.geometry.estimatedHeight;
   }
 
   toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement('figure');
     const getExpandLabel = () => getMediaPreviewButtonLabel(view.state);
     wrapper.className = 'lm-image-preview';
+    this.geometry.mount(view, wrapper);
     wrapper.addEventListener('mousedown', (event) => {
       event.preventDefault();
       view.dispatch({
@@ -65,13 +76,7 @@ export class ImageBlockWidget extends WidgetType {
       view.focus();
     });
 
-    const syncHeight = () => {
-      this.measuredHeight = syncBlockWidgetHeight(
-        view,
-        wrapper,
-        this.measuredHeight,
-      );
-    };
+    const syncHeight = () => this.geometry.sync();
 
     if (
       this.context.imageAssetResolver &&
@@ -101,6 +106,10 @@ export class ImageBlockWidget extends WidgetType {
       syncHeight,
     );
     return wrapper;
+  }
+
+  destroy(dom: HTMLElement): void {
+    this.geometry.unmount(dom);
   }
 
   private renderRemotePlaceholder(
@@ -151,6 +160,10 @@ export class ImageBlockWidget extends WidgetType {
 
     return wrapper;
   }
+}
+
+export function imageBlockGeometryKey(block: ImageBlock): string {
+  return blockWidgetGeometryKey('image', [block.alt, block.source]);
 }
 
 function createCaption(text: string): HTMLElement {
@@ -216,9 +229,11 @@ function renderResolvedImage(
     getExpandLabel,
     onMediaPreviewRequest,
   );
-  image.addEventListener('load', syncHeight);
-  image.addEventListener('error', syncHeight);
-  image.src = src;
+  image.addEventListener('load', () => {
+    wrapper.classList.remove('lm-image-preview-error');
+    wrapper.querySelector('.lm-image-error')?.remove();
+    syncHeight();
+  });
   image.addEventListener('error', () => {
     wrapper.classList.add('lm-image-preview-error');
     if (!wrapper.querySelector('.lm-image-error')) {
@@ -226,6 +241,7 @@ function renderResolvedImage(
       error.classList.add('lm-image-error');
       wrapper.appendChild(error);
     }
+    syncHeight();
   });
   media.appendChild(image);
   wrapper.appendChild(media);
@@ -233,6 +249,8 @@ function renderResolvedImage(
   if (alt.trim()) {
     wrapper.appendChild(createCaption(alt));
   }
+
+  image.src = src;
 
   queueMicrotask(() => {
     if (image.complete) {

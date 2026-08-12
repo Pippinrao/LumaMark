@@ -71,8 +71,12 @@
 }
 
 .cm-content .lm-image-preview-error {
-  padding: var(--lm-space-4);
+  padding: 0 var(--lm-space-4);
   border: 1px solid var(--lm-color-border-subtle);
   border-radius: var(--lm-radius-2);
   background: color-mix(in srgb, var(--lm-color-surface-muted) 76%, transparent);
+}
+
+.cm-content .lm-image-preview-error .lm-image-caption {
+  margin-top: 0;
 }

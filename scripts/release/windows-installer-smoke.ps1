@@ -16,7 +16,7 @@ param(
   # Associations may be rewritten for the smoke install and restored on uninstall.
   [switch]$AllowExistingInstall,
 
-  # After install, run argv/menu/table CDP against the installed executable.
+  # After install, run argv/menu/table checks plus the Win32 OS media caret matrix.
   [switch]$RunInstalledAcceptance = $true
 )
 
@@ -226,7 +226,7 @@ function Invoke-InstalledAcceptance {
       'scripts\release\verify-packaged-argv-open.mjs',
       'scripts\release\verify-packaged-menu-cold-start.mjs',
       'scripts\release\verify-packaged-table-caret.mjs',
-      'scripts\release\verify-packaged-media-caret.mjs'
+      'scripts\release\verify-installed-media-caret-os.mjs'
     )
 
     foreach ($relativeScript in $scripts) {

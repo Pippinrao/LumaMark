@@ -6,7 +6,12 @@ import { i18n } from '../../../shared/i18n';
 import { createEditorApi } from '../../core/editorApi';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
-import { MermaidBlockWidget } from './MermaidBlockWidget';
+import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
+import type { AbsoluteMermaidBlock } from './mermaidBlockDetection';
+import {
+  MermaidBlockWidget,
+  mermaidBlockGeometryKey,
+} from './MermaidBlockWidget';
 import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import {
   collectMermaidBlocksInRanges,
@@ -90,6 +95,45 @@ function mermaidWidgets(view: EditorView): MermaidBlockWidget[] {
 }
 
 describe('mermaidPreviewExtension', () => {
+  it('uses a bounded geometry key for large edited diagrams', () => {
+    const largeBlock = {
+      content: 'node --> next\n'.repeat(100_000),
+    } as AbsoluteMermaidBlock;
+    const changedBlock = {
+      content: `${largeBlock.content}tail`,
+    } as AbsoluteMermaidBlock;
+
+    expect(mermaidBlockGeometryKey(largeBlock).length).toBeLessThan(80);
+    expect(mermaidBlockGeometryKey(changedBlock)).not.toBe(
+      mermaidBlockGeometryKey(largeBlock),
+    );
+  });
+
+  it('uses a geometry key precomputed by the decoration build', () => {
+    const cache = new BlockWidgetGeometryCache();
+    cache.record('mermaid:precomputed', 432, 48);
+    const scheduler = new MermaidRenderScheduler({
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const block = {
+      blockId: '0:40',
+      content: 'flowchart TD\nA --> B',
+    } as AbsoluteMermaidBlock;
+
+    const widget = new MermaidBlockWidget(
+      block,
+      scheduler,
+      {},
+      'default',
+      '11.12.0',
+      false,
+      cache,
+      'mermaid:precomputed',
+    );
+
+    expect(widget.estimatedHeight).toBe(432);
+  });
+
   afterEach(() => {
     delete document.documentElement.dataset.theme;
     vi.useRealTimers();
@@ -571,6 +615,47 @@ describe('mermaidPreviewExtension', () => {
 
     expect(cancel).toHaveBeenCalledTimes(1);
 
+    parent.remove();
+  });
+
+  it('cancels a render owned by DOM reused through an equal widget rebuild', () => {
+    const doc = [
+      '```mermaid',
+      'flowchart TD',
+      '  A --> B',
+      '```',
+      '',
+      '```mermaid',
+      'flowchart TD',
+      '  C --> D',
+      '```',
+      '',
+      'after',
+    ].join('\n');
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockResolvedValue('<svg></svg>'),
+    });
+    const cancels: ReturnType<typeof vi.fn>[] = [];
+    vi.spyOn(scheduler, 'request').mockImplementation(() => {
+      const cancel = vi.fn();
+      cancels.push(cancel);
+      return { cancel };
+    });
+    const { parent, view } = createView(doc, scheduler);
+    const secondRoot = parent.querySelectorAll('.lm-mermaid-preview')[1];
+
+    parent
+      .querySelector<HTMLButtonElement>('.lm-mermaid-edit-source')
+      ?.click();
+
+    expect(parent.querySelectorAll('.lm-mermaid-preview')[1]).toBe(secondRoot);
+    view.destroy();
+
+    expect(cancels).toHaveLength(3);
+    for (const cancel of cancels) {
+      expect(cancel).toHaveBeenCalledTimes(1);
+    }
     parent.remove();
   });
 
@@ -1275,14 +1360,29 @@ describe('mermaidPreviewExtension', () => {
     const requestSpy = vi.spyOn(scheduler, 'request');
 
     const { parent, view } = createView(doc, scheduler);
+    const initialWidget = mermaidWidgets(view)[0];
+    const initialRoot = parent.querySelector('.lm-mermaid-preview');
+    if (!(initialRoot instanceof HTMLElement)) {
+      throw new Error('Expected initial Mermaid widget root.');
+    }
+    vi.spyOn(initialRoot, 'getBoundingClientRect').mockReturnValue({
+      height: 300,
+    } as DOMRect);
+    await Promise.resolve();
+    view.posAtCoords({ x: 0, y: 0 }, false);
+    expect(initialWidget.estimatedHeight).toBe(300);
+
     document.documentElement.dataset.theme = 'dark';
     await new Promise((resolve) => {
       setTimeout(resolve, 0);
     });
+    const themedWidget = mermaidWidgets(view)[0];
 
     expect(requestSpy).toHaveBeenCalledWith(
       expect.objectContaining({ theme: 'dark' }),
     );
+    expect(themedWidget).not.toBe(initialWidget);
+    expect(themedWidget.estimatedHeight).toBe(300);
 
     view.destroy();
     parent.remove();

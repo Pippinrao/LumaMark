@@ -5,6 +5,7 @@ import {
 } from '@codemirror/state';
 import { type DecorationSet, EditorView, ViewPlugin } from '@codemirror/view';
 import mermaidPackage from 'mermaid/package.json';
+import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
 import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import { renderWithMermaid } from './mermaidRenderAdapter';
 import { changedRangesRequireMermaidRebuild } from './mermaidChangeDetection';
@@ -37,11 +38,12 @@ export function mermaidPreviewExtension(
   options: MermaidPreviewExtensionOptions = {},
 ): Extension {
   const scheduler = options.scheduler ?? getDefaultScheduler();
+  const geometryCache = new BlockWidgetGeometryCache();
 
   return [
     mermaidEditingStateField,
     mermaidSourceEditingKeymap(),
-    mermaidDecorationsField(scheduler, options),
+    mermaidDecorationsField(scheduler, options, geometryCache),
     mermaidThemeObserver(),
   ];
 }
@@ -75,9 +77,11 @@ function mermaidThemeObserver(): Extension {
 function mermaidDecorationsField(
   scheduler: MermaidRenderScheduler,
   options: MermaidPreviewExtensionOptions,
+  geometryCache: BlockWidgetGeometryCache,
 ): Extension {
   const decorationContext = () => ({
     defaultMermaidVersion: DEFAULT_MERMAID_VERSION,
+    geometryCache,
     options,
     scheduler,
     theme: currentMermaidTheme(),

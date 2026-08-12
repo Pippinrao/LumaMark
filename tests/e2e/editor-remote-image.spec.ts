@@ -237,6 +237,76 @@ async function imageIsDecoded(page: Page, alt: string): Promise<void> {
     .toEqual([true, 2, 2]);
 }
 
+async function expectRemoteImageSentinelAligned(
+  page: Page,
+  sentinel: string,
+): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate((text) => {
+        const content = document.querySelector(
+          '.lm-editor-live-preview-mode .cm-content',
+        );
+        if (!(content instanceof HTMLElement)) {
+          return 'missing live preview';
+        }
+        type ViewBridge = {
+          contentDOM: HTMLElement;
+          lineBlockAt(pos: number): { top: number };
+          posAtCoords(coords: { x: number; y: number }): number | null;
+          state: {
+            doc: {
+              lineAt(pos: number): { from: number };
+              toString(): string;
+            };
+          };
+          viewState: { paddingTop: number };
+        };
+        const tile = (
+          content as HTMLElement & {
+            cmTile: { root?: { view: ViewBridge }; view: ViewBridge };
+          }
+        ).cmTile;
+        const view = tile.root?.view ?? tile.view;
+        const index = view.state.doc.toString().indexOf(text);
+        const line = index < 0 ? null : view.state.doc.lineAt(index);
+        const element = [
+          ...document.querySelectorAll('.lm-editor-live-preview-mode .cm-line'),
+        ].find((node) => node.textContent === text);
+        if (!line || !(element instanceof HTMLElement)) {
+          return 'missing sentinel';
+        }
+        const rect = element.getBoundingClientRect();
+        const docTop =
+          view.contentDOM.getBoundingClientRect().top +
+          view.viewState.paddingTop;
+        const drift = rect.top - docTop - view.lineBlockAt(line.from).top;
+        const position = view.posAtCoords({
+          x: rect.left + 1,
+          y: rect.top + rect.height / 2,
+        });
+        return Number.isFinite(drift) &&
+          Math.abs(drift) <= 0.75 &&
+          position === line.from
+          ? 'aligned'
+          : JSON.stringify({ drift, expected: line.from, position });
+      }, sentinel),
+    )
+    .toBe('aligned');
+}
+
+async function currentEditorSource(page: Page): Promise<string> {
+  return page.locator('.cm-content').evaluate((content) => {
+    type ViewBridge = { state: { doc: { toString(): string } } };
+    const tile = (
+      content as HTMLElement & {
+        cmTile: { root?: { view: ViewBridge }; view: ViewBridge };
+      }
+    ).cmTile;
+    return (tile.root?.view ?? tile.view).state.doc.toString();
+  });
+}
+
 test('opens the registered fixture without a white screen and renders remote PNG and SVG previews', async ({
   page,
 }) => {
@@ -341,16 +411,20 @@ test('retries a failed remote image after leaving and returning to live preview'
   page,
 }) => {
   const fixture = remoteImageFixtures.png;
+  const sentinel = 'after retry image';
+  const markdown = `${remoteMarkdown([fixture])}\n\n${sentinel}`;
   await openRemoteDocument(page, {
-    markdown: remoteMarkdown([fixture]),
+    markdown,
     mode: 'fail-once',
   });
 
   await expect(page.getByText(/Remote image cache failed|远程图片缓存失败/)).toBeVisible();
+  await expectRemoteImageSentinelAligned(page, sentinel);
   await switchEditorMode(page, 'source');
   await switchEditorMode(page, 'livePreview');
 
   await imageIsDecoded(page, fixture.alt);
+  await expectRemoteImageSentinelAligned(page, sentinel);
   await expect
     .poll(() =>
       page.evaluate(
@@ -358,6 +432,19 @@ test('retries a failed remote image after leaving and returning to live preview'
       ),
     )
     .toBe(2);
+
+  const line = page.locator('.lm-editor-live-preview-mode .cm-line', {
+    hasText: new RegExp(`^${sentinel}$`),
+  });
+  const point = await line.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + 1, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.click(point.x, point.y);
+  await page.keyboard.insertText('RETRIED_');
+  expect(await currentEditorSource(page)).toBe(
+    markdown.replace(sentinel, `RETRIED_${sentinel}`),
+  );
 });
 
 test('shows a decode error for a corrupt cached asset without blanking the app', async ({

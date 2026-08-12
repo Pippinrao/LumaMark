@@ -17,7 +17,12 @@ import {
   mapImageBlocks,
   selectionIntersectsBlock,
 } from './imageChangeDetection';
-import { ImageBlockWidget, type ImagePreviewContext } from './ImageBlockWidget';
+import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
+import {
+  ImageBlockWidget,
+  imageBlockGeometryKey,
+  type ImagePreviewContext,
+} from './ImageBlockWidget';
 import './image.css';
 
 export { collectImageBlocksInRanges } from './imageBlockDetection';
@@ -40,13 +45,20 @@ export function imagePreviewExtension(
 }
 
 function imageDecorationsField(context: ImagePreviewContext): Extension {
+  const geometryCache = new BlockWidgetGeometryCache();
+
   return StateField.define<ImageDecorationState>({
     create(state) {
       const blocks = discoverImageBlocks(state, context);
 
       return {
         blocks,
-        decorations: buildImageDecorations(state, context, blocks),
+        decorations: buildImageDecorations(
+          state,
+          context,
+          blocks,
+          geometryCache,
+        ),
       };
     },
     update(value, transaction) {
@@ -64,6 +76,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
               transaction.state,
               context,
               blocks,
+              geometryCache,
             ),
           };
         }
@@ -82,7 +95,12 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
         return {
           blocks,
           decorations: shouldRebuildDecorations
-            ? buildImageDecorations(transaction.state, context, blocks)
+            ? buildImageDecorations(
+                transaction.state,
+                context,
+                blocks,
+                geometryCache,
+              )
             : value.decorations.map(transaction.changes),
         };
       }
@@ -102,6 +120,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
             transaction.state,
             context,
             value.blocks,
+            geometryCache,
           ),
         };
       }
@@ -117,15 +136,28 @@ function buildImageDecorations(
   state: EditorState,
   context: ImagePreviewContext,
   blocks: readonly ImageBlock[],
+  geometryCache: BlockWidgetGeometryCache,
 ): DecorationSet {
+  const keyedBlocks = blocks.map((block) => ({
+    block,
+    geometryKey: imageBlockGeometryKey(block),
+  }));
+  geometryCache.retain(keyedBlocks.map(({ geometryKey }) => geometryKey));
   const builder = new RangeSetBuilder<Decoration>();
 
-  for (const block of blocks) {
+  for (const { block, geometryKey } of keyedBlocks) {
     const revision =
       context.imageAssetResolver?.getLocalSourceRevision?.(block.source);
-    const widget = new ImageBlockWidget(block, context, revision);
+    const active = selectionIntersectsBlock(state, block);
+    const widget = new ImageBlockWidget(
+      block,
+      context,
+      revision,
+      geometryCache,
+      geometryKey,
+    );
 
-    if (selectionIntersectsBlock(state, block)) {
+    if (active) {
       builder.add(
         block.to,
         block.to,

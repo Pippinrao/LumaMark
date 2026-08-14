@@ -461,26 +461,59 @@ button {
   gap: 3px;
   border: 1px solid var(--lm-color-border);
   border-radius: 11px;
-  background: color-mix(in srgb, var(--lm-color-surface) 68%, transparent);
+  background: var(--lm-color-segment-track);
   margin: 14px 12px 10px;
   padding: 3px;
 }
 
 .lm-sidebar-tab {
+  position: relative;
   min-height: 28px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: var(--lm-color-text-muted);
+  color: var(--lm-color-text-soft);
   cursor: default;
   font-size: 0.8rem;
   font-weight: 600;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
 }
 
 .lm-sidebar-tab[data-state='active'] {
-  background: var(--lm-color-surface-muted);
+  border-color: var(--lm-color-segment-border);
+  background: var(--lm-color-segment-active);
   color: var(--lm-color-text);
-  box-shadow: var(--lm-shadow-shell);
+  box-shadow: var(--lm-shadow-segment);
+}
+
+.lm-sidebar-tab[data-state='active']::after {
+  position: absolute;
+  bottom: 1px;
+  left: calc(50% - 12px);
+  width: 24px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--lm-color-segment-indicator);
+  content: '';
+  pointer-events: none;
+}
+
+.lm-sidebar-tab[data-state='inactive']:hover {
+  background: color-mix(
+    in srgb,
+    var(--lm-color-segment-active) 44%,
+    var(--lm-color-segment-track)
+  );
+  color: var(--lm-color-text);
+}
+
+.lm-sidebar-tab:focus-visible {
+  outline: 2px solid var(--lm-color-accent);
+  outline-offset: 1px;
 }
 
 .lm-sidebar-tab-panel {

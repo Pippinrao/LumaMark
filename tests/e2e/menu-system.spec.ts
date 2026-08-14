@@ -109,7 +109,8 @@ test('executes menu state, recent-file, and About workflows end to end', async (
   const about = page.getByRole('dialog', { name: 'About LumaMark' });
   await expect(about).toBeVisible();
   await expect(about).toContainText(packageVersion);
-  await expect(about).toContainText('A high-performance Typora-like Markdown editor');
+  await expect(about).toContainText('A modern, high-performance Markdown editor');
+  await expect(about).not.toContainText(/typora/i);
   await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('menuitem', { name: 'Help', exact: true })).toBeFocused();

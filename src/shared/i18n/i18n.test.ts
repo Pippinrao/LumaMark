@@ -150,4 +150,14 @@ describe('i18n resources', () => {
     expect(i18n.t('status.ready')).toBe('就绪');
     expect(i18n.t('status.ready', { lng: 'zh-CN' })).toBe('就绪');
   });
+
+  it.each([
+    ['en', 'A modern, high-performance Markdown editor'],
+    ['zh-CN', '现代、高性能的 Markdown 编辑器'],
+  ] as const)('uses neutral product copy in the About dialog for %s', (language, expected) => {
+    const description = resources[language].translation['about.description'];
+
+    expect(description).toBe(expected);
+    expect(description).not.toMatch(/typora/i);
+  });
 });

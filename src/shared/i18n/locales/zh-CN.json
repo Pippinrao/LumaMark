@@ -148,7 +148,7 @@
   "settings.startupPersistenceError": "无法读取或保存启动设置。当前选择可能仅在本次运行期间有效。",
   "settings.recentFilesPersistenceError": "无法读取或保存最近文件列表。当前列表可能仅在本次运行期间有效。",
   "settings.copyImagesToAssets": "复制插入的本地图片到文档资源目录",
-  "about.description": "高性能 Typora-like Markdown 编辑器",
+  "about.description": "现代、高性能的 Markdown 编辑器",
   "about.version": "版本",
   "table.copyTable": "复制表格",
   "table.deleteTable": "删除表格",

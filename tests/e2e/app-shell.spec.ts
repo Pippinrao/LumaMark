@@ -1,4 +1,110 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+
+type SidebarTabAppearance = {
+  backgroundColor: string;
+  borderColor: string;
+  borderWidth: string;
+  boxShadow: string;
+  indicatorColor: string;
+  indicatorContent: string;
+  indicatorHeight: string;
+  outlineColor: string;
+  outlineWidth: string;
+};
+
+type RgbColor = readonly [number, number, number];
+
+function parseRgbColor(value: string): RgbColor {
+  const channels = value.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+
+  if (!channels || channels.length !== 3) {
+    throw new Error(`Expected an RGB color, received: ${value}`);
+  }
+
+  return [channels[0] ?? 0, channels[1] ?? 0, channels[2] ?? 0];
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const luminance = (color: string) => {
+    const channels = parseRgbColor(color).map((channel) => {
+      const value = channel / 255;
+
+      return value <= 0.04045
+        ? value / 12.92
+        : ((value + 0.055) / 1.055) ** 2.4;
+    });
+
+    return 0.2126 * (channels[0] ?? 0) +
+      0.7152 * (channels[1] ?? 0) +
+      0.0722 * (channels[2] ?? 0);
+  };
+  const foregroundLuminance = luminance(foreground);
+  const backgroundLuminance = luminance(background);
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+  const darker = Math.min(foregroundLuminance, backgroundLuminance);
+
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+async function readSidebarTabAppearance(tab: Locator): Promise<SidebarTabAppearance> {
+  return tab.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const indicatorStyle = getComputedStyle(element, '::after');
+
+    return {
+      backgroundColor: style.backgroundColor,
+      borderColor: style.borderTopColor,
+      borderWidth: style.borderTopWidth,
+      boxShadow: style.boxShadow,
+      indicatorColor: indicatorStyle.backgroundColor,
+      indicatorContent: indicatorStyle.content,
+      indicatorHeight: indicatorStyle.height,
+      outlineColor: style.outlineColor,
+      outlineWidth: style.outlineWidth,
+    };
+  });
+}
+
+async function expectDistinctActiveTab(
+  active: Locator,
+  inactive: Locator,
+  track: Locator,
+): Promise<void> {
+  const [activeAppearance, inactiveAppearance] = await Promise.all([
+    readSidebarTabAppearance(active),
+    readSidebarTabAppearance(inactive),
+  ]);
+  const trackBackground = await track.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+
+  expect(activeAppearance.borderWidth).toBe('1px');
+  expect(activeAppearance.borderColor).not.toBe(inactiveAppearance.borderColor);
+  expect(activeAppearance.backgroundColor).not.toBe(inactiveAppearance.backgroundColor);
+  expect(activeAppearance.boxShadow).not.toBe(inactiveAppearance.boxShadow);
+  expect(activeAppearance.indicatorContent).not.toBe('none');
+  expect(Number.parseFloat(activeAppearance.indicatorHeight)).toBeGreaterThanOrEqual(2);
+  expect(
+    contrastRatio(activeAppearance.indicatorColor, trackBackground),
+  ).toBeGreaterThanOrEqual(3);
+}
+
+async function expectVisibleSidebarTabFocus(
+  page: Page,
+  tab: Locator,
+  track: Locator,
+): Promise<void> {
+  await tab.focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  const appearance = await readSidebarTabAppearance(tab);
+  const trackBackground = await track.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+
+  expect(appearance.outlineWidth).toBe('2px');
+  expect(contrastRatio(appearance.outlineColor, trackBackground)).toBeGreaterThanOrEqual(3);
+}
 
 test('opens on an accessible start screen with primary actions', async ({ page }) => {
   await page.goto('/');
@@ -52,6 +158,31 @@ test('uses Typora-like two-pane shell with file and outline tabs in the left sid
   await expect(page.locator('.lm-outline')).toBeVisible();
   await expect(page.locator('.lm-outline-item')).toHaveCount(0);
   await expect(page.getByTestId('editor-host')).toBeVisible();
+});
+
+test('gives the active file or outline tab a distinct surface in both themes', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新建文档' }).click();
+
+  const fileTab = page.getByRole('tab', { name: '文件' });
+  const outlineTab = page.getByRole('tab', { name: '大纲' });
+  const tabTrack = page.locator('.lm-sidebar-tabs-list');
+
+  await expect(fileTab).toHaveAttribute('data-state', 'active');
+  await expect(outlineTab).toHaveAttribute('data-state', 'inactive');
+  await expectDistinctActiveTab(fileTab, outlineTab, tabTrack);
+  await expectVisibleSidebarTabFocus(page, fileTab, tabTrack);
+
+  await outlineTab.click();
+  await page.getByRole('menuitem', { name: '主题', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: '暗色' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(outlineTab).toHaveAttribute('data-state', 'active');
+  await expect(fileTab).toHaveAttribute('data-state', 'inactive');
+  await expectDistinctActiveTab(outlineTab, fileTab, tabTrack);
+  await expectVisibleSidebarTabFocus(page, outlineTab, tabTrack);
 });
 
 test('matches the high fidelity editor gutter and sidebar sizing contract', async ({

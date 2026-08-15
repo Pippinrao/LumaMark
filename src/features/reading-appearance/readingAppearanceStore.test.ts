@@ -143,8 +143,8 @@ describe('readingAppearanceStore', () => {
     }
     expect(store.getState().fontZoomPercent).toBe(MAX_FONT_ZOOM_PERCENT);
 
-    expect(MIN_FONT_ZOOM_PERCENT).toBe(20);
-    expect(MAX_FONT_ZOOM_PERCENT).toBe(300);
+    expect(MIN_FONT_ZOOM_PERCENT).toBe(50);
+    expect(MAX_FONT_ZOOM_PERCENT).toBe(250);
   });
 
   it('resets zoom to 100% without persisting it or emitting boundary no-ops', () => {

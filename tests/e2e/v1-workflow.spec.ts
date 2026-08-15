@@ -92,13 +92,12 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
 
   await clickFirstVisibleMenuItem(page, ['文件', 'File']);
   await clickFirstVisibleMenuItem(page, ['设置', 'Settings']);
-  await page.getByRole('tab', { name: '语言' }).click();
-  await page.getByRole('button', { name: 'English' }).click();
+  await page.getByRole('radio', { name: 'English' }).click();
   await expect(
     page.getByRole('dialog', { name: 'Settings' }),
   ).toBeVisible();
   await page.getByRole('tab', { name: 'Appearance' }).click();
-  await page.getByRole('button', { name: 'Dark' }).click();
+  await page.getByRole('radio', { name: 'Dark' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('menuitem', { name: 'File' })).toBeVisible();

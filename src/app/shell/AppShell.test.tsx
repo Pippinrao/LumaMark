@@ -14,6 +14,7 @@ import { saveRecoveryDraft } from '../../services/drafts/draftStore';
 import { useWorkspaceStore } from '../../features/workspace/workspaceStore';
 import { useReadingAppearanceStore } from '../../features/reading-appearance/readingAppearanceStore';
 import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
+import { useSettingsStore } from '../../features/settings/settingsStore';
 import { useStartupStore } from '../../features/startup/startupStore';
 import type { CommandError, CommandResult } from '../../services/tauri/invokeCommand';
 import type {
@@ -34,9 +35,11 @@ const workspaceCommandMocks = vi.hoisted(() => ({
 
 const windowControlMocks = vi.hoisted(() => ({
   close: vi.fn(),
+  destroy: vi.fn(),
   isMaximized: vi.fn(),
   minimize: vi.fn(),
   onResized: vi.fn(),
+  onCloseRequested: vi.fn(),
   toggleMaximize: vi.fn(),
 }));
 
@@ -56,9 +59,13 @@ describe('AppShell', () => {
     workspaceCommandMocks.listWorkspaceChildren.mockReset();
     workspaceCommandMocks.openWorkspaceDirectory.mockReset();
     windowControlMocks.close.mockReset().mockResolvedValue(true);
+    windowControlMocks.destroy.mockReset().mockResolvedValue(true);
     windowControlMocks.isMaximized.mockReset().mockResolvedValue(false);
     windowControlMocks.minimize.mockReset().mockResolvedValue(true);
     windowControlMocks.onResized.mockReset().mockResolvedValue(vi.fn());
+    windowControlMocks.onCloseRequested
+      .mockReset()
+      .mockResolvedValue(vi.fn());
     windowControlMocks.toggleMaximize.mockReset().mockResolvedValue(true);
     useWorkspaceStore.getState().clearWorkspace();
     useReadingAppearanceStore.setState({
@@ -121,14 +128,45 @@ describe('AppShell', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
 
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
-    expect(await screen.findByRole('option', { name: '保存' })).toHaveAttribute(
+    expect(await screen.findByRole('option', { name: /^保存/ })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
-    expect(screen.getByRole('option', { name: '打开文件' })).toHaveAttribute(
+    expect(screen.getByRole('option', { name: /^打开文件/ })).toHaveAttribute(
       'aria-disabled',
       'false',
     );
+  });
+
+  it('flushes canonical settings before the title-bar close destroys the window', async () => {
+    const events: string[] = [];
+    const originalFlushPendingWrites =
+      useSettingsStore.getState().flushPendingWrites;
+    useSettingsStore.setState({
+      flushPendingWrites: vi.fn(async () => {
+        events.push('flush');
+      }),
+    });
+    windowControlMocks.destroy.mockImplementation(async () => {
+      events.push('destroy');
+      return true;
+    });
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭窗口' }));
+
+    await waitFor(() => expect(windowControlMocks.destroy).toHaveBeenCalledTimes(1));
+    expect(events).toEqual(['flush', 'destroy']);
+    useSettingsStore.setState({
+      flushPendingWrites: originalFlushPendingWrites,
+    });
   });
 
   it('keeps a desktop open bridge failure localized and visible', async () => {
@@ -1055,13 +1093,15 @@ describe('AppShell', () => {
       expect(imagesTab).toHaveAttribute('data-state', 'active');
     });
 
-    const checkbox = await screen.findByRole('checkbox', {
+    const copyImagesSwitch = await screen.findByRole('switch', {
       name: '复制插入的本地图片到文档资源目录',
     });
 
-    expect(checkbox).not.toBeChecked();
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
+    expect(copyImagesSwitch).not.toBeChecked();
+    expect(copyImagesSwitch).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(copyImagesSwitch);
+    expect(copyImagesSwitch).toBeChecked();
+    expect(copyImagesSwitch).toHaveAttribute('aria-checked', 'true');
     expect(
       (useAppStore.getState() as unknown as Record<string, unknown>)
         .copyImagesToAssets,
@@ -1091,15 +1131,23 @@ describe('AppShell', () => {
     fileMenu.focus();
     fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
     fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
+    const appearanceTab = await screen.findByRole('tab', { name: '外观' });
+    appearanceTab.focus();
+    fireEvent.keyDown(appearanceTab, { key: 'Enter' });
 
-    const widthGroup = await screen.findByRole('group', { name: '页面宽度' });
-    fireEvent.click(within(widthGroup).getByRole('button', { name: '宽' }));
+    const widthGroup = await screen.findByRole('radiogroup', {
+      name: '页面宽度',
+    });
+    const wideOption = within(widthGroup).getByRole('radio', { name: '宽' });
+    expect(wideOption).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(wideOption);
 
     await waitFor(() => {
       expect(useReadingAppearanceStore.getState().pageWidth).toBe('wide');
       expect(editorDom.style.getPropertyValue('--lm-editor-page-width')).toBe(
         '1040px',
       );
+      expect(wideOption).toHaveAttribute('aria-checked', 'true');
     });
 
     const contentDom = document.querySelector<HTMLElement>('.cm-content');
@@ -1117,6 +1165,46 @@ describe('AppShell', () => {
     expect(useReadingAppearanceStore.getState().fontZoomPercent).toBe(110);
   });
 
+  it('syncs theme changes from settings onto the document root without recreating the editor view', async () => {
+    const { EditorView } = await import('@codemirror/view');
+
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <AppShell />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+    const editorDom = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>('.cm-editor');
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    const viewBefore = EditorView.findFromDOM(editorDom);
+    expect(viewBefore).not.toBeNull();
+
+    const fileMenu = screen.getByRole('menuitem', { name: '文件' });
+    fileMenu.focus();
+    fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
+    const appearanceTab = await screen.findByRole('tab', { name: '外观' });
+    appearanceTab.focus();
+    fireEvent.keyDown(appearanceTab, { key: 'Enter' });
+
+    const darkTheme = screen.getByRole('radio', { name: '暗色' });
+    expect(darkTheme).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(darkTheme);
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('dark');
+      expect(darkTheme).toHaveAttribute('aria-checked', 'true');
+    });
+
+    const viewAfter = EditorView.findFromDOM(editorDom);
+    expect(viewAfter).toBe(viewBefore);
+  });
+
   it('alerts the user when the page-width setting cannot be persisted', async () => {
     useReadingAppearanceStore.setState({ pageWidthPersistenceError: true });
 
@@ -1132,6 +1220,9 @@ describe('AppShell', () => {
     fileMenu.focus();
     fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
     fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
+    const appearanceTab = await screen.findByRole('tab', { name: '外观' });
+    appearanceTab.focus();
+    fireEvent.keyDown(appearanceTab, { key: 'Enter' });
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '页面宽度已应用，但无法读取或保存设置；下次启动可能恢复默认值。',
@@ -1153,9 +1244,9 @@ describe('AppShell', () => {
     fileMenu.focus();
     fireEvent.keyDown(fileMenu, { key: 'ArrowDown' });
     fireEvent.click(await screen.findByRole('menuitem', { name: '设置' }));
-    const startupTab = await screen.findByRole('tab', { name: '启动' });
-    startupTab.focus();
-    fireEvent.keyDown(startupTab, { key: 'Enter' });
+    const generalTab = await screen.findByRole('tab', { name: '通用' });
+    generalTab.focus();
+    fireEvent.keyDown(generalTab, { key: 'Enter' });
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '无法读取或保存最近文件列表。当前列表可能仅在本次运行期间有效。',
@@ -1216,7 +1307,7 @@ describe('AppShell', () => {
     expect(screen.queryByText(/typora/i)).not.toBeInTheDocument();
   });
 
-  it('shows destructive table actions only when the context target is a table', async () => {
+  it('shows insert table in the editor context menu without guessing table DOM widgets', async () => {
     render(
       <I18nProvider>
         <ThemeProvider>
@@ -1225,28 +1316,21 @@ describe('AppShell', () => {
       </I18nProvider>,
     );
 
-    fireEvent.contextMenu(screen.getByTestId('editor-host'));
+    const editorPaper = screen
+      .getByTestId('editor-host')
+      .querySelector('.lm-editor-paper');
+    expect(editorPaper).toBeInstanceOf(HTMLElement);
+    await waitFor(() => {
+      expect(editorPaper?.querySelector('.cm-content')).not.toBeNull();
+    });
+    fireEvent.contextMenu(editorPaper as HTMLElement);
 
     expect(
       await screen.findByRole('menuitem', { name: /^表格\s*Ctrl\+T$/ }),
     ).toHaveTextContent('Ctrl+T');
     expect(screen.queryByRole('menuitem', { name: /^复制表格/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /^删除表格/ })).not.toBeInTheDocument();
-
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
-    const table = document.createElement('div');
-    table.className = 'tbl-table-widget';
-    screen.getByTestId('editor-host').append(table);
-    fireEvent.contextMenu(table);
-
-    expect(
-      await screen.findByRole('menuitem', { name: /^复制表格\s*Ctrl\+Alt\+C$/ }),
-    ).toHaveTextContent('Ctrl+Alt+C');
-    expect(
-      screen.getByRole('menuitem', {
-        name: /^删除表格\s*Ctrl\+Alt\+Backspace$/,
-      }),
-    ).toHaveTextContent('Ctrl+Alt+Backspace');
+    expect(screen.queryByRole('menuitem', { name: /^打开链接/ })).not.toBeInTheDocument();
   });
 
   it('ignores stale workspace child load errors after switching roots', async () => {

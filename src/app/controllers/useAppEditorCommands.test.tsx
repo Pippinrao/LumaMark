@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorApi } from '../../editor/core/editorApi';
 import type { LocalImageDrop } from '../../services/assets/localImageDrop';
 import { useAppStore } from '../stores/appStore';
+import { useSettingsStore } from '../../features/settings/settingsStore';
+import { createDefaultLumaMarkSettings } from '../../services/settings/settingsTypes';
 import { useAppEditorCommands } from './useAppEditorCommands';
 
 const nativeDropMocks = vi.hoisted(() => ({
@@ -29,6 +31,7 @@ describe('useAppEditorCommands', () => {
       dirty: false,
       lastFileError: null,
     });
+    useSettingsStore.setState({ settings: createDefaultLumaMarkSettings() });
   });
 
   afterEach(() => {
@@ -101,6 +104,9 @@ describe('useAppEditorCommands', () => {
   });
 
   it('keeps a stable display-mode toggle synchronized with the ready editor', () => {
+    const settings = createDefaultLumaMarkSettings();
+    settings.editor.defaultDisplayMode = 'source';
+    useSettingsStore.setState({ settings });
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const editor = createEditorApi({
@@ -149,6 +155,132 @@ describe('useAppEditorCommands', () => {
 
     unmount();
     editor.destroy();
+  });
+
+  it('queries edit command state on demand without mirroring selection in React state', () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: vi.fn().mockResolvedValue(''),
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: 'select me', parent });
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+    act(() => result.current.onEditorReady(editor));
+
+    expect(result.current.getEditState()).toMatchObject({
+      selectionEmpty: true,
+    });
+
+    act(() => {
+      editor.view.dispatch({ selection: { anchor: 0, head: 6 } });
+    });
+
+    expect(result.current.getEditState()).toEqual({
+      clipboardReadAvailable: true,
+      clipboardWriteAvailable: true,
+      readOnly: false,
+      selectionEmpty: false,
+    });
+
+    unmount();
+    editor.destroy();
+  });
+
+  it('surfaces a localized clipboard error when cut cannot write the selection', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: vi.fn(),
+        writeText: vi.fn().mockRejectedValue(new Error('denied')),
+      },
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: 'select me', parent });
+    editor.view.dispatch({ selection: { anchor: 0, head: 6 } });
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+    act(() => result.current.onEditorReady(editor));
+
+    await act(async () => {
+      await result.current.cut();
+    });
+
+    expect(editor.getDocumentText()).toBe('select me');
+    expect(useAppStore.getState().lastFileError).toMatchObject({
+      code: 'clipboard.cut_failed',
+      message: '无法剪切所选内容。',
+      recoverable: true,
+    });
+
+    unmount();
+    editor.destroy();
+  });
+
+  it('surfaces a localized clipboard error when contextual table copy is unavailable', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+    const tableText = ['| A | B |', '| --- | --- |', '| 1 | 2 |'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: tableText,
+      displayMode: 'source',
+      parent,
+    });
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+    act(() => result.current.onEditorReady(editor));
+
+    await act(async () => {
+      await result.current.copyTable({ from: 0, to: tableText.length });
+    });
+
+    expect(useAppStore.getState().lastFileError).toMatchObject({
+      code: 'clipboard.copy_failed',
+      message: '无法复制所选内容。',
+      recoverable: true,
+    });
+
+    unmount();
+    editor.destroy();
+  });
+
+  it('applies the configured default display mode to each ready editor instance without rebuilding it', () => {
+    const settings = createDefaultLumaMarkSettings();
+    settings.editor.defaultDisplayMode = 'source';
+    useSettingsStore.setState({ settings });
+    const parent = document.createElement('div');
+    const strictModeParent = document.createElement('div');
+    document.body.appendChild(parent);
+    document.body.appendChild(strictModeParent);
+    const editor = createEditorApi({ doc: '# Initial mode', parent });
+    const strictModeReplacement = createEditorApi({
+      doc: '# StrictMode replacement',
+      parent: strictModeParent,
+    });
+    const viewBefore = editor.view;
+    const replacementViewBefore = strictModeReplacement.view;
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+
+    act(() => {
+      result.current.onEditorReady(editor);
+      result.current.onEditorReady(strictModeReplacement);
+    });
+
+    expect(editor.getDisplayMode()).toBe('source');
+    expect(strictModeReplacement.getDisplayMode()).toBe('source');
+    expect(result.current.editorDisplayMode).toBe('source');
+    expect(editor.view).toBe(viewBefore);
+    expect(strictModeReplacement.view).toBe(replacementViewBefore);
+
+    unmount();
+    editor.destroy();
+    strictModeReplacement.destroy();
   });
 
   it('inserts native local image drops with their original paths by default', async () => {

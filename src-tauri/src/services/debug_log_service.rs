@@ -133,10 +133,7 @@ mod tests {
         let directory = temp_directory("append");
         let service = DebugLogService::new(1_024, 100);
 
-        assert_eq!(
-            service.append_line(&directory, "hello").expect("append"),
-            true
-        );
+        assert!(service.append_line(&directory, "hello").expect("append"));
 
         let text = fs::read_to_string(directory.join(DEBUG_LOG_FILE_NAME)).expect("read");
         assert_eq!(text, "hello\n");
@@ -148,9 +145,9 @@ mod tests {
         let directory = temp_directory("rate");
         let service = DebugLogService::new(1_024, 2);
 
-        assert_eq!(service.append_line(&directory, "a").unwrap(), true);
-        assert_eq!(service.append_line(&directory, "b").unwrap(), true);
-        assert_eq!(service.append_line(&directory, "c").unwrap(), false);
+        assert!(service.append_line(&directory, "a").unwrap());
+        assert!(service.append_line(&directory, "b").unwrap());
+        assert!(!service.append_line(&directory, "c").unwrap());
 
         let text = fs::read_to_string(directory.join(DEBUG_LOG_FILE_NAME)).expect("read");
         assert_eq!(text, "a\nb\n");
@@ -162,13 +159,10 @@ mod tests {
         let directory = temp_directory("rotate");
         let service = DebugLogService::new(20, 100);
 
-        assert_eq!(
-            service
-                .append_line(&directory, "012345678901234567890123456789")
-                .unwrap(),
-            true
-        );
-        assert_eq!(service.append_line(&directory, "next").unwrap(), true);
+        assert!(service
+            .append_line(&directory, "012345678901234567890123456789")
+            .unwrap());
+        assert!(service.append_line(&directory, "next").unwrap());
 
         assert!(directory.join(DEBUG_LOG_ROTATED_NAME).exists());
         let text = fs::read_to_string(directory.join(DEBUG_LOG_FILE_NAME)).expect("read");

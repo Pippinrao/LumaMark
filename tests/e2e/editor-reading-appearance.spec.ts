@@ -47,9 +47,10 @@ async function choosePageWidth(
 ): Promise<void> {
   await page.getByRole('menuitem', { name: '文件' }).click();
   await page.getByRole('menuitem', { name: '设置' }).click();
+  await page.getByRole('tab', { name: '外观' }).click();
   await page
-    .getByRole('group', { name: '页面宽度' })
-    .getByRole('button', { name: label, exact: true })
+    .getByRole('radiogroup', { name: '页面宽度' })
+    .getByRole('radio', { name: label, exact: true })
     .click();
   await page.getByRole('button', { name: '关闭' }).click();
 }
@@ -365,14 +366,14 @@ test('uses real primary-modifier wheel input and exposes an accessible 100% rese
   await expect.poll(() => readEditorSource(editor)).toBe(markdown);
 
   await dispatchPrimaryWheelSteps(scroller, 120, 8);
-  await expect.poll(readFontScale).toBe('0.2');
+  await expect.poll(readFontScale).toBe('0.5');
   await dispatchPrimaryWheelSteps(scroller, 120, 1);
-  await expect.poll(readFontScale).toBe('0.2');
+  await expect.poll(readFontScale).toBe('0.5');
 
   await dispatchPrimaryWheelSteps(scroller, -120, 28);
-  await expect.poll(readFontScale).toBe('3');
+  await expect.poll(readFontScale).toBe('2.5');
   await dispatchPrimaryWheelSteps(scroller, -120, 1);
-  await expect.poll(readFontScale).toBe('3');
+  await expect.poll(readFontScale).toBe('2.5');
   expect(await readEditorSource(editor)).toBe(markdown);
 
   await page.getByRole('menuitem', { name: '视图' }).click();

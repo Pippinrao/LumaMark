@@ -1,256 +1,239 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tabs from '@radix-ui/react-tabs';
 import { X } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  MAX_SETTINGS_FONT_ZOOM_PERCENT,
+  MIN_SETTINGS_FONT_ZOOM_PERCENT,
+  SETTINGS_FONT_ZOOM_STEP_PERCENT,
+  type SettingsTheme,
+} from '../../services/settings/settingsTypes';
+import type { WindowControlErrorCode } from '../../services/window/windowControls';
 import type { AppLanguage } from '../../shared/i18n';
 import type { EditorPageWidth } from '../reading-appearance/readingAppearanceStore';
 import type { StartupBehavior } from '../startup/startupStore';
-
-type ThemeMode = 'light' | 'dark';
+import {
+  AppearanceSettingsPage,
+  EditorSettingsPage,
+  GeneralSettingsPage,
+  ImagesSettingsPage,
+  type SettingsDisplayMode,
+} from './SettingsPages';
+import {
+  isSettingsSection,
+  SettingsNavigation,
+  type SettingsSection,
+} from './SettingsNavigation';
+import { SettingsNotices } from './SettingsNotices';
+import type {
+  SettingsLoadState,
+  SettingsRecoveryState,
+  SettingsWriteState,
+} from './settingsStore';
+import './settingsDialog.css';
 
 type SettingsDialogProps = {
   autoCheckUpdates: boolean;
+  closeErrorCode: WindowControlErrorCode | null;
   copyImagesToAssets: boolean;
+  defaultDisplayMode: SettingsDisplayMode;
+  focusModeOnStartup: boolean;
+  fontZoomPercent: number;
   language: AppLanguage;
   onAutoCheckUpdatesChange: (autoCheckUpdates: boolean) => void;
+  onClearRecentFiles: () => void;
   onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
+  onDefaultDisplayModeChange: (mode: SettingsDisplayMode) => void;
+  onFocusModeOnStartupChange: (focusModeOnStartup: boolean) => void;
+  onFontZoomPercentChange: (fontZoomPercent: number) => void;
   onLanguageChange: (language: AppLanguage) => void;
   onOpenChange: (open: boolean) => void;
   onPageWidthChange: (pageWidth: EditorPageWidth) => void;
+  onRetrySettingsWrite: () => void;
   onReturnFocus: () => void;
+  onSidebarOpenOnStartupChange: (sidebarOpenOnStartup: boolean) => void;
   onStartupBehaviorChange: (startupBehavior: StartupBehavior) => void;
-  onThemeChange: (theme: ThemeMode) => void;
+  onThemeChange: (theme: SettingsTheme) => void;
   open: boolean;
   pageWidth: EditorPageWidth;
   pageWidthPersistenceError: boolean;
-  preferencesPersistenceError: boolean;
   recentFilesPersistenceError: boolean;
+  settingsLoadState: SettingsLoadState;
+  settingsRecoveryState: SettingsRecoveryState;
+  settingsWriteState: SettingsWriteState;
+  sidebarOpenOnStartup: boolean;
   startupBehavior: StartupBehavior;
   startupPersistenceError: boolean;
-  theme: ThemeMode;
-  updatePersistenceError: boolean;
+  theme: SettingsTheme;
 };
 
 export function SettingsDialog({
   autoCheckUpdates,
+  closeErrorCode,
   copyImagesToAssets,
+  defaultDisplayMode,
+  focusModeOnStartup,
+  fontZoomPercent,
   language,
   onAutoCheckUpdatesChange,
+  onClearRecentFiles,
   onCopyImagesToAssetsChange,
+  onDefaultDisplayModeChange,
+  onFocusModeOnStartupChange,
+  onFontZoomPercentChange,
   onLanguageChange,
   onOpenChange,
   onPageWidthChange,
+  onRetrySettingsWrite,
   onReturnFocus,
+  onSidebarOpenOnStartupChange,
   onStartupBehaviorChange,
   onThemeChange,
   open,
   pageWidth,
   pageWidthPersistenceError,
-  preferencesPersistenceError,
   recentFilesPersistenceError,
+  settingsLoadState,
+  settingsRecoveryState,
+  settingsWriteState,
+  sidebarOpenOnStartup,
   startupBehavior,
   startupPersistenceError,
   theme,
-  updatePersistenceError,
 }: SettingsDialogProps) {
   const { t } = useTranslation();
+  const [activeSection, setActiveSection] =
+    useState<SettingsSection>('general');
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const clearConfirmOpenRef = useRef(false);
+  const [fontZoomEdit, setFontZoomEdit] = useState<{
+    base: number;
+    value: string;
+  } | null>(null);
+  const fontZoomDraft =
+    fontZoomEdit?.base === fontZoomPercent
+      ? fontZoomEdit.value
+      : String(fontZoomPercent);
+
+  const closeClearRecentFilesDialog = () => {
+    setClearConfirmOpen(false);
+    queueMicrotask(() => {
+      clearConfirmOpenRef.current = false;
+    });
+  };
+
+  const handleFontZoomDraftChange = (draft: string) => {
+    setFontZoomEdit({ base: fontZoomPercent, value: draft });
+    const next = Number(draft);
+    if (
+      draft !== '' &&
+      Number.isInteger(next) &&
+      next >= MIN_SETTINGS_FONT_ZOOM_PERCENT &&
+      next <= MAX_SETTINGS_FONT_ZOOM_PERCENT &&
+      next % SETTINGS_FONT_ZOOM_STEP_PERCENT === 0
+    ) {
+      onFontZoomPercentChange(next);
+    }
+  };
+
+  const handleFontZoomStep = (next: number) => {
+    setFontZoomEdit(null);
+    onFontZoomPercentChange(next);
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="lm-dialog-overlay" />
         <Dialog.Content
-          className="lm-settings-dialog"
+          className="lm-settings-dialog lm-settings-dialog-vertical"
+          data-lm-window-interactive=""
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             onReturnFocus();
+          }}
+          onEscapeKeyDown={(event) => {
+            if (clearConfirmOpenRef.current) {
+              event.preventDefault();
+              closeClearRecentFilesDialog();
+            }
           }}
         >
           <div className="lm-dialog-title-row">
             <Dialog.Title>{t('settings.title')}</Dialog.Title>
             <Dialog.Close className="lm-icon-button" aria-label={t('dialog.close')}>
-              <X size={16} aria-hidden="true" />
+              <X aria-hidden="true" size={16} />
             </Dialog.Close>
           </div>
           <Dialog.Description className="lm-dialog-description">
             {t('settings.description')}
           </Dialog.Description>
-
-          <Tabs.Root defaultValue="appearance" className="lm-settings-tabs">
-            <Tabs.List className="lm-settings-tab-list">
-              <Tabs.Trigger value="appearance">{t('settings.appearance')}</Tabs.Trigger>
-              <Tabs.Trigger value="language">{t('settings.language')}</Tabs.Trigger>
-              <Tabs.Trigger value="images">{t('settings.images')}</Tabs.Trigger>
-              <Tabs.Trigger value="startup">{t('settings.startup')}</Tabs.Trigger>
-            </Tabs.List>
-            <Tabs.Content value="appearance" className="lm-settings-panel">
-              <div className="lm-setting-row">
-                <span>{t('settings.theme')}</span>
-                <div className="lm-segmented-control">
-                  <button
-                    type="button"
-                    aria-pressed={theme === 'light'}
-                    onClick={() => {
-                      onThemeChange('light');
-                    }}
-                  >
-                    {t('settings.themeLight')}
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={theme === 'dark'}
-                    onClick={() => {
-                      onThemeChange('dark');
-                    }}
-                  >
-                    {t('settings.themeDark')}
-                  </button>
-                </div>
-              </div>
-              <div className="lm-setting-row">
-                <span>{t('settings.pageWidth')}</span>
-                <div
-                  aria-label={t('settings.pageWidth')}
-                  className="lm-segmented-control"
-                  role="group"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={pageWidth === 'narrow'}
-                    onClick={() => {
-                      onPageWidthChange('narrow');
-                    }}
-                  >
-                    {t('settings.pageWidthNarrow')}
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={pageWidth === 'standard'}
-                    onClick={() => {
-                      onPageWidthChange('standard');
-                    }}
-                  >
-                    {t('settings.pageWidthStandard')}
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={pageWidth === 'wide'}
-                    onClick={() => {
-                      onPageWidthChange('wide');
-                    }}
-                  >
-                    {t('settings.pageWidthWide')}
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={pageWidth === 'fluid'}
-                    onClick={() => {
-                      onPageWidthChange('fluid');
-                    }}
-                  >
-                    {t('settings.pageWidthFluid')}
-                  </button>
-                </div>
-              </div>
-              {pageWidthPersistenceError ? (
-                <p className="lm-setting-error" role="alert">
-                  {t('settings.pageWidthPersistenceError')}
-                </p>
-              ) : null}
-              {preferencesPersistenceError ? (
-                <p className="lm-setting-error" role="alert">
-                  {t('settings.preferencesPersistenceError')}
-                </p>
-              ) : null}
-            </Tabs.Content>
-            <Tabs.Content value="language" className="lm-settings-panel">
-              <div className="lm-setting-row">
-                <span>{t('settings.language')}</span>
-                <div className="lm-segmented-control">
-                  <button
-                    type="button"
-                    aria-pressed={language === 'zh-CN'}
-                    onClick={() => {
-                      onLanguageChange('zh-CN');
-                    }}
-                  >
-                    {t('settings.languageChinese')}
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={language === 'en'}
-                    onClick={() => {
-                      onLanguageChange('en');
-                    }}
-                  >
-                    {t('settings.languageEnglish')}
-                  </button>
-                </div>
-              </div>
-              {preferencesPersistenceError ? (
-                <p className="lm-setting-error" role="alert">
-                  {t('settings.preferencesPersistenceError')}
-                </p>
-              ) : null}
-            </Tabs.Content>
-            <Tabs.Content value="images" className="lm-settings-panel">
-              <label className="lm-setting-row">
-                <span>{t('settings.copyImagesToAssets')}</span>
-                <input
-                  checked={copyImagesToAssets}
-                  onChange={(event) => {
-                    onCopyImagesToAssetsChange(event.currentTarget.checked);
-                  }}
-                  type="checkbox"
-                />
-              </label>
-            </Tabs.Content>
-            <Tabs.Content value="startup" className="lm-settings-panel">
-              <div className="lm-setting-row">
-                <span>{t('settings.startupBehavior')}</span>
-                <div className="lm-segmented-control">
-                  <button
-                    aria-pressed={startupBehavior === 'home'}
-                    onClick={() => { onStartupBehaviorChange('home'); }}
-                    type="button"
-                  >
-                    {t('settings.startupHome')}
-                  </button>
-                  <button
-                    aria-pressed={startupBehavior === 'restoreLastSession'}
-                    onClick={() => { onStartupBehaviorChange('restoreLastSession'); }}
-                    type="button"
-                  >
-                    {t('settings.startupRestore')}
-                  </button>
-                </div>
-              </div>
-              {startupPersistenceError ? (
-                <p className="lm-setting-error" role="alert">
-                  {t('settings.startupPersistenceError')}
-                </p>
-              ) : null}
-              {recentFilesPersistenceError ? (
-                <p className="lm-setting-error" role="alert">
-                  {t('settings.recentFilesPersistenceError')}
-                </p>
-              ) : null}
-              <label className="lm-setting-row">
-                <span>{t('settings.autoCheckUpdates')}</span>
-                <input
-                  checked={autoCheckUpdates}
-                  onChange={(event) => {
-                    onAutoCheckUpdatesChange(event.currentTarget.checked);
-                  }}
-                  type="checkbox"
-                />
-              </label>
-              {updatePersistenceError ? (
-                <p className="lm-setting-error" role="alert">
-                  {t('settings.updatePersistenceError')}
-                </p>
-              ) : null}
-            </Tabs.Content>
+          <SettingsNotices
+            closeErrorCode={closeErrorCode}
+            onRetrySettingsWrite={onRetrySettingsWrite}
+            settingsLoadState={settingsLoadState}
+            settingsRecoveryState={settingsRecoveryState}
+            settingsWriteState={settingsWriteState}
+          />
+          <Tabs.Root
+            className="lm-settings-tabs lm-settings-tabs-vertical"
+            onValueChange={(value) => {
+              if (isSettingsSection(value)) {
+                setActiveSection(value);
+              }
+            }}
+            orientation="vertical"
+            value={activeSection}
+          >
+            <SettingsNavigation />
+            <div className="lm-settings-page-container">
+              <GeneralSettingsPage
+                autoCheckUpdates={autoCheckUpdates}
+                clearRecentFilesOpen={clearConfirmOpen}
+                language={language}
+                onAutoCheckUpdatesChange={onAutoCheckUpdatesChange}
+                onClearRecentFiles={onClearRecentFiles}
+                onClearRecentFilesEscape={closeClearRecentFilesDialog}
+                onClearRecentFilesOpenChange={(nextOpen) => {
+                  clearConfirmOpenRef.current = nextOpen;
+                  setClearConfirmOpen(nextOpen);
+                }}
+                onLanguageChange={onLanguageChange}
+                onStartupBehaviorChange={onStartupBehaviorChange}
+                recentFilesPersistenceError={recentFilesPersistenceError}
+                startupBehavior={startupBehavior}
+                startupPersistenceError={startupPersistenceError}
+              />
+              <AppearanceSettingsPage
+                fontZoomDraft={fontZoomDraft}
+                fontZoomPercent={fontZoomPercent}
+                onFontZoomBlur={() => {
+                  setFontZoomEdit(null);
+                }}
+                onFontZoomDraftChange={handleFontZoomDraftChange}
+                onFontZoomPercentChange={handleFontZoomStep}
+                onPageWidthChange={onPageWidthChange}
+                onSidebarOpenOnStartupChange={
+                  onSidebarOpenOnStartupChange
+                }
+                onThemeChange={onThemeChange}
+                pageWidth={pageWidth}
+                pageWidthPersistenceError={pageWidthPersistenceError}
+                sidebarOpenOnStartup={sidebarOpenOnStartup}
+                theme={theme}
+              />
+              <EditorSettingsPage
+                defaultDisplayMode={defaultDisplayMode}
+                focusModeOnStartup={focusModeOnStartup}
+                onDefaultDisplayModeChange={onDefaultDisplayModeChange}
+                onFocusModeOnStartupChange={onFocusModeOnStartupChange}
+              />
+              <ImagesSettingsPage
+                copyImagesToAssets={copyImagesToAssets}
+                onCopyImagesToAssetsChange={onCopyImagesToAssetsChange}
+              />
+            </div>
           </Tabs.Root>
         </Dialog.Content>
       </Dialog.Portal>

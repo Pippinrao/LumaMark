@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import { livePreviewRichMarkdown } from './fixtures/livePreviewData';
+import { canonicalizeTableFixtures } from './support/canonicalTableFixture';
 
 const REPORT_DIR = join(process.cwd(), 'artifacts', 'live-preview-report');
 const REPORT_PATH = join(REPORT_DIR, 'index.html');
@@ -25,7 +26,7 @@ test('generates a visual report for live preview rendering and editing states', 
   const editor = page.locator('.cm-content').first();
   await editor.click();
   await page.keyboard.press('Control+A');
-  await page.keyboard.insertText(livePreviewRichMarkdown);
+  await page.keyboard.insertText(canonicalizeTableFixtures(livePreviewRichMarkdown));
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   await mkdir(REPORT_DIR, { recursive: true });

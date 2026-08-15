@@ -1,6 +1,9 @@
+import { undo, undoDepth } from '@codemirror/commands';
+import { Transaction } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { createEditorState } from '../../core/createEditorState';
+import { CodeMirrorEditorApi } from '../../core/editorApi';
 
 if (!Range.prototype.getClientRects) {
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
@@ -46,6 +49,146 @@ async function settleTablePreview(): Promise<void> {
 }
 
 describe('tablePreviewExtension', () => {
+  it('preserves a programmatically loaded noncanonical table byte-for-byte', async () => {
+    const doc = [
+      'before',
+      '',
+      '| Target | Value |',
+      '| --- | --- |',
+      '| TABLE_ACCEPTANCE_MARKER | keep |',
+      '',
+      '| Other | Value |',
+      '| --- | --- |',
+      '| SECOND_TABLE_ACCEPTANCE_MARKER | preserve |',
+      '',
+      'after',
+    ].join('\n');
+    const { parent, view } = createView('');
+
+    view.dispatch({
+      annotations: Transaction.addToHistory.of(false),
+      changes: { from: 0, insert: doc },
+    });
+    const historyAfterLoad = undoDepth(view.state);
+
+    await settleTablePreview();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(undoDepth(view.state)).toBe(historyAfterLoad);
+    expect(parent.querySelectorAll('.tbl-table-widget')).toHaveLength(0);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('does not let passive table formatting intercept the first real input undo', async () => {
+    const doc = [
+      'before',
+      '',
+      '| Header | Value |',
+      '| :--- | ---: |',
+      '| x | longer value |',
+      '',
+      'after',
+    ].join('\n');
+    const { parent, view } = createView('');
+
+    view.dispatch({
+      annotations: Transaction.addToHistory.of(false),
+      changes: { from: 0, insert: doc },
+    });
+    await settleTablePreview();
+
+    view.dispatch({
+      annotations: Transaction.userEvent.of('input.type'),
+      changes: { from: view.state.doc.length, insert: '!' },
+    });
+
+    expect(view.state.doc.toString()).toBe(`${doc}!`);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('preserves noncanonical table source when entering live preview', async () => {
+    const doc = [
+      'before',
+      '',
+      '| Header | Value |',
+      '| :--- | ---: |',
+      '| x | longer value |',
+      '',
+      'after',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = new CodeMirrorEditorApi({
+      displayMode: 'source',
+      doc,
+      parent,
+    });
+
+    editor.setDisplayMode('livePreview');
+    await settleTablePreview();
+
+    expect(editor.getDocumentText()).toBe(doc);
+    expect(parent.querySelector('.tbl-table-widget')).toBeNull();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('allows the mature widget to commit a real canonical table cell edit', async () => {
+    const doc = [
+      'before',
+      '',
+      '| A     | B      |',
+      '| ----- | ------ |',
+      '| first | second |',
+      '',
+      'after',
+    ].join('\n');
+    const { parent, view } = createView(doc);
+    await settleTablePreview();
+    const firstCell = [...parent.querySelectorAll<HTMLElement>('.tbl-data-cell')]
+      .find((cell) => cell.textContent?.includes('first'));
+    const cellView = firstCell?.querySelector<HTMLElement>('.tbl-cell-view');
+
+    expect(firstCell).toBeDefined();
+    expect(cellView).not.toBeNull();
+    if (cellView) {
+      cellView.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, button: 0 }),
+      );
+      const range = document.createRange();
+      range.selectNodeContents(cellView);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      document.dispatchEvent(new Event('selectionchange'));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const cellEditorDom = firstCell?.querySelector<HTMLElement>('.cm-editor');
+    const cellEditor = cellEditorDom
+      ? EditorView.findFromDOM(cellEditorDom)
+      : null;
+    expect(cellEditor).not.toBeNull();
+    cellEditor?.dispatch({
+      changes: { from: 0, insert: 'changed', to: cellEditor.state.doc.length },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(view.state.doc.toString()).toContain('changed');
+
+    view.destroy();
+    parent.remove();
+  });
+
   it('renders GFM tables with the mature CodeMirror markdown tables component', () => {
     const doc = [
       'before',
@@ -94,11 +237,19 @@ describe('tablePreviewExtension', () => {
   });
 
   it('keeps the mature table widget active while the editor selection is inside the table block', () => {
-    const doc = ['| A | B |', '| - | - |', '| 1 | 2 |'].join('\n');
-    const { parent, view } = createView(doc, doc.indexOf('1'));
+    const doc = [
+      'before',
+      '',
+      '| A        | B      |',
+      '| -------- | ------ |',
+      '| **bold** | `code` |',
+      '',
+      'after',
+    ].join('\n');
+    const { parent, view } = createView(doc, doc.indexOf('bold'));
 
     expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
-    expect(parent.textContent).not.toContain('| A | B |');
+    expect(parent.textContent).not.toContain('| A        | B      |');
 
     view.destroy();
     parent.remove();

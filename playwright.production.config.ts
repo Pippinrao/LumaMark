@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const productionE2ePort = Number(
+  process.env.LUMAMARK_PRODUCTION_E2E_PORT ?? '1421',
+);
+const productionE2eBaseUrl = `http://127.0.0.1:${productionE2ePort}`;
+
 export default defineConfig({
   testDir: './tests/production-e2e',
   fullyParallel: false,
@@ -8,7 +13,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:1421',
+    baseURL: productionE2eBaseUrl,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
@@ -19,8 +24,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm exec vite preview --host 127.0.0.1 --port 1421',
-    url: 'http://127.0.0.1:1421',
+    command: `pnpm exec vite preview --host 127.0.0.1 --port ${productionE2ePort}`,
+    url: productionE2eBaseUrl,
     reuseExistingServer: false,
   },
 });

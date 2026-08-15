@@ -1,13 +1,28 @@
 import { useCallback, useRef } from 'react';
 import {
+  createWorkspaceDirectory,
+  createWorkspaceFile,
+  deleteWorkspaceEntry,
   listWorkspaceChildren,
   openWorkspaceDirectory,
   openWorkspacePath,
+  renameWorkspaceEntry,
   type WorkspaceDirectory,
+  type WorkspaceEntry,
 } from '../../services/workspace/workspaceCommands';
+import type { CommandResult } from '../../services/tauri/invokeCommand';
 import { useWorkspaceStore } from './workspaceStore';
 
 export type WorkspaceWorkflow = {
+  createDirectory: (
+    parentPath: string,
+    name: string,
+  ) => Promise<CommandResult<WorkspaceEntry>>;
+  createFile: (
+    parentPath: string,
+    name: string,
+  ) => Promise<CommandResult<WorkspaceEntry>>;
+  deleteEntry: (path: string) => Promise<CommandResult<void>>;
   dismissError: () => void;
   error: ReturnType<typeof useWorkspaceStore.getState>['error'];
   loadingPaths: Record<string, boolean>;
@@ -15,6 +30,10 @@ export type WorkspaceWorkflow = {
   openFile: (path: string) => Promise<void>;
   openPath: (path: string) => Promise<OpenWorkspaceOutcome>;
   openWorkspace: () => Promise<OpenWorkspaceOutcome>;
+  renameEntry: (
+    path: string,
+    newName: string,
+  ) => Promise<CommandResult<WorkspaceEntry>>;
   root: ReturnType<typeof useWorkspaceStore.getState>['root'];
   tree: ReturnType<typeof useWorkspaceStore.getState>['tree'];
 };
@@ -29,6 +48,15 @@ type UseWorkspaceWorkflowOptions = {
     setStatusKey: (statusKey: string) => void;
   };
 };
+
+function parentDirectoryPath(path: string): string {
+  const normalized = path.replace(/\\/g, '/');
+  const index = normalized.lastIndexOf('/');
+  if (index <= 0) {
+    return path;
+  }
+  return path.slice(0, index);
+}
 
 export function useWorkspaceWorkflow({
   openDocumentPath,
@@ -135,7 +163,144 @@ export function useWorkspaceWorkflow({
     [openDocumentPath],
   );
 
+  const refreshParent = useCallback(
+    async (path: string) => {
+      const parentPath = parentDirectoryPath(path);
+      const workspaceRoot = useWorkspaceStore.getState().root?.path;
+      const refreshPath =
+        workspaceRoot && parentPath === path ? workspaceRoot : parentPath;
+      if (!workspaceRoot) {
+        return;
+      }
+      workspaceLoadGenerationsRef.current.delete(refreshPath);
+      await loadChildren(refreshPath);
+    },
+    [loadChildren],
+  );
+
+  const createFile = useCallback(
+    async (parentPath: string, name: string) => {
+      const workspaceRoot = useWorkspaceStore.getState().root?.path;
+      if (!workspaceRoot) {
+        return {
+          ok: false as const,
+          error: {
+            code: 'file.invalid_path',
+            message: 'Workspace root is unavailable.',
+            recoverable: true,
+          },
+        };
+      }
+
+      const result = await createWorkspaceFile({
+        name,
+        parentPath,
+        workspaceRoot,
+      });
+      if (result.ok) {
+        setWorkspaceError(null);
+        await refreshParent(result.data.path);
+      } else {
+        setWorkspaceError(result.error);
+      }
+      return result;
+    },
+    [refreshParent, setWorkspaceError],
+  );
+
+  const createDirectory = useCallback(
+    async (parentPath: string, name: string) => {
+      const workspaceRoot = useWorkspaceStore.getState().root?.path;
+      if (!workspaceRoot) {
+        return {
+          ok: false as const,
+          error: {
+            code: 'file.invalid_path',
+            message: 'Workspace root is unavailable.',
+            recoverable: true,
+          },
+        };
+      }
+
+      const result = await createWorkspaceDirectory({
+        name,
+        parentPath,
+        workspaceRoot,
+      });
+      if (result.ok) {
+        setWorkspaceError(null);
+        await refreshParent(result.data.path);
+      } else {
+        setWorkspaceError(result.error);
+      }
+      return result;
+    },
+    [refreshParent, setWorkspaceError],
+  );
+
+  const renameEntry = useCallback(
+    async (path: string, newName: string) => {
+      const workspaceRoot = useWorkspaceStore.getState().root?.path;
+      if (!workspaceRoot) {
+        return {
+          ok: false as const,
+          error: {
+            code: 'file.invalid_path',
+            message: 'Workspace root is unavailable.',
+            recoverable: true,
+          },
+        };
+      }
+
+      const result = await renameWorkspaceEntry({
+        newName,
+        path,
+        workspaceRoot,
+      });
+      if (result.ok) {
+        setWorkspaceError(null);
+        await refreshParent(result.data.path);
+      } else {
+        setWorkspaceError(result.error);
+      }
+      return result;
+    },
+    [refreshParent, setWorkspaceError],
+  );
+
+  const deleteEntry = useCallback(
+    async (path: string) => {
+      const workspaceRoot = useWorkspaceStore.getState().root?.path;
+      if (!workspaceRoot) {
+        return {
+          ok: false as const,
+          error: {
+            code: 'file.invalid_path',
+            message: 'Workspace root is unavailable.',
+            recoverable: true,
+          },
+        };
+      }
+
+      const result = await deleteWorkspaceEntry({
+        path,
+        workspaceRoot,
+      });
+      if (result.ok) {
+        setWorkspaceError(null);
+        await refreshParent(path);
+      } else {
+        setWorkspaceError(result.error);
+      }
+      return result;
+    },
+    [refreshParent, setWorkspaceError],
+  );
+
   return {
+    createDirectory,
+    createFile,
+    deleteEntry,
     dismissError: () => setWorkspaceError(null),
     error,
     loadChildren,
@@ -143,6 +308,7 @@ export function useWorkspaceWorkflow({
     openFile,
     openPath,
     openWorkspace,
+    renameEntry,
     root,
     tree,
   };

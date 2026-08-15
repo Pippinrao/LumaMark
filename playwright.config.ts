@@ -2,6 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 const e2ePort = Number(process.env.LUMAMARK_E2E_PORT ?? '1420');
 const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
+const reuseExistingServer =
+  process.env.LUMAMARK_E2E_REUSE_SERVER === undefined
+    ? !process.env.CI
+    : process.env.LUMAMARK_E2E_REUSE_SERVER === '1';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -25,6 +29,6 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec vite --host 127.0.0.1 --port ${e2ePort}`,
     url: e2eBaseUrl,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer,
   },
 });

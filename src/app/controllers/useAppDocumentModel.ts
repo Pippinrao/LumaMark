@@ -14,6 +14,7 @@ export function useAppDocumentModel(
   documentPortRef: RefObject<EditorDocumentPort | null>,
   editorReady: boolean,
   onLocalImageChanged?: (event: FileWatchChangeEvent) => void,
+  onDocumentLoaded?: () => void,
 ) {
   const currentFile = useAppStore((state) => state.currentFile);
   const dirty = useAppStore((state) => state.dirty);
@@ -81,6 +82,7 @@ export function useAppDocumentModel(
     editorReady,
     editorRef: documentPortRef,
     onLocalImageChanged,
+    onDocumentLoaded,
     onDocumentBecameSafe: recoveryDraft.clearRecoveryDraft,
     prepareTextForSave,
     recentFiles,

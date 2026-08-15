@@ -11,7 +11,7 @@ import {
   type AppLanguage,
 } from '../../shared/i18n';
 
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 export type AppPreferencesState = {
   language: AppLanguage;
@@ -176,7 +176,9 @@ function isPersistedAppPreferences(
   return (
     preferences.version === 1 &&
     supportedLanguages.some((language) => language === preferences.language) &&
-    (preferences.theme === 'light' || preferences.theme === 'dark')
+    (preferences.theme === 'light' ||
+      preferences.theme === 'dark' ||
+      preferences.theme === 'system')
   );
 }
 

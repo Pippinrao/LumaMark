@@ -1,5 +1,8 @@
 export {
   deriveEditorInteractionContext,
+  deriveInteractionAtPosition,
+  deriveTableInteractionAtPosition,
+  type EditorContextTarget,
   type EditorInteractionBlock,
   type EditorInteractionBlockKind,
   type EditorInteractionContext,

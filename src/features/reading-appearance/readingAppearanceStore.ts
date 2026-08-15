@@ -10,8 +10,8 @@ export type EditorPageWidth = (typeof PAGE_WIDTHS)[number];
 
 export const DEFAULT_PAGE_WIDTH: EditorPageWidth = 'standard';
 export const DEFAULT_FONT_ZOOM_PERCENT = 100;
-export const MIN_FONT_ZOOM_PERCENT = 20;
-export const MAX_FONT_ZOOM_PERCENT = 300;
+export const MIN_FONT_ZOOM_PERCENT = 50;
+export const MAX_FONT_ZOOM_PERCENT = 250;
 export const FONT_ZOOM_STEP_PERCENT = 10;
 
 const PAGE_WIDTH_PIXELS: Record<EditorPageWidth, number | null> = {
@@ -29,6 +29,7 @@ export type ReadingAppearanceState = {
   pageWidth: EditorPageWidth;
   pageWidthPersistenceError: boolean;
   resetZoom: () => void;
+  setFontZoomPercent: (fontZoomPercent: number) => void;
   setPageWidth: (pageWidth: EditorPageWidth) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -108,6 +109,19 @@ export function createReadingAppearanceStore(
       }
 
       set({ pageWidth, pageWidthPersistenceError });
+    },
+    setFontZoomPercent: (fontZoomPercent) => {
+      const next = Math.min(
+        MAX_FONT_ZOOM_PERCENT,
+        Math.max(
+          MIN_FONT_ZOOM_PERCENT,
+          Math.round(fontZoomPercent / FONT_ZOOM_STEP_PERCENT) *
+            FONT_ZOOM_STEP_PERCENT,
+        ),
+      );
+      set((state) =>
+        state.fontZoomPercent === next ? state : { fontZoomPercent: next },
+      );
     },
     resetZoom: () => {
       set((state) =>

@@ -1,7 +1,13 @@
 import { defaultKeymap, historyKeymap } from '@codemirror/commands';
 import { markdownLanguage as codemirrorMarkdownLanguage } from '@codemirror/lang-markdown';
 import { searchKeymap } from '@codemirror/search';
-import { type Extension } from '@codemirror/state';
+import {
+  type Annotation,
+  EditorState,
+  Prec,
+  Transaction,
+  type Extension,
+} from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import {
   markdownTableAutocompleter,
@@ -16,7 +22,6 @@ import {
   tableCellClickSyncRootExtension,
 } from './tableCellClickSync';
 import { tableCellEditingExtension } from './tableCellEditing';
-import { tableKeymap } from './tableCommands';
 import './table.css';
 
 export function tablePreviewExtension(): Extension {
@@ -32,7 +37,7 @@ export function tablePreviewExtension(): Extension {
       }),
     }),
     markdownTables({
-      globalKeyBindings: [...tableKeymap, ...historyKeymap, ...searchKeymap],
+      globalKeyBindings: [...historyKeymap, ...searchKeymap],
       handlePosition: 'outside',
       lineWrapping: 'wrap',
       markdownConfig: {
@@ -89,5 +94,37 @@ export function tablePreviewExtension(): Extension {
         }),
       },
     }),
+    Prec.highest(preservePassiveTableSourceFormatting()),
   ];
+}
+
+function preservePassiveTableSourceFormatting(): Extension {
+  return EditorState.transactionFilter.of((transaction) => {
+    const formatAnnotation = getRuntimeTableFormatAnnotation(transaction);
+
+    return formatAnnotation
+      ? {
+          annotations: [formatAnnotation, Transaction.addToHistory.of(false)],
+        }
+      : transaction;
+  });
+}
+
+function getRuntimeTableFormatAnnotation(
+  transaction: Transaction,
+): Annotation<unknown> | undefined {
+  // codemirror-markdown-tables@1.0.0 has no public autoformat opt-out. Keep
+  // this compatibility cast at the library boundary and review it whenever
+  // the dependency changes. The original annotation is preserved so the
+  // library observes its own format transaction without dispatching forever.
+  const annotations = (
+    transaction as unknown as {
+      readonly annotations?: readonly { readonly value?: unknown }[];
+    }
+  ).annotations;
+  const formatAnnotation = annotations?.find(
+    (annotation) => annotation.value === 'table.format',
+  );
+
+  return formatAnnotation as Annotation<unknown> | undefined;
 }

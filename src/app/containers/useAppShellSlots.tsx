@@ -1,11 +1,13 @@
 import { lazy, useMemo } from 'react';
 import { FileTree } from '../../features/file-tree/FileTree';
+import { FileTreeMutationDialog } from '../../features/file-tree/FileTreeMutationDialog';
 import { DiscardChangesDialog } from '../../features/file-actions/DiscardChangesDialog';
 import { FileErrorNotice } from '../../features/file-actions/FileErrorNotice';
 import { ExternalFileConflictDialog } from '../../features/file-actions/ExternalFileConflictDialog';
 import { RecoveryDraftDialog } from '../../features/recovery-drafts/RecoveryDraftDialog';
 import { OutlinePanel } from '../../features/outline/OutlinePanel';
 import type { useAppShellModel } from '../controllers/useAppShellModel';
+import { FileTreeContextMenuHost } from './FileTreeContextMenuHost';
 import { AppDialogs } from '../shell/AppDialogs';
 import { EditorPane } from '../shell/EditorPane';
 import { TopChrome } from '../shell/TopChrome';
@@ -128,6 +130,19 @@ export function useAppShellSlots(
               />
             ) : null
           }
+          fileTreeMutationDialog={
+            model.fileTree.mutationDialog.request ? (
+              <FileTreeMutationDialog
+                busy={model.fileTree.mutationDialog.busy}
+                onCancel={model.fileTree.mutationDialog.cancel}
+                onConfirm={(name) => {
+                  void model.fileTree.mutationDialog.confirm(name);
+                }}
+                onReturnFocus={model.fileTree.mutationDialog.returnFocus}
+                request={model.fileTree.mutationDialog.request}
+              />
+            ) : null
+          }
           fileErrorNotice={
             model.workspace.error ? (
               <FileErrorNotice
@@ -161,25 +176,37 @@ export function useAppShellSlots(
             model.settingsOpen ? (
               <LazySettingsDialog
                 autoCheckUpdates={model.updateDialog.autoCheckOnStartup}
+                closeErrorCode={model.windowControls.closeErrorCode}
                 copyImagesToAssets={model.copyImagesToAssets}
+                defaultDisplayMode={model.defaultDisplayMode}
+                focusModeOnStartup={model.focusModeOnStartup}
+                fontZoomPercent={model.fontZoomPercent}
                 language={model.language}
                 onAutoCheckUpdatesChange={model.updateDialog.setAutoCheckOnStartup}
+                onClearRecentFiles={model.clearRecentFiles}
                 onCopyImagesToAssetsChange={model.setCopyImagesToAssets}
+                onDefaultDisplayModeChange={model.setDefaultDisplayMode}
+                onFocusModeOnStartupChange={model.setFocusModeOnStartup}
+                onFontZoomPercentChange={model.setFontZoomPercent}
                 onLanguageChange={model.setLanguage}
                 onOpenChange={model.setSettingsOpen}
                 onPageWidthChange={model.setPageWidth}
+                onRetrySettingsWrite={model.retrySettingsWrite}
                 onReturnFocus={model.restoreDialogFocus}
+                onSidebarOpenOnStartupChange={model.setSidebarOpenOnStartup}
                 onStartupBehaviorChange={model.setStartupBehavior}
                 onThemeChange={model.setTheme}
                 open={model.settingsOpen}
                 pageWidth={model.pageWidth}
                 pageWidthPersistenceError={model.pageWidthPersistenceError}
-                preferencesPersistenceError={model.preferencesPersistenceError}
                 recentFilesPersistenceError={model.recentFilesPersistenceError}
+                settingsLoadState={model.settingsLoadState}
+                settingsRecoveryState={model.settingsRecoveryState}
+                settingsWriteState={model.settingsWriteState}
+                sidebarOpenOnStartup={model.sidebarOpenOnStartup}
                 startupBehavior={model.startupBehavior}
                 startupPersistenceError={model.startupPersistenceError}
                 theme={model.theme}
-                updatePersistenceError={model.updateDialog.updatePersistenceError}
               />
             ) : null
           }
@@ -199,12 +226,8 @@ export function useAppShellSlots(
           accessibleTitle={model.documentTitle}
           appearance={model.editor.appearance}
           ariaLabel={model.labels.editor}
-          getContextMenuItems={(target) =>
-            model.editor.getContextMenuItems(
-              target instanceof Element && Boolean(target.closest('.tbl-table-widget')),
-            )
-          }
-          onAction={model.runAction}
+          getContextMenuNodes={model.editor.getContextMenuNodes}
+          onInvoke={model.runMenuInvocation}
           onDocumentChanged={(event) => {
             model.editor.markDocumentDirty(event.dirty);
             if (event.dirty) {
@@ -231,17 +254,22 @@ export function useAppShellSlots(
       sidebar: (
         <WorkspaceSidebar
           fileTree={
-            <FileTree
-              loadingPaths={model.workspace.loadingPaths}
-              onContentWidthChange={onSidebarContentWidthChange}
-              onLoadChildren={model.workspace.loadChildren}
-              onOpenFile={model.workspace.openFile}
-              onOpenWorkspace={model.workspace.openWorkspace}
-              recentFiles={model.recentFiles}
-              root={model.workspace.root}
-              selectedPath={model.currentFile?.path}
-              tree={model.workspace.tree}
-            />
+            <FileTreeContextMenuHost
+              getContextMenuNodes={model.fileTree.getContextMenuNodes}
+              onInvoke={model.runMenuInvocation}
+            >
+              <FileTree
+                loadingPaths={model.workspace.loadingPaths}
+                onContentWidthChange={onSidebarContentWidthChange}
+                onLoadChildren={model.workspace.loadChildren}
+                onOpenFile={model.workspace.openFile}
+                onOpenWorkspace={model.workspace.openWorkspace}
+                recentFiles={model.recentFiles}
+                root={model.workspace.root}
+                selectedPath={model.currentFile?.path}
+                tree={model.workspace.tree}
+              />
+            </FileTreeContextMenuHost>
           }
           labels={model.labels.sidebar}
           outline={
@@ -270,6 +298,7 @@ export function useAppShellSlots(
           groups={model.topMenuGroups}
           labels={model.labels.topChrome}
           onInvoke={model.runMenuInvocation}
+          onMenuOpen={model.refreshEditorEditState}
           windowChrome={model.windowControls}
         />
       ),

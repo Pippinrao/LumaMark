@@ -1,20 +1,15 @@
 import { Command } from 'cmdk';
-import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type {
+  CommandMenuInvocation,
+  CommandModel,
+} from '../commands/commandTypes';
 
-export type AppCommand = {
-  disabled?: boolean;
-  id: string;
-  icon: LucideIcon;
-  keywords?: string[];
-  label: string;
-  run: () => void | Promise<void>;
-  shortcut?: string;
-};
+export type AppCommand = CommandModel;
 
 type CommandPaletteProps = {
   commands: readonly AppCommand[];
-  onCommandSelect: (run: AppCommand['run']) => void;
+  onCommandSelect: (invocation: CommandMenuInvocation) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 };
@@ -57,7 +52,7 @@ export function CommandPalette({
                 keywords={command.keywords}
                 value={command.label}
                 onSelect={() => {
-                  onCommandSelect(command.run);
+                  onCommandSelect(command.invocation);
                   onOpenChange(false);
                 }}
               >

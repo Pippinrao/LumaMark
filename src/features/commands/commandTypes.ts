@@ -1,9 +1,13 @@
 import type { LucideIcon } from 'lucide-react';
 import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormatCommands';
+import type { EditorInteractionRange } from '../../editor/interaction';
 import type { CommandShortcutLabels as ShortcutLabels } from './commandShortcuts';
 
 export type CommandActionId =
+  | 'copy'
   | 'copyTable'
+  | 'cut'
+  | 'deleteImageReference'
   | 'deleteTable'
   | 'exitFocusMode'
   | 'toggleFocusMode'
@@ -16,14 +20,17 @@ export type CommandActionId =
   | 'openSearch'
   | 'openSettings'
   | 'openWorkspace'
+  | 'paste'
   | 'redo'
   | 'resetZoom'
   | 'save'
   | 'saveAs'
+  | 'selectAll'
   | 'setChineseLanguage'
   | 'setDarkTheme'
   | 'setEnglishLanguage'
   | 'setLightTheme'
+  | 'setSystemTheme'
   | 'setLivePreviewMode'
   | 'setReadingMode'
   | 'setSourceMode'
@@ -34,29 +41,86 @@ export type CommandActionId =
   | 'undo'
   | MarkdownFormatCommand;
 
-export type CommandHandlerMap = Record<CommandActionId, () => void>;
+export type CommandRangeActionId =
+  | 'copyTable'
+  | 'deleteImageReference'
+  | 'deleteTable';
+
+export type CommandPayloadActionMap = {
+  copyImagePath: { src: string };
+  copyLinkAddress: { href: string };
+  fileTreeCopyPath: { path: string };
+  fileTreeCreateDirectory: { parentPath: string };
+  fileTreeCreateFile: { parentPath: string };
+  fileTreeDelete: {
+    entryKind: 'directory' | 'file';
+    name: string;
+    path: string;
+  };
+  fileTreeRename: {
+    entryKind: 'directory' | 'file';
+    name: string;
+    path: string;
+  };
+  fileTreeReveal: { path: string };
+  openLink: { href: string };
+  openRecentFile: { path: string };
+  revealImage: { src: string };
+};
+
+export type CommandPayloadActionId = keyof CommandPayloadActionMap;
+
+export type CommandHandlerMap = {
+  [Action in CommandActionId]: Action extends CommandRangeActionId
+    ? (range?: EditorInteractionRange) => void
+    : () => void;
+};
+
+export type CommandPayloadHandlerMap = {
+  [Action in CommandPayloadActionId]: (
+    payload: CommandPayloadActionMap[Action],
+  ) => void;
+};
+
+export type CommandHandlerMaps = {
+  actions: CommandHandlerMap;
+  payloadActions: CommandPayloadHandlerMap;
+};
 
 export type CommandModel = {
   disabled?: boolean;
   icon: LucideIcon;
   id: string;
+  invocation: CommandMenuInvocation;
   keywords: string[];
   label: string;
-  run: () => void;
   shortcut?: string;
 };
 
+export type CommandPayloadInvocation<
+  Action extends CommandPayloadActionId = CommandPayloadActionId,
+> = {
+  [SelectedAction in Action]: {
+    action: SelectedAction;
+    focusManagement?: 'action';
+    kind: 'payloadAction';
+    payload: CommandPayloadActionMap[SelectedAction];
+  };
+}[Action];
+
 export type CommandMenuInvocation =
   | {
-      action: CommandActionId;
+      action: Exclude<CommandActionId, CommandRangeActionId>;
       focusManagement?: 'action';
       kind: 'action';
     }
   | {
+      action: CommandRangeActionId;
       focusManagement?: 'action';
-      kind: 'callback';
-      run: () => void;
-    };
+      kind: 'rangeAction';
+      range: EditorInteractionRange;
+    }
+  | CommandPayloadInvocation;
 
 type CommandMenuItemNode = {
   disabled?: boolean;
@@ -71,6 +135,14 @@ type CommandMenuItemNode = {
 type CommandMenuSeparatorNode = {
   id: string;
   type: 'separator';
+};
+
+type CommandMenuLabelNode = {
+  disabled: true;
+  icon?: LucideIcon;
+  id: string;
+  label: string;
+  type: 'label';
 };
 
 type CommandMenuSubmenuNode = {
@@ -108,6 +180,7 @@ type CommandMenuRadioNode = {
 export type CommandMenuNode =
   | CommandMenuCheckboxNode
   | CommandMenuItemNode
+  | CommandMenuLabelNode
   | CommandMenuRadioNode
   | CommandMenuSeparatorNode
   | CommandMenuSubmenuNode;
@@ -116,12 +189,6 @@ export type CommandMenuGroup = {
   id: string;
   items: CommandMenuNode[];
   label: string;
-};
-
-export type CommandContextMenuItem = {
-  action: CommandActionId;
-  label: string;
-  shortcut: string;
 };
 
 export type CommandShortcutLabels = ShortcutLabels;

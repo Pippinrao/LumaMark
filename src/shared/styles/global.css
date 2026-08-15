@@ -151,6 +151,10 @@ button {
   animation: lm-menu-enter 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.lm-context-menu-content {
+  transform-origin: var(--radix-context-menu-content-transform-origin);
+}
+
 .lm-menu-item {
   display: grid;
   min-width: 0;
@@ -166,6 +170,7 @@ button {
   outline: none;
   padding: 0 10px 0 8px;
   user-select: none;
+  white-space: nowrap;
 }
 
 .lm-menu-item[data-highlighted] {
@@ -602,6 +607,14 @@ button {
   flex-direction: column;
 }
 
+.lm-file-tree-context-host {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex: 1;
+  flex-direction: column;
+}
+
 .lm-recent-files {
   max-height: 180px;
   overflow: auto;
@@ -970,7 +983,8 @@ button {
 .lm-command-palette,
 .lm-settings-dialog,
 .lm-about-dialog,
-.lm-update-dialog {
+.lm-update-dialog,
+.lm-file-tree-mutation-dialog {
   position: fixed;
   z-index: 90;
   top: 72px;
@@ -982,6 +996,51 @@ button {
   border-radius: var(--lm-radius-2);
   background: var(--lm-color-surface);
   box-shadow: 0 18px 60px rgb(0 0 0 / 24%);
+}
+
+.lm-file-tree-mutation-dialog {
+  top: clamp(48px, 18vh, 160px);
+  width: min(440px, calc(100vw - 32px));
+  padding: var(--lm-space-4);
+}
+
+.lm-file-tree-mutation-dialog h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.lm-file-tree-mutation-form {
+  display: grid;
+  gap: var(--lm-space-3);
+}
+
+.lm-file-tree-mutation-form label {
+  color: var(--lm-color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lm-file-tree-mutation-form input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-1);
+  background: var(--lm-color-bg);
+  color: var(--lm-color-text);
+  font: inherit;
+  padding: 0 var(--lm-space-3);
+}
+
+.lm-file-tree-mutation-form input:focus-visible {
+  border-color: var(--lm-color-accent-strong);
+  outline: 2px solid color-mix(in srgb, var(--lm-color-accent) 32%, transparent);
+  outline-offset: 1px;
+}
+
+.lm-file-tree-mutation-dialog button:disabled,
+.lm-file-tree-mutation-dialog input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .lm-command-palette {
@@ -1034,15 +1093,44 @@ button {
   font-size: 0.72rem;
 }
 
-.lm-settings-dialog {
+.lm-settings-confirm-overlay {
+  z-index: 100;
+  background: rgb(0 0 0 / 36%);
+}
+
+.lm-settings-confirm-dialog {
+  position: fixed;
+  z-index: 110;
+  top: 50%;
+  left: 50%;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-2);
+  background: var(--lm-color-surface);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 28%);
   padding: var(--lm-space-4);
 }
 
+.lm-settings-confirm-dialog h2 {
+  margin: 0;
+  font-size: 1rem;
+}
 
+.lm-settings-confirm-dialog p {
+  margin: var(--lm-space-2) 0 var(--lm-space-4);
+  color: var(--lm-color-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
 
-
-
-
+.lm-setting-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lm-space-2);
+}
 
 .lm-about-dialog {
   width: min(420px, calc(100vw - 32px));
@@ -1241,57 +1329,34 @@ button {
   font-size: 0.84rem;
 }
 
-.lm-settings-tab-list,
-.lm-segmented-control {
-  display: inline-flex;
-  gap: 2px;
-  border: 1px solid var(--lm-color-border);
-  border-radius: var(--lm-radius-1);
-  background: var(--lm-color-surface-muted);
-  padding: 2px;
+@media (prefers-reduced-motion: reduce) {
+  .lm-settings-confirm-dialog,
+  .lm-settings-confirm-dialog * {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-.lm-settings-tab-list button,
-.lm-segmented-control button {
-  min-height: 30px;
-  border: 0;
-  border-radius: var(--lm-radius-1);
-  background: transparent;
-  color: var(--lm-color-text);
-  cursor: default;
-  padding: 0 var(--lm-space-3);
-}
+@media (forced-colors: active) {
+  .lm-file-tree-mutation-dialog,
+  .lm-file-tree-mutation-form input {
+    border-color: CanvasText;
+  }
 
-.lm-settings-tab-list button[data-state='active'],
-.lm-segmented-control button[aria-pressed='true'] {
-  background: var(--lm-color-surface);
-  box-shadow: var(--lm-shadow-shell);
-}
+  .lm-file-tree-mutation-dialog :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
 
-.lm-settings-panel {
-  padding-top: var(--lm-space-4);
-}
+  .lm-settings-confirm-dialog,
+  .lm-settings-confirm-overlay {
+    border-color: CanvasText;
+  }
 
-.lm-setting-row {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--lm-space-4);
-}
-
-.lm-setting-row input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--lm-color-accent);
-}
-
-.lm-setting-error {
-  margin: 0;
-  color: var(--lm-color-danger, #b42318);
-  font-size: 0.8125rem;
-  line-height: 1.45;
+  .lm-settings-confirm-dialog :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
 }
 
 @media (max-width: 720px) {

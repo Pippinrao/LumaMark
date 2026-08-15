@@ -1,15 +1,19 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
+import type { EditorEditState } from '../../editor/commands/editorCommandPort';
 import {
   createCommandPaletteModels,
-  createEditorContextMenuModels,
   createTopMenuModels,
-  runCommandAction,
 } from '../../features/commands/createCommandModels';
+import {
+  runCommandAction,
+  runCommandMenuInvocation,
+} from '../../features/commands/commandInvocation';
 import type {
   CommandActionId,
   CommandHandlerMap,
   CommandMenuInvocation,
+  CommandPayloadHandlerMap,
   CommandShortcutLabels,
 } from '../../features/commands/commandTypes';
 import type { AppLanguage } from '../../shared/i18n';
@@ -20,11 +24,12 @@ import { useGlobalCommandShortcuts } from './useGlobalCommandShortcuts';
 type UseAppCommandModelsOptions = {
   editorDisplayMode: EditorDisplayMode;
   editorAvailable: boolean;
+  editorState: EditorEditState;
   fileOpening: boolean;
   focusMode: boolean;
   handlers: CommandHandlerMap;
   language: AppLanguage;
-  openRecentFile: (path: string) => void;
+  payloadHandlers: CommandPayloadHandlerMap;
   recentFiles: readonly { name: string; path: string }[];
   shortcuts: CommandShortcutLabels;
   sidebarOpen: boolean;
@@ -35,11 +40,12 @@ type UseAppCommandModelsOptions = {
 export function useAppCommandModels({
   editorDisplayMode,
   editorAvailable,
+  editorState,
   fileOpening,
   focusMode,
   handlers,
   language,
-  openRecentFile,
+  payloadHandlers,
   recentFiles,
   shortcuts,
   sidebarOpen,
@@ -50,23 +56,23 @@ export function useAppCommandModels({
     () =>
       createCommandPaletteModels({
         editorAvailable,
+        editorState,
         fileOpening,
         focusMode,
-        handlers,
         shortcuts,
         t,
       }),
-    [editorAvailable, fileOpening, focusMode, handlers, shortcuts, t],
+    [editorAvailable, editorState, fileOpening, focusMode, shortcuts, t],
   );
   const topMenuGroups = useMemo(
     () =>
       createTopMenuModels({
         editorDisplayMode,
         editorAvailable,
+        editorState,
         fileOpening,
         focusMode,
         language,
-        openRecentFile,
         recentFiles,
         sidebarOpen,
         shortcuts,
@@ -76,10 +82,10 @@ export function useAppCommandModels({
     [
       editorDisplayMode,
       editorAvailable,
+      editorState,
       fileOpening,
       focusMode,
       language,
-      openRecentFile,
       recentFiles,
       shortcuts,
       sidebarOpen,
@@ -87,40 +93,36 @@ export function useAppCommandModels({
       theme,
     ],
   );
-  const getEditorContextMenuItems = useCallback(
-    (tableContext: boolean) =>
-      createEditorContextMenuModels({
-        shortcuts,
-        tableContext,
-        t,
-      }),
-    [shortcuts, t],
-  );
   const runAction = useMemo(
     () => (action: CommandActionId) => {
       runCommandAction(handlers, action);
     },
     [handlers],
   );
+  const handlerMaps = useMemo(
+    () => ({ actions: handlers, payloadActions: payloadHandlers }),
+    [handlers, payloadHandlers],
+  );
   const runMenuInvocation = useMemo(
     () => (invocation: CommandMenuInvocation) => {
-      if (invocation.kind === 'callback') {
-        logMenuInteraction('runMenuInvocation callback');
-        invocation.run();
-        return;
+      if (invocation.kind === 'rangeAction') {
+        logMenuInteraction(
+          `runMenuInvocation rangeAction=${invocation.action} from=${invocation.range.from} to=${invocation.range.to}`,
+        );
+      } else {
+        logMenuInteraction(
+          `runMenuInvocation ${invocation.kind}=${invocation.action}`,
+        );
       }
-
-      logMenuInteraction(`runMenuInvocation action=${invocation.action}`);
-      runCommandAction(handlers, invocation.action);
+      runCommandMenuInvocation(handlerMaps, invocation);
     },
-    [handlers],
+    [handlerMaps],
   );
 
   useGlobalCommandShortcuts(handlers);
 
   return {
     commands,
-    getEditorContextMenuItems,
     runAction,
     runMenuInvocation,
     topMenuGroups,

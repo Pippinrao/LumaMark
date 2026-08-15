@@ -57,7 +57,8 @@ docs/
 | [V1 产品需求](product/V1_PRODUCT_REQUIREMENTS.md) | 历史产品基线 | Foundation / MarkText+ 的 V1 功能范围和验收口径 | 原则上冻结，仅修正链接或历史状态说明 |
 | [V1 版本设计](product/V1_VERSION_DESIGN.md) | 历史产品基线 | Foundation / MarkText+ 的 Alpha 产品、交互和架构切片记录；不作为当前执行计划 | 原则上冻结，仅修正链接或历史状态说明 |
 | [V1 UX 设计](product/V1_UX_DESIGN.md) | 历史 UX 基线 | Alpha 默认布局、视觉方向、高保真原型和 UX 验收记录 | 稳定视觉原则或历史状态说明变化 |
-| [菜单系统设计](product/MENU_SYSTEM_DESIGN.md) | 产品 UX | 顶部菜单视觉、信息结构、命令合同、Typora 快捷键映射和验收标准 | 菜单结构、快捷键、相关 capability 状态或菜单技术方案变化 |
+| [菜单系统设计](product/MENU_SYSTEM_DESIGN.md) | 产品 UX | 顶栏菜单、右键菜单与命令面板共用的视觉、信息结构、命令合同、上下文命中、Typora 快捷键映射和验收标准 | 菜单/右键结构、快捷键、相关 capability 状态或菜单技术方案变化 |
+| [设置系统设计](product/SETTINGS_SYSTEM_DESIGN.md) | 产品 UX | 设置对话框分区、schema、持久化与迁移合同、设置与会话状态边界、测试与验收 | 设置分区/字段、持久化后端、迁移策略或设置门禁变化 |
 | [竞品策略与历史债务](product/COMPETITOR_STRATEGY.md) | 产品 | Typora、MarkText 等竞品策略和避坑 | 竞品判断或避坑策略变化 |
 | [Typora 行为基线](product/typora-baseline/README.md) | 产品 | Typora 公开写作行为事实、出处与 LumaMark 对齐表 | Typora 版本复核、基线专题增补或对齐决策变化 |
 | [Typora 专题竞争分析](product/typora-competitive-analysis/README.md) | 产品 | 18 份专题报告的目录导航、职责边界、状态词表和维护门禁 | 相关实现证据、Typora 基线或专题结构变化后 |
@@ -76,6 +77,9 @@ docs/
 | [ADR 0011：侧边栏内容自适应宽度与约束放开](decisions/0011-sidebar-adaptive-width.md) | 决策 | 侧栏拖拽上下限、自适应依据与重算时机、宽度持久化边界 | 侧栏宽度约束、自适应算法、重算触发条件或宽度持久化策略变化 |
 | [ADR 0012：GitHub NSIS 自动更新](decisions/0012-github-nsis-auto-update.md) | 决策 | 官方 updater 插件、NSIS-only、GitHub `latest.json`、签名密钥、发布 workflow 与 Windows 手动系统代理边界 | 更新源、签名策略、发布产物形态、代理边界或安装确认交互变化 |
 | [ADR 0013：代码块围栏补齐的独立性能预算](decisions/0013-code-block-completion-performance-budget.md) | 决策 | 复杂围栏补齐命令与普通输入的预算边界、采样口径和复审条件 | 围栏补齐实现、CodeMirror 更新成本、主预算或最大值变化 |
+| [ADR 0014：设置持久化下沉到 Rust 配置文件](decisions/0014-settings-persistence.md) | 决策 | 设置从 localStorage 迁到 `settings.json`、损坏备份、迁移与会话状态边界 | 设置持久化后端、迁移策略或配置文件布局变化 |
+| [ADR 0015：外部打开与工作区文件变更](decisions/0015-external-open-and-file-mutations.md) | 决策 | opener 依赖、协议白名单、工作区写操作、回收站删除与 capability 边界 | opener/shell 依赖、删除语义、工作区路径校验或文件树写操作变化 |
+| [ADR 0016：桌面纯文本剪贴板适配](decisions/0016-tauri-text-clipboard-adapter.md) | 决策 | 官方 Tauri clipboard-manager、浏览器 adapter、EditorCommandPort 注入与最小文本权限 | 剪贴板插件、权限、纯文本命令入口或桌面/浏览器适配边界变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果和已知限制 | 性能预算、基准命令或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |

@@ -7,6 +7,22 @@ import {
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+function canonicalTable(rows: readonly (readonly string[])[]): string {
+  const widths = rows[0].map((_, column) =>
+    Math.max(...rows.map((row) => row[column].length)),
+  );
+  const formatRow = (row: readonly string[]) =>
+    `| ${row
+      .map((cell, column) => cell.padEnd(widths[column]))
+      .join(' | ')} |`;
+
+  return [
+    formatRow(rows[0]),
+    `| ${widths.map((width) => '-'.repeat(width)).join(' | ')} |`,
+    ...rows.slice(1).map(formatRow),
+  ].join('\n');
+}
+
 async function replaceEditorSource(
   page: Page,
   source: string,
@@ -1604,8 +1620,9 @@ test('keeps the reading anchor and caret geometry stable across zoom and page-wi
 
   await page.getByRole('menuitem', { name: '文件' }).click();
   await page.getByRole('menuitem', { name: '设置' }).click();
-  const widthGroup = page.getByRole('group', { name: '页面宽度' });
-  await widthGroup.getByRole('button', { name: '宽', exact: true }).click();
+  await page.getByRole('tab', { name: '外观' }).click();
+  const widthGroup = page.getByRole('radiogroup', { name: '页面宽度' });
+  await widthGroup.getByRole('radio', { name: '宽', exact: true }).click();
   await expect
     .poll(async () => (await readEditorSnapshot()).pageWidth)
     .toBe('1040px');
@@ -1680,8 +1697,7 @@ test('localizes the built-in search panel after an application language change',
 
   await page.locator('.lm-menu-trigger', { hasText: '文件' }).click();
   await page.getByRole('menuitem', { name: '设置' }).click();
-  await page.getByRole('tab', { name: '语言' }).click();
-  await page.getByRole('button', { name: 'English' }).click();
+  await page.getByRole('radio', { name: 'English' }).click();
   await page.getByRole('button', { name: 'Close' }).click();
 
   await editor.click();
@@ -1705,7 +1721,7 @@ test('renders markdown tables through the mature component and keeps table menu 
   await editor.click();
   await page.keyboard.press('Control+A');
   await page.keyboard.insertText(
-    ['intro', '', '| A | B |', '| --- | --- |', '| 1 | 2 |', '', 'after'].join('\n'),
+    ['intro', '', canonicalTable([['A', 'B'], ['1', '2']]), '', 'after'].join('\n'),
   );
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
@@ -1752,9 +1768,10 @@ test('renders table markdown from the cell source DOM and preserves undo-redo', 
     [
       'intro',
       '',
-      '| Inline    | Link                          | Code   |',
-      '| --------- | ----------------------------- | ------ |',
-      '| **bold**  | [site](https://example.com)   | `code` |',
+      canonicalTable([
+        ['Inline', 'Link', 'Code'],
+        ['**bold**', '[site](https://example.com)', '`code`'],
+      ]),
       '',
       'after',
     ].join('\n'),
@@ -1846,9 +1863,10 @@ test('maps variable-width table cell clicks to the matching editor caret', async
     [
       'intro',
       '',
-      '| First        | Second |',
-      '| ------------ | ------ |',
-      `| ${cellText} | value  |`,
+      canonicalTable([
+        ['First', 'Second'],
+        [cellText, 'value'],
+      ]),
       '',
       'after',
     ].join('\n'),
@@ -1942,9 +1960,10 @@ test('maps clicks inside wrapped formatted table text to the matching source car
     [
       'before',
       '',
-      '| Content | Other |',
-      '| ------- | ----- |',
-      `| ${sourceCellText} | value |`,
+      canonicalTable([
+        ['Content', 'Other'],
+        [sourceCellText, 'value'],
+      ]),
       '',
       'after',
     ].join('\n'),
@@ -1993,9 +2012,10 @@ test('maps formatted table cell clicks to the matching source offset', async ({
   const source = [
     'before',
     '',
-    '| A           | B    |',
-    '| ----------- | ---- |',
-    '| **alpha**   | beta |',
+    canonicalTable([
+      ['A', 'B'],
+      ['**alpha**', 'beta'],
+    ]),
     '',
     'after',
   ].join('\n');

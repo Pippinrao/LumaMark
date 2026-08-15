@@ -36,6 +36,15 @@ describe('appPreferencesStore', () => {
     });
   });
 
+  it('persists the system theme preference across sessions', () => {
+    const storage = createMemoryStorage();
+    const firstSession = createAppPreferencesStore(storage);
+
+    firstSession.getState().setTheme('system' as never);
+
+    expect(createAppPreferencesStore(storage).getState().theme).toBe('system');
+  });
+
   it('persists direct and toggled language and theme changes', () => {
     const storage = {
       getItem: vi.fn(() => null),

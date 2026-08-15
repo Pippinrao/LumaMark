@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import packageMetadata from '../../../package.json';
 import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 import { createUpdateStore } from '../../features/updates/updateStore';
-import { useUpdatePreferencesStore } from '../../features/updates/updatePreferencesStore';
+import { patchSettings } from './applySettings';
+import { useSettingsStore } from '../../features/settings/settingsStore';
 
 const AUTO_CHECK_DELAY_MS = 5_000;
 
@@ -15,20 +16,28 @@ export function useUpdateModel() {
       }),
     [],
   );
-  const autoCheckOnStartup = useUpdatePreferencesStore(
-    (state) => state.autoCheckOnStartup,
+  const autoCheckOnStartup = useSettingsStore(
+    (state) => state.settings.updates.autoCheckOnStartup,
   );
-  const setAutoCheckOnStartup = useUpdatePreferencesStore(
-    (state) => state.setAutoCheckOnStartup,
+  const settingsHydrated = useSettingsStore(
+    (state) => state.loadState.status === 'ready',
   );
-  const updatePersistenceError = useUpdatePreferencesStore(
-    (state) => state.updatePersistenceError,
-  );
+  const setAutoCheckOnStartup = useCallback((next: boolean) => {
+    patchSettings((current) => ({
+      ...current,
+      updates: { ...current.updates, autoCheckOnStartup: next },
+    }));
+  }, []);
   const state = store();
   const autoCheckStartedRef = useRef(false);
 
   useEffect(() => {
-    if (autoCheckStartedRef.current || !autoCheckOnStartup || !isTauri()) {
+    if (
+      autoCheckStartedRef.current ||
+      !settingsHydrated ||
+      !autoCheckOnStartup ||
+      !isTauri()
+    ) {
       return;
     }
 
@@ -50,7 +59,7 @@ export function useUpdateModel() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [autoCheckOnStartup, store]);
+  }, [autoCheckOnStartup, settingsHydrated, store]);
 
   return {
     autoCheckOnStartup,
@@ -62,7 +71,6 @@ export function useUpdateModel() {
     progress: state.progress,
     setAutoCheckOnStartup,
     status: state.status,
-    updatePersistenceError,
     version: state.version,
     checkForUpdatesManually: () => {
       logMenuInteraction('handler checkForUpdates()');

@@ -6,6 +6,7 @@ type AppDialogsProps = {
   discardChangesDialog: ReactNode;
   externalFileConflictDialog: ReactNode;
   fileErrorNotice: ReactNode;
+  fileTreeMutationDialog: ReactNode;
   mediaViewer: ReactNode;
   recoveryDraftDialog: ReactNode;
   settingsDialog: ReactNode;
@@ -18,6 +19,7 @@ export function AppDialogs({
   discardChangesDialog,
   externalFileConflictDialog,
   fileErrorNotice,
+  fileTreeMutationDialog,
   mediaViewer,
   recoveryDraftDialog,
   settingsDialog,
@@ -30,6 +32,7 @@ export function AppDialogs({
       {discardChangesDialog}
       {externalFileConflictDialog}
       {fileErrorNotice}
+      {fileTreeMutationDialog}
       {mediaViewer}
       {recoveryDraftDialog}
       {settingsDialog}

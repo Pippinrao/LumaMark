@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
+import { deleteImageReference } from '../../src/editor/capabilities/image/imageCommands';
 import { createEditorApi } from '../../src/editor/core/editorApi';
+import { deriveInteractionAtPosition } from '../../src/editor/interaction';
 import {
   createFileActions,
   type FileActionState,
@@ -297,4 +299,87 @@ describe('markdown fixture round-trip', () => {
     },
     120_000,
   );
+
+  it('deletes only the targeted image reference range in links-images.md after save', async () => {
+    const fixture = markdownFixturePaths.find(
+      (entry) => entry.name === 'links-images.md',
+    );
+    expect(fixture).toBeDefined();
+    if (!fixture) {
+      return;
+    }
+
+    const source = await readFile(fixture.path);
+    const sourceText = source.toString('utf8');
+    const targetMarkdown =
+      '![LumaMark logo alt text](./assets/lumamark-logo.png "Local logo title")';
+    const from = sourceText.indexOf(targetMarkdown);
+    expect(from).toBeGreaterThanOrEqual(0);
+    const to = from + targetMarkdown.length;
+    const expectedText =
+      sourceText.slice(0, from) + sourceText.slice(to);
+    const expected = Buffer.from(expectedText, 'utf8');
+
+    const tempDirectory = await mkdtemp(
+      join(tmpdir(), 'lumamark-delete-image-ref-'),
+    );
+    const tempPath = join(tempDirectory, 'links-images.md');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc: '',
+      parent,
+    });
+    const actions = createFileActions({
+      commands: createFileClient(),
+      editor,
+      prepareTextForSave: async (path, text) =>
+        finalizeAllDraftImages({ documentPath: path, text }),
+      recentFiles: { addRecentFile: () => undefined },
+      state: createState(tempPath, 'links-images.md'),
+    });
+
+    try {
+      await writeFile(tempPath, source);
+      await actions.openFile(tempPath);
+
+      const target = deriveInteractionAtPosition(
+        editor.view.state,
+        from + 4,
+      );
+      expect(target).toMatchObject({
+        from,
+        kind: 'image',
+        src: './assets/lumamark-logo.png',
+        to,
+      });
+
+      expect(
+        deleteImageReference(editor.view, {
+          from: target.kind === 'image' ? target.from : from,
+          to: target.kind === 'image' ? target.to : to,
+        }),
+      ).toBe(true);
+
+      const saveResult = await actions.saveCurrentFile();
+      const saved = await readFile(tempPath);
+
+      expect(saveResult.ok).toBe(true);
+      expect(Buffer.compare(saved, expected)).toBe(0);
+      expect(saved.includes(Buffer.from(targetMarkdown, 'utf8'))).toBe(false);
+      expect(
+        saved.includes(
+          Buffer.from(
+            '![facebook](https://developer.qcloudimg.com/http-save/yehe-10642399/ef1c2d9038d3b92456f37d90a94f5462.png)',
+            'utf8',
+          ),
+        ),
+      ).toBe(true);
+    } finally {
+      editor.destroy();
+      parent.remove();
+      await rm(tempDirectory, { recursive: true, force: true });
+    }
+  });
 });

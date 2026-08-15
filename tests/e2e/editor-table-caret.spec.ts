@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { canonicalizeTableFixtures } from './support/canonicalTableFixture';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -31,7 +32,7 @@ async function replaceEditorSource(page: Page, source: string): Promise<void> {
   const editor = page.locator('.cm-content').first();
   await editor.click();
   await page.keyboard.press(`${primaryModifier}+A`);
-  await page.keyboard.insertText(source);
+  await page.keyboard.insertText(canonicalizeTableFixtures(source));
   await page.locator('.cm-line', { hasText: 'after' }).click();
   await expect(page.locator('.tbl-table-widget')).toBeVisible();
 }

@@ -11,6 +11,7 @@ type TopChromeProps = {
   groups: ShellMenuGroup[];
   labels: TopChromeLabels;
   onInvoke: (invocation: ShellMenuInvocation) => void;
+  onMenuOpen?: () => void;
   windowChrome: WindowControlsModel;
 };
 
@@ -18,13 +19,14 @@ export function TopChrome({
   groups,
   labels,
   onInvoke,
+  onMenuOpen,
   windowChrome,
 }: TopChromeProps) {
   return (
     <header className="lm-top-chrome">
       <h1 className="lm-app-heading">{labels.appName}</h1>
 
-      <AppMenu groups={groups} onInvoke={onInvoke} />
+      <AppMenu groups={groups} onInvoke={onInvoke} onOpen={onMenuOpen} />
 
       {/* Native drag only on this strip — not on the menu host. */}
       <div className="lm-titlebar-drag" data-tauri-drag-region aria-hidden="true" />

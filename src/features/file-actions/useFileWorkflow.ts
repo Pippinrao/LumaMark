@@ -20,6 +20,7 @@ import {
 } from '../../services/file-watch/fileWatchClient';
 import {
   useExternalFileWatch,
+  areWatchedPathsEqual,
   type ExternalFileConflict,
 } from './useExternalFileWatch';
 
@@ -35,9 +36,11 @@ export type FileWorkflow = {
   fileOpening: boolean;
   keepCurrentContent: () => void;
   markDocumentDirty: (dirty: boolean) => void;
+  markOpenDocumentRemoved: (path: string) => void;
   openFromDialog: () => Promise<OpenDocumentOutcome>;
   openPath: (path: string) => Promise<OpenDocumentOutcome>;
   reloadFromDisk: () => Promise<void>;
+  retargetOpenDocument: (path: string) => Promise<void>;
   save: () => Promise<void>;
   saveAs: () => Promise<void>;
 };
@@ -55,6 +58,7 @@ export type UseFileWorkflowOptions = {
   editorRef: RefObject<EditorDocumentPort | null>;
   fileWatch?: FileWatchClient;
   onLocalImageChanged?: (event: FileWatchChangeEvent) => void;
+  onDocumentLoaded?: () => void;
   onDocumentBecameSafe?: () => void;
   prepareTextForSave?: (path: string, text: string) => Promise<string>;
   recentFiles: RecentFilesAdapter;
@@ -67,6 +71,7 @@ export function useFileWorkflow({
   editorRef,
   fileWatch = resolveFileWatchClient(),
   onLocalImageChanged = () => undefined,
+  onDocumentLoaded = () => undefined,
   onDocumentBecameSafe = () => undefined,
   prepareTextForSave,
   recentFiles,
@@ -208,6 +213,7 @@ export function useFileWorkflow({
       }
 
       if (result.ok && result.data) {
+        onDocumentLoaded();
         await replaceWatchedDocument(
           result.data.path,
           result.data.fingerprint,
@@ -237,6 +243,7 @@ export function useFileWorkflow({
   }, [
     createActions,
     onDocumentBecameSafe,
+    onDocumentLoaded,
     replaceWatchedDocument,
     state,
     status,
@@ -270,6 +277,7 @@ export function useFileWorkflow({
         }
 
         if (result.ok) {
+          onDocumentLoaded();
           await replaceWatchedDocument(
             result.data.path,
             result.data.fingerprint,
@@ -297,6 +305,7 @@ export function useFileWorkflow({
     [
       createActions,
       onDocumentBecameSafe,
+      onDocumentLoaded,
       replaceWatchedDocument,
       state,
       status,
@@ -312,11 +321,18 @@ export function useFileWorkflow({
 
     if (actions) {
       actions.createNewDocument();
+      onDocumentLoaded();
       void replaceWatchedDocument(null);
       onDocumentBecameSafe();
     }
     status.setStatusKey('status.ready');
-  }, [createActions, onDocumentBecameSafe, replaceWatchedDocument, status]);
+  }, [
+    createActions,
+    onDocumentBecameSafe,
+    onDocumentLoaded,
+    replaceWatchedDocument,
+    status,
+  ]);
 
   const save = useCallback(() => {
     if (fileOpeningRef.current) {
@@ -438,15 +454,55 @@ export function useFileWorkflow({
     status,
   ]);
 
+  const retargetOpenDocument = useCallback(
+    async (path: string) => {
+      const current = state.getState().currentFile;
+      if (!current) {
+        return;
+      }
+
+      const nextFile = {
+        name: path.split(/[\\/]/).at(-1)?.trim() || path,
+        path,
+      };
+      editorRef.current?.setContext?.({ path: nextFile.path });
+      state.setCurrentFile(nextFile);
+      await replaceWatchedDocument(nextFile.path);
+    },
+    [editorRef, replaceWatchedDocument, state],
+  );
+
+  const markOpenDocumentRemoved = useCallback(
+    (path: string) => {
+      const current = state.getState().currentFile;
+      if (!current || !areWatchedPathsEqual(current.path, path)) {
+        return;
+      }
+
+      editorRef.current?.markUnsaved();
+      if (!state.getState().dirty) {
+        state.setDirty(true);
+      }
+      state.setLastFileError({
+        code: 'file.not_found',
+        message: 'The watched document is no longer available on disk.',
+        recoverable: true,
+      });
+    },
+    [editorRef, state],
+  );
+
   return {
     createNewDocument,
     externalConflict,
     fileOpening,
     keepCurrentContent,
     markDocumentDirty,
+    markOpenDocumentRemoved,
     openFromDialog,
     openPath,
     reloadFromDisk,
+    retargetOpenDocument,
     save,
     saveAs,
   };

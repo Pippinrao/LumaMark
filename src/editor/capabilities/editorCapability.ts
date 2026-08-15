@@ -1,10 +1,12 @@
 import type { Extension } from '@codemirror/state';
+import type { EditorInteractionRange } from '../interaction';
 
 export type EditorCapabilityId = 'codeBlock' | 'image' | 'mermaid' | 'table';
 
 export type EditorCapabilityCommands = {
-  copyTable(): Promise<boolean>;
-  deleteTable(): boolean;
+  copyTable(range?: EditorInteractionRange): Promise<boolean>;
+  deleteImageReference(range: { from: number; to: number }): boolean;
+  deleteTable(range?: EditorInteractionRange): boolean;
   insertTable(): boolean;
   insertImages(
     images: readonly { alt: string; markdownSource: string }[],

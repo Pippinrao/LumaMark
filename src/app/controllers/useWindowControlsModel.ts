@@ -7,7 +7,13 @@ import {
 import { windowControls } from '../../services/window/windowControls';
 import type { WindowControlsModel } from '../shell/shellTypes';
 
-export function useWindowControlsModel(): WindowControlsModel {
+type UseWindowControlsModelOptions = {
+  requestClose?: () => Promise<unknown>;
+};
+
+export function useWindowControlsModel({
+  requestClose = windowControls.close,
+}: UseWindowControlsModelOptions = {}): WindowControlsModel {
   const [maximized, setMaximized] = useState(false);
   const mountedRef = useRef(false);
   const refreshGenerationRef = useRef(0);
@@ -57,7 +63,12 @@ export function useWindowControlsModel(): WindowControlsModel {
 
   const onControl = useCallback(
     (action: 'close' | 'minimize' | 'toggleMaximize') => {
-      if (action !== 'toggleMaximize') {
+      if (action === 'close') {
+        void requestClose();
+        return;
+      }
+
+      if (action === 'minimize') {
         void windowControls[action]();
         return;
       }
@@ -70,7 +81,7 @@ export function useWindowControlsModel(): WindowControlsModel {
         await refreshMaximized();
       });
     },
-    [refreshMaximized],
+    [refreshMaximized, requestClose],
   );
 
   return {

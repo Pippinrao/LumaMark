@@ -112,6 +112,8 @@ describe('architecture boundaries', () => {
 
   it('uses commands feature models as the single menu and palette source', () => {
     const expectedCommandFiles = [
+      'src/features/commands/commandInvocation.ts',
+      'src/features/commands/commandRegistry.ts',
       'src/features/commands/commandTypes.ts',
       'src/features/commands/createCommandModels.ts',
     ];
@@ -125,6 +127,30 @@ describe('architecture boundaries', () => {
       'createTopMenuGroups',
       'createEditorContextMenuItems',
     ]);
+    expectFileToAvoid('src/features/commands/commandTypes.ts', ['run: () =>']);
+    expectFileToAvoid('src/features/command-palette/CommandPalette.tsx', [
+      'command.run',
+      "run: AppCommand['run']",
+    ]);
+    expectFileToAvoid('src/app/controllers/useCommandPaletteModel.ts', [
+      'DeferredCommand',
+      'pendingCommandRef',
+    ]);
+    expectFileToAvoid('src/features/commands/commandAvailability.ts', [
+      'EDITOR_DEPENDENT_ACTIONS',
+      'DOCUMENT_WRITING_ACTIONS',
+      'new Set',
+    ]);
+    expectFileToAvoid('src/app/controllers/useAppCommandHandlers.ts', [
+      'Object.fromEntries',
+      'as Record<MarkdownFormatCommand',
+    ]);
+    expect(readProjectFile('src/features/commands/createCommandModels.ts')).toContain(
+      "from './commandRegistry'",
+    );
+    expect(readProjectFile('src/app/controllers/useAppCommandModels.ts')).toContain(
+      "from '../../features/commands/commandInvocation'",
+    );
   });
 
   it('keeps Tauri workspace command wrappers in the service layer', () => {
@@ -147,6 +173,26 @@ describe('architecture boundaries', () => {
     for (const file of featureProductionFiles) {
       expectFileToAvoid(file, ['localStorage']);
     }
+  });
+
+  it('keeps production browser clipboard access inside the clipboard service', () => {
+    const productionFiles = listProjectFiles('src').filter(
+      (file) =>
+        /\.(ts|tsx)$/.test(file) &&
+        !file.endsWith('.test.ts') &&
+        !file.endsWith('.test.tsx'),
+    );
+    const clipboardOwners = productionFiles.filter((file) =>
+      readProjectFile(file).includes('navigator.clipboard'),
+    );
+
+    expect(clipboardOwners).toEqual([
+      'src/services/clipboard/clipboardTextClient.ts',
+    ]);
+    expectFileToAvoid(
+      'src/editor/capabilities/table/tablePreviewExtension.ts',
+      ['tableKeymap'],
+    );
   });
 
   it('keeps editor core and commands behind capability public entries', () => {
@@ -306,5 +352,36 @@ describe('architecture boundaries', () => {
       'class ImageBlockWidget',
       'syntaxTree',
     ]);
+  });
+
+  it('keeps settings persistence behind a service facade without React or Tauri invoke in features', () => {
+    const serviceFiles = listProjectFiles('src/services/settings').filter(
+      (file) =>
+        /\.(ts|tsx)$/.test(file) &&
+        !file.endsWith('.test.ts') &&
+        !file.endsWith('.test.tsx'),
+    );
+    expect(serviceFiles.length).toBeGreaterThan(0);
+
+    for (const file of serviceFiles) {
+      expectFileToAvoid(file, [
+        "from 'react'",
+        'from "react"',
+        'zustand',
+        'useTranslation',
+      ]);
+    }
+
+    const featureFiles = listProjectFiles('src/features/settings').filter(
+      (file) =>
+        /\.(ts|tsx)$/.test(file) &&
+        !file.endsWith('.test.ts') &&
+        !file.endsWith('.test.tsx'),
+    );
+    expect(featureFiles.length).toBeGreaterThan(0);
+
+    for (const file of featureFiles) {
+      expectFileToAvoid(file, ['@tauri-apps/api', 'invoke(']);
+    }
   });
 });

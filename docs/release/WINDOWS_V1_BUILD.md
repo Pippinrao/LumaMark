@@ -4,6 +4,47 @@
 
 > **历史记录：** 下列分支、版本号、文件大小与 SHA-256 只描述对应 Alpha 构建，不能当作当前工作树的发布产物。Parity Reliability 只有在当前执行计划的自动化门禁、Windows 实测和真实自用退出条件全部满足后，才具备 Beta 候选资格；一次本地 `pnpm build` 成功不等于已发布。
 
+## 菜单与上下文菜单真实指针验收
+
+`pnpm release:installed-menu-context-os` 用当前工作树构建的 Release WebView 路径验证标题栏菜单、portal、窗口按钮与拖拽、编辑器上下文菜单和文件树上下文菜单。运行前必须显式指向当前工作树的固定产物；脚本会核对 package、Cargo、Cargo lock、Tauri 配置与 PE FileVersion/ProductVersion，并在证据中记录可执行文件 SHA-256：
+
+```powershell
+$env:LUMAMARK_EXECUTABLE = (Resolve-Path 'src-tauri\target\release\lumamark.exe').Path
+$acceptanceExitCode = 0
+try {
+  pnpm release:installed-menu-context-os
+  $acceptanceExitCode = $LASTEXITCODE
+} finally {
+  Remove-Item Env:LUMAMARK_EXECUTABLE -ErrorAction SilentlyContinue
+}
+exit $acceptanceExitCode
+```
+
+安全边界：
+
+- 脚本自己创建随机系统临时根，并用 `LUMAMARK_ACCEPTANCE_MODE=1` + `LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR` 启用仅发布验收可用的设置目录覆盖；仅该模式还可通过 `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR` 启用设置写入屏障。Rust 只接受临时根下预先创建、canonical 后仍位于同一随机根内的固定 `settings-config` / `settings-write-barrier` leaf，脚本再通过两个 IPC 分别回读最终路径。任一路径或 mode 环境非法时启动与写入都会 fail closed；这些入口不是便携配置功能。
+- 通过上述严格校验进入验收模式的进程不注册 single-instance plugin，因此验收进程与用户正常启动的 LumaMark 不会互相转发文件参数；脚本仍只按自己 `spawn` 获得的子进程句柄和已核验身份执行退出清理。
+- 设置持久化场景先用 Win32 指针修改“启动时检查更新”并关闭设置对话框，确认隔离目录已有 v2 light 基线；随后脚本创建一次性 `arm` marker，并从顶部主题菜单切到“跟随系统”。Rust 在真正保存前以 create-new 方式创建 `entered`，保持磁盘仍为 light 并等待有界的 `release`；脚本看到 `entered` 后用真实窗口 X 关闭。close coordinator 先启动 settings flush，再并行调用 acceptance-only command；Rust 只有在 `arm` 与 `entered` 均为普通文件且 `release` 尚未出现时才接受该命令并创建 `close-entered`，而写屏障也拒绝任何没有 `close-entered` 的 release。脚本必须在 X 后看到 `close-entered`，并通过同一进程身份下的 main HWND/client metrics 证明窗口仍存在、再次确认文件仍为 light，之后才创建 `release`。只有保存完成且 close coordinator 等待 settings flush 后，窗口才能正常退出。这条证据按 marker 协议归因，不依赖 400 ms debounce、单次进程存活快照或“点击得够快”的时间阈值。脚本再用同一显式 exe、同一隔离 config、不同且仍位于临时根内的全新 WebView2 profile 重启，同时检查设置 UI 与 `settings.json` 都恢复 `system`。每个 profile leaf 在启动前必须不存在，attach 后必须由 WebView2 实际创建且包含 `EBWebView` 运行时目录；两次启动不共享浏览器 profile，因此 localStorage fallback 不能满足这条证据。
+- 每次启动的 WebView2 用户数据、工作区和 Markdown fixture 都位于同一随机临时根。文件树初始化使用既有 E2E workspace bridge 转发真实 Tauri workspace commands；所有验收交互仍由 Win32 指针完成。
+- 这条会执行 Copy/Cut/Paste 的验收只能在专用交互账号或虚拟机中运行；Windows 剪贴板历史记录必须关闭，云剪贴板和第三方 clipboard manager 也必须停用。默认门禁要求初始剪贴板为空，因此普通运行不会读取或恢复既有原文。只有在上述专用环境中、且初始内容为预置的非敏感纯文本时，才可显式设置 `LUMAMARK_ACCEPTANCE_ALLOW_PLAINTEXT_CLIPBOARD_RESTORE=1`；原文不写入参数、日志、哈希或证据，也不进入命令行，而是以 UTF-16LE→base64 的 ASCII stdin/stdout 通道在内存中往返。脚本只有在 sequence 改变、格式为纯文本且内容逐字匹配刚执行命令的预期输出时才声明写入归本次命令所有。WebView writer 还必须由 `GetClipboardOwner` 证明 owner 位于本次 LumaMark/WebView2 子进程树；官方 Tauri clipboard-manager 在 Windows 上通过 `arboard` 以空 HWND 写文本，因此只有显式 `tauri-native-text` writer 合同、`ownerHWnd=0`、`ownerProcessId=0`、`ownerBelongsToTarget=false` 且格式严格属于可恢复纯文本集合时才允许 ownerless 路径，两种 writer 合同互斥。中断清理会固化当前命令的预期输出；随后先同步停止新输入、断开并验证 CDP 已关闭、按可执行路径与启动时间验证并结束本次子进程，只有三项静止事实全部成立才会解析 pending 写入。脚本在读取前重新验证相同元数据、读取后再次精确比对，随后才允许 Clipboard Sequence Number compare-and-set 恢复；外部 owner、额外格式、错误内容、sequence 变化或无法证明 writer 静止都会拒绝覆盖。即使恢复成功，系统或第三方仍可能观察非敏感验收 fixture 的复制通知，因此该脚本不能声称对剪贴板历史/云同步“零污染”。
+- 指针桥以 Per-Monitor V2 运行，使用 `OpenInputDesktop`/`GetUserObjectInformation` 正向确认当前与线程桌面都是交互 `Default`，再用 `ClientToScreen`、`GetDpiForWindow`、`GetCursorPos` 与 `WindowFromPoint` 校验实际光标坐标和命中窗口；每次 metrics/pointer action 都在桥内按本次启动的可执行路径与启动时间复核 PID。桥不会调用 `AttachThreadInput`、`SetForegroundWindow`、`SetWindowPos` 或临时 topmost 来改变真实桌面条件：窗口必须本来就可见、非最小化且在请求点真实命中，随后只用 `SendInput` 让 Windows 的 `WM_MOUSEACTIVATE` 走自然激活路径，并在点击后复核记录到 metrics 的同一次响应性探针与前台进程。响应探针只输出 `responsive` / `timed-out` / `invalid-window` / `probe-failed` 安全枚举，PowerShell 进程超时也只按固定 preflight/inject/postflight 阶段分类，不记录窗口标题、路径或系统错误文本。桥和进程预检只调用 canonical System32 下的绝对 PowerShell/tasklist 路径，并把对应 SHA-256 记入证据。收到 `SIGINT`/`SIGTERM` 后脚本停止继续注入指针，并进入同一套 sequence-CAS、子进程和临时目录清理；指针 down 后的异常路径也会在 `finally` 中发送 up。任何中断都不能生成成功证据。清理前复核 PID 的可执行路径与启动时间，只终止本次子进程，并验证临时目录已经删除。
+- package script 先由父 runner 生成不可复用的 run id，再启动 verifier。`result.json` 只有在 run id、开始/结束时间和 helper/verifier 源码 SHA-256 都属于当前子进程时才会被接受；父进程直接记录 `spawnSync` 观察到的退出码或信号，并要求它与 verifier 的 `plannedExitCode` 一致。缺失、陈旧、源码漂移、signal、planned mismatch 或 verifier `summary.passed=false` 都会令父 runner 非零退出；最终 `summary.passed` 还必须与 `runnerOutcome.runnerPassed` 同时为真。原始 `result.json`、`runner-outcome.json` 与日志均为本机诊断材料，不提交到仓库；证据不保存错误栈、剪贴板内容、内容哈希或未知剪贴板格式名。
+
+### 0.2.36 实机记录（2026-08-15）
+
+本轮在 `codex/settings-and-context-menu` 分支使用当前工作树的 0.2.36 Release 可执行文件，于 2026-08-15 03:44:13Z–03:45:41Z 完成一次完整 Windows 实机验收。受测 `src-tauri/target/release/lumamark.exe` 为 18,462,720 bytes，PE FileVersion / ProductVersion 均为 `0.2.36`，SHA-256 为 `26abf2a9285c47ea19f89826297653b7edee6572539b3d1f6d7c2794fa3783d4`。
+
+- 父 runner 实际观察退出码 `0`、signal `null`，与 verifier 的 planned exit code `0` 一致；run id、时间窗口与源码身份均为本轮新鲜值。runner / verifier / helper SHA-256 分别为 `cc885213b34038b7b1aeb6a5ab55c7ba7ff9b002ac21bd139c8f7c7cfe06df72`、`aae8b9011f0d7b2bc505af8ae5e5098b9b87092d3aa92bba6910510165c1a589`、`0131700cffff3f4e4093c807c4c7427e2bcc72925840ce6a5c100fe0d06520b8`。
+- `summary.passed=true`：143 项检查全部通过，包含 45 次 Win32 `SendInput` 指针事件与 16 份菜单布局；page error、console error 和 page crash 均为 0。
+- 设置证据覆盖 v2 `light` 基线、顶部主题菜单切换 `system`、窗口 X 进入 close coordinator 后仍等待写屏障、保存完成后正常退出，以及同一隔离 config + 全新且由 WebView2 实际创建的 profile 重启；磁盘与设置 UI 均恢复为 `system`。
+- 编辑器与文件树证据覆盖标题栏 portal、链接、图片、普通编辑、表格复制/删除和文件/目录/root 上下文菜单；图片 secondary click 不再激活源码，表格删除仅移除精确目标范围并令 widget 从 2 个降为 1 个。
+- 8 次文本剪贴板变更均由互斥 writer 合同、sequence、格式与期望内容共同证明归属；最终以 sequence compare-and-set 恢复。CDP 已验证断开、本次子进程已按身份结束、临时目录已删除，全部 cleanup stage 通过。
+- 本轮保留 13 张无原始剪贴板内容的 PNG 证据；关键视图包括[设置首次启动](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-first-launch.png)、[全新 profile 重启恢复](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-restart-restored.png)、[图片上下文菜单](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-image-context.png)、[表格精确删除](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-after-table-delete.png)与[文件树 root 菜单](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/file-tree-root-context.png)。原始 `result.json`、runner outcome 与进程日志仍只保留在本机忽略目录；本轮 result SHA-256 为 `462a63fa1c43f96c24d80db45ee76d6d5c56404934e6aaffc05d7a3b5e84fba9`。
+
+构建说明：同一源码的 `pnpm build` 已成功生成上述 Release EXE、MSI 与 NSIS 包，但在最后的 updater 签名阶段因为本机只有公钥、未提供 `TAURI_SIGNING_PRIVATE_KEY` 而以退出码 `1` 结束。该缺口不影响本轮未签名 EXE 的实机行为证据，但仍是正式分发前必须由 CI / 离线签名环境关闭的发布门禁。
+
+原生文件夹选择对话框可能写入系统最近位置/MRU，无法在普通开发账号中证明无污染，因此不属于该自动化脚本。该场景只在专用账号或虚拟机中另行验收，不能用文件树 bridge 结果替代原生对话框结论。
+
 ## 自动更新发布（NSIS + GitHub Release）
 
 当前正式发布路径：
@@ -125,7 +166,7 @@ pnpm release:generate-updater-manifest
 |---|---|---:|---|
 | NSIS 安装包 | `LumaMark_0.2.1_x64-setup.exe` | 4,656,736 bytes | `6a003c9e3c798e991a820a345c0a5d5cecab6992a75e5498aebdeae6c4337efb` |
 
-本版本将应用菜单重构为 Typora-like 的 File、Edit、Paragraph、Format、View、Help 六组菜单，补齐可执行命令、禁用态、嵌套菜单、键盘导航、菜单快捷键、About 对话框和中英文文案，并同步更新竞品分析与视觉验证截图。
+本版本将应用菜单重构为 Typora-like 的 File、Edit、Paragraph、Format、View、Theme、Language、Help 八组菜单，补齐可执行命令、禁用态、嵌套菜单、键盘导航、菜单快捷键、About 对话框和中英文文案，并同步更新竞品分析与视觉验证截图。
 
 新鲜自动化验证：
 

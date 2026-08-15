@@ -549,3 +549,202 @@ export function deriveEditorInteractionContext(
     selections,
   };
 }
+
+export type EditorContextTarget =
+  | { at: number; kind: 'plain' }
+  | { from: number; href: string; kind: 'link'; to: number }
+  | { from: number; kind: 'codeBlock'; to: number }
+  | { from: number; kind: 'mermaid'; to: number }
+  | { from: number; kind: 'selection'; to: number }
+  | { from: number; kind: 'table'; to: number }
+  | { from: number; kind: 'image'; src: string; to: number };
+
+export function deriveTableInteractionAtPosition(
+  state: EditorState,
+  pos: number,
+): Extract<EditorContextTarget, { kind: 'table' }> | null {
+  const clamped = Math.max(0, Math.min(pos, state.doc.length));
+
+  for (const bias of [1, -1] as const) {
+    const table = findAncestorNamed(
+      syntaxTree(state).resolveInner(clamped, bias),
+      'Table',
+    );
+    if (table && table.from <= clamped && clamped <= table.to) {
+      return { from: table.from, kind: 'table', to: table.to };
+    }
+  }
+
+  return null;
+}
+
+function findInlineOwnerAt(
+  state: EditorState,
+  position: number,
+  kind: EditorInteractionInlineKind,
+): MarkdownSyntaxNode | null {
+  for (const bias of [-1, 1] as const) {
+    for (
+      let node: MarkdownSyntaxNode | null = syntaxTree(state).resolveInner(
+        position,
+        bias,
+      );
+      node;
+      node = node.parent
+    ) {
+      if (node.name === kind && node.from <= position && position < node.to) {
+        return node;
+      }
+    }
+  }
+
+  return null;
+}
+
+function readUrlChildHref(
+  state: EditorState,
+  owner: MarkdownSyntaxNode,
+): string | null {
+  const urlChild = owner.getChild('URL');
+  if (urlChild) {
+    return state.doc.sliceString(urlChild.from, urlChild.to).trim();
+  }
+
+  if (owner.name !== 'Autolink') {
+    return null;
+  }
+
+  const raw = state.doc.sliceString(owner.from, owner.to);
+  if (raw.startsWith('<') && raw.endsWith('>')) {
+    return raw.slice(1, -1).trim();
+  }
+
+  return raw.trim();
+}
+
+function isMermaidFencedCode(
+  state: EditorState,
+  fencedCode: MarkdownSyntaxNode,
+): boolean {
+  const codeInfo = fencedCode.getChild('CodeInfo');
+  if (!codeInfo) {
+    return false;
+  }
+
+  const info = state.doc.sliceString(codeInfo.from, codeInfo.to).trim();
+  const language = info.split(/\s+/)[0]?.toLowerCase() ?? '';
+  return language === 'mermaid';
+}
+
+function findAncestorNamed(
+  node: MarkdownSyntaxNode,
+  name: string,
+): MarkdownSyntaxNode | null {
+  for (
+    let current: MarkdownSyntaxNode | null = node;
+    current;
+    current = current.parent
+  ) {
+    if (current.name === name) {
+      return current;
+    }
+  }
+
+  return null;
+}
+
+export function deriveInteractionAtPosition(
+  state: EditorState,
+  pos: number,
+): EditorContextTarget {
+  const clamped = Math.max(0, Math.min(pos, state.doc.length));
+
+  if (
+    collectProtectedSourceRanges(state).some(
+      (range) => range.from <= clamped && clamped < range.to,
+    )
+  ) {
+    return { at: clamped, kind: 'plain' };
+  }
+
+  const inlineCode = findInlineOwnerAt(state, clamped, 'InlineCode');
+  if (inlineCode) {
+    return { at: clamped, kind: 'plain' };
+  }
+
+  const fencedCode = findAncestorNamed(
+    syntaxTree(state).resolveInner(clamped, 1),
+    'FencedCode',
+  ) ?? findAncestorNamed(
+    syntaxTree(state).resolveInner(clamped, -1),
+    'FencedCode',
+  );
+
+  if (
+    fencedCode &&
+    fencedCode.from <= clamped &&
+    clamped < fencedCode.to
+  ) {
+    if (isMermaidFencedCode(state, fencedCode)) {
+      return {
+        from: fencedCode.from,
+        kind: 'mermaid',
+        to: fencedCode.to,
+      };
+    }
+
+    return {
+      from: fencedCode.from,
+      kind: 'codeBlock',
+      to: fencedCode.to,
+    };
+  }
+
+  const image = findInlineOwnerAt(state, clamped, 'Image');
+  if (image) {
+    const src = readUrlChildHref(state, image);
+    if (src !== null) {
+      return {
+        from: image.from,
+        kind: 'image',
+        src,
+        to: image.to,
+      };
+    }
+  }
+
+  const link =
+    findInlineOwnerAt(state, clamped, 'Link') ??
+    findInlineOwnerAt(state, clamped, 'Autolink');
+  if (link) {
+    const href = readUrlChildHref(state, link);
+    if (href !== null) {
+      return {
+        from: link.from,
+        href,
+        kind: 'link',
+        to: link.to,
+      };
+    }
+  }
+
+  const table = deriveTableInteractionAtPosition(state, clamped);
+  if (table) {
+    return table;
+  }
+
+  const selection = state.selection.main;
+  if (
+    !selection.empty &&
+    selection.from <= clamped &&
+    clamped <= selection.to
+  ) {
+    return {
+      from: selection.from,
+      kind: 'selection',
+      to: selection.to,
+    };
+  }
+
+  return { at: clamped, kind: 'plain' };
+}

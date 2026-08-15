@@ -2,6 +2,16 @@ import { appendDebugLogLine } from '../../services/debug/debugLogClient';
 
 const ENABLED_KEY = 'lumamark.debug-log';
 
+function resolveMenuDebugStorage(): Storage | null {
+  if (
+    (globalThis.navigator?.userAgent.toLowerCase() ?? '').includes('jsdom')
+  ) {
+    return null;
+  }
+
+  return globalThis.document?.defaultView?.localStorage ?? null;
+}
+
 function nowStamp(): string {
   const date = new Date();
   return `${date.toLocaleTimeString('zh-CN', { hour12: false })}.${String(
@@ -11,12 +21,8 @@ function nowStamp(): string {
 
 /** Opt-in only: localStorage lumamark.debug-log=1 (default off, no HUD). */
 export function isMenuDebugEnabled(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
   try {
-    return window.localStorage.getItem(ENABLED_KEY) === '1';
+    return resolveMenuDebugStorage()?.getItem(ENABLED_KEY) === '1';
   } catch {
     return false;
   }
@@ -24,7 +30,7 @@ export function isMenuDebugEnabled(): boolean {
 
 export function setMenuDebugEnabled(enabled: boolean): void {
   try {
-    window.localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0');
+    resolveMenuDebugStorage()?.setItem(ENABLED_KEY, enabled ? '1' : '0');
   } catch {
     // ignore quota / private mode
   }

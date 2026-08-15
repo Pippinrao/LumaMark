@@ -37,7 +37,11 @@ const groups: CommandMenuGroup[] = [
           {
             type: 'item',
             id: 'recent-readme',
-            invocation: { kind: 'callback', run: vi.fn() },
+            invocation: {
+              action: 'openRecentFile',
+              kind: 'payloadAction',
+              payload: { path: 'README.md' },
+            },
             label: 'README.md',
           },
         ],
@@ -48,6 +52,12 @@ const groups: CommandMenuGroup[] = [
         invocation: { kind: 'action', action: 'openWorkspace' },
         disabled: true,
         label: '不可用',
+      },
+      {
+        disabled: true,
+        id: 'recent-empty',
+        label: '没有最近文件',
+        type: 'label',
       },
     ],
   },
@@ -85,6 +95,15 @@ const groups: CommandMenuGroup[] = [
 ];
 
 describe('AppMenu', () => {
+  it('requests fresh command availability whenever a top-level menu opens', async () => {
+    const onOpen = vi.fn();
+    render(<AppMenu groups={groups} onInvoke={vi.fn()} onOpen={onOpen} />);
+
+    await openMenu('文件');
+
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
   it('renders stable icon, label, shortcut, separator, and disabled slots', async () => {
     const onInvoke = vi.fn();
     render(<AppMenu groups={groups} onInvoke={onInvoke} />);
@@ -104,7 +123,11 @@ describe('AppMenu', () => {
       'data-disabled',
     );
     expect(unavailableItem).toHaveAttribute('aria-disabled', 'true');
+    const emptyLabel = screen.getByRole('menuitem', { name: '没有最近文件' });
+    expect(emptyLabel).toBeVisible();
+    expect(emptyLabel).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(unavailableItem);
+    fireEvent.click(emptyLabel);
     expect(onInvoke).not.toHaveBeenCalled();
   });
 

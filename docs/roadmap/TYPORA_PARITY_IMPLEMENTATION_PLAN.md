@@ -1,4 +1,4 @@
-# Typora Parity 核心体验改进计划
+﻿# Typora Parity 核心体验改进计划
 
 > **状态：当前执行计划**
 >
@@ -212,18 +212,41 @@ YAML Front Matter、脚注、`[toc]` 和 Callout 在完整能力实现前只要�
 
 ## Next：Typora Migration Completeness
 
-当前里程碑退出后，按依赖顺序推进：
+当前里程碑（Parity Reliability Foundation）退出后，按下列梯队推进。梯队内仍按依赖顺序；未完成前置门禁前不跳级堆叠新 capability。
 
 代码块命令入口与逐键围栏补齐已于 2026-08-12 落地，不再属于 Next；后续只按独立证据推进语言选择器、复制操作或更广的 Markdown 自动配对，不把它们隐含进该能力。
 
-1. 完整链接工作流。
-2. 图片选择器、策略持久化与事务回滚。
-3. 表格行列、对齐和粘贴合同。
-4. 用固定迁移语料评估 KaTeX 与 MathJax，形成 ADR 后先实现块级数学。
-5. 建立共享增量 heading identity，供 Outline、内部锚点和 TOC 复用。
-6. 在 heading identity 稳定后实现 YAML、脚注、查找替换、导出、设置和快捷键闭环。
+进入 Next 前，统一普通剪切/复制/粘贴/全选、编辑器与文件树上下文菜单、链接/图片首批右键动作，以及 v2 设置持久化和垂直设置页构成前置基线；下列梯队不重复列这些基础设施。其实施状态只以当前代码、构建记录和新鲜验收证据为准，本文不记录某次分支的完成进度。
 
-这些项目在进入 Now 前只保持能力边界、依赖顺序与验收方向，不提前固化逐任务实现细节。
+### 第一梯队（阻断日常迁移）
+
+1. **完整链接工作流**
+   - 剩余：Ctrl/Cmd+Click、内部标题锚点跳转；右键打开/复制、统一命中模型与 opener 白名单已经落地。
+   - 依赖：[菜单系统设计](../product/MENU_SYSTEM_DESIGN.md) 右键合同、[ADR 0015](../decisions/0015-external-open-and-file-mutations.md) opener 与协议白名单。
+2. **剪贴板合同**
+   - 复制为纯文本（Typora 1.13 上下文菜单已核实项）、Copy as Markdown、`Ctrl+Shift+V` 粘贴为纯文本；随后再接到右键与顶栏。
+   - 前置：明确 HTML/Markdown/纯文本序列化保真与失败可见性；不静默改写源码。
+### 第二梯队（高频编辑与资源）
+
+3. **图片选择器事务回滚与 `typora-root-url` 预览解析**
+   - 图片策略持久化以及复制路径、reveal、删除引用右键动作已经落地；删磁盘文件仍不在本轮范围。
+4. **表格行列、对齐、粘贴合同与组件内菜单双语化**
+   - `Ctrl+L` / `Ctrl+E` / 删行等与 Typora 语义对齐；`codemirror-markdown-tables` 内文案进 i18n（发布阻断项）。
+5. **代码块创建与退出路径补强**（在菜单入口已存在的基础上补齐键入/IME/保真证据）。
+6. **查找替换深度定级**
+   - 先实测现有 `editor.search.*` UI 完整度，再决定是缺口修复还是能力增强；不在未核实前写入虚假完成声明。
+
+### 第三梯队（新 capability，需架构前置）
+
+7. **块级数学**：用固定迁移语料评估 KaTeX 与 MathJax，形成 ADR 后先实现块级数学；行内数学与 Inline Math 设置门控同批或紧随。
+8. **共享增量 heading identity**：供 Outline、内部锚点与 TOC 复用；稳定前不做大纲锚点右键。
+9. **heading identity 稳定后**：YAML Front Matter、脚注、`[toc]`、导出与相关设置/快捷键闭环。
+10. **Callout / GitHub Style Alerts**：由未来 settings `markdown` 门控承载；关闭时源码可见降级。
+11. **受限 HTML / 嵌入**：独立安全评审与 ADR 后方可进入。
+
+以上 capability 在完整实现前只要求 protected-source 安全降级，不得把「源码可见」写成产品能力已交付。
+
+这些项目在进入对应实现批次前只保持能力边界、依赖顺序、验收方向与文档合同；逐任务实现细节在开工时按 `DEVELOPMENT_PROCESS.md` 拆分。
 
 ## Later：平台与生态
 

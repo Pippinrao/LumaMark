@@ -5,15 +5,19 @@ import type { CommandHandlerMap } from '../../features/commands/commandTypes';
 type GlobalShortcutHandlers = Pick<
   CommandHandlerMap,
   | 'codeBlock'
+  | 'copy'
   | 'copyTable'
+  | 'cut'
   | 'deleteTable'
   | 'exitFocusMode'
   | 'image'
   | 'newDocument'
   | 'openCommandPalette'
   | 'openFile'
+  | 'paste'
   | 'save'
   | 'saveAs'
+  | 'selectAll'
   | 'table'
   | 'toggleDisplayMode'
   | 'toggleFocusMode'
@@ -35,6 +39,7 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
 
       const currentHandlers = handlersRef.current;
       const editorCommandTarget = isEditorCommandTarget(event.target);
+      const tableCommandTarget = isTableCommandTarget(event.target);
 
       if (isPlainEscape(event)) {
         if (globalThis.document.querySelector('[role="dialog"]')) {
@@ -42,6 +47,30 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
         }
 
         currentHandlers.exitFocusMode();
+        return;
+      }
+
+      if (editorCommandTarget && matchesShortcut(event, 'x')) {
+        event.preventDefault();
+        currentHandlers.cut();
+        return;
+      }
+
+      if (editorCommandTarget && matchesShortcut(event, 'c')) {
+        event.preventDefault();
+        currentHandlers.copy();
+        return;
+      }
+
+      if (editorCommandTarget && matchesShortcut(event, 'v')) {
+        event.preventDefault();
+        currentHandlers.paste();
+        return;
+      }
+
+      if (editorCommandTarget && matchesShortcut(event, 'a')) {
+        event.preventDefault();
+        currentHandlers.selectAll();
         return;
       }
 
@@ -127,17 +156,19 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
         return;
       }
 
-      if (!editorCommandTarget) {
-        return;
-      }
-
-      if (matchesShortcut(event, 'c', { altKey: true })) {
+      if (
+        tableCommandTarget &&
+        matchesShortcut(event, 'c', { altKey: true })
+      ) {
         event.preventDefault();
         currentHandlers.copyTable();
         return;
       }
 
-      if (matchesShortcut(event, 'Backspace', { altKey: true })) {
+      if (
+        tableCommandTarget &&
+        matchesShortcut(event, 'Backspace', { altKey: true })
+      ) {
         event.preventDefault();
         currentHandlers.deleteTable();
       }
@@ -217,5 +248,17 @@ function shouldIgnoreDisplayModeShortcut(target: EventTarget | null): boolean {
 }
 
 function isEditorCommandTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest('.cm-content'));
+  // A table cell owns its nested CodeMirror selection. Routing that keydown
+  // through the outer document port would copy or mutate the wrong range.
+  return (
+    isTableCommandTarget(target) &&
+    target instanceof HTMLElement &&
+    !target.closest('.tbl-cell-editor')
+  );
+}
+
+function isTableCommandTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement && Boolean(target.closest('.cm-content'))
+  );
 }

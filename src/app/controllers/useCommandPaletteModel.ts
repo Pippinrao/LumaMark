@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CommandMenuInvocation } from '../../features/commands/commandTypes';
 
-type DeferredCommand = () => void | Promise<void>;
-
-export function useCommandPaletteModel() {
+export function useCommandPaletteModel(
+  runInvocation: (invocation: CommandMenuInvocation) => void,
+) {
   const [open, setOpen] = useState(false);
   const openerRef = useRef<HTMLElement | null>(null);
-  const pendingCommandRef = useRef<DeferredCommand | null>(null);
+  const pendingInvocationRef = useRef<CommandMenuInvocation | null>(null);
 
   const openPalette = useCallback(() => {
     if (open) {
@@ -17,8 +18,8 @@ export function useCommandPaletteModel() {
     setOpen(true);
   }, [open]);
 
-  const runAfterClose = useCallback((run: DeferredCommand) => {
-    pendingCommandRef.current = run;
+  const runAfterClose = useCallback((invocation: CommandMenuInvocation) => {
+    pendingInvocationRef.current = invocation;
   }, []);
 
   useEffect(() => {
@@ -26,20 +27,22 @@ export function useCommandPaletteModel() {
       return;
     }
 
-    const pendingCommand = pendingCommandRef.current;
+    const pendingInvocation = pendingInvocationRef.current;
     const opener = openerRef.current;
-    pendingCommandRef.current = null;
+    pendingInvocationRef.current = null;
     openerRef.current = null;
 
-    if (pendingCommand) {
-      void pendingCommand();
-      return;
+    if (pendingInvocation) {
+      runInvocation(pendingInvocation);
     }
 
-    if (opener?.isConnected) {
+    if (
+      pendingInvocation?.focusManagement !== 'action' &&
+      opener?.isConnected
+    ) {
       opener.focus();
     }
-  }, [open]);
+  }, [open, runInvocation]);
 
   return { open, openPalette, runAfterClose, setOpen };
 }

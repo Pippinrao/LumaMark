@@ -177,6 +177,10 @@ describe('useGlobalCommandShortcuts', () => {
   });
 
   it.each([
+    ['x', false, false, 'cut'],
+    ['c', false, false, 'copy'],
+    ['v', false, false, 'paste'],
+    ['a', false, false, 'selectAll'],
     ['i', true, false, 'image'],
     ['k', true, false, 'codeBlock'],
     ['t', false, false, 'table'],
@@ -305,7 +309,7 @@ describe('useGlobalCommandShortcuts', () => {
     },
   );
 
-  it('does not run editor mutation shortcuts from dialogs or auxiliary inputs', () => {
+  it('does not run editor shortcuts from dialogs or auxiliary inputs', () => {
     Object.defineProperty(window.navigator, 'userAgent', {
       configurable: true,
       value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
@@ -323,6 +327,10 @@ describe('useGlobalCommandShortcuts', () => {
 
       for (const target of [dialogInput, auxiliaryInput]) {
         for (const [key, shiftKey] of [
+          ['x', false],
+          ['c', false],
+          ['v', false],
+          ['a', false],
           ['i', true],
           ['k', true],
           ['t', false],
@@ -342,9 +350,105 @@ describe('useGlobalCommandShortcuts', () => {
       expect(handlers.image).not.toHaveBeenCalled();
       expect(handlers.codeBlock).not.toHaveBeenCalled();
       expect(handlers.table).not.toHaveBeenCalled();
+      expect(handlers.cut).not.toHaveBeenCalled();
+      expect(handlers.copy).not.toHaveBeenCalled();
+      expect(handlers.paste).not.toHaveBeenCalled();
+      expect(handlers.selectAll).not.toHaveBeenCalled();
     } finally {
       dialog.remove();
       auxiliaryInput.remove();
+    }
+  });
+
+  it('leaves standard edit shortcuts untouched during IME composition', () => {
+    const handlers = createHandlers();
+    const editor = document.createElement('div');
+    editor.className = 'cm-content';
+    document.body.append(editor);
+
+    try {
+      render(<ShortcutHarness handlers={handlers} />);
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        isComposing: true,
+        key: 'x',
+      });
+      editor.dispatchEvent(event);
+
+      expect(handlers.cut).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      editor.remove();
+    }
+  });
+
+  it('leaves standard edit shortcuts to a nested CodeMirror table-cell editor', () => {
+    const handlers = createHandlers();
+    const nestedHost = document.createElement('div');
+    nestedHost.className = 'tbl-cell-editor';
+    const nestedEditor = document.createElement('div');
+    nestedEditor.className = 'cm-editor';
+    const nestedContent = document.createElement('div');
+    nestedContent.className = 'cm-content';
+    nestedEditor.append(nestedContent);
+    nestedHost.append(nestedEditor);
+    document.body.append(nestedHost);
+
+    try {
+      render(<ShortcutHarness handlers={handlers} />);
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        key: 'c',
+      });
+      nestedContent.dispatchEvent(event);
+
+      expect(handlers.copy).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      nestedHost.remove();
+    }
+  });
+
+  it('routes table-level shortcuts from a nested cell through the outer command port', () => {
+    const handlers = createHandlers();
+    const nestedHost = document.createElement('div');
+    nestedHost.className = 'tbl-cell-editor';
+    const nestedContent = document.createElement('div');
+    nestedContent.className = 'cm-content';
+    nestedHost.append(nestedContent);
+    document.body.append(nestedHost);
+
+    try {
+      render(<ShortcutHarness handlers={handlers} />);
+      const copyTableEvent = new KeyboardEvent('keydown', {
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        key: 'c',
+      });
+      const deleteTableEvent = new KeyboardEvent('keydown', {
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: true,
+        key: 'Backspace',
+      });
+
+      nestedContent.dispatchEvent(copyTableEvent);
+      nestedContent.dispatchEvent(deleteTableEvent);
+
+      expect(handlers.copyTable).toHaveBeenCalledOnce();
+      expect(handlers.deleteTable).toHaveBeenCalledOnce();
+      expect(copyTableEvent.defaultPrevented).toBe(true);
+      expect(deleteTableEvent.defaultPrevented).toBe(true);
+      expect(handlers.copy).not.toHaveBeenCalled();
+    } finally {
+      nestedHost.remove();
     }
   });
 
@@ -646,15 +750,19 @@ describe('useGlobalCommandShortcuts', () => {
 function createHandlers() {
   return {
     codeBlock: vi.fn(),
+    copy: vi.fn(),
     copyTable: vi.fn(),
+    cut: vi.fn(),
     deleteTable: vi.fn(),
     exitFocusMode: vi.fn(),
     image: vi.fn(),
     newDocument: vi.fn(),
     openCommandPalette: vi.fn(),
     openFile: vi.fn(),
+    paste: vi.fn(),
     save: vi.fn(),
     saveAs: vi.fn(),
+    selectAll: vi.fn(),
     table: vi.fn(),
     toggleDisplayMode: vi.fn(),
     toggleFocusMode: vi.fn(),

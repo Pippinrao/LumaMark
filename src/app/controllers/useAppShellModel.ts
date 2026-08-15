@@ -5,20 +5,23 @@ import { createCommandShortcutLabels } from '../../features/commands/commandShor
 import { useMediaViewer } from '../../features/media-viewer/useMediaViewer';
 import { useWorkspaceWorkflow } from '../../features/workspace/useWorkspaceWorkflow';
 import { createAppShellLabels } from './createAppShellLabels';
-import { useAppCommandHandlers } from './useAppCommandHandlers';
 import { useAppCommandModels } from './useAppCommandModels';
+import { useAppCommandPayloadHandlers } from './useAppCommandPayloadHandlers';
 import { useAppDocumentModel } from './useAppDocumentModel';
 import { useAppEditorCommands } from './useAppEditorCommands';
 import { useCommandPaletteModel } from './useCommandPaletteModel';
+import { useEditorContextMenu } from './useEditorContextMenu';
+import { useFileTreeContextMenu } from './useFileTreeContextMenu';
 import { useFocusMode } from './useFocusMode';
 import { useMenuDialogFocus } from './useMenuDialogFocus';
 import { useNewDocumentConfirmation } from './useNewDocumentConfirmation';
 import { useReadingAppearanceModel } from './useReadingAppearanceModel';
 import { useSettingsModel } from './useSettingsModel';
-import { useWindowControlsModel } from './useWindowControlsModel';
+import { useAppWindowControls } from './useAppWindowControls';
 import { useStartupExperience } from './useStartupExperience';
 import { useDesktopOpenRequests } from './useDesktopOpenRequests';
 import { useUpdateModel } from './useUpdateModel';
+import { useAppShellCommandHandlers } from './useAppShellCommandHandlers';
 import { useStartupStore } from '../../features/startup/startupStore';
 import { useAppStore } from '../stores/appStore';
 export function useAppShellModel() {
@@ -28,17 +31,37 @@ export function useAppShellModel() {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
-  const commandPalette = useCommandPaletteModel();
+  const commandPalette = useCommandPaletteModel(runPaletteInvocation);
+  const openPalette = commandPalette.openPalette;
   const editor = useAppEditorCommands();
+  const [editorEditState, setEditorEditState] = useState(() =>
+    editor.getEditState(),
+  );
+  const refreshEditorEditState = useCallback(() => {
+    setEditorEditState(editor.getEditState());
+  }, [editor]);
+  const openCommandPalette = useCallback(() => {
+    refreshEditorEditState();
+    openPalette();
+  }, [openPalette, refreshEditorEditState]);
   const mediaViewer = useMediaViewer(editor.focusEditor);
-  const document = useAppDocumentModel(editor.documentPortRef, editor.editorReady, editor.refreshLocalImage);
   const settings = useSettingsModel();
+  const setEditorDisplayMode = editor.setDisplayMode;
+  const applyDefaultDisplayMode = useCallback(() => {
+    setEditorDisplayMode(settings.defaultDisplayMode);
+  }, [setEditorDisplayMode, settings.defaultDisplayMode]);
+  const document = useAppDocumentModel(
+    editor.documentPortRef,
+    editor.editorReady,
+    editor.refreshLocalImage,
+    applyDefaultDisplayMode,
+  );
   const readingAppearance = useReadingAppearanceModel(editor.focusEditor);
   const { openAbout, openSettings, restoreDialogFocus } = useMenuDialogFocus({
     setAboutOpen,
     setSettingsOpen: settings.setSettingsOpen,
   });
-  const windowControls = useWindowControlsModel();
+  const windowControls = useAppWindowControls(settings.flushPendingWrites, settings.setSettingsOpen);
   const workspace = useWorkspaceWorkflow({
     openDocumentPath: document.fileWorkflow.openPath,
     status: document.status,
@@ -77,82 +100,72 @@ export function useAppShellModel() {
   }, [document, editor]);
   const { exitFocusMode, focusMode, toggleFocusMode } = useFocusMode({
     focusEditor: editor.focusEditor,
+    initialFocusMode: settings.focusModeOnStartup,
     setSidebarOpen,
     sidebarOpen,
   });
-  const commandHandlers = useAppCommandHandlers({
-    copyTable: editor.copyTable,
-    deleteTable: editor.deleteTable,
+  const commandHandlers = useAppShellCommandHandlers({
+    document,
+    editor,
     editorAvailable: !startup.visible,
     exitFocusMode,
-    focusEditor: editor.focusEditor,
-    insertImage: () => {
-      void editor.insertLocalImages();
-    },
+    fileOpening: document.fileWorkflow.fileOpening,
     newDocument: startup.visible ? startup.newDocument : newDocumentConfirmation.requestNewDocument,
     openAbout,
-    checkForUpdates: updates.checkForUpdatesManually,
-    openCommandPalette: commandPalette.openPalette,
-    openFile: () => {
-      void startup.openFile();
-    },
-    openSearch: editor.openSearch,
+    openCommandPalette,
     openSettings,
-    openWorkspace: () => {
-      void startup.openWorkspace();
-    },
-    redo: editor.redo,
-    resetZoom: readingAppearance.resetZoom,
-    runFormat: editor.runFormat,
-    save: () => {
-      void document.fileWorkflow.save();
-    },
-    saveAs: () => {
-      void document.fileWorkflow.saveAs();
-    },
-    setLanguage: settings.setLanguage,
-    setLivePreviewMode: () => editor.setDisplayMode('livePreview'),
-    setReadingMode: () => editor.setDisplayMode('reading'),
-    setSourceMode: () => editor.setDisplayMode('source'),
-    setTheme: settings.setTheme,
-    toggleDisplayMode: editor.toggleDisplayMode,
-    toggleLanguage: settings.toggleLanguage,
+    readingAppearance,
+    settings,
+    startup,
     toggleFocusMode,
     toggleSidebar,
-    toggleTheme: settings.toggleTheme,
-    undo: editor.undo,
+    updates,
   });
+  const editorContextMenu = useEditorContextMenu({
+    editorAvailable: !startup.visible,
+    getEditState: editor.getEditState,
+    openDocumentPath: (path) => { void document.fileWorkflow.openPath(path); },
+    shortcuts,
+  });
+  const fileTreeContextMenu = useFileTreeContextMenu({
+    markOpenDocumentRemoved: document.fileWorkflow.markOpenDocumentRemoved,
+    retargetOpenDocument: document.fileWorkflow.retargetOpenDocument,
+    workspace,
+  });
+  const payloadHandlers = useAppCommandPayloadHandlers(editorContextMenu.payloadHandlers, fileTreeContextMenu.payloadHandlers, startup.openRecentFile, document.fileWorkflow.fileOpening);
   const commandModels = useAppCommandModels({
     editorDisplayMode: editor.editorDisplayMode,
     editorAvailable: !startup.visible,
+    editorState: editorEditState,
     fileOpening: document.fileWorkflow.fileOpening,
     focusMode,
     handlers: commandHandlers,
     language: settings.language,
-    openRecentFile: (path) => {
-      void startup.openRecentFile(path);
-    },
+    payloadHandlers,
     recentFiles: document.recentFiles,
     shortcuts,
     sidebarOpen,
     t,
     theme: settings.theme,
   });
+  function runPaletteInvocation(invocation: Parameters<typeof commandModels.runMenuInvocation>[0]) { commandModels.runMenuInvocation(invocation); }
   return {
+    ...settings,
     aboutOpen,
     commandPaletteOpen: commandPalette.open,
     commands: commandModels.commands,
+    confirmNewDocument: newDocumentConfirmation.confirmNewDocument,
     currentFile: document.currentFile,
+    desktopOpenRequests,
     dismissFileError: document.dismissFileError,
     dirty: document.dirty,
-    desktopOpenRequests,
     documentStatistics: document.documentStatistics,
     documentTitle,
-    focusMode,
     editor: {
-      appearance: readingAppearance.appearance, editorDisplayMode: editor.editorDisplayMode,
-      getContextMenuItems: commandModels.getEditorContextMenuItems,
+      appearance: readingAppearance.appearance,
+      editorDisplayMode: editor.editorDisplayMode,
       focusEditor: editor.focusEditor,
+      getContextMenuNodes: editorContextMenu.getContextMenuNodes,
       imageAssetResolver: editor.imageAssetResolver,
       imageImportErrorHandler: editor.imageImportErrorHandler,
       imageImportHandler: editor.imageImportHandler,
@@ -166,48 +179,38 @@ export function useAppShellModel() {
       keepCurrentContent: document.fileWorkflow.keepCurrentContent,
       reloadFromDisk: document.fileWorkflow.reloadFromDisk,
     },
+    fileTree: {
+      getContextMenuNodes: fileTreeContextMenu.getContextMenuNodes,
+      mutationDialog: fileTreeContextMenu.mutationDialog,
+    },
+    focusMode,
     headings: document.headings,
     labels: createAppShellLabels({
       documentStatistics: document.documentStatistics.statistics,
       statusKey: document.statusKey,
       t,
     }),
-    language: settings.language,
-    copyImagesToAssets: settings.copyImagesToAssets,
     lastFileError: document.lastFileError,
     mediaViewer,
     newDocumentConfirmOpen: newDocumentConfirmation.open,
+    pageWidth: settings.pageWidth ?? readingAppearance.pageWidth,
     recentFiles: document.recentFiles,
-    recentFilesPersistenceError: settings.recentFilesPersistenceError,
-    preferencesPersistenceError: settings.preferencesPersistenceError,
     recoveryDraft: document.recoveryDraft,
-    runAction: commandModels.runAction,
-    runMenuInvocation: commandModels.runMenuInvocation,
-    runCommandAfterPaletteClose: commandPalette.runAfterClose,
     restoreDialogFocus,
     restoreNewDocumentFocus: newDocumentConfirmation.restoreFocus,
+    refreshEditorEditState,
+    runAction: commandModels.runAction,
+    runCommandAfterPaletteClose: commandPalette.runAfterClose,
+    runMenuInvocation: commandModels.runMenuInvocation,
     scheduleOutlineRefresh: document.scheduleOutlineRefresh,
-    setCommandPaletteOpen: commandPalette.setOpen,
-    setLanguage: settings.setLanguage,
-    setPageWidth: readingAppearance.setPageWidth,
     setAboutOpen,
-    setCopyImagesToAssets: settings.setCopyImagesToAssets,
+    setCommandPaletteOpen: commandPalette.setOpen,
     setNewDocumentConfirmOpen: newDocumentConfirmation.setOpen,
-    setSettingsOpen: settings.setSettingsOpen,
     setSidebarOpen,
-    setStartupBehavior: settings.setStartupBehavior,
-    setTheme: settings.setTheme,
-    settingsOpen: settings.settingsOpen,
-    pageWidth: readingAppearance.pageWidth,
-    pageWidthPersistenceError: readingAppearance.pageWidthPersistenceError,
     sidebarOpen,
-    toggleFocusMode,
-    confirmNewDocument: newDocumentConfirmation.confirmNewDocument,
-    theme: settings.theme,
     updateDialog: updates,
     startup,
-    startupBehavior: settings.startupBehavior,
-    startupPersistenceError: settings.startupPersistenceError,
+    toggleFocusMode,
     topMenuGroups: commandModels.topMenuGroups,
     visibleDocumentTitle,
     windowControls,

@@ -11,14 +11,13 @@ import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 type AppMenuProps = {
   groups: CommandMenuGroup[];
   onInvoke: (invocation: CommandMenuInvocation) => void;
+  onOpen?: () => void;
 };
 
-export function AppMenu({ groups, onInvoke }: AppMenuProps) {
+export function AppMenu({ groups, onInvoke, onOpen }: AppMenuProps) {
   const invoke = (invocation: CommandMenuInvocation) => {
     logMenuInteraction(
-      `AppMenu.invoke kind=${invocation.kind} action=${
-        invocation.kind === 'action' ? invocation.action : 'callback'
-      }`,
+      `AppMenu.invoke kind=${invocation.kind} action=${invocation.action}`,
     );
     for (const content of globalThis.document.querySelectorAll<HTMLElement>(
       '.lm-menu-content[data-state="open"]',
@@ -30,7 +29,15 @@ export function AppMenu({ groups, onInvoke }: AppMenuProps) {
   };
 
   return (
-    <Menubar.Root className="lm-menu-bar" data-lm-window-interactive="true">
+    <Menubar.Root
+      className="lm-menu-bar"
+      data-lm-window-interactive="true"
+      onValueChange={(value) => {
+        if (value) {
+          onOpen?.();
+        }
+      }}
+    >
       {groups.map((group) => (
         <Menubar.Menu key={group.id}>
           <Menubar.Trigger className="lm-menu-trigger">
@@ -120,6 +127,12 @@ function renderNode(
   switch (node.type) {
     case 'separator':
       return <Menubar.Separator className="lm-menu-separator" key={node.id} />;
+    case 'label':
+      return (
+        <Menubar.Item className="lm-menu-item" disabled key={node.id}>
+          <MenuItemContent node={node} />
+        </Menubar.Item>
+      );
     case 'submenu':
       return (
         <Menubar.Sub key={node.id}>
@@ -172,6 +185,10 @@ function renderNode(
           <MenuItemContent node={node} />
         </Menubar.Item>
       );
+    default: {
+      const unhandledNode: never = node;
+      throw new Error(`Unsupported app menu node: ${JSON.stringify(unhandledNode)}`);
+    }
   }
 }
 

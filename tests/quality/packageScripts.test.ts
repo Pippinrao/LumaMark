@@ -34,12 +34,47 @@ describe('package quality scripts', () => {
     expect(capability.permissions).toEqual(
       expect.arrayContaining([
         'core:window:allow-close',
+        'core:window:allow-destroy',
         'core:window:allow-is-maximized',
         'core:window:allow-minimize',
         'core:window:allow-start-dragging',
         'core:window:allow-toggle-maximize',
       ]),
     );
+  });
+
+  it('registers the official text clipboard plugin with least-privilege permissions', async () => {
+    const packageJson = await readPackageJson();
+    const cargoToml = await readFile(
+      join(process.cwd(), 'src-tauri', 'Cargo.toml'),
+      'utf8',
+    );
+    const tauriLibrary = await readFile(
+      join(process.cwd(), 'src-tauri', 'src', 'lib.rs'),
+      'utf8',
+    );
+    const capability = await readJsonFile<TauriCapability>(
+      'src-tauri',
+      'capabilities',
+      'default.json',
+    );
+
+    expect(packageJson.dependencies['@tauri-apps/plugin-clipboard-manager']).toBe(
+      '^2.3.2',
+    );
+    expect(cargoToml).toContain('tauri-plugin-clipboard-manager = "2"');
+    expect(tauriLibrary).toContain(
+      '.plugin(tauri_plugin_clipboard_manager::init())',
+    );
+    expect(
+      capability.permissions.filter((permission) =>
+        permission.startsWith('clipboard-manager:'),
+      ),
+    ).toEqual([
+      'clipboard-manager:allow-read-text',
+      'clipboard-manager:allow-write-text',
+    ]);
+    expect(capability.permissions).not.toContain('clipboard-manager:default');
   });
 
   it('keeps performance benchmarks out of the default unit test gate', async () => {

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type {
   CommandMenuGroup,
   CommandMenuInvocation,
+  CommandMenuNode,
   CommandActionId,
 } from '../../features/commands/commandTypes';
 
@@ -9,12 +10,7 @@ export type ShellActionId = CommandActionId;
 
 export type ShellMenuGroup = CommandMenuGroup;
 export type ShellMenuInvocation = CommandMenuInvocation;
-
-export type ShellContextMenuItem = {
-  action: ShellActionId;
-  label: string;
-  shortcut: string;
-};
+export type ShellMenuNode = CommandMenuNode;
 
 export type WindowControlsModel = {
   maximized: boolean;

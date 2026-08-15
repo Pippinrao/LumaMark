@@ -331,12 +331,17 @@ test('persists page width across reloads while resetting modified-wheel zoom', a
 
   await page.getByRole('menuitem', { name: '文件' }).click();
   await page.getByRole('menuitem', { name: '设置' }).click();
-  const widthGroup = page.getByRole('group', { name: '页面宽度' });
-  await widthGroup.getByRole('button', { name: '宽', exact: true }).click();
+  await page.getByRole('tab', { name: '外观' }).click();
+  const widthGroup = page.getByRole('radiogroup', { name: '页面宽度' });
+  const wideOption = widthGroup.getByRole('radio', { name: '宽', exact: true });
+  await expect(wideOption).not.toBeChecked();
+  await wideOption.click();
+  await expect(wideOption).toBeChecked();
 
   await expect.poll(() => readEditorVariable('--lm-editor-page-width')).toBe(
     '1040px',
   );
+  await page.getByRole('button', { name: '关闭' }).click();
 
   await page.locator('.cm-content').dispatchEvent('wheel', {
     ctrlKey: true,

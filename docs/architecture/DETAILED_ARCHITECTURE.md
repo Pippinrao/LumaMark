@@ -1,4 +1,4 @@
-# 详细架构设计与技术选型
+﻿# 详细架构设计与技术选型
 
 日期：2026-07-04
 
@@ -8,7 +8,9 @@
 
 更新：2026-08-05（桌面文件关联、单实例转发与路径保真）
 
-当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；本轮编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
+更新：2026-08-12（统一命令/上下文菜单、v2 设置持久化、WorkspaceSession 与 opener 路径授权）
+
+当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)，设置持久化与工作区/外部打开安全边界分别见 [ADR 0014](../decisions/0014-settings-persistence.md) 和 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
 
 ## 设计结论
 
@@ -150,17 +152,19 @@ Rust 保存：
 | 编辑器核心 | CodeMirror 6 | Milkdown/ProseMirror/Monaco | 选 CodeMirror 6。性能、源码保真和可视区渲染更符合目标。 |
 | Markdown 交互解析 | `@codemirror/lang-markdown` / Lezer | remark 作为热路径 parser | 编辑热路径选 CodeMirror/Lezer；remark 只用于导出或离线处理。 |
 | 保存转换 diff | `@codemirror/merge` | 自研 diff / 全文替换 | 只在稀疏、受控的 `prepareTextForSave` 转换后生成最小 CodeMirror changes，不进入普通输入热路径。目标文本精确，但极端输入下位置映射不能无条件视为精确；复审与 fallback 见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。 |
-| Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成和主题适配。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)。 |
+| Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成、主题适配与源码保真边界。当前版本没有关闭被动 autoformat 的公开 API，因此非规范表格逐字保留并降级为 raw-source，规范表格才挂载 widget。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)与[ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)。 |
 | UI 基础组件 | Radix Primitives | Ariakit/Base UI/React Aria | 默认 Radix。若单个组件不满足，再按组件替换。 |
 | 视觉样式 | CSS variables + CSS Modules | Tailwind/shadcn/ui | 默认 CSS tokens + CSS Modules。暂不引入 shadcn 生成组件，避免基础组件变成自维护代码。 |
 | 图标 | lucide-react | Radix Icons | 选 lucide-react。图标覆盖更广。 |
 | 应用状态 | Zustand | Redux/Jotai/TanStack Store | 选 Zustand。轻量、低样板、适合桌面应用状态。 |
 | 路由 | 暂不引入路由 | TanStack Router/React Router | V1 以单窗口应用状态为主；多页面需求明确后再引入。 |
 | 长列表虚拟化 | TanStack Virtual | react-window | 选 TanStack Virtual。headless，适合自定义 UI。 |
-| 文件树 | react-arborist 候选 | 自研树 + TanStack Virtual | 优先评估 react-arborist；不手搓树。 |
-| 分栏布局 | react-resizable-panels 候选 | 自研拖拽分栏 | 优先评估 react-resizable-panels；不手搓拖拽布局。 |
-| 命令面板 | cmdk 候选 | 自研命令面板 | 优先评估 cmdk；不手搓基础命令面板。 |
+| 文件树 | react-arborist | 自研树 + TanStack Virtual | 已采用 react-arborist，保留其虚拟化与键盘语义；不手搓树。 |
+| 分栏布局 | react-resizable-panels | 自研拖拽分栏 | 已采用 react-resizable-panels；不手搓拖拽布局。 |
+| 命令面板 | cmdk | 自研命令面板 | 已采用 cmdk；命令元数据仍来自统一 command model。 |
 | i18n | i18next + react-i18next | Lingui/FormatJS | 默认 i18next。生态成熟，React 支持稳定。 |
+| 纯文本剪贴板 | `tauri-plugin-clipboard-manager` + browser navigator adapter | WebView Clipboard API / 自研 Rust command | 桌面选官方 Tauri plugin，权限只开放 read-text/write-text；浏览器 adapter 只用于非 Tauri 环境，app 注入结构化端口，见 [ADR 0016](../decisions/0016-tauri-text-clipboard-adapter.md)。 |
+| 外部打开 | tauri-plugin-opener + 自有 Rust command 白名单 | shell plugin / WebView 直授 opener capability | 已采用官方 opener 的 Rust API，但不向 WebView 直授 `opener:*`；URL、路径与 WorkspaceSession 授权由自有 command/service 校验，见 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。 |
 | 单元测试 | Vitest | Jest | 选 Vitest。与 Vite 原生集成。 |
 | E2E | Playwright | Cypress | 选 Playwright。适合自动化桌面 WebView 体验验证。 |
 | Mermaid | mermaid 官方包 | 自研渲染/第三方包装 | 用官方 Mermaid，外层自建异步调度和缓存。 |
@@ -168,7 +172,7 @@ Rust 保存：
 
 ## 前端模块划分
 
-建议目录：
+当前目录（只展开长期边界，不逐列内部文件）：
 
 ```text
 src/
@@ -181,38 +185,48 @@ src/
 │  └─ stores/
 ├─ editor/
 │  ├─ capabilities/
+│  ├─ commands/
 │  ├─ core/
+│  ├─ interaction/
 │  ├─ markdown/
-│  ├─ wysiwyg/
+│  ├─ metrics/
 │  ├─ widgets/        # compatibility re-exports only
-│  ├─ commands/
-│  └─ metrics/
+│  └─ wysiwyg/
 ├─ features/
-│  ├─ commands/
-│  ├─ file-actions/
-│  ├─ workspace/
-│  ├─ outline/
-│  ├─ search/
-│  ├─ settings/
-│  ├─ reading-appearance/
+│  ├─ about/
 │  ├─ command-palette/
+│  ├─ commands/
+│  ├─ document-statistics/
+│  ├─ file-actions/
+│  ├─ file-tree/
+│  ├─ media-viewer/
+│  ├─ outline/
+│  ├─ reading-appearance/
 │  ├─ recent-files/
-│  └─ startup/
+│  ├─ recovery-drafts/
+│  ├─ settings/
+│  ├─ startup/
+│  ├─ updates/
+│  └─ workspace/
 ├─ services/
-│  ├─ preferences/
-│  ├─ tauri/
+│  ├─ assets/
+│  ├─ clipboard/
+│  ├─ debug/
+│  ├─ drafts/
+│  ├─ file-watch/
 │  ├─ files/
-│  ├─ workspace/
 │  ├─ open-requests/
-│  ├─ render-jobs/
-│  └─ telemetry/
-├─ shared/
-│  ├─ components/
-│  ├─ i18n/
-│  ├─ icons/
-│  ├─ styles/
-│  └─ types/
-└─ tests/
+│  ├─ opener/
+│  ├─ preferences/
+│  ├─ settings/
+│  ├─ tauri/
+│  ├─ updater/
+│  ├─ window/
+│  └─ workspace/
+└─ shared/
+   ├─ debug/
+   ├─ i18n/
+   └─ styles/
 ```
 
 ### `app`
@@ -230,7 +244,7 @@ src/
 整改门禁：
 
 - `AppShell` 只能组合 `useAppShellModel`、`useAppShellSlots` 和 `AppShellView`，不直接调用文件、工作区、编辑器表格或 Tauri service 细节。
-- `app/shell/**` 是纯渲染层：只消费 props、labels、callbacks 和 ReactNode slots；不能 import store、service、workflow、editor command 或窗口控制实现。
+- `app/shell/**` 是渲染层：只消费 props、labels、callbacks 和 ReactNode slots；不能 import store、service、workflow、editor command 或窗口控制实现。唯一例外是 `EditorPane` 作为薄 DOM→editor public interaction adapter，调用 `editor/interaction` 的命中分类和外层 `EditorApi` 坐标接口；它不得读取 Markdown 全文、执行业务 command 或依赖 capability 私有实现。
 - `app/controllers/` 拆为独立子域 hook：document、workspace、commands、editor、startup、settings、window；不能再形成新的总控大文件。
 - `useStartupExperience` 只编排文件/工作区 workflow、恢复草稿决策和版本化启动元数据；开始页显示时编辑器保持挂载，但整个工作区内容必须 `inert` 且从可访问树隐藏。
 - `app/containers/` 负责把 feature UI 容器装配成 shell slots；shell view 不知道 feature workflow 或 store。
@@ -276,7 +290,7 @@ Editor capability 边界：
 - app 层只调用 `editor/commands/editorCommandPort.ts` 暴露的 `EditorDocumentPort` 和 `EditorCommandPort`。
 - Markdown format、table command、display mode、range selection 等具体 CodeMirror 命令不能散落 import 到 shell 渲染层或 feature UI。
 - `EditorDocumentPort` 暴露快照、序列化、保存点、加载、聚焦、上下文和定点图片刷新等轻量命令；调用方可以即时读取正文但不能持有或广播 Markdown 全文。
-- 页面宽度与字体缩放通过 `EditorApi.setAppearance` 和独立 CodeMirror compartment 重配置；平台主修饰键加滚轮（macOS 为 `Meta`，Windows/Linux 为 `Ctrl`）只从编辑器 DOM 发出轻量 zoom request，由 feature 更新会话状态。该事务不得修改正文、选区或撤销历史。
+- 页面宽度与字体缩放通过 `EditorApi.setAppearance` 和独立 CodeMirror compartment 重配置；平台主修饰键加滚轮（macOS 为 `Meta`，Windows/Linux 为 `Ctrl`）只从编辑器 DOM 发出轻量 zoom request，由 app settings controller 更新规范化设置并 debounce 持久化。该事务不得修改正文、选区或撤销历史。
 
 Mermaid capability 拆分要求：
 
@@ -334,8 +348,9 @@ feature workflow 规则：
 - `features/workspace` 拆为 workflow、selectors、view model/UI-facing 类型；打开文件只通过注入 callback，不知道 file workflow 实现。
 - `features/startup` 只持有开始页 UI 和版本化会话元数据 store。自动恢复必须等待编辑器 ready 且恢复草稿检查完成；待恢复草稿优先于最后会话。
 - 文件与工作区打开 workflow 返回 `opened`、`cancelled`、`failed` 或适用的 `superseded` 结果，app controller 只能在确认成功后关闭开始页。
-- `features/commands` 是 command id、label、shortcut、enabled 状态和 run handler 的唯一 command model 来源。
-- `features/reading-appearance` 持有页面宽度档位和当前会话字体缩放；只有页面宽度 action 调用 `services/preferences` 写入，字体缩放不触碰持久化且每次应用启动都从 100% 开始。读取损坏或写入失败由 feature 状态显式暴露给设置页，不得静默伪装成已保存。
+- `features/commands` 是 command id、label、icon、shortcut、菜单节点组合与 availability 规则的唯一 command model 来源；`app/controllers` 注入完整的无参数 action 与 payload action handler map，shell 只把可区分 invocation 交给 exhaustive dispatcher。
+- `features/settings` 持有小型、低频的 v2 设置文档和结构化 load/recovery/write 生命周期，不得持有 Markdown 全文或 selection；写入只经 `services/settings`，失败保留 canonical 快照供重试，app controller 负责把规范化设置投影到现有运行时 store。
+- `features/reading-appearance` 只承载编辑器外观运行态；页面宽度与字体缩放的持久事实源均为 `features/settings`。组合滚轮产生轻量 zoom request，经 app controller 更新 settings；不得在编辑器输入 transaction 中写盘。
 - `features/media-viewer` 只持有当前查看会话与 opener，组合 Radix Dialog 和 `react-zoom-pan-pinch`；媒体 payload 不进入 Zustand，Dialog 由 app container 懒加载。依赖与回滚条件见 [ADR 0008](../decisions/0008-shared-media-viewer.md)。
 - `features/*/components/**` 只负责渲染；需要业务行为时由 feature container、workflow 或 app container 注入 props。
 - feature 可以组合 editor API 和 service facade，但不能持有 Markdown 全文。
@@ -349,6 +364,9 @@ feature workflow 规则：
 当前强制边界：
 
 - workspace Tauri wrapper 位于 `services/workspace/`，`features/workspace/` 只保留 workflow、store 和 UI-facing 类型使用。
+- settings Tauri wrapper 位于 `services/settings/`；它保留结构化错误与 `settingsFileExists`/字段恢复结果，不依赖 React。
+- 纯文本剪贴板 facade 位于 `services/clipboard/`：Tauri 运行时只调用官方 `tauri-plugin-clipboard-manager`，浏览器测试/预览才使用 navigator adapter。桌面权限严格限定为 `read-text` / `write-text`；原生失败必须向上返回，禁止静默回退 WebView Clipboard API。app controller 把结构化端口注入 `EditorCommandPort`，editor 与 feature 不直接依赖 Tauri plugin。
+- window facade 位于 `services/window/`，只暴露 `onCloseRequested`/`destroy` 等平台能力；app close coordinator 组合 settings flush，service 不反向依赖 feature。标题栏 X、Alt+F4 与系统关闭只有 flush 成功后才销毁窗口。
 - 文件监听 command/event wrapper 位于 `services/file-watch/`；打开结果 fingerprint 与 watch baseline 在这里形成竞态握手。图片 resolver 只向该 facade 串行同步已授权本地目标，editor capability 不直接依赖 Tauri。
 - 桌面打开请求 wrapper 位于 `services/open-requests/`；事件只通知队列可能变化，路径事实只能通过串行 `open_requests_drain` command 获取。路径与失败边界见 [ADR 0009](../decisions/0009-desktop-file-open-bridge.md)。
 - 浏览器/WebView 偏好存储适配位于 `services/preferences/`；它只暴露无业务方向的 key-value storage，不依赖 feature store，也不决定哪些字段持久化。
@@ -412,20 +430,26 @@ interface EditorDocumentPort {
 }
 
 interface EditorCommandPort {
-  copyTable(): void
-  deleteTable(): void
+  copy(): Promise<boolean>
+  copyTable(range?: EditorInteractionRange): Promise<boolean>
+  cut(): Promise<boolean>
+  deleteImageReference(range: { from: number; to: number }): void
+  deleteTable(range?: EditorInteractionRange): boolean
   focus(): void
   getDisplayMode(): EditorDisplayMode
+  getEditState(): EditorEditState
   insertImages(
     images: readonly { alt: string; markdownSource: string }[],
     position?: { x: number; y: number },
   ): void
   openSearch(): void
+  paste(): Promise<boolean>
   runFormat(command: MarkdownFormatCommand): void
-  undo(): void
   redo(): void
+  selectAll(): boolean
   setDisplayMode(mode: EditorDisplayMode): void
   selectPosition(position: number): void
+  undo(): void
 }
 
 interface StatusAdapter {
@@ -437,29 +461,33 @@ interface StatusAdapter {
 
 ## Rust 模块划分
 
-建议目录：
+当前目录：
 
 ```text
 src-tauri/src/
 ├─ main.rs
+├─ lib.rs
 ├─ commands/
+│  ├─ assets.rs
+│  ├─ debug_log.rs
 │  ├─ files.rs
 │  ├─ file_watch.rs
-│  ├─ workspace.rs
+│  ├─ opener.rs
 │  ├─ open_requests.rs
-│  ├─ search.rs
-│  ├─ cache.rs
-│  └─ app.rs
+│  ├─ settings.rs
+│  └─ workspace.rs
 ├─ services/
+│  ├─ asset_service.rs
+│  ├─ debug_log_service.rs
 │  ├─ file_service.rs
 │  ├─ file_watch_service.rs
-│  ├─ workspace_service.rs
+│  ├─ opener_service.rs
 │  ├─ open_request_service.rs
-│  ├─ search_service.rs
-│  └─ cache_service.rs
-├─ models/
-├─ errors.rs
-└─ state.rs
+│  ├─ settings_service.rs
+│  ├─ workspace_mutation_service.rs
+│  ├─ workspace_service.rs
+│  └─ workspace_session_service.rs
+└─ errors.rs
 ```
 
 ### Rust 负责
@@ -484,25 +512,42 @@ src-tauri/src/
 
 ## Tauri Command 设计
 
-命名规则：
+当前注册命令族（命名统一使用下划线；增删时同步 typed wrapper 与测试）：
 
 ```text
-files.read_text
-files.write_text
-files.show_open_dialog
+files_read_text
+files_write_text
+files_show_open_file_dialog
+files_show_open_image_dialog
+files_show_save_file_dialog
 watch_document
 replace_local_image_targets
 unwatch_document
-workspace.open
-workspace.open_path
-workspace.list_children
-workspace.watch
+assets_cache_remote_image
+assets_import_document_image
+assets_authorize_local_image
+assets_copy_local_image
+assets_import_draft_image
+assets_finalize_draft_images
+workspace_open_directory
+workspace_open_path
+workspace_list_children
+workspace_create_file
+workspace_create_directory
+workspace_rename_entry
+workspace_delete_entry
 open_requests_drain
-search.query
-cache.get
-cache.set
-app.get_system_info
+opener_open_url
+opener_reveal_path
+settings_get
+settings_set
+settings_acceptance_config_dir  # 仅 LUMAMARK_ACCEPTANCE_MODE + 脚本自有系统临时目录
+settings_acceptance_write_barrier_dir  # 同一验收模式下回读受限写入屏障目录
+settings_acceptance_mark_close_entered  # 同一验收模式下记录 close coordinator 已进入
+debug_append_log
 ```
+
+三个 `settings_acceptance_*` command 只服务于 [Windows 菜单真实指针验收](../release/WINDOWS_V1_BUILD.md#菜单与上下文菜单真实指针验收)：它们要求显式验收模式和脚本自有、canonical 后仍位于同一系统临时根内的固定目录，并以写入屏障和 close-entered 标记证明关闭协调器确实在等待持久化。任一环境或路径合同不满足都会 fail closed；这些入口不是常规业务 command 或便携配置功能。
 
 返回结构统一：
 
@@ -617,9 +662,10 @@ User input
 ### 阅读外观
 
 ```text
-Settings page-width choice
--> features/reading-appearance store
--> persist only pageWidth through services/preferences
+Settings page-width/font-zoom choice or modified wheel
+-> app settings controller
+-> features/settings store (debounced settings.json persistence)
+-> features/reading-appearance runtime projection
 -> app controller maps preset to pixel boundary
 -> EditorApi.setAppearance
 -> CodeMirror appearance compartment + CSS variables
@@ -628,14 +674,15 @@ Platform primary modifier + wheel inside CodeMirror
 -> non-passive scrollDOM listener prevents WebView zoom
 -> throttle repeated touchpad events to one request per 80 ms
 -> lightweight zoom request
--> session-only fontZoomPercent
+-> persisted fontZoomPercent through the settings controller
 -> EditorApi.setAppearance
 ```
 
 要求：
 
 - 页面宽度仅使用 `narrow`、`standard`、`wide`、`fluid` 四个稳定档位；默认 `standard`，持久化值无效时回退默认值。
-- 字体缩放范围为 80%–200%，步长 10%；不进入持久化数据，下次启动恢复 100%。
+- 主题设置使用 `light`、`dark`、`system`；默认 `light`。`system` 在 bootstrap 首帧与 ThemeProvider 中解析 `prefers-color-scheme` 并监听变化，所存 canonical 值始终保持 `system`。
+- 字体缩放范围为 50%–250%，步长 10%；非法值按字段回退 100%，规范值进入 v2 `settings.json`。
 - 普通滚轮和编辑器外部的组合滚轮不得触发字体缩放；只有 macOS 的 `Meta + wheel` 与 Windows/Linux 的 `Ctrl + wheel` 可触发，非主修饰键、多个修饰键叠加和 AltGraph 输入不得被拦截。合法组合滚轮在整个 CodeMirror `scrollDOM`（包括页边距）被非被动监听器拦截，必须阻止 WebView 页面级缩放，并以 80 ms 节流限制高频触控板事件。
 - 页面宽度读取损坏或写入失败时继续应用当前会话选择，但设置页必须提供本地化的可访问错误提示；不得让 UI 暗示该值已成功保存。
 - 外观更新只能重配置 view extension/CSS variable，不创建文档 change，不广播 Markdown 全文。
@@ -806,13 +853,10 @@ capability 规则：
 
 如果成熟组件不满足目标，必须先记录证据并请求用户确认，再自研。
 
-## 实现前必须验证的候选
+## 后续里程碑必须验证的候选
 
-以下选型是当前推荐，但进入实现前要做小样验证：
+以下选型尚未采用，进入对应里程碑前要做小样验证：
 
-- `react-arborist`：文件树是否满足 Windows 路径、懒加载、虚拟化、键盘导航。
-- `react-resizable-panels`：是否满足 Typora-like 固定/折叠侧边栏体验。
-- `cmdk`：是否满足命令面板、i18n、快捷键和大量命令性能。
 - `KaTeX` / `MathJax`：使用固定迁移语料比较兼容性、渲染成本、包体积和安全边界；形成 ADR 前不设默认引擎。
 - 工作区搜索库：先用简单 Rust 扫描还是直接引入索引库，需要根据 V1 范围决定。
 

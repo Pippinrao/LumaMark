@@ -5,10 +5,17 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type MouseEvent,
 } from 'react';
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
-import { Tree, type NodeRendererProps, type TreeApi } from 'react-arborist';
+import {
+  Tree,
+  type NodeRendererProps,
+  type RowRendererProps,
+  type TreeApi,
+} from 'react-arborist';
 import { useTranslation } from 'react-i18next';
+import type { FileTreeContextTarget } from '../commands/createCommandModels';
 import type { WorkspaceDirectory } from '../../services/workspace/workspaceCommands';
 import { RecentFilesList } from '../recent-files/RecentFilesList';
 import type { RecentFile } from '../recent-files/recentFilesStore';
@@ -22,6 +29,7 @@ import {
 type FileTreeProps = {
   loadingPaths: Record<string, boolean>;
   onContentWidthChange?: (contentWidth: number) => void;
+  onContextMenuTarget?: (target: FileTreeContextTarget | null) => void;
   onLoadChildren: (path: string) => void;
   onOpenFile: (path: string) => void;
   onOpenWorkspace: () => void;
@@ -34,6 +42,7 @@ type FileTreeProps = {
 export function FileTree({
   loadingPaths,
   onContentWidthChange,
+  onContextMenuTarget,
   onLoadChildren,
   onOpenFile,
   onOpenWorkspace,
@@ -106,8 +115,62 @@ export function FileTree({
     tree,
   ]);
 
+  const resolveContextTarget = useCallback(
+    (event: MouseEvent<HTMLElement>): FileTreeContextTarget | null => {
+      if (!root) {
+        return null;
+      }
+
+      const eventTarget = event.target;
+      if (!(eventTarget instanceof HTMLElement)) {
+        return null;
+      }
+
+      const row = eventTarget.closest('[data-file-tree-path]');
+      if (row instanceof HTMLElement) {
+        const path = row.dataset.fileTreePath;
+        const kind = row.dataset.fileTreeKind;
+        const name = row.dataset.fileTreeName;
+        if (!path || !kind || !name) {
+          return null;
+        }
+        if (kind === 'workspaceRoot') {
+          return { kind: 'workspaceRoot', name, path };
+        }
+        if (kind === 'directory') {
+          return { kind: 'directory', name, path };
+        }
+        return { kind: 'file', name, path };
+      }
+
+      if (eventTarget.closest('[data-file-tree-root]')) {
+        return {
+          kind: 'workspaceRoot',
+          name: root.name,
+          path: root.path,
+        };
+      }
+
+      return null;
+    },
+    [root],
+  );
+
   return (
-    <section className="lm-file-tree" aria-label={t('workspace.fileTree')}>
+    <section
+      className="lm-file-tree"
+      aria-label={t('workspace.fileTree')}
+      data-testid="file-tree-context-host"
+      onContextMenu={
+        // Resolve the target in the child's bubble phase so the ancestor Radix
+        // trigger can open before a capture-phase state update replaces it.
+        onContextMenuTarget
+          ? (event) => {
+              onContextMenuTarget(resolveContextTarget(event));
+            }
+          : undefined
+      }
+    >
       <div className="lm-sidebar-section-header">
         <span>{t('workspace.title')}</span>
         <button type="button" onClick={onOpenWorkspace}>
@@ -130,7 +193,17 @@ export function FileTree({
       )}
 
       {root ? (
-        <div className="lm-workspace-root" title={root.path}>
+        <div
+          className="lm-workspace-root"
+          data-file-tree-kind="workspaceRoot"
+          data-file-tree-name={root.name}
+          data-file-tree-path={root.path}
+          data-file-tree-root=""
+          data-testid="file-tree-workspace-root"
+          role="treeitem"
+          tabIndex={0}
+          title={root.path}
+        >
           {root.name}
         </div>
       ) : singleFileName ? null : (
@@ -161,6 +234,7 @@ export function FileTree({
             }}
             openByDefault={false}
             overscanCount={8}
+            renderRow={FileTreeRow}
             rowHeight={32}
             selection={selectedPath}
             width={treeSize.width}
@@ -177,6 +251,27 @@ export function FileTree({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function FileTreeRow({
+  attrs,
+  children,
+  innerRef,
+  node,
+}: RowRendererProps<WorkspaceTreeNode>) {
+  return (
+    <div
+      {...attrs}
+      data-file-tree-kind={
+        node.data.kind === 'directory' ? 'directory' : 'file'
+      }
+      data-file-tree-name={node.data.name}
+      data-file-tree-path={node.data.path}
+      ref={innerRef}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -218,6 +313,9 @@ const FileTreeNode = memo(function FileTreeNode({
   return (
     <div
       data-testid={`file-tree-row-${node.data.path}`}
+      data-file-tree-path={node.data.path}
+      data-file-tree-kind={isDirectory ? 'directory' : 'file'}
+      data-file-tree-name={node.data.name}
       className={[
         'lm-file-tree-node',
         isDirectory ? 'lm-file-tree-node-directory' : 'lm-file-tree-node-file',

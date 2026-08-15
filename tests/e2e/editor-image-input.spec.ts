@@ -272,13 +272,13 @@ test('exposes an opt-in setting for copying local images to document assets', as
   await openTopMenu(page, /File|文件/);
   await page.getByRole('menuitem', { name: /Settings|设置/ }).click();
   await page.getByRole('tab', { name: /Images|图片/ }).click();
-  const checkbox = page.getByRole('checkbox', {
+  const imageCopySwitch = page.getByRole('switch', {
     name: /Copy inserted local images|复制插入的本地图片/,
   });
 
-  await expect(checkbox).not.toBeChecked();
-  await checkbox.check();
-  await expect(checkbox).toBeChecked();
+  await expect(imageCopySwitch).not.toBeChecked();
+  await imageCopySwitch.click();
+  await expect(imageCopySwitch).toBeChecked();
 });
 
 test('pastes an image into an unsaved document and renders its draft asset', async ({ page }) => {

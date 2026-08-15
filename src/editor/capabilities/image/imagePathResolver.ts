@@ -2,6 +2,11 @@ export type ResolvedImageSource =
   | { kind: 'error'; reason: 'relative_without_document' }
   | { kind: 'resolved'; src: string };
 
+export type ResolvedImageFilesystemPath =
+  | { kind: 'local'; path: string }
+  | { kind: 'remote'; url: string }
+  | { kind: 'unavailable'; reason: 'relative_without_document' };
+
 export function resolveMarkdownImageSource({
   documentPath,
   source,
@@ -24,6 +29,33 @@ export function resolveMarkdownImageSource({
   return {
     kind: 'resolved',
     src: toAssetUrl(resolveRelativePath(documentPath, source)),
+  };
+}
+
+export function resolveImageFilesystemPath({
+  documentPath,
+  source,
+}: {
+  documentPath: string | null;
+  source: string;
+}): ResolvedImageFilesystemPath {
+  const trimmed = source.trim();
+
+  if (/^(?:https?:|data:|blob:)/i.test(trimmed)) {
+    return { kind: 'remote', url: trimmed };
+  }
+
+  if (isAbsolutePath(trimmed)) {
+    return { kind: 'local', path: normalizeAbsoluteSeparators(trimmed) };
+  }
+
+  if (!documentPath) {
+    return { kind: 'unavailable', reason: 'relative_without_document' };
+  }
+
+  return {
+    kind: 'local',
+    path: resolveRelativePath(documentPath, trimmed),
   };
 }
 
@@ -59,6 +91,14 @@ function resolveRelativePath(documentPath: string, source: string): string {
   }
 
   return `${documentPath.startsWith('/') ? '/' : ''}${resolved.join(separator)}`;
+}
+
+function normalizeAbsoluteSeparators(path: string): string {
+  if (/^[a-z]:[\\/]/i.test(path)) {
+    return `${path[0]!.toUpperCase()}${path.slice(1)}`.replace(/\//g, '\\');
+  }
+
+  return path;
 }
 
 function toAssetUrl(path: string): string {

@@ -128,6 +128,7 @@ function WorkflowHarness({
   editorRef,
   fileWatch,
   onLocalImageChanged,
+  onDocumentLoaded,
   onWorkflow,
   onDocumentBecameSafe,
   recentFiles,
@@ -138,6 +139,7 @@ function WorkflowHarness({
   editorRef: RefObject<TestEditorDocumentPort | null>;
   fileWatch?: FileWatchClient;
   onLocalImageChanged?: (event: FileWatchChangeEvent) => void;
+  onDocumentLoaded?: () => void;
   onWorkflow: (workflow: FileWorkflow) => void;
   onDocumentBecameSafe?: () => void;
   recentFiles: { addRecentFile: (file: { name: string; path: string }) => void };
@@ -150,6 +152,7 @@ function WorkflowHarness({
       editorRef: withSnapshotEditorRef(editorRef),
       fileWatch,
       onLocalImageChanged,
+      onDocumentLoaded,
       onDocumentBecameSafe,
       recentFiles,
       state,
@@ -246,6 +249,7 @@ describe('useFileWorkflow', () => {
 
   it('replaces the watched document after a disk file opens successfully', async () => {
     const fileWatch = createFileWatchClient();
+    const onDocumentLoaded = vi.fn();
     const workflowRef: { current: FileWorkflow | null } = { current: null };
     window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({
       readText: vi.fn().mockResolvedValue({
@@ -271,6 +275,7 @@ describe('useFileWorkflow', () => {
           },
         }}
         fileWatch={fileWatch}
+        onDocumentLoaded={onDocumentLoaded}
         onWorkflow={(workflow) => {
           workflowRef.current = workflow;
         }}
@@ -287,6 +292,7 @@ describe('useFileWorkflow', () => {
 
     expect(fileWatch.unwatchDocument).toHaveBeenCalledTimes(1);
     expect(fileWatch.watchDocument).toHaveBeenCalledWith('E:/notes/opened.md');
+    expect(onDocumentLoaded).toHaveBeenCalledTimes(1);
     expect(outcome).toEqual({
       file: { name: 'opened.md', path: 'E:/notes/opened.md' },
       status: 'opened',
@@ -1479,6 +1485,7 @@ describe('useFileWorkflow', () => {
     });
     const addRecentFile = vi.fn();
     const setStatusKey = vi.fn();
+    const onDocumentLoaded = vi.fn();
     const workflowRef: { current: FileWorkflow | null } = { current: null };
 
     window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
@@ -1503,6 +1510,7 @@ describe('useFileWorkflow', () => {
         onWorkflow={(value) => {
           workflowRef.current = value;
         }}
+        onDocumentLoaded={onDocumentLoaded}
         recentFiles={{ addRecentFile }}
         state={state}
         status={{ setStatusKey }}
@@ -1526,6 +1534,7 @@ describe('useFileWorkflow', () => {
     expect(state.getState().currentFile).toBeNull();
     expect(workflowRef.current?.fileOpening).toBe(false);
     expect(setStatusKey).toHaveBeenLastCalledWith('status.ready');
+    expect(onDocumentLoaded).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       pendingRead.resolve({
@@ -1542,6 +1551,7 @@ describe('useFileWorkflow', () => {
     expect(loadDocument).not.toHaveBeenCalledWith('# Older');
     expect(state.getState().currentFile).toBeNull();
     expect(addRecentFile).not.toHaveBeenCalled();
+    expect(onDocumentLoaded).toHaveBeenCalledTimes(1);
   });
 
   it('does not clear recovery or overwrite ready status when an open becomes stale while watch starts', async () => {

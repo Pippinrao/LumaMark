@@ -1,4 +1,11 @@
-import { lazy, Suspense, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { EditorApi } from '../../editor/core/editorApi';
 import type {
@@ -14,10 +21,16 @@ import type {
   ImageImportErrorHandler,
   ImageImportHandler,
 } from '../../editor/core/editorDisplayMode';
+import {
+  deriveInteractionAtPosition,
+  deriveTableInteractionAtPosition,
+  type EditorContextTarget,
+} from '../../editor/interaction';
 import type { AppLanguage } from '../../shared/i18n';
+import { ContextMenuSurface } from './ContextMenuSurface';
 import type {
-  ShellActionId,
-  ShellContextMenuItem,
+  ShellMenuInvocation,
+  ShellMenuNode,
 } from './shellTypes';
 
 const LazyEditorViewHost = lazy(() =>
@@ -30,10 +43,10 @@ type EditorPaneProps = {
   accessibleTitle: string;
   appearance: EditorAppearance;
   ariaLabel: string;
-  getContextMenuItems: (target: EventTarget) => ShellContextMenuItem[];
-  onAction: (action: ShellActionId) => void;
+  getContextMenuNodes: (target: EditorContextTarget) => ShellMenuNode[];
   onDocumentChanged: EditorDocumentChangedHandler;
   onEditorReady: (editor: EditorApi) => void;
+  onInvoke: (invocation: ShellMenuInvocation) => void;
   onZoomRequested: EditorZoomRequestedHandler;
   onMediaPreviewRequest: EditorMediaPreviewRequestHandler;
   onReadOnlyEditAttempt?: () => void;
@@ -44,14 +57,62 @@ type EditorPaneProps = {
   visibleDocumentTitle: string;
 };
 
+function resolveContextTarget(
+  editor: EditorApi,
+  event: MouseEvent<HTMLElement>,
+): EditorContextTarget {
+  const { view } = editor;
+  const widgetTableTarget = resolveWidgetTableTarget(editor, event.target);
+  if (widgetTableTarget) {
+    return widgetTableTarget;
+  }
+
+  const position = view.posAtCoords({
+    x: event.clientX,
+    y: event.clientY,
+  });
+  if (position == null) {
+    return { at: view.state.selection.main.head, kind: 'plain' };
+  }
+
+  return deriveInteractionAtPosition(view.state, position);
+}
+
+function resolveWidgetTableTarget(
+  editor: EditorApi,
+  eventTarget: EventTarget,
+): Extract<EditorContextTarget, { kind: 'table' }> | null {
+  if (!(eventTarget instanceof Element)) {
+    return null;
+  }
+
+  const widget = eventTarget.closest('.tbl-table-widget');
+  if (!widget || !editor.view.dom.contains(widget)) {
+    return null;
+  }
+
+  try {
+    const position = editor.view.posAtDOM(widget);
+    return deriveTableInteractionAtPosition(editor.view.state, position);
+  } catch {
+    return null;
+  }
+}
+
+function isContextMenuKeyboardGesture(
+  event: KeyboardEvent<HTMLElement>,
+): boolean {
+  return event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey);
+}
+
 export function EditorPane({
   accessibleTitle,
   appearance,
   ariaLabel,
-  getContextMenuItems,
-  onAction,
+  getContextMenuNodes,
   onDocumentChanged,
   onEditorReady,
+  onInvoke,
   onZoomRequested,
   onMediaPreviewRequest,
   onReadOnlyEditAttempt,
@@ -61,24 +122,70 @@ export function EditorPane({
   language,
   visibleDocumentTitle,
 }: EditorPaneProps) {
-  const [contextMenuItems, setContextMenuItems] = useState<ShellContextMenuItem[]>([]);
+  const [contextMenuNodes, setContextMenuNodes] = useState<ShellMenuNode[]>([]);
+  const editorRef = useRef<EditorApi | null>(null);
+  const keyboardContextTargetRef = useRef<EditorContextTarget | null>(null);
 
   return (
     <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>
-        <main
-          className="lm-editor-pane"
-          data-testid="editor-host"
-          aria-label={ariaLabel}
-          onContextMenuCapture={(event) => {
-            setContextMenuItems(getContextMenuItems(event.target));
-          }}
-        >
-          <div className="lm-editor-header">
-            <span className="lm-editor-title">{visibleDocumentTitle}</span>
-          </div>
-          <div className="lm-editor-scroll">
-            <div className="lm-editor-paper">
+      <main
+        className="lm-editor-pane"
+        data-testid="editor-host"
+        aria-label={ariaLabel}
+      >
+        <div className="lm-editor-header">
+          <span className="lm-editor-title">{visibleDocumentTitle}</span>
+        </div>
+        <div className="lm-editor-scroll">
+          <ContextMenu.Trigger asChild>
+            <div
+              className="lm-editor-paper"
+              onContextMenu={(event) => {
+                const editor = editorRef.current;
+                if (!editor) {
+                  return;
+                }
+
+                // Hit-test only; do not dispatch selection changes on right-click.
+                // Keep this in the Trigger's composed bubble handler: a capture-phase
+                // state update can replace the Radix trigger before it opens.
+                const keyboardTarget = keyboardContextTargetRef.current;
+                keyboardContextTargetRef.current = null;
+                setContextMenuNodes(
+                  getContextMenuNodes(
+                    keyboardTarget ?? resolveContextTarget(editor, event),
+                  ),
+                );
+              }}
+              onKeyDownCapture={(event) => {
+                const editor = editorRef.current;
+                if (!isContextMenuKeyboardGesture(event) || !editor) {
+                  return;
+                }
+
+                event.preventDefault();
+                const caret = editor.view.state.selection.main.head;
+                const caretRect = editor.view.coordsAtPos(caret);
+                const contentRect =
+                  editor.view.contentDOM.getBoundingClientRect();
+                keyboardContextTargetRef.current = deriveInteractionAtPosition(
+                  editor.view.state,
+                  caret,
+                );
+                try {
+                  event.currentTarget.dispatchEvent(
+                    new MouseEvent('contextmenu', {
+                      bubbles: true,
+                      cancelable: true,
+                      clientX: caretRect?.left ?? contentRect.left,
+                      clientY: caretRect?.bottom ?? contentRect.top,
+                    }),
+                  );
+                } finally {
+                  keyboardContextTargetRef.current = null;
+                }
+              }}
+            >
               <Suspense fallback={null}>
                 <LazyEditorViewHost
                   accessibleTitle={accessibleTitle}
@@ -90,31 +197,25 @@ export function EditorPane({
                   imageImportHandler={imageImportHandler}
                   language={language}
                   onDocumentChanged={onDocumentChanged}
-                  onEditorReady={onEditorReady}
+                  onEditorReady={(editor) => {
+                    editorRef.current = editor;
+                    onEditorReady(editor);
+                  }}
                   onZoomRequested={onZoomRequested}
                   onMediaPreviewRequest={onMediaPreviewRequest}
                   onReadOnlyEditAttempt={onReadOnlyEditAttempt}
                 />
               </Suspense>
             </div>
-          </div>
-        </main>
-      </ContextMenu.Trigger>
+          </ContextMenu.Trigger>
+        </div>
+      </main>
       <ContextMenu.Portal>
-        <ContextMenu.Content className="lm-menu-content lm-context-menu-content">
-          {contextMenuItems.map((item) => (
-            <ContextMenu.Item
-              className="lm-menu-item lm-context-menu-item"
-              key={item.label}
-              onSelect={() => {
-                onAction(item.action);
-              }}
-            >
-              <span>{item.label}</span>
-              <kbd className="lm-menu-shortcut">{item.shortcut}</kbd>
-            </ContextMenu.Item>
-          ))}
-        </ContextMenu.Content>
+        <ContextMenuSurface
+          nodes={contextMenuNodes}
+          onActionFocusReturn={() => editorRef.current?.focus()}
+          onInvoke={onInvoke}
+        />
       </ContextMenu.Portal>
     </ContextMenu.Root>
   );

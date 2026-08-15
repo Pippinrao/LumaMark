@@ -220,11 +220,78 @@ describe('FileTree', () => {
     expect(screen.queryByText('未打开工作区')).not.toBeInTheDocument();
     expect(screen.queryByText('最近文件')).not.toBeInTheDocument();
   });
+
+  it('only resolves context targets for the workspace root and real tree rows', () => {
+    const onContextMenuTarget = vi.fn();
+
+    renderFileTree({
+      onContextMenuTarget,
+      tree: [
+        {
+          id: 'E:/docs/Notes/readme.md',
+          kind: 'markdownFile',
+          loaded: true,
+          name: 'readme.md',
+          path: 'E:/docs/Notes/readme.md',
+        },
+      ],
+    });
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: '打开工作区' }));
+    expect(onContextMenuTarget).toHaveBeenLastCalledWith(null);
+
+    fireEvent.contextMenu(screen.getByTestId('file-tree-context-host'));
+    expect(onContextMenuTarget).toHaveBeenLastCalledWith(null);
+
+    const workspaceRoot = screen.getByTestId('file-tree-workspace-root');
+    expect(workspaceRoot).toHaveAttribute('role', 'treeitem');
+    expect(workspaceRoot).toHaveAttribute('tabindex', '0');
+    fireEvent.contextMenu(workspaceRoot);
+    expect(onContextMenuTarget).toHaveBeenLastCalledWith({
+      kind: 'workspaceRoot',
+      name: 'Notes',
+      path: 'E:/docs/Notes',
+    });
+
+    fireEvent.contextMenu(screen.getByTestId('file-tree-row-E:/docs/Notes/readme.md'));
+    expect(onContextMenuTarget).toHaveBeenLastCalledWith({
+      kind: 'file',
+      name: 'readme.md',
+      path: 'E:/docs/Notes/readme.md',
+    });
+  });
+
+  it('exposes context target data on the focusable react-arborist treeitem', () => {
+    const onContextMenuTarget = vi.fn();
+
+    renderFileTree({
+      onContextMenuTarget,
+      tree: [
+        {
+          id: 'E:/docs/Notes/readme.md',
+          kind: 'markdownFile',
+          loaded: true,
+          name: 'readme.md',
+          path: 'E:/docs/Notes/readme.md',
+        },
+      ],
+    });
+
+    const treeItem = screen.getByRole('treeitem', { name: /readme\.md/ });
+    fireEvent.contextMenu(treeItem);
+
+    expect(onContextMenuTarget).toHaveBeenLastCalledWith({
+      kind: 'file',
+      name: 'readme.md',
+      path: 'E:/docs/Notes/readme.md',
+    });
+  });
 });
 
 type RenderFileTreeOptions = {
   loadingPaths?: Record<string, boolean>;
   onLoadChildren?: (path: string) => void;
+  onContextMenuTarget?: ComponentProps<typeof FileTree>['onContextMenuTarget'];
   onOpenFile?: (path: string) => void;
   recentFiles?: ComponentProps<typeof FileTree>['recentFiles'];
   selectedPath?: string;
@@ -233,6 +300,7 @@ type RenderFileTreeOptions = {
 
 function renderFileTree({
   loadingPaths = {},
+  onContextMenuTarget,
   onLoadChildren = vi.fn(),
   onOpenFile = vi.fn(),
   recentFiles,
@@ -243,6 +311,7 @@ function renderFileTree({
     <I18nProvider>
       <FileTree
         loadingPaths={loadingPaths}
+        onContextMenuTarget={onContextMenuTarget}
         onLoadChildren={onLoadChildren}
         onOpenFile={onOpenFile}
         onOpenWorkspace={vi.fn()}

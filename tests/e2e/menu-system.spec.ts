@@ -380,6 +380,9 @@ test('captures the approved light, dark, nested, and English menu states', async
   });
 
   await page.keyboard.press('Escape');
+  await expect(
+    page.getByRole('menuitem', { exact: true, name: '文件' }),
+  ).toBeFocused();
   await openTopMenu(page, '主题');
   await page.getByRole('menuitemradio', { name: '暗色' }).click();
   await openTopMenu(page, '视图');
@@ -391,18 +394,35 @@ test('captures the approved light, dark, nested, and English menu states', async
   });
 
   await page.keyboard.press('Escape');
-  await openTopMenu(page, '段落');
-  const insert = page.getByRole('menuitem', { name: '插入' });
-  await insert.press('ArrowRight');
   await expect(
-    page.getByRole('menuitem', { name: /^表格\s*Ctrl\+T$/ }),
-  ).toBeVisible();
+    page.getByRole('menuitem', { exact: true, name: '视图' }),
+  ).toBeFocused();
+  await openTopMenu(page, '段落');
+  await expect(
+    page.getByRole('menuitem', { name: /^普通段落\s/ }),
+  ).toBeFocused();
+  const insert = page.getByRole('menuitem', { name: '插入' });
+  await page.keyboard.press('End');
+  await expect(insert).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  const table = page.getByRole('menuitem', { name: /^表格\s*Ctrl\+T$/ });
+  await expect(table).toBeVisible();
   await page.screenshot({
     path: resolve(reportDirectory, 'menu-dark-nested-keyboard-zh.png'),
   });
 
   await page.keyboard.press('Escape');
-  await page.keyboard.press('Escape');
+  await expect(table).toBeHidden();
+  const paragraph = page.getByRole('menuitem', {
+    exact: true,
+    name: '段落',
+  });
+  if ((await paragraph.getAttribute('data-state')) === 'open') {
+    await expect(insert).toBeFocused();
+    await insert.press('Escape');
+  }
+  await expect(paragraph).toHaveAttribute('data-state', 'closed');
+  await expect(paragraph).toBeFocused();
   await openTopMenu(page, '语言');
   await page.getByRole('menuitemradio', { name: 'English' }).click();
   await openTopMenu(page, 'File');

@@ -1,256 +1,124 @@
-import {
-  Bold,
-  CheckSquare,
-  Code,
-  Command,
-  Eye,
-  BookOpen,
-  FileCode2,
-  FileText,
-  Focus,
-  FilePlus,
-  FolderOpen,
-  Heading,
-  History,
-  Image,
-  Info,
-  Italic,
-  Languages,
-  Link,
-  List,
-  ListChecks,
-  Moon,
-  PanelLeft,
-  ListOrdered,
-  Minus,
-  Pilcrow,
-  Quote,
-  Redo2,
-  RefreshCw,
-  RotateCcw,
-  Save,
-  SaveAll,
-  Search,
-  Settings,
-  Strikethrough,
-  Sun,
-  Table2,
-  Undo2,
-} from 'lucide-react';
+import { FileText, History, List, Quote } from 'lucide-react';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
+import type { EditorEditState } from '../../editor/commands/editorCommandPort';
+import type {
+  EditorContextTarget,
+  EditorInteractionRange,
+} from '../../editor/interaction';
 import type {
   CommandActionId,
-  CommandContextMenuItem,
-  CommandHandlerMap,
   CommandMenuGroup,
+  CommandMenuInvocation,
   CommandMenuNode,
   CommandModel,
+  CommandPayloadInvocation,
+  CommandRangeActionId,
   CommandShortcutLabels,
 } from './commandTypes';
+import { isCommandActionDisabled } from './commandAvailability';
+import {
+  resolveCommandPresentation,
+  type CommandScene,
+} from './commandRegistry';
+export {
+  runCommandAction,
+  runCommandMenuInvocation,
+} from './commandInvocation';
 
 type Translate = (key: string) => string;
 
-const ACTION_MANAGED_FOCUS = new Set<CommandActionId>([
-  'bold',
-  'codeBlock',
-  'focusEditor',
-  'heading1',
-  'heading2',
-  'heading3',
-  'heading4',
-  'heading5',
-  'heading6',
-  'horizontalRule',
-  'image',
-  'inlineCode',
-  'italic',
-  'link',
-  'newDocument',
-  'openAbout',
-  'checkForUpdates',
-  'openCommandPalette',
-  'openSearch',
-  'openSettings',
-  'orderedList',
-  'paragraph',
-  'quote',
-  'redo',
-  'resetZoom',
-  'strikethrough',
-  'table',
-  'taskList',
-  'undo',
-  'unorderedList',
-]);
+type CommandPresentationBuildContext = {
+  focusMode?: boolean;
+  scene: CommandScene;
+  shortcuts?: CommandShortcutLabels;
+  t: Translate;
+};
 
-const EDITOR_DEPENDENT_ACTIONS = new Set<CommandActionId>([
-  'bold',
-  'codeBlock',
-  'copyTable',
-  'deleteTable',
-  'exitFocusMode',
-  'focusEditor',
-  'heading1',
-  'heading2',
-  'heading3',
-  'heading4',
-  'heading5',
-  'heading6',
-  'horizontalRule',
-  'image',
-  'inlineCode',
-  'italic',
-  'link',
-  'openSearch',
-  'orderedList',
-  'paragraph',
-  'quote',
-  'redo',
-  'resetZoom',
-  'save',
-  'saveAs',
-  'setLivePreviewMode',
-  'setReadingMode',
-  'setSourceMode',
-  'strikethrough',
-  'table',
-  'taskList',
-  'toggleDisplayMode',
-  'toggleFocusMode',
-  'undo',
-  'unorderedList',
-]);
+type CommandBuildContext = CommandPresentationBuildContext & {
+  editorAvailable: boolean;
+  editorState: EditorEditState;
+  fileOpening?: boolean;
+};
 
 export function createCommandPaletteModels({
   editorAvailable,
+  editorState,
   fileOpening,
   focusMode = false,
-  handlers,
   shortcuts,
   t,
 }: {
   editorAvailable: boolean;
+  editorState: EditorEditState;
   fileOpening: boolean;
   focusMode?: boolean;
-  handlers: CommandHandlerMap;
   shortcuts: CommandShortcutLabels;
   t: Translate;
 }): readonly CommandModel[] {
+  const context: CommandBuildContext = {
+    editorAvailable,
+    editorState,
+    fileOpening,
+    focusMode,
+    scene: 'palette',
+    shortcuts,
+    t,
+  };
   const actionCommand = (
     id: string,
-    action: CommandActionId,
-    icon: CommandModel['icon'],
-    label: string,
-    options: { disabled?: boolean; shortcut?: string } = {},
-  ) =>
-    command(id, icon, label, handlers[action], {
-      ...options,
-      disabled:
-        options.disabled ||
-        (!editorAvailable && EDITOR_DEPENDENT_ACTIONS.has(action)),
-    });
+    action: Exclude<CommandActionId, CommandRangeActionId>,
+  ) => {
+    const presentation = resolveCommandPresentation(action, context);
+    const invocation: CommandMenuInvocation =
+      presentation.focusManagement === 'action'
+        ? { action, focusManagement: 'action', kind: 'action' }
+        : { action, kind: 'action' };
+    return command(
+      id,
+      presentation.icon,
+      presentation.label,
+      invocation,
+      {
+        disabled: commandDisabled(action, context),
+        shortcut: presentation.shortcut,
+      },
+    );
+  };
 
   return [
-    actionCommand('new-document', 'newDocument', FilePlus, t('command.newDocument')),
-    actionCommand('open-file', 'openFile', FolderOpen, t('command.openFile'), {
-      disabled: fileOpening,
-    }),
-    actionCommand(
-      'open-workspace',
-      'openWorkspace',
-      FolderOpen,
-      t('workspace.open'),
-    ),
-    actionCommand('save', 'save', Save, t('command.save'), {
-      disabled: fileOpening,
-    }),
-    actionCommand('save-as', 'saveAs', SaveAll, t('command.saveAs'), {
-      disabled: fileOpening,
-    }),
-    actionCommand('find', 'openSearch', Search, t('menu.find')),
-    actionCommand('undo', 'undo', Undo2, t('menu.undo')),
-    actionCommand('redo', 'redo', Redo2, t('menu.redo')),
-    actionCommand(
-      'toggle-theme',
-      'toggleTheme',
-      Moon,
-      t('command.toggleTheme'),
-    ),
-    actionCommand(
-      'toggle-language',
-      'toggleLanguage',
-      Languages,
-      t('command.toggleLanguage'),
-    ),
-    actionCommand(
-      'toggle-sidebar',
-      'toggleSidebar',
-      PanelLeft,
-      t('command.toggleSidebar'),
-    ),
-    actionCommand(
-      'focus-editor',
-      'focusEditor',
-      Focus,
-      t('command.focusEditor'),
-    ),
-    actionCommand(
-      'toggle-focus-mode',
-      'toggleFocusMode',
-      Focus,
-      focusMode ? t('command.exitFocusMode') : t('command.enterFocusMode'),
-    ),
-    actionCommand(
-      'reset-zoom',
-      'resetZoom',
-      RotateCcw,
-      t('menu.resetZoom'),
-    ),
-    actionCommand(
-      'open-settings',
-      'openSettings',
-      Settings,
-      t('settings.title'),
-    ),
-    actionCommand(
-      'check-for-updates',
-      'checkForUpdates',
-      RefreshCw,
-      t('menu.checkForUpdates'),
-    ),
-    actionCommand('heading-1', 'heading1', Heading, t('menu.heading1')),
-    actionCommand('heading-2', 'heading2', Heading, t('menu.heading2')),
-    actionCommand('heading-3', 'heading3', Heading, t('menu.heading3')),
-    actionCommand('heading-4', 'heading4', Heading, t('menu.heading4')),
-    actionCommand('heading-5', 'heading5', Heading, t('menu.heading5')),
-    actionCommand('heading-6', 'heading6', Heading, t('menu.heading6')),
-    actionCommand(
-      'insert-horizontal-rule',
-      'horizontalRule',
-      Minus,
-      t('menu.horizontalRule'),
-    ),
-    actionCommand('insert-image', 'image', Image, t('menu.image'), {
-      shortcut: shortcuts.image,
-    }),
-    actionCommand('insert-code-block', 'codeBlock', Code, t('menu.codeBlock'), {
-      shortcut: shortcuts.codeBlock,
-    }),
-    actionCommand('insert-table', 'table', Table2, t('menu.table'), {
-      shortcut: shortcuts.table,
-    }),
-    actionCommand(
-      'insert-ordered-list',
-      'orderedList',
-      ListOrdered,
-      t('menu.orderedList'),
-    ),
-    actionCommand(
-      'toggle-strikethrough',
-      'strikethrough',
-      Strikethrough,
-      t('menu.strikethrough'),
-    ),
+    actionCommand('new-document', 'newDocument'),
+    actionCommand('open-file', 'openFile'),
+    actionCommand('open-workspace', 'openWorkspace'),
+    actionCommand('save', 'save'),
+    actionCommand('save-as', 'saveAs'),
+    actionCommand('find', 'openSearch'),
+    actionCommand('undo', 'undo'),
+    actionCommand('redo', 'redo'),
+    actionCommand('cut', 'cut'),
+    actionCommand('copy', 'copy'),
+    actionCommand('paste', 'paste'),
+    actionCommand('select-all', 'selectAll'),
+    actionCommand('toggle-theme', 'toggleTheme'),
+    actionCommand('toggle-language', 'toggleLanguage'),
+    actionCommand('toggle-sidebar', 'toggleSidebar'),
+    actionCommand('focus-editor', 'focusEditor'),
+    actionCommand('toggle-display-mode', 'toggleDisplayMode'),
+    actionCommand('toggle-focus-mode', 'toggleFocusMode'),
+    actionCommand('reset-zoom', 'resetZoom'),
+    actionCommand('open-settings', 'openSettings'),
+    actionCommand('check-for-updates', 'checkForUpdates'),
+    actionCommand('heading-1', 'heading1'),
+    actionCommand('heading-2', 'heading2'),
+    actionCommand('heading-3', 'heading3'),
+    actionCommand('heading-4', 'heading4'),
+    actionCommand('heading-5', 'heading5'),
+    actionCommand('heading-6', 'heading6'),
+    actionCommand('insert-horizontal-rule', 'horizontalRule'),
+    actionCommand('insert-image', 'image'),
+    actionCommand('insert-code-block', 'codeBlock'),
+    actionCommand('insert-table', 'table'),
+    actionCommand('insert-ordered-list', 'orderedList'),
+    actionCommand('toggle-strikethrough', 'strikethrough'),
   ];
 }
 
@@ -258,16 +126,16 @@ function command(
   id: string,
   icon: CommandModel['icon'],
   label: string,
-  run: () => void,
+  invocation: CommandMenuInvocation,
   options: { disabled?: boolean; shortcut?: string } = {},
 ): CommandModel {
   return {
     icon,
     id,
     disabled: options.disabled,
+    invocation,
     keywords: [label],
     label,
-    run,
     shortcut: options.shortcut,
   };
 }
@@ -275,10 +143,10 @@ function command(
 export function createTopMenuModels({
   editorDisplayMode,
   editorAvailable,
+  editorState,
   fileOpening,
   focusMode = false,
   language,
-  openRecentFile,
   recentFiles,
   shortcuts,
   sidebarOpen,
@@ -287,95 +155,119 @@ export function createTopMenuModels({
 }: {
   editorDisplayMode: EditorDisplayMode;
   editorAvailable: boolean;
+  editorState: EditorEditState;
   fileOpening: boolean;
   focusMode?: boolean;
   language: 'en' | 'zh-CN';
-  openRecentFile: (path: string) => void;
   recentFiles: readonly { name: string; path: string }[];
   sidebarOpen: boolean;
   shortcuts: CommandShortcutLabels;
   t: Translate;
-  theme: 'dark' | 'light';
+  theme: 'dark' | 'light' | 'system';
 }): CommandMenuGroup[] {
+  const context: CommandBuildContext = {
+    editorAvailable,
+    editorState,
+    fileOpening,
+    focusMode,
+    scene: 'topMenu',
+    shortcuts,
+    t,
+  };
+  const item = (
+    id: string,
+    action: Exclude<CommandActionId, CommandRangeActionId>,
+  ) => menuItem(id, action, context);
+  const choice = (
+    id: string,
+    group: string,
+    action: Exclude<CommandActionId, CommandRangeActionId>,
+    checked: boolean,
+  ) => radio(id, group, action, checked, context);
+  const toggle = (
+    id: string,
+    action: Exclude<CommandActionId, CommandRangeActionId>,
+    checked: boolean,
+  ) => checkbox(id, action, checked, context);
   const groups: CommandMenuGroup[] = [
     {
       id: 'file',
       label: t('menu.file'),
       items: [
-        menuItem('new-document', 'newDocument', FilePlus, t('command.newDocument'), shortcuts.newDocument),
-        menuItem('open-file', 'openFile', FolderOpen, t('command.openFile'), shortcuts.openFile, fileOpening),
+        item('new-document', 'newDocument'),
+        item('open-file', 'openFile'),
         submenu(
           'recent-files',
           History,
           t('recentFiles.title'),
           recentFiles.length
             ? recentFiles.map((file, index) =>
-                menuCallbackItem(
+                payloadMenuItem(
                   `recent-file-${index}`,
-                  FileText,
-                  file.name,
-                  () => openRecentFile(file.path),
+                  {
+                    action: 'openRecentFile',
+                    kind: 'payloadAction',
+                    payload: { path: file.path },
+                  },
+                  context,
+                  { label: file.name },
                 ),
               )
             : [
-                {
-                  disabled: true,
-                  icon: FileText,
-                  id: 'recent-files-empty',
-                  invocation: { kind: 'callback', run: () => undefined },
-                  label: t('recentFiles.empty'),
-                  type: 'item',
-                },
+                menuLabel(
+                  'recent-files-empty',
+                  FileText,
+                  t('recentFiles.empty'),
+                ),
               ],
-          fileOpening,
+          isCommandActionDisabled('openRecentFile', { fileOpening }),
         ),
-        menuItem('open-workspace', 'openWorkspace', FolderOpen, t('workspace.open'), undefined, fileOpening),
+        item('open-workspace', 'openWorkspace'),
         separator('file-open-separator'),
-        menuItem('save', 'save', Save, t('command.save'), shortcuts.save, fileOpening),
-        menuItem('save-as', 'saveAs', SaveAll, t('command.saveAs'), shortcuts.saveAs, fileOpening),
+        item('save', 'save'),
+        item('save-as', 'saveAs'),
         separator('file-settings-separator'),
-        menuItem('settings', 'openSettings', Settings, t('settings.title')),
+        item('settings', 'openSettings'),
       ],
     },
     {
       id: 'edit',
       label: t('menu.edit'),
       items: [
-        menuItem('undo', 'undo', Undo2, t('menu.undo'), shortcuts.undo),
-        menuItem('redo', 'redo', Redo2, t('menu.redo'), shortcuts.redo),
+        item('undo', 'undo'),
+        item('redo', 'redo'),
         separator('edit-history-separator'),
-        menuItem('find', 'openSearch', Search, t('menu.find'), shortcuts.find),
-        menuItem('command-palette', 'openCommandPalette', Command, t('commandPalette.open'), shortcuts.commandPalette),
+        item('cut', 'cut'),
+        item('copy', 'copy'),
+        item('paste', 'paste'),
+        item('select-all', 'selectAll'),
+        separator('edit-clipboard-separator'),
+        item('find', 'openSearch'),
+        item('command-palette', 'openCommandPalette'),
       ],
     },
     {
       id: 'paragraph',
       label: t('menu.paragraph'),
       items: [
-        menuItem('normal-paragraph', 'paragraph', Pilcrow, t('menu.normalParagraph'), shortcuts.normalParagraph),
+        item('normal-paragraph', 'paragraph'),
         separator('paragraph-heading-separator'),
         ...([1, 2, 3, 4, 5, 6] as const).map((level) =>
-          menuItem(
-            `heading-${level}`,
-            `heading${level}`,
-            Heading,
-            t(`menu.heading${level}`),
-            shortcuts[`heading${level}`],
-          ),
+          item(`heading-${level}`, `heading${level}`),
         ),
         separator('paragraph-block-separator'),
         submenu('lists', List, t('menu.lists'), [
-          menuItem('ordered-list', 'orderedList', ListOrdered, t('menu.orderedList')),
-          menuItem('unordered-list', 'unorderedList', List, t('menu.unorderedList')),
-          menuItem('task-list', 'taskList', ListChecks, t('menu.taskList')),
+          item('ordered-list', 'orderedList'),
+          item('unordered-list', 'unorderedList'),
+          item('task-list', 'taskList'),
         ]),
         submenu('blocks', Quote, t('menu.blocks'), [
-          menuItem('quote', 'quote', Quote, t('menu.quote')),
-          menuItem('code-block', 'codeBlock', Code, t('menu.codeBlock'), shortcuts.codeBlock),
+          item('quote', 'quote'),
+          item('code-block', 'codeBlock'),
         ]),
         submenu('insert', FileText, t('menu.insert'), [
-          menuItem('insert-table', 'table', Table2, t('menu.table'), shortcuts.table),
-          menuItem('horizontal-rule', 'horizontalRule', Minus, t('menu.horizontalRule')),
+          item('insert-table', 'table'),
+          item('horizontal-rule', 'horizontalRule'),
         ]),
       ],
     },
@@ -383,109 +275,102 @@ export function createTopMenuModels({
       id: 'format',
       label: t('menu.format'),
       items: [
-        menuItem('bold', 'bold', Bold, t('menu.bold'), shortcuts.bold),
-        menuItem('italic', 'italic', Italic, t('menu.italic'), shortcuts.italic),
-        menuItem('strikethrough', 'strikethrough', Strikethrough, t('menu.strikethrough')),
-        menuItem('inline-code', 'inlineCode', Code, t('menu.inlineCode')),
+        item('bold', 'bold'),
+        item('italic', 'italic'),
+        item('strikethrough', 'strikethrough'),
+        item('inline-code', 'inlineCode'),
         separator('format-link-separator'),
-        menuItem('link', 'link', Link, t('menu.link')),
-        menuItem('image', 'image', Image, t('menu.image'), shortcuts.image),
+        item('link', 'link'),
+        item('image', 'image'),
       ],
     },
     {
       id: 'view',
       label: t('menu.view'),
       items: [
-        radio('live-preview-mode', 'display-mode', 'setLivePreviewMode', Eye, t('menu.livePreviewMode'), editorDisplayMode === 'livePreview', shortcuts.sourceMode),
-        radio('source-mode', 'display-mode', 'setSourceMode', FileCode2, t('menu.sourceMode'), editorDisplayMode === 'source'),
-        radio('reading-mode', 'display-mode', 'setReadingMode', BookOpen, t('menu.readingMode'), editorDisplayMode === 'reading'),
+        choice('live-preview-mode', 'display-mode', 'setLivePreviewMode', editorDisplayMode === 'livePreview'),
+        choice('source-mode', 'display-mode', 'setSourceMode', editorDisplayMode === 'source'),
+        choice('reading-mode', 'display-mode', 'setReadingMode', editorDisplayMode === 'reading'),
         separator('view-mode-separator'),
-        checkbox('sidebar', 'toggleSidebar', PanelLeft, t('command.toggleSidebar'), sidebarOpen, shortcuts.sidebar),
-        checkbox('focus-mode', 'toggleFocusMode', CheckSquare, t('menu.focusMode'), focusMode, shortcuts.focusMode),
+        toggle('sidebar', 'toggleSidebar', sidebarOpen),
+        toggle('focus-mode', 'toggleFocusMode', focusMode),
         separator('view-focus-separator'),
-        menuItem('reset-zoom', 'resetZoom', RotateCcw, t('menu.resetZoom')),
-        menuItem('focus-editor', 'focusEditor', Focus, t('command.focusEditor')),
+        item('reset-zoom', 'resetZoom'),
+        item('focus-editor', 'focusEditor'),
       ],
     },
     {
       id: 'theme',
       label: t('menu.theme'),
       items: [
-        radio('theme-light', 'theme', 'setLightTheme', Sun, t('settings.themeLight'), theme === 'light'),
-        radio('theme-dark', 'theme', 'setDarkTheme', Moon, t('settings.themeDark'), theme === 'dark'),
+        choice('theme-light', 'theme', 'setLightTheme', theme === 'light'),
+        choice('theme-dark', 'theme', 'setDarkTheme', theme === 'dark'),
+        choice('theme-system', 'theme', 'setSystemTheme', theme === 'system'),
       ],
     },
     {
       id: 'language',
       label: t('menu.language'),
       items: [
-        radio('language-zh', 'language', 'setChineseLanguage', Languages, t('settings.languageChinese'), language === 'zh-CN'),
-        radio('language-en', 'language', 'setEnglishLanguage', Languages, t('settings.languageEnglish'), language === 'en'),
+        choice('language-zh', 'language', 'setChineseLanguage', language === 'zh-CN'),
+        choice('language-en', 'language', 'setEnglishLanguage', language === 'en'),
       ],
     },
     {
       id: 'help',
       label: t('menu.help'),
       items: [
-        menuItem(
-          'check-for-updates',
-          'checkForUpdates',
-          RefreshCw,
-          t('menu.checkForUpdates'),
-        ),
-        menuItem('about', 'openAbout', Info, t('menu.about')),
+        item('check-for-updates', 'checkForUpdates'),
+        item('about', 'openAbout'),
       ],
     },
   ];
 
-  return editorAvailable
-    ? groups
-    : groups.map((group) => ({
-        ...group,
-        items: disableEditorDependentMenuNodes(group.items),
-      }));
-}
-
-function disableEditorDependentMenuNodes(
-  nodes: readonly CommandMenuNode[],
-): CommandMenuNode[] {
-  return nodes.map((node) => {
-    if (node.type === 'submenu') {
-      return {
-        ...node,
-        items: disableEditorDependentMenuNodes(node.items),
-      };
-    }
-
-    if (
-      node.type === 'separator' ||
-      node.invocation.kind !== 'action' ||
-      !EDITOR_DEPENDENT_ACTIONS.has(node.invocation.action)
-    ) {
-      return node;
-    }
-
-    return { ...node, disabled: true };
-  });
+  return groups;
 }
 
 function menuItem(
   id: string,
-  action: CommandActionId,
-  icon: CommandModel['icon'],
-  label: string,
-  shortcut?: string,
-  disabled?: boolean,
+  action: Exclude<CommandActionId, CommandRangeActionId>,
+  context: CommandBuildContext,
+  disabled = false,
 ): CommandMenuNode {
+  const presentation = resolveCommandPresentation(action, context);
   return {
-    disabled,
-    icon,
+    disabled: commandDisabled(action, context, disabled),
+    icon: presentation.icon,
     id,
-    invocation: ACTION_MANAGED_FOCUS.has(action)
+    invocation: presentation.focusManagement === 'action'
       ? { action, focusManagement: 'action', kind: 'action' }
       : { action, kind: 'action' },
-    label,
-    shortcut,
+    label: presentation.label,
+    shortcut: presentation.shortcut,
+    type: 'item',
+  };
+}
+
+function rangeMenuItem(
+  id: string,
+  action: CommandRangeActionId,
+  range: EditorInteractionRange,
+  context: CommandBuildContext,
+  disabled = false,
+): CommandMenuNode {
+  const presentation = resolveCommandPresentation(action, context);
+  return {
+    disabled: commandDisabled(action, context, disabled),
+    icon: presentation.icon,
+    id,
+    invocation: {
+      action,
+      ...(presentation.focusManagement === 'action'
+        ? { focusManagement: 'action' as const }
+        : {}),
+      kind: 'rangeAction',
+      range,
+    },
+    label: presentation.label,
+    shortcut: presentation.shortcut,
     type: 'item',
   };
 }
@@ -504,36 +389,64 @@ function submenu(
   return { disabled, icon, id, items, label, type: 'submenu' };
 }
 
-function menuCallbackItem(
+function menuLabel(
   id: string,
   icon: CommandModel['icon'],
   label: string,
-  run: () => void,
 ): CommandMenuNode {
   return {
+    disabled: true,
     icon,
     id,
-    invocation: { kind: 'callback', run },
     label,
+    type: 'label',
+  };
+}
+
+function payloadMenuItem(
+  id: string,
+  invocation: CommandPayloadInvocation,
+  context: CommandPresentationBuildContext,
+  { disabled = false, label }: { disabled?: boolean; label?: string } = {},
+): CommandMenuNode {
+  const presentation = resolveCommandPresentation(invocation.action, {
+    ...context,
+    label,
+  });
+  const resolvedInvocation: CommandPayloadInvocation =
+    presentation.focusManagement === 'action'
+      ? { ...invocation, focusManagement: 'action' }
+      : invocation;
+  return {
+    disabled: isCommandActionDisabled(invocation.action, {
+      surfaceDisabled: disabled,
+    }),
+    icon: presentation.icon,
+    id,
+    invocation: resolvedInvocation,
+    label: presentation.label,
+    shortcut: presentation.shortcut,
     type: 'item',
   };
 }
 
 function checkbox(
   id: string,
-  action: CommandActionId,
-  icon: CommandModel['icon'],
-  label: string,
+  action: Exclude<CommandActionId, CommandRangeActionId>,
   checked: boolean,
-  shortcut?: string,
+  context: CommandBuildContext,
 ): CommandMenuNode {
+  const presentation = resolveCommandPresentation(action, context);
   return {
     checked,
-    icon,
+    disabled: commandDisabled(action, context),
+    icon: presentation.icon,
     id,
-    invocation: { action, kind: 'action' },
-    label,
-    shortcut,
+    invocation: presentation.focusManagement === 'action'
+      ? { action, focusManagement: 'action', kind: 'action' }
+      : { action, kind: 'action' },
+    label: presentation.label,
+    shortcut: presentation.shortcut,
     type: 'checkbox',
   };
 }
@@ -541,62 +454,269 @@ function checkbox(
 function radio(
   id: string,
   group: string,
-  action: CommandActionId,
-  icon: CommandModel['icon'],
-  label: string,
+  action: Exclude<CommandActionId, CommandRangeActionId>,
   checked: boolean,
-  shortcut?: string,
+  context: CommandBuildContext,
 ): CommandMenuNode {
+  const presentation = resolveCommandPresentation(action, context);
   return {
     checked,
+    disabled: commandDisabled(action, context),
     group,
-    icon,
+    icon: presentation.icon,
     id,
-    invocation: { action, kind: 'action' },
-    label,
-    shortcut,
+    invocation: presentation.focusManagement === 'action'
+      ? { action, focusManagement: 'action', kind: 'action' }
+      : { action, kind: 'action' },
+    label: presentation.label,
+    shortcut: presentation.shortcut,
     type: 'radio',
   };
 }
 
-export function createEditorContextMenuModels({
-  tableContext,
-  shortcuts,
-  t,
-}: {
-  tableContext: boolean;
-  shortcuts: CommandShortcutLabels;
-  t: Translate;
-}): CommandContextMenuItem[] {
-  const items: CommandContextMenuItem[] = [
-    {
-      action: 'table',
-      label: t('menu.table'),
-      shortcut: shortcuts.table,
-    },
-  ];
+function commandDisabled(
+  action: CommandActionId,
+  context: CommandBuildContext,
+  disabled = false,
+): boolean {
+  return (
+    disabled ||
+    isCommandActionDisabled(action, {
+      editorAvailable: context.editorAvailable,
+      editorState: context.editorState,
+      fileOpening: context.fileOpening,
+    })
+  );
+}
 
-  if (tableContext) {
-    items.push(
-      {
-        action: 'copyTable',
-        label: t('table.copyTable'),
-        shortcut: shortcuts.copyTable,
-      },
-      {
-        action: 'deleteTable',
-        label: t('table.deleteTable'),
-        shortcut: shortcuts.deleteTable,
-      },
+export type FileTreeContextTarget = {
+  kind: 'directory' | 'file' | 'workspaceRoot';
+  name: string;
+  path: string;
+};
+
+export function createFileTreeContextMenuModels({
+  t,
+  target,
+}: {
+  t: Translate;
+  target: FileTreeContextTarget;
+}): CommandMenuNode[] {
+  const context: CommandPresentationBuildContext = {
+    scene: 'fileTreeContext',
+    t,
+  };
+  const nodes: CommandMenuNode[] = [];
+
+  if (target.kind === 'workspaceRoot' || target.kind === 'directory') {
+    nodes.push(
+      payloadMenuItem(
+        'file-tree-new-file',
+        {
+          action: 'fileTreeCreateFile',
+          kind: 'payloadAction',
+          payload: { parentPath: target.path },
+        },
+        context,
+      ),
+      payloadMenuItem(
+        'file-tree-new-folder',
+        {
+          action: 'fileTreeCreateDirectory',
+          kind: 'payloadAction',
+          payload: { parentPath: target.path },
+        },
+        context,
+      ),
     );
   }
 
-  return items;
+  if (target.kind === 'directory' || target.kind === 'file') {
+    nodes.push(
+      payloadMenuItem(
+        'file-tree-rename',
+        {
+          action: 'fileTreeRename',
+          kind: 'payloadAction',
+          payload: {
+            entryKind: target.kind,
+            name: target.name,
+            path: target.path,
+          },
+        },
+        context,
+      ),
+    );
+  }
+
+  if (nodes.length > 0) {
+    nodes.push(separator('file-tree-mutate-separator'));
+  }
+
+  nodes.push(
+    payloadMenuItem(
+      'file-tree-reveal',
+      {
+        action: 'fileTreeReveal',
+        kind: 'payloadAction',
+        payload: { path: target.path },
+      },
+      context,
+    ),
+    payloadMenuItem(
+      'file-tree-copy-path',
+      {
+        action: 'fileTreeCopyPath',
+        kind: 'payloadAction',
+        payload: { path: target.path },
+      },
+      context,
+    ),
+  );
+
+  if (target.kind === 'directory' || target.kind === 'file') {
+    nodes.push(
+      separator('file-tree-delete-separator'),
+      payloadMenuItem(
+        'file-tree-delete',
+        {
+          action: 'fileTreeDelete',
+          kind: 'payloadAction',
+          payload: {
+            entryKind: target.kind,
+            name: target.name,
+            path: target.path,
+          },
+        },
+        context,
+      ),
+    );
+  }
+
+  return nodes;
 }
 
-export function runCommandAction(
-  handlers: CommandHandlerMap,
-  action: CommandActionId,
-): void {
-  handlers[action]();
+export function createEditorContextMenuModels({
+  editorAvailable,
+  editorState,
+  shortcuts,
+  t,
+  target,
+}: {
+  editorAvailable: boolean;
+  editorState: EditorEditState;
+  shortcuts: CommandShortcutLabels;
+  t: Translate;
+  target: EditorContextTarget;
+}): CommandMenuNode[] {
+  const context: CommandBuildContext = {
+    editorAvailable,
+    editorState,
+    scene: 'editorContext',
+    shortcuts,
+    t,
+  };
+  const item = (
+    id: string,
+    action: Exclude<CommandActionId, CommandRangeActionId>,
+  ) => menuItem(id, action, context);
+  const nodes: CommandMenuNode[] = [
+    item('context-cut', 'cut'),
+    item('context-copy', 'copy'),
+    item('context-paste', 'paste'),
+    item('context-select-all', 'selectAll'),
+    separator('context-edit-separator'),
+    item('context-table', 'table'),
+  ];
+
+  const contextualNodes: CommandMenuNode[] = [];
+
+  if (target.kind === 'link') {
+    const href = target.href;
+    contextualNodes.push(
+      payloadMenuItem(
+        'open-link',
+        {
+          action: 'openLink',
+          kind: 'payloadAction',
+          payload: { href },
+        },
+        context,
+      ),
+      payloadMenuItem(
+        'copy-link-address',
+        {
+          action: 'copyLinkAddress',
+          kind: 'payloadAction',
+          payload: { href },
+        },
+        context,
+        { disabled: !editorAvailable || !editorState.clipboardWriteAvailable },
+      ),
+    );
+  }
+
+  if (target.kind === 'image') {
+    const src = target.src;
+    const range = { from: target.from, to: target.to };
+    contextualNodes.push(
+      payloadMenuItem(
+        'copy-image-path',
+        {
+          action: 'copyImagePath',
+          kind: 'payloadAction',
+          payload: { src },
+        },
+        context,
+        { disabled: !editorAvailable || !editorState.clipboardWriteAvailable },
+      ),
+    );
+
+    if (!/^(?:https?:|data:|blob:)/i.test(src.trim())) {
+      contextualNodes.push(
+        payloadMenuItem(
+          'reveal-image',
+          {
+            action: 'revealImage',
+            kind: 'payloadAction',
+            payload: { src },
+          },
+          context,
+        ),
+      );
+    }
+
+    contextualNodes.push(
+      rangeMenuItem(
+        'delete-image-reference',
+        'deleteImageReference',
+        range,
+        context,
+      ),
+    );
+  }
+
+  if (target.kind === 'table') {
+    const range = { from: target.from, to: target.to };
+    contextualNodes.push(
+      rangeMenuItem(
+        'context-copy-table',
+        'copyTable',
+        range,
+        context,
+      ),
+      rangeMenuItem(
+        'context-delete-table',
+        'deleteTable',
+        range,
+        context,
+      ),
+    );
+  }
+
+  if (contextualNodes.length > 0) {
+    nodes.push(separator('context-target-separator'), ...contextualNodes);
+  }
+
+  return nodes;
 }

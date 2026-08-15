@@ -381,6 +381,37 @@ describe('image preview extension', () => {
     parent.remove();
   });
 
+  it('keeps the image preview inactive when it receives a secondary-button press', () => {
+    const imageSource = '![Alt](data:image/png;base64,AA==)';
+    const doc = [imageSource, '', 'after'].join('\n');
+    const initialSelection = doc.indexOf('after');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+        ],
+        selection: EditorSelection.cursor(initialSelection),
+      }),
+    });
+
+    const preview = parent.querySelector('.lm-image-preview');
+    preview?.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, button: 2 }),
+    );
+
+    expect(view.state.selection.main.head).toBe(initialSelection);
+    expect(parent.querySelector('.lm-image-preview')).toBe(preview);
+    expect(parent.textContent).not.toContain(imageSource);
+
+    view.destroy();
+    parent.remove();
+  });
+
   it.each([
     {
       name: 'opening',

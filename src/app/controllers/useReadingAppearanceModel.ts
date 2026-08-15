@@ -5,6 +5,7 @@ import {
   getPageWidthPixels,
   useReadingAppearanceStore,
 } from '../../features/reading-appearance/readingAppearanceStore';
+import { syncFontZoomToSettings } from './applySettings';
 
 export function useReadingAppearanceModel(focusEditor: () => void) {
   const fontZoomPercent = useReadingAppearanceStore(
@@ -16,8 +17,6 @@ export function useReadingAppearanceModel(focusEditor: () => void) {
   );
   const setPageWidth = useReadingAppearanceStore((state) => state.setPageWidth);
   const resetZoom = useReadingAppearanceStore((state) => state.resetZoom);
-  const zoomIn = useReadingAppearanceStore((state) => state.zoomIn);
-  const zoomOut = useReadingAppearanceStore((state) => state.zoomOut);
   const appearance = useMemo(
     () => ({
       fontZoomPercent,
@@ -25,19 +24,22 @@ export function useReadingAppearanceModel(focusEditor: () => void) {
     }),
     [fontZoomPercent, pageWidth],
   );
-  const onZoomRequested = useCallback(
-    (direction: EditorZoomDirection) => {
-      if (direction === 'in') {
-        zoomIn();
-        return;
-      }
+  const onZoomRequested = useCallback((direction: EditorZoomDirection) => {
+    if (direction === 'in') {
+      useReadingAppearanceStore.getState().zoomIn();
+    } else {
+      useReadingAppearanceStore.getState().zoomOut();
+    }
 
-      zoomOut();
-    },
-    [zoomIn, zoomOut],
-  );
+    syncFontZoomToSettings(
+      useReadingAppearanceStore.getState().fontZoomPercent,
+    );
+  }, []);
   const resetZoomAndFocus = useCallback(() => {
     resetZoom();
+    syncFontZoomToSettings(
+      useReadingAppearanceStore.getState().fontZoomPercent,
+    );
     focusEditor();
   }, [focusEditor, resetZoom]);
 

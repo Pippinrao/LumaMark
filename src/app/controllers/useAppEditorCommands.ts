@@ -1,77 +1,56 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   createEditorCommandPort,
   createEditorDocumentPort,
+  type EditorClipboardError,
   type EditorCommandPort,
   type EditorDocumentPort,
+  type EditorEditState,
 } from '../../editor/commands/editorCommandPort';
 import type { MarkdownFormatCommand } from '../../editor/commands/markdownFormatCommands';
 import type { EditorApi } from '../../editor/core/editorApi';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
-import { createLocalImageReferences } from '../../services/assets/assetCommands';
-import { subscribeToLocalImageDrops } from '../../services/assets/localImageDrop';
-import { resolveFileCommandClient } from '../../services/files/fileCommandClient';
-import { showOpenImageDialog } from '../../services/files/fileCommands';
+import type { EditorInteractionRange } from '../../editor/interaction';
+import { useSettingsStore } from '../../features/settings/settingsStore';
+import { resolveClipboardTextPort } from '../../services/clipboard/clipboardTextClient';
 import { useAppStore } from '../stores/appStore';
-import {
-  reportImageInsertFailure,
-  useAppImageAssets,
-} from './useAppImageAssets';
+import { useAppEditorImageInput } from './useAppEditorImageInput';
 
 export function useAppEditorCommands() {
   const { t } = useTranslation();
   const documentPortRef = useRef<EditorDocumentPort | null>(null);
   const commandPortRef = useRef<EditorCommandPort | null>(null);
   const pendingFocusRef = useRef(false);
-  const imageAssets = useAppImageAssets(documentPortRef);
+  const initializedEditorInstancesRef = useRef(new WeakSet<EditorApi>());
+  const imageInput = useAppEditorImageInput(commandPortRef, documentPortRef);
   const [editorDisplayMode, setEditorDisplayMode] =
     useState<EditorDisplayMode>('livePreview');
   const editorDisplayModeRef = useRef<EditorDisplayMode>('livePreview');
   const [editorReady, setEditorReady] = useState(false);
-  useEffect(() => {
-    let disposed = false;
-    let unlisten: () => void = () => undefined;
-
-    void subscribeToLocalImageDrops((drop) => {
-      const state = useAppStore.getState();
-      const documentPath = state.currentFile?.path ?? null;
-      void createLocalImageReferences({
-        copyToAssets: state.copyImagesToAssets,
-        documentPath,
-        paths: drop.paths,
-      })
-        .then((images) => {
-          if (
-            disposed ||
-            (useAppStore.getState().currentFile?.path ?? null) !== documentPath
-          ) {
-            return;
-          }
-
-          commandPortRef.current?.insertImages(images, drop.position);
-        })
-        .catch(reportImageInsertFailure);
-    })
-      .then((dispose) => {
-        if (disposed) {
-          dispose();
-          return;
-        }
-
-        unlisten = dispose;
-      })
-      .catch(reportImageInsertFailure);
-
-    return () => {
-      disposed = true;
-      unlisten();
-    };
-  }, []);
+  const reportClipboardError = useCallback(
+    ({ operation }: EditorClipboardError) => {
+      useAppStore.getState().setLastFileError({
+        code: `clipboard.${operation}_failed`,
+        message: t(`clipboardError.${operation}Failed`),
+        recoverable: true,
+      });
+    },
+    [t],
+  );
 
   const onEditorReady = useCallback((editor: EditorApi) => {
     documentPortRef.current = createEditorDocumentPort(editor);
-    commandPortRef.current = createEditorCommandPort(editor);
+    commandPortRef.current = createEditorCommandPort(editor, {
+      onClipboardError: reportClipboardError,
+      resolveClipboard: resolveClipboardTextPort,
+    });
+    if (!initializedEditorInstancesRef.current.has(editor)) {
+      initializedEditorInstancesRef.current.add(editor);
+      editor.setDisplayMode(
+        useSettingsStore.getState().settings.editor.defaultDisplayMode,
+      );
+    }
     const displayMode = editor.getDisplayMode();
     editorDisplayModeRef.current = displayMode;
     setEditorReady(true);
@@ -81,63 +60,42 @@ export function useAppEditorCommands() {
       pendingFocusRef.current = false;
       editor.focus();
     }
-  }, [setEditorDisplayMode, setEditorReady]);
+  }, [reportClipboardError, setEditorDisplayMode, setEditorReady]);
 
   const runFormat = useCallback((command: MarkdownFormatCommand) => {
     commandPortRef.current?.runFormat(command);
   }, []);
 
-  const insertLocalImages = useCallback(async () => {
-    if (!commandPortRef.current) {
-      return;
-    }
-
-    const state = useAppStore.getState();
-    const documentPath = state.currentFile?.path ?? null;
-
-    try {
-      const browserClient = resolveFileCommandClient();
-      const result = browserClient?.showOpenImageDialog
-        ? await browserClient.showOpenImageDialog()
-        : await showOpenImageDialog(t('menu.image'));
-
-      if (!result.ok) {
-        throw new Error(result.error.code);
-      }
-
-      if (!result.data?.length) {
-        return;
-      }
-
-      const images = await createLocalImageReferences({
-        copyToAssets: state.copyImagesToAssets,
-        documentPath,
-        paths: result.data,
-      });
-
-      if ((useAppStore.getState().currentFile?.path ?? null) !== documentPath) {
-        return;
-      }
-
-      commandPortRef.current?.insertImages(images);
-    } catch (error) {
-      reportImageInsertFailure(error);
-    } finally {
-      commandPortRef.current?.focus();
-    }
-  }, [t]);
-
   const redo = useCallback(() => {
     commandPortRef.current?.redo();
   }, []);
 
-  const copyTable = useCallback(() => {
-    commandPortRef.current?.copyTable();
+  const copy = useCallback(() => {
+    return commandPortRef.current?.copy() ?? Promise.resolve(false);
   }, []);
 
-  const deleteTable = useCallback(() => {
-    commandPortRef.current?.deleteTable();
+  const copyTable = useCallback((range?: EditorInteractionRange) => {
+    return commandPortRef.current?.copyTable(range) ?? Promise.resolve(false);
   }, []);
+
+  const cut = useCallback(() => {
+    return commandPortRef.current?.cut() ?? Promise.resolve(false);
+  }, []);
+
+  const deleteTable = useCallback((range?: EditorInteractionRange) => {
+    return commandPortRef.current?.deleteTable(range) ?? false;
+  }, []);
+
+  const deleteImageReference = useCallback(
+    (range?: EditorInteractionRange) => {
+      if (!range) {
+        return;
+      }
+
+      commandPortRef.current?.deleteImageReference(range);
+    },
+    [],
+  );
 
   const focusEditor = useCallback(() => {
     const commandPort = commandPortRef.current;
@@ -152,6 +110,18 @@ export function useAppEditorCommands() {
 
   const openSearch = useCallback(() => {
     commandPortRef.current?.openSearch();
+  }, []);
+
+  const paste = useCallback(() => {
+    return commandPortRef.current?.paste() ?? Promise.resolve(false);
+  }, []);
+
+  const selectAll = useCallback(() => {
+    return commandPortRef.current?.selectAll() ?? false;
+  }, []);
+
+  const getEditState = useCallback((): EditorEditState => {
+    return commandPortRef.current?.getEditState() ?? unavailableEditorEditState;
   }, []);
 
   const selectPosition = useCallback((position: number) => {
@@ -182,24 +152,33 @@ export function useAppEditorCommands() {
   }, []);
 
   return {
+    copy,
     copyTable,
+    cut,
+    deleteImageReference,
     deleteTable,
     documentPortRef,
     editorReady,
     editorDisplayMode,
     focusEditor,
-    imageAssetResolver: imageAssets.imageAssetResolver,
-    imageImportErrorHandler: reportImageInsertFailure,
-    imageImportHandler: imageAssets.imageImportHandler,
-    insertLocalImages,
+    getEditState,
+    ...imageInput,
     onEditorReady,
     openSearch,
+    paste,
     runFormat,
     redo,
-    refreshLocalImage: imageAssets.refreshLocalImage,
+    selectAll,
     selectPosition,
     setDisplayMode,
     toggleDisplayMode,
     undo,
   };
 }
+
+const unavailableEditorEditState: EditorEditState = {
+  clipboardReadAvailable: false,
+  clipboardWriteAvailable: false,
+  readOnly: true,
+  selectionEmpty: true,
+};

@@ -35,10 +35,10 @@ pub fn open_directory(path: impl AsRef<Path>) -> Result<WorkspaceDirectory, AppE
         return Err(AppError::workspace_not_directory());
     }
 
-    let path_string = path_to_string(path)?;
+    let path_string = path_to_string_for_entry(path)?;
 
     Ok(WorkspaceDirectory {
-        name: display_name(path, &path_string),
+        name: display_name_for_entry(path, &path_string),
         path: path_string,
     })
 }
@@ -69,16 +69,16 @@ fn workspace_entry_from_dir_entry(entry: fs::DirEntry) -> Option<WorkspaceEntry>
     let file_type = entry.file_type().ok()?;
     let kind = if file_type.is_dir() {
         Some(WorkspaceEntryKind::Directory)
-    } else if file_type.is_file() && is_markdown_file(&entry_path) {
+    } else if file_type.is_file() && is_markdown_file_path(&entry_path) {
         Some(WorkspaceEntryKind::MarkdownFile)
     } else {
         None
     }?;
-    let path = path_to_string(&entry_path).ok()?;
+    let path = path_to_string_for_entry(&entry_path).ok()?;
 
     Some(WorkspaceEntry {
         kind,
-        name: display_name(&entry_path, &path),
+        name: display_name_for_entry(&entry_path, &path),
         path,
     })
 }
@@ -90,7 +90,7 @@ fn entry_kind_order(kind: &WorkspaceEntryKind) -> u8 {
     }
 }
 
-fn is_markdown_file(path: &Path) -> bool {
+pub(crate) fn is_markdown_file_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .map(|extension| {
@@ -102,14 +102,14 @@ fn is_markdown_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn display_name(path: &Path, fallback: &str) -> String {
+pub(crate) fn display_name_for_entry(path: &Path, fallback: &str) -> String {
     path.file_name()
         .and_then(|name| name.to_str())
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| fallback.to_owned())
 }
 
-fn path_to_string(path: &Path) -> Result<String, AppError> {
+pub(crate) fn path_to_string_for_entry(path: &Path) -> Result<String, AppError> {
     path.to_str()
         .map(ToOwned::to_owned)
         .ok_or_else(AppError::invalid_path)

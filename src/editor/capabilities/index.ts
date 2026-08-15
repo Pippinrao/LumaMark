@@ -41,10 +41,13 @@ export function createLivePreviewExtensions(
 
 export function createEditorCapabilityCommands(
   view: EditorView,
+  options: {
+    writeClipboardText?: (text: string) => Promise<void>;
+  } = {},
 ): EditorCapabilityCommands {
   return {
     ...createImageCommands(view),
-    ...createTableCommands(view),
+    ...createTableCommands(view, options.writeClipboardText),
     ...createCodeBlockCommands(view),
   };
 }

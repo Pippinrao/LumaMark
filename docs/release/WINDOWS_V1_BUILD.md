@@ -4,6 +4,27 @@
 
 > **历史记录：** 下列分支、版本号、文件大小与 SHA-256 只描述对应 Alpha 构建，不能当作当前工作树的发布产物。Parity Reliability 只有在当前执行计划的自动化门禁、Windows 实测和真实自用退出条件全部满足后，才具备 Beta 候选资格；一次本地 `pnpm build` 成功不等于已发布。
 
+## 多窗口与二次实例真实安装验收
+
+`pnpm release:installer-acceptance:nsis` 在隔离临时目录真实安装当前 NSIS 后，会把安装所得 EXE 与同一 NSIS 路径显式交给 `pnpm release:installed-window-routing`，分别验证默认 `multiWindow` 与 `aggregateWindow` 的首实例、二次实例和并发重复启动，最后再卸载。运行前必须确认处于 Windows Sandbox 或无既有 LumaMark 产品注册信息的干净用户配置；脚本发现既有安装、注册表状态或进程时会 fail closed，不会接管、覆盖或结束用户资产。
+
+```powershell
+pnpm release:installer-acceptance:nsis
+exit $LASTEXITCODE
+```
+
+验收合同：
+
+- 每个模式创建独立的随机系统临时根和预创建的固定 `settings-config` 叶。primary、secondary 与所有并发重复 launch 必须收到完全相同的 `LUMAMARK_ACCEPTANCE_MODE=1`、`LUMAMARK_ROUTING_ACCEPTANCE_MODE=1` 和 `LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR`，并从所有子进程环境中移除 menu-only 的 `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR`。Rust 只有在 routing marker 恰好为 `1` 且 config 已通过 canonical containment 校验时才保留 single-instance；marker 非法或缺少严格 config 时启动失败。这个入口不是通用 portable config，绝不读取或写入真实用户配置。
+- 大小写与 UNC identity 用例依赖专用 Windows VM/验收账号已经启用且可访问 `\\localhost\<drive>$` localhost administrative share。脚本只读取自己创建在系统临时目录中的 fixture，绝不创建、启用或更改共享；共享不可用时属于环境前置门禁失败，禁止在普通用户机器上为通过验收而放宽共享策略。
+- `tauri-plugin-single-instance` 必须保持首个 Tauri plugin，secondary 在 durable state plugin 之前退出，因此不能读取、恢复或改写本轮隔离 state。state plugin 只 manage authority，不发布 ready。primary 的唯一启动 worker 必须先恢复 retained target、再路由初始 argv，全部成功后才发布 routing readiness；callback 只投递 worker，若它早于上述启动批次完成，worker 必须在访问 config 前等待 readiness，且超时以 `desktop.open_request_state_startup_timeout` 有界失败并留日志，禁止无限等待。
+- `multiWindow` 冷启动第一条新路径复用 Tauri 预建且无 authority 的 `main`；第二条不同路径创建 `document-1`，所以一个进程恰有两个 HWND。若 `main` 已有 retained request，路由不得覆盖它。`aggregateWindow` 的两个不同路径复用一个 `main`。无参数启动只聚焦既有 managed window，不创建请求。
+- 并发重复启动同一第二路径后，按窗口 label 与编辑器内容观察仍只能出现一次对应文档；验收记录 primary PID、规范化 executable path、进程 start time、窗口 label、路径/内容、durable request 状态和每个 secondary 退出结果。Exactly-once 由稳定最终 durable v2 completion fence/high-water 与精确 marker→label 映射共同证明，不依赖毫秒级抢拍瞬态 lifecycle。CDP 只用于读取 WebView 状态，不能替代桌面输入证据。
+- aggregate 场景复用 `installedMenuContextOsHelpers.mjs` 的硬化 Win32 bridge，并且只通过 canonical System32 PowerShell 执行。每次 metrics / pointer 操作都要重新核对本次 primary 的 PID、规范化可执行路径与 Windows `Process.StartTime`，确认线程和输入桌面均为交互 `Default`，再以 `ClientToScreen` 换算客户区坐标，通过 `WindowFromPoint` 证明目标 HWND 仍由该进程拥有，最后才允许 `SendInput` 点击真实编辑区；任何一步不确定都 fail closed。最终发布必须针对刚生成并安装到隔离路径的 NSIS 产物运行，浏览器 E2E 不能代替。
+- 临时根带一次性 ownership token/marker。清理前重新 canonicalize 系统 temp、随机父目录和固定 config leaf，验证 containment、marker 内容和本次进程已退出；任何所有权或占用事实不确定时保留证据并失败，禁止递归删除其他目录。
+
+这条命令只是 #16 窗口路由的真实安装薄门禁：它保存版本、EXE/NSIS SHA-256、命令与退出码摘要、窗口/请求 JSON 和逐阶段截图，但不能替代发布前的 #13/#16 联合矩阵。联合矩阵仍必须在同一隔离安装上覆盖 dirty、保存/丢弃/取消、undo、watcher、最近文件、窗口关闭保护和二次实例 exactly-once；薄门禁通过不得单独作为发布结论。
+
 ## 菜单与上下文菜单真实指针验收
 
 `pnpm release:installed-menu-context-os` 用当前工作树构建的 Release WebView 路径验证标题栏菜单、portal、窗口按钮与拖拽、编辑器上下文菜单和文件树上下文菜单。运行前必须显式指向当前工作树的固定产物；脚本会核对 package、Cargo、Cargo lock、Tauri 配置与 PE FileVersion/ProductVersion，并在证据中记录可执行文件 SHA-256：

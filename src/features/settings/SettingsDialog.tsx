@@ -7,6 +7,7 @@ import {
   MAX_SETTINGS_FONT_ZOOM_PERCENT,
   MIN_SETTINGS_FONT_ZOOM_PERCENT,
   SETTINGS_FONT_ZOOM_STEP_PERCENT,
+  type SettingsOpenWindowMode,
   type SettingsTheme,
 } from '../../services/settings/settingsTypes';
 import type { WindowControlErrorCode } from '../../services/window/windowControls';
@@ -26,10 +27,11 @@ import {
   type SettingsSection,
 } from './SettingsNavigation';
 import { SettingsNotices } from './SettingsNotices';
-import type {
-  SettingsLoadState,
-  SettingsRecoveryState,
-  SettingsWriteState,
+import {
+  useSettingsStore,
+  type SettingsLoadState,
+  type SettingsRecoveryState,
+  type SettingsWriteState,
 } from './settingsStore';
 import './settingsDialog.css';
 
@@ -106,6 +108,10 @@ export function SettingsDialog({
   const [activeSection, setActiveSection] =
     useState<SettingsSection>('general');
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const openWindowMode = useSettingsStore(
+    (state) => state.settings.general.openWindowMode,
+  );
+  const updateSettings = useSettingsStore((state) => state.updateSettings);
   const clearConfirmOpenRef = useRef(false);
   const [fontZoomEdit, setFontZoomEdit] = useState<{
     base: number;
@@ -140,6 +146,13 @@ export function SettingsDialog({
   const handleFontZoomStep = (next: number) => {
     setFontZoomEdit(null);
     onFontZoomPercentChange(next);
+  };
+
+  const handleOpenWindowModeChange = (mode: SettingsOpenWindowMode) => {
+    updateSettings((current) => ({
+      ...current,
+      general: { ...current.general, openWindowMode: mode },
+    }));
   };
 
   return (
@@ -200,7 +213,9 @@ export function SettingsDialog({
                   setClearConfirmOpen(nextOpen);
                 }}
                 onLanguageChange={onLanguageChange}
+                onOpenWindowModeChange={handleOpenWindowModeChange}
                 onStartupBehaviorChange={onStartupBehaviorChange}
+                openWindowMode={openWindowMode}
                 recentFilesPersistenceError={recentFilesPersistenceError}
                 startupBehavior={startupBehavior}
                 startupPersistenceError={startupPersistenceError}

@@ -1,6 +1,7 @@
 export type SettingsTheme = 'dark' | 'light' | 'system';
 export type SettingsPageWidth = 'fluid' | 'narrow' | 'standard' | 'wide';
 export type SettingsLanguage = 'en' | 'zh-CN';
+export type SettingsOpenWindowMode = 'aggregateWindow' | 'multiWindow';
 export type SettingsStartupBehavior = 'home' | 'restoreLastSession';
 export type SettingsDisplayMode = 'livePreview' | 'source';
 
@@ -17,6 +18,7 @@ export type LumaMarkSettings = {
   };
   general: {
     language: SettingsLanguage;
+    openWindowMode: SettingsOpenWindowMode;
     startupBehavior: SettingsStartupBehavior;
   };
   images: {
@@ -54,6 +56,7 @@ export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
   },
   general: {
     language: 'zh-CN',
+    openWindowMode: 'multiWindow',
     startupBehavior: 'home',
   },
   images: {
@@ -70,6 +73,11 @@ const PAGE_WIDTHS: readonly SettingsPageWidth[] = [
   'standard',
   'wide',
   'fluid',
+];
+
+const OPEN_WINDOW_MODES: readonly SettingsOpenWindowMode[] = [
+  'multiWindow',
+  'aggregateWindow',
 ];
 
 export function createDefaultLumaMarkSettings(): LumaMarkSettings {
@@ -139,6 +147,11 @@ export function normalizeLumaMarkSettings(
     ['home', 'restoreLastSession'] as const,
     defaults.general.startupBehavior,
   );
+  const openWindowMode = normalizeEnum(
+    general.openWindowMode,
+    OPEN_WINDOW_MODES,
+    defaults.general.openWindowMode,
+  );
   const defaultDisplayMode = normalizeEnum(
     editor.defaultDisplayMode,
     ['livePreview', 'source'] as const,
@@ -169,6 +182,7 @@ export function normalizeLumaMarkSettings(
     theme.invalid ||
     pageWidth.invalid ||
     language.invalid ||
+    openWindowMode.invalid ||
     startupBehavior.invalid ||
     defaultDisplayMode.invalid ||
     fontZoom.invalid ||
@@ -195,6 +209,7 @@ export function normalizeLumaMarkSettings(
       },
       general: {
         language: language.value,
+        openWindowMode: openWindowMode.value,
         startupBehavior: startupBehavior.value,
       },
       images: {

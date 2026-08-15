@@ -75,6 +75,7 @@ export function useAppShellModel() {
       useStartupStore.getState().setStartScreenOpen(false);
     },
     openPath: document.fileWorkflow.openPath,
+    openPathAfterDiscard: document.fileWorkflow.openPathAfterDiscard,
     recoveryChecked: document.recoveryDraft.recoveryChecked,
     recoveryPending: Boolean(document.recoveryDraft.pendingRecoveryDraft),
   });

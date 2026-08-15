@@ -101,6 +101,7 @@ export default defineConfig({
       '**/.claude/**',
       '**/.codex/**',
       '**/.cursor/**',
+      '**/.pnpm-store/**',
       '**/.worktrees/**',
       '**/src-tauri/target/**',
       '**/target/**',

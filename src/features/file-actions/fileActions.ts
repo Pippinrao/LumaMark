@@ -33,13 +33,30 @@ type RecentFilesAdapter = {
 };
 
 export type FileActions = {
+  applyOpenResult: (
+    result: CommandResult<ReadTextFileResult>,
+  ) => CommandResult<ReadTextFileResult>;
   createNewDocument: () => void;
   openFile: (path: string) => Promise<CommandResult<ReadTextFileResult>>;
   openFileFromDialog: () => Promise<CommandResult<ReadTextFileResult | null>>;
+  prepareCurrentFileSave: (
+    pathOverride?: string,
+  ) => Promise<CommandResult<PreparedFileSave>>;
+  readFile: (path: string) => Promise<CommandResult<ReadTextFileResult>>;
+  selectOpenFilePath: () => Promise<CommandResult<string | null>>;
   saveCurrentFile: (
     pathOverride?: string,
   ) => Promise<CommandResult<WriteTextFileResult>>;
   saveFileAs: () => Promise<CommandResult<WriteTextFileResult | null>>;
+  selectSaveFilePath: () => Promise<CommandResult<string | null>>;
+};
+
+export type PreparedFileSave = {
+  apply: (
+    result: CommandResult<WriteTextFileResult>,
+  ) => CommandResult<WriteTextFileResult>;
+  targetPath: string;
+  write: () => Promise<CommandResult<WriteTextFileResult>>;
 };
 
 type CreateFileActionsOptions = {
@@ -109,11 +126,9 @@ export function createFileActions({
   shouldApplySaveResult = () => true,
   state,
 }: CreateFileActionsOptions): FileActions {
-  const openFile = async (
-    path: string,
-  ): Promise<CommandResult<ReadTextFileResult>> => {
-    const result = await commands.readText(path);
-
+  const applyOpenResult = (
+    result: CommandResult<ReadTextFileResult>,
+  ): CommandResult<ReadTextFileResult> => {
     if (!shouldApplyOpenResult()) {
       return result;
     }
@@ -135,9 +150,16 @@ export function createFileActions({
     return result;
   };
 
-  const saveCurrentFile = async (
+  const readFile = (path: string) => commands.readText(path);
+
+  const openFile = async (
+    path: string,
+  ): Promise<CommandResult<ReadTextFileResult>> =>
+    applyOpenResult(await readFile(path));
+
+  const prepareCurrentFileSave = async (
     pathOverride?: string,
-  ): Promise<CommandResult<WriteTextFileResult>> => {
+  ): Promise<CommandResult<PreparedFileSave>> => {
     const saveStartedAtRevision = state.getState().dirtyRevision;
     const targetPath = pathOverride ?? state.getState().currentFile?.path;
 
@@ -169,46 +191,99 @@ export function createFileActions({
       return result;
     }
 
-    const result = await commands.writeText(targetPath, text);
+    return {
+      data: {
+        apply(result) {
+          if (!shouldApplySaveResult()) {
+            return result;
+          }
+
+          if (!result.ok) {
+            state.setLastFileError(result.error);
+            return result;
+          }
+
+          const documentUnchanged =
+            state.getState().dirtyRevision === saveStartedAtRevision &&
+            editor.isDocumentSnapshotCurrent(originalSnapshot);
+
+          if (text !== originalText && documentUnchanged) {
+            editor.loadDocument(text, {
+              preserveView: true,
+              resetHistory: false,
+            });
+            editor.markDocumentSaved(editor.captureDocumentSnapshot());
+          } else if (text === originalText) {
+            editor.markDocumentSaved(originalSnapshot);
+          } else {
+            editor.markDocumentUnsaved();
+          }
+
+          const currentFile = fileMetadataFromPath(result.data.path);
+          editor.setDocumentContext?.({ path: currentFile.path });
+          state.setCurrentFile(currentFile);
+          if (state.getState().dirtyRevision === saveStartedAtRevision) {
+            state.setDirty(false);
+          }
+          state.setLastFileError(null);
+          recentFiles.addRecentFile(currentFile);
+
+          return result;
+        },
+        targetPath,
+        write: () => commands.writeText(targetPath, text),
+      },
+      ok: true,
+    };
+  };
+
+  const saveCurrentFile = async (
+    pathOverride?: string,
+  ): Promise<CommandResult<WriteTextFileResult>> => {
+    const prepared = await prepareCurrentFileSave(pathOverride);
+    if (!prepared.ok) {
+      return prepared;
+    }
+
+    return prepared.data.apply(await prepared.data.write());
+  };
+
+  const selectOpenFilePath = async (): Promise<
+    CommandResult<string | null>
+  > => {
+    const dialogResult = await commands.showOpenDialog();
+
+    if (!shouldApplyOpenResult()) {
+      return dialogResult.ok
+        ? { ok: true, data: null }
+        : dialogResult;
+    }
+
+    if (!dialogResult.ok) {
+      state.setLastFileError(dialogResult.error);
+    }
+
+    return dialogResult;
+  };
+
+  const selectSaveFilePath = async (): Promise<
+    CommandResult<string | null>
+  > => {
+    const dialogResult = await commands.showSaveDialog();
 
     if (!shouldApplySaveResult()) {
-      return result;
+      return dialogResult.ok ? { ok: true, data: null } : dialogResult;
     }
 
-    if (!result.ok) {
-      state.setLastFileError(result.error);
-      return result;
+    if (!dialogResult.ok) {
+      state.setLastFileError(dialogResult.error);
     }
 
-    const documentUnchanged =
-      state.getState().dirtyRevision === saveStartedAtRevision &&
-      editor.isDocumentSnapshotCurrent(originalSnapshot);
-
-    if (text !== originalText && documentUnchanged) {
-      editor.loadDocument(text, {
-        preserveView: true,
-        resetHistory: false,
-      });
-      editor.markDocumentSaved(editor.captureDocumentSnapshot());
-    } else if (text === originalText) {
-      editor.markDocumentSaved(originalSnapshot);
-    } else {
-      editor.markDocumentUnsaved();
-    }
-
-    const currentFile = fileMetadataFromPath(result.data.path);
-    editor.setDocumentContext?.({ path: currentFile.path });
-    state.setCurrentFile(currentFile);
-    if (state.getState().dirtyRevision === saveStartedAtRevision) {
-      state.setDirty(false);
-    }
-    state.setLastFileError(null);
-    recentFiles.addRecentFile(currentFile);
-
-    return result;
+    return dialogResult;
   };
 
   return {
+    applyOpenResult,
     createNewDocument() {
       editor.loadDocument('');
       editor.setDocumentContext?.({ path: null });
@@ -220,47 +295,40 @@ export function createFileActions({
     openFile,
 
     async openFileFromDialog() {
-      const dialogResult = await commands.showOpenDialog();
+      const selection = await selectOpenFilePath();
 
-      if (!shouldApplyOpenResult()) {
-        return dialogResult.ok
-          ? { ok: true, data: null }
-          : dialogResult;
+      if (!selection.ok) {
+        return selection;
       }
-
-      if (!dialogResult.ok) {
-        state.setLastFileError(dialogResult.error);
-        return dialogResult;
-      }
-
-      if (!dialogResult.data) {
+      if (!selection.data) {
         return { ok: true, data: null };
       }
 
-      return openFile(dialogResult.data);
+      return openFile(selection.data);
     },
+
+    selectOpenFilePath,
+
+    prepareCurrentFileSave,
+
+    readFile,
 
     saveCurrentFile,
 
     async saveFileAs() {
-      const dialogResult = await commands.showSaveDialog();
+      const selection = await selectSaveFilePath();
 
-      if (!shouldApplySaveResult()) {
-        return dialogResult.ok
-          ? { ok: true, data: null }
-          : dialogResult;
+      if (!selection.ok) {
+        return selection;
       }
 
-      if (!dialogResult.ok) {
-        state.setLastFileError(dialogResult.error);
-        return dialogResult;
-      }
-
-      if (!dialogResult.data) {
+      if (!selection.data) {
         return { ok: true, data: null };
       }
 
-      return saveCurrentFile(dialogResult.data);
+      return saveCurrentFile(selection.data);
     },
+
+    selectSaveFilePath,
   };
 }

@@ -34,6 +34,9 @@ describe.skipIf(process.platform !== 'win32')('windows installer smoke script', 
     expect(plan.installArguments.at(-1)).toMatch(/^\/D=/);
     expect(plan.executablePath).toMatch(/\\lumamark\.exe$/);
     expect(plan.uninstallPath).toMatch(/\\uninstall\.exe$/);
+    expect(plan.installedAcceptanceScripts).toContain(
+      'scripts\\release\\verify-installed-second-instance-open.mjs',
+    );
   }, WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS);
 
   it('rejects install directories outside the smoke sandbox', () => {
@@ -173,6 +176,7 @@ type SmokePlan = {
   installArguments: string[];
   installCommand: string;
   installDir: string;
+  installedAcceptanceScripts: string[];
   installerKind: 'Msi' | 'Nsis';
   requiresAdmin: boolean;
   uninstallCommand: string;

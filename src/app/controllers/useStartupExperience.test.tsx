@@ -58,6 +58,41 @@ describe('useStartupExperience', () => {
     });
   });
 
+  it('keeps the previous session visible when creating an untitled document fails', async () => {
+    useStartupStore.setState({
+      lastSession: { kind: 'file', path: 'E:/notes/owned.md' },
+    });
+    const options = createOptions();
+    options.fileWorkflow.createNewDocument.mockResolvedValue(false);
+    const { result } = renderHook(() => useStartupExperience(options));
+
+    await act(async () => {
+      await result.current.newDocument();
+    });
+
+    expect(result.current.visible).toBe(true);
+    expect(useStartupStore.getState().lastSession).toEqual({
+      kind: 'file',
+      path: 'E:/notes/owned.md',
+    });
+  });
+
+  it('clears the previous session only after an untitled document is created', async () => {
+    useStartupStore.setState({
+      lastSession: { kind: 'file', path: 'E:/notes/owned.md' },
+    });
+    const options = createOptions();
+    options.fileWorkflow.createNewDocument.mockResolvedValue(true);
+    const { result } = renderHook(() => useStartupExperience(options));
+
+    await act(async () => {
+      await result.current.newDocument();
+    });
+
+    expect(result.current.visible).toBe(false);
+    expect(useStartupStore.getState().lastSession).toBeNull();
+  });
+
   it('waits for recovery resolution before restoring the last session', async () => {
     useStartupStore.setState({
       lastSession: { kind: 'file', path: 'E:/notes/last.md' },

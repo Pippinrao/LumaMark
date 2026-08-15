@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useReadingAppearanceStore } from '../features/reading-appearance/readingAppearanceStore';
+import { useRecentFilesStore } from '../features/recent-files/recentFilesStore';
 import { useSettingsStore } from '../features/settings/settingsStore';
 import { useStartupStore } from '../features/startup/startupStore';
 import {
@@ -69,6 +70,25 @@ describe('bootstrapApp', () => {
       language: 'en',
       theme: 'dark',
     });
+  });
+
+  it('hydrates recent files before the first render', async () => {
+    const order: string[] = [];
+    vi.spyOn(
+      useRecentFilesStore.getState(),
+      'hydrateFromClient',
+    ).mockImplementation(async () => {
+      order.push('recent-files');
+    });
+
+    await bootstrapApp(
+      () => {
+        order.push('render');
+      },
+      { language: 'en', theme: 'light' },
+    );
+
+    expect(order).toEqual(['recent-files', 'render']);
   });
 
   it('resolves the system theme before the first render', async () => {

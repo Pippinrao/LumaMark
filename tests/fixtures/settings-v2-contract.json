@@ -13,6 +13,7 @@
     },
     "general": {
       "language": "zh-CN",
+      "openWindowMode": "multiWindow",
       "startupBehavior": "home"
     },
     "images": {
@@ -28,6 +29,7 @@
     "appearance.theme": ["light", "dark", "system"],
     "editor.defaultDisplayMode": ["livePreview", "source"],
     "general.language": ["zh-CN", "en"],
+    "general.openWindowMode": ["multiWindow", "aggregateWindow"],
     "general.startupBehavior": ["home", "restoreLastSession"]
   },
   "fontZoom": {

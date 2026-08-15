@@ -276,6 +276,36 @@ describe('navigateLink', () => {
     expect(ports.openExternalUrl).not.toHaveBeenCalled();
   });
 
+  it('treats focusing an existing document window as successful navigation', async () => {
+    const ports: LinkNavigationPorts = {
+      classifyLinkUrl: vi.fn(() => ({
+        href: './guide.md',
+        kind: 'relative' as const,
+      })),
+      navigateFragment: vi.fn(fragmentMissing),
+      openDocumentPath: vi.fn(async () => ({
+        status: 'focused' as const,
+        windowLabel: 'document-2',
+      })),
+      openExternalUrl: vi.fn(async () => openedExternalOutcome),
+      resolveRelativeLinkPath: vi.fn(() => 'C:/notes/guide.md'),
+    };
+
+    await expect(
+      navigateLink(
+        {
+          currentDocumentPath: 'C:/notes/current.md',
+          href: './guide.md',
+        },
+        ports,
+      ),
+    ).resolves.toEqual({
+      status: 'navigated',
+      target: 'document',
+    });
+    expect(ports.navigateFragment).not.toHaveBeenCalled();
+  });
+
   it('opens a relative document before navigating its decoded fragment', async () => {
     const callOrder: string[] = [];
     const ports: LinkNavigationPorts = {

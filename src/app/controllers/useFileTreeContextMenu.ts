@@ -9,15 +9,22 @@ import type {
   CommandPayloadHandlerMap,
 } from '../../features/commands/commandTypes';
 import { areWatchedPathsEqual } from '../../features/file-actions/useExternalFileWatch';
+import {
+  runRetargetOpenDocumentMutation,
+  type RetargetOpenDocument,
+  type RetargetOpenDocumentCall,
+  type RetargetOpenDocumentOutcome,
+} from '../../features/file-actions/useFileWorkflow';
 import type { FileTreeMutationRequest } from '../../features/file-tree/FileTreeMutationDialog';
 import type { WorkspaceWorkflow } from '../../features/workspace/useWorkspaceWorkflow';
 import { writeClipboardText } from '../../services/clipboard/clipboardTextClient';
 import { revealPathInOs } from '../../services/opener/openerCommands';
+import type { CommandError } from '../../services/tauri/invokeCommand';
 import { useAppStore } from '../stores/appStore';
 
 type UseFileTreeContextMenuOptions = {
   markOpenDocumentRemoved: (path: string) => void;
-  retargetOpenDocument: (path: string) => void | Promise<void>;
+  retargetOpenDocument: RetargetOpenDocument;
   workspace: WorkspaceWorkflow;
 };
 
@@ -209,29 +216,123 @@ export function useFileTreeContextMenu({
         }
 
         if (request.mode === 'rename') {
-          const result = await workspace.renameEntry(request.path, trimmedName!);
-          if (!result.ok) {
-            reportError(result.error.code, workspaceErrorKey(result.error.code));
-            return;
-          }
+          const performRename = async (
+            retargetWithinBarrier: RetargetOpenDocumentCall,
+          ) => {
+            const result = await workspace.renameEntry(
+              request.path,
+              trimmedName!,
+            );
+            if (!result.ok) {
+              reportError(
+                result.error.code,
+                workspaceErrorKey(result.error.code),
+              );
+              return;
+            }
 
-          const currentFile = useAppStore.getState().currentFile;
-          const retargetedPath = currentFile
-            ? request.entryKind === 'directory'
-              ? replacePathPrefix(
-                  currentFile.path,
-                  request.path,
-                  result.data.path,
-                )
-              : areWatchedPathsEqual(currentFile.path, request.path)
-                ? result.data.path
-                : null
-            : null;
-          if (retargetedPath) {
-            await retargetOpenDocument(retargetedPath);
-          }
-          succeeded = true;
-          returnFocusPathRef.current = result.data.path;
+            const currentFile = useAppStore.getState().currentFile;
+            const retargetedPath = currentFile
+              ? request.entryKind === 'directory'
+                ? replacePathPrefix(
+                    currentFile.path,
+                    request.path,
+                    result.data.path,
+                  )
+                : areWatchedPathsEqual(currentFile.path, request.path)
+                  ? result.data.path
+                  : null
+              : null;
+            if (retargetedPath) {
+              let retargeted: RetargetOpenDocumentOutcome;
+              try {
+                retargeted = await retargetWithinBarrier(retargetedPath);
+              } catch (cause) {
+                retargeted = {
+                  error: unexpectedCommandError(
+                    'document_claim.retarget_failed',
+                    'The renamed document could not be retargeted.',
+                    cause,
+                  ),
+                  status: 'failed',
+                };
+              }
+              if (retargeted.status === 'indeterminate') {
+                succeeded = true;
+                returnFocusPathRef.current = result.data.path;
+                return;
+              }
+              if (retargeted.status === 'failed') {
+                let rolledBack: Awaited<
+                  ReturnType<WorkspaceWorkflow['renameEntry']>
+                >;
+                try {
+                  rolledBack = await workspace.renameEntry(
+                    result.data.path,
+                    request.defaultValue,
+                  );
+                } catch (cause) {
+                  rolledBack = {
+                    error: unexpectedCommandError(
+                      'workspace.rename_failed',
+                      'The rename could not be rolled back.',
+                      cause,
+                    ),
+                    ok: false,
+                  };
+                }
+                if (rolledBack.ok) {
+                  useAppStore.getState().setLastFileError(retargeted.error);
+                  returnFocusPathRef.current = rolledBack.data.path;
+                  return;
+                }
+
+                let failClosed: RetargetOpenDocumentOutcome;
+                try {
+                  failClosed = await retargetWithinBarrier(retargetedPath, {
+                    expectedCurrentPath: currentFile!.path,
+                    failClosedError: retargeted.error,
+                  });
+                } catch (cause) {
+                  failClosed = {
+                    error: unexpectedCommandError(
+                      'document_claim.fail_closed_failed',
+                      'The actual renamed path could not be adopted safely.',
+                      cause,
+                    ),
+                    status: 'failed',
+                  };
+                }
+
+                if (failClosed.status === 'failed') {
+                  useAppStore.getState().setLastFileError(failClosed.error);
+                } else if (failClosed.status !== 'failClosed') {
+                  useAppStore.getState().setLastFileError(
+                    unexpectedCommandError(
+                      'document_claim.fail_closed_failed',
+                      'The actual renamed path could not be adopted safely.',
+                      failClosed,
+                    ),
+                  );
+                } else {
+                  reportError(
+                    rolledBack.error.code,
+                    workspaceErrorKey(rolledBack.error.code),
+                  );
+                }
+                succeeded = true;
+                returnFocusPathRef.current = result.data.path;
+                return;
+              }
+            }
+            succeeded = true;
+            returnFocusPathRef.current = result.data.path;
+          };
+
+          await runRetargetOpenDocumentMutation(
+            retargetOpenDocument,
+            performRename,
+          );
           return;
         }
 
@@ -332,6 +433,22 @@ function workspaceErrorKey(code: string): string {
     default:
       return 'fileError.operationFailed';
   }
+}
+
+function unexpectedCommandError(
+  code: string,
+  fallbackMessage: string,
+  cause: unknown,
+): CommandError {
+  const message =
+    typeof cause === 'object' &&
+    cause !== null &&
+    'message' in cause &&
+    typeof cause.message === 'string'
+      ? cause.message
+      : fallbackMessage;
+
+  return { code, details: cause, message, recoverable: true };
 }
 
 function parentPathOf(path: string): string | null {

@@ -48,6 +48,7 @@ export type EditorDocumentPort = {
   refreshImages?: (path: string) => void;
   serializeText: () => string;
   setContext: NonNullable<EditorApi['setDocumentContext']>;
+  setTransitionLocked: NonNullable<EditorApi['setDocumentTransitionLocked']>;
 };
 
 export type EditorCommandPort = {
@@ -95,6 +96,9 @@ export function createEditorDocumentPort(editor: EditorApi): EditorDocumentPort 
     serializeText: () => editor.getSerializedDocumentText(),
     setContext: (context) => {
       editor.setDocumentContext(context);
+    },
+    setTransitionLocked: (locked) => {
+      editor.setDocumentTransitionLocked(locked);
     },
   };
 }

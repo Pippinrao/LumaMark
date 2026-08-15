@@ -8,10 +8,12 @@ import {
   within,
 } from '@testing-library/react';
 import type { ComponentProps } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../app/providers/I18nProvider';
 import { useAppPreferencesStore } from '../../app/stores/appPreferencesStore';
+import { createDefaultLumaMarkSettings } from '../../services/settings/settingsTypes';
 import { SettingsDialog } from './SettingsDialog';
+import { useSettingsStore } from './settingsStore';
 
 function renderSettings(
   overrides: Partial<ComponentProps<typeof SettingsDialog>> = {},
@@ -70,6 +72,10 @@ function activateTab(name: string) {
 }
 
 describe('SettingsDialog', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ settings: createDefaultLumaMarkSettings() });
+  });
+
   afterEach(cleanup);
 
   it('uses vertical sections and changes startup behavior from general', () => {
@@ -83,6 +89,23 @@ describe('SettingsDialog', () => {
       screen.getByRole('radio', { name: '恢复上次文件或工作区' }),
     );
     expect(onStartupBehaviorChange).toHaveBeenCalledWith('restoreLastSession');
+  });
+
+  it('defaults to separate windows and persists aggregate-window selection', () => {
+    useAppPreferencesStore.setState({ language: 'en' });
+    renderSettings({ language: 'en' });
+
+    expect(
+      screen.getByRole('radio', { name: 'Open files in separate windows' }),
+    ).toBeChecked();
+
+    fireEvent.click(
+      screen.getByRole('radio', { name: 'Reuse one application window' }),
+    );
+
+    expect(
+      useSettingsStore.getState().settings.general.openWindowMode,
+    ).toBe('aggregateWindow');
   });
 
   it('marks the dialog as window-interactive and exposes stable vertical navigation without search', () => {

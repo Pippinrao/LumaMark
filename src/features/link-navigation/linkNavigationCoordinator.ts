@@ -14,6 +14,7 @@ export type FragmentNavigationOutcome = {
 export type LinkDocumentOpenOutcome =
   | { file: { path: string }; status: 'opened' }
   | { code: string; status: 'blocked' }
+  | { status: 'focused'; windowLabel: string | null }
   | { status: 'cancelled' | 'failed' | 'superseded' };
 
 export type LinkNavigationPorts = {
@@ -144,6 +145,13 @@ export async function navigateLink(
         );
       }
 
+      return {
+        status: 'navigated',
+        target: 'document',
+      };
+    }
+
+    if (outcome.status === 'focused') {
       return {
         status: 'navigated',
         target: 'document',

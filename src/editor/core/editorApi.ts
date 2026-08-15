@@ -73,6 +73,7 @@ export type EditorApi = {
   loadDocument: (doc: string, options?: LoadDocumentOptions) => void;
   markDocumentSaved: (snapshot: EditorDocumentSnapshot) => void;
   markDocumentUnsaved: () => void;
+  setDocumentTransitionLocked: (locked: boolean) => void;
   setLanguage: (language: AppLanguage) => void;
   setAppearance: (appearance: EditorAppearance) => void;
   setDocumentContext: (context: EditorDocumentContext) => void;
@@ -86,6 +87,7 @@ export class CodeMirrorEditorApi implements EditorApi {
   private displayMode: EditorDisplayMode;
   private language: AppLanguage;
   private readonly searchPhrases: Record<string, string>;
+  private transitionLocked = false;
 
   constructor(options: CreateEditorApiOptions) {
     this.appearance = options.appearance ?? DEFAULT_EDITOR_APPEARANCE;
@@ -306,7 +308,28 @@ export class CodeMirrorEditorApi implements EditorApi {
     this.documentContext = nextContext;
     this.editorView.dispatch({
       effects: editorDisplayModeCompartment.reconfigure(
-        editorDisplayModeExtension(this.displayMode, this.documentContext),
+        editorDisplayModeExtension(
+          this.displayMode,
+          this.documentContext,
+          this.transitionLocked,
+        ),
+      ),
+    });
+  }
+
+  setDocumentTransitionLocked(locked: boolean): void {
+    if (locked === this.transitionLocked) {
+      return;
+    }
+
+    this.transitionLocked = locked;
+    this.editorView.dispatch({
+      effects: editorDisplayModeCompartment.reconfigure(
+        editorDisplayModeExtension(
+          this.displayMode,
+          this.documentContext,
+          this.transitionLocked,
+        ),
       ),
     });
   }
@@ -321,7 +344,11 @@ export class CodeMirrorEditorApi implements EditorApi {
       effects: [
         this.editorView.scrollSnapshot(),
         editorDisplayModeCompartment.reconfigure(
-          editorDisplayModeExtension(mode, this.documentContext),
+          editorDisplayModeExtension(
+            mode,
+            this.documentContext,
+            this.transitionLocked,
+          ),
         ),
       ],
     });

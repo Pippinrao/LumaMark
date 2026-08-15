@@ -18,12 +18,18 @@ import { useRecoveryDraft, type RecoveryDraftWorkflow } from './useRecoveryDraft
 
 type TestEditorDocumentPort = Omit<
   EditorDocumentPort,
-  'captureSnapshot' | 'isSnapshotCurrent' | 'serializeText'
+  | 'captureSnapshot'
+  | 'isSnapshotCurrent'
+  | 'serializeText'
+  | 'setTransitionLocked'
 > &
   Partial<
     Pick<
       EditorDocumentPort,
-      'captureSnapshot' | 'isSnapshotCurrent' | 'serializeText'
+      | 'captureSnapshot'
+      | 'isSnapshotCurrent'
+      | 'serializeText'
+      | 'setTransitionLocked'
     >
   >;
 
@@ -57,6 +63,8 @@ function withSnapshotEditorRef(
           ((snapshot: EditorDocumentSnapshot) =>
             snapshot.serializedText === editor.getText()),
         serializeText: editor.serializeText ?? editor.getText,
+        setTransitionLocked:
+          editor.setTransitionLocked ?? (() => undefined),
       };
     },
   };

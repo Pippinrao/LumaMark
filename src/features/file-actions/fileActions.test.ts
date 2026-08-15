@@ -607,6 +607,176 @@ describe('file actions', () => {
     });
   });
 
+  it('can select an open path without reading or applying the document', async () => {
+    const readText = vi.fn();
+    const loadDocument = vi.fn();
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: false,
+    });
+    const actions = createFileActions({
+      commands: {
+        readText,
+        showOpenDialog: vi.fn().mockResolvedValue({
+          ok: true,
+          data: 'E:/docs/selected.md',
+        }),
+        showSaveDialog: vi.fn(),
+        writeText: vi.fn(),
+      },
+      editor: withExactSnapshotMethods({
+        focus: vi.fn(),
+        getDocumentText: vi.fn(),
+        loadDocument,
+        markDocumentSaved: vi.fn(),
+      }),
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    await expect(actions.selectOpenFilePath()).resolves.toEqual({
+      ok: true,
+      data: 'E:/docs/selected.md',
+    });
+    expect(readText).not.toHaveBeenCalled();
+    expect(loadDocument).not.toHaveBeenCalled();
+    expect(state.getState()).toMatchObject({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: false,
+      lastFileError: null,
+    });
+  });
+
+  it('can read a document without applying it until ownership is committed', async () => {
+    const loadDocument = vi.fn();
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+    });
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn().mockResolvedValue({
+          data: {
+            byteLength: 6,
+            path: 'E:/docs/next.md',
+            text: '# Next',
+          },
+          ok: true,
+        }),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn(),
+        writeText: vi.fn(),
+      },
+      editor: withExactSnapshotMethods({
+        focus: vi.fn(),
+        getDocumentText: vi.fn(() => '# Current'),
+        loadDocument,
+        markDocumentSaved: vi.fn(),
+      }),
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    const result = await actions.readFile('E:/docs/next.md');
+    expect(result.ok).toBe(true);
+    expect(loadDocument).not.toHaveBeenCalled();
+    expect(state.getState().currentFile?.path).toBe('E:/docs/note.md');
+
+    actions.applyOpenResult(result);
+    expect(loadDocument).toHaveBeenCalledWith('# Next');
+    expect(state.getState().currentFile?.path).toBe('E:/docs/next.md');
+  });
+
+  it('can select a save path without writing or retargeting the document', async () => {
+    const writeText = vi.fn();
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+    });
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn(),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn().mockResolvedValue({
+          ok: true,
+          data: 'E:/docs/selected-copy.md',
+        }),
+        writeText,
+      },
+      editor: withExactSnapshotMethods({
+        focus: vi.fn(),
+        getDocumentText: vi.fn(() => '# Draft'),
+        loadDocument: vi.fn(),
+        markDocumentSaved: vi.fn(),
+      }),
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    await expect(actions.selectSaveFilePath()).resolves.toEqual({
+      ok: true,
+      data: 'E:/docs/selected-copy.md',
+    });
+    expect(writeText).not.toHaveBeenCalled();
+    expect(state.getState()).toMatchObject({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+      lastFileError: null,
+    });
+  });
+
+  it('writes a prepared save without retargeting until ownership is committed', async () => {
+    const writeText = vi.fn().mockResolvedValue({
+      data: { byteLength: 7, path: 'E:/docs/copy.md' },
+      ok: true,
+    });
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+      dirtyRevision: 4,
+    });
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn(),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn(),
+        writeText,
+      },
+      editor: withExactSnapshotMethods({
+        focus: vi.fn(),
+        getDocumentText: vi.fn(() => '# Draft'),
+        loadDocument: vi.fn(),
+        markDocumentSaved: vi.fn(),
+      }),
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    const prepared = await actions.prepareCurrentFileSave('E:/docs/copy.md');
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) {
+      return;
+    }
+    expect(writeText).not.toHaveBeenCalled();
+    expect(state.getState()).toMatchObject({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+    });
+
+    const written = await prepared.data.write();
+    expect(writeText).toHaveBeenCalledWith('E:/docs/copy.md', '# Draft');
+    expect(state.getState()).toMatchObject({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: true,
+    });
+
+    prepared.data.apply(written);
+    expect(state.getState()).toMatchObject({
+      currentFile: { name: 'copy.md', path: 'E:/docs/copy.md' },
+      dirty: false,
+      lastFileError: null,
+    });
+  });
+
   it('loads opened text into the editor without storing markdown source in app state', async () => {
     const editor = {
       focus: vi.fn(),

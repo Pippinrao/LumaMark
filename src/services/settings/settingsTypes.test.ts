@@ -24,6 +24,7 @@ function createRawSettings(version: number | undefined = SETTINGS_VERSION) {
     },
     general: {
       language: 'zh-CN',
+      openWindowMode: 'multiWindow',
       startupBehavior: 'home',
     },
     images: { copyImagesToAssets: false },
@@ -53,6 +54,7 @@ describe('settings v2 contract', () => {
       },
       general: {
         language: 'zh-CN',
+        openWindowMode: 'multiWindow',
         startupBehavior: 'home',
       },
       images: { copyImagesToAssets: false },
@@ -69,6 +71,7 @@ describe('settings v2 contract', () => {
       'appearance.theme': ['appearance', 'theme'],
       'editor.defaultDisplayMode': ['editor', 'defaultDisplayMode'],
       'general.language': ['general', 'language'],
+      'general.openWindowMode': ['general', 'openWindowMode'],
       'general.startupBehavior': ['general', 'startupBehavior'],
     } as const;
     const allowedEnums = settingsContract.allowedEnums as Record<
@@ -160,6 +163,7 @@ describe('settings v2 contract', () => {
       theme: 'sepia',
     });
     Object.assign(raw.updates as object, { autoCheckOnStartup: 'yes' });
+    Object.assign(raw.general as object, { openWindowMode: 'sameWindow' });
 
     const result = normalizeLumaMarkSettings(raw);
 
@@ -170,7 +174,21 @@ describe('settings v2 contract', () => {
       theme: 'light',
     });
     expect(result.settings.updates.autoCheckOnStartup).toBe(true);
+    expect(result.settings.general.openWindowMode).toBe('multiWindow');
   });
+
+  it.each([undefined, 0, 1, 2])(
+    'supplies and marks a missing open-window mode for settings version %s',
+    (version) => {
+      const raw = createRawSettings(version);
+      delete (raw.general as Record<string, unknown>).openWindowMode;
+
+      const result = normalizeLumaMarkSettings(raw);
+
+      expect(result.hadInvalidFields).toBe(true);
+      expect(result.settings.general.openWindowMode).toBe('multiWindow');
+    },
+  );
 
   it.each(['missing', 0, 1] as const)(
     'migrates settings version %s to v2 and supplies the updater default',

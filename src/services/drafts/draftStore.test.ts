@@ -48,6 +48,36 @@ describe('recovery draft store', () => {
     expect(readRecoveryDraft()).toBeNull();
   });
 
+  it('keeps recovery drafts isolated by window session identity', () => {
+    saveRecoveryDraft(
+      { filePath: 'E:/notes/first.md', text: 'first window' },
+      'document-1',
+    );
+    saveRecoveryDraft(
+      { filePath: 'E:/notes/second.md', text: 'second window' },
+      'document-2',
+    );
+
+    expect(readRecoveryDraft('document-1')?.text).toBe('first window');
+    expect(readRecoveryDraft('document-2')?.text).toBe('second window');
+
+    clearRecoveryDraft('document-1');
+    expect(readRecoveryDraft('document-1')).toBeNull();
+    expect(readRecoveryDraft('document-2')?.text).toBe('second window');
+  });
+
+  it('migrates the legacy single-window draft only into the main session', () => {
+    storage.setItem(
+      'lumamark-recovery-draft-v1',
+      JSON.stringify({ filePath: null, text: 'legacy main draft' }),
+    );
+
+    expect(readRecoveryDraft('document-1')).toBeNull();
+    expect(readRecoveryDraft('main')?.text).toBe('legacy main draft');
+    expect(storage.getItem('lumamark-recovery-draft-v1')).toBeNull();
+    expect(storage.getItem('lumamark-recovery-draft-v2:main')).not.toBeNull();
+  });
+
   it('does not interrupt editing when browser storage is unavailable', () => {
     vi.stubGlobal('localStorage', {
       getItem: () => {
@@ -89,7 +119,7 @@ describe('recovery draft store', () => {
 
       expect(accessorReads).toBe(0);
       expect(
-        browserStorage?.getItem('lumamark-recovery-draft-v1'),
+        browserStorage?.getItem('lumamark-recovery-draft-v2:main'),
       ).toBeNull();
     } finally {
       if (descriptor) {

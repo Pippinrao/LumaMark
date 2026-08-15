@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 type UseNewDocumentConfirmationOptions = {
-  createNewDocument: () => void;
+  createNewDocument: () => Promise<boolean>;
   dirty: boolean;
   focusEditor: () => void;
 };
@@ -16,7 +16,7 @@ export function useNewDocumentConfirmation({
 
   const requestNewDocument = useCallback(() => {
     if (!dirty) {
-      createNewDocument();
+      void createNewDocument();
       return;
     }
 
@@ -32,7 +32,7 @@ export function useNewDocumentConfirmation({
 
   const confirmNewDocument = useCallback(() => {
     openerRef.current = null;
-    createNewDocument();
+    void createNewDocument();
     setOpen(false);
     globalThis.requestAnimationFrame(focusEditor);
   }, [createNewDocument, focusEditor]);

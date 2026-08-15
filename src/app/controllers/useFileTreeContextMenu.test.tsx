@@ -6,6 +6,7 @@ import {
 } from './useFileTreeContextMenu';
 import { useAppStore } from '../stores/appStore';
 import type { CommandMenuNode } from '../../features/commands/commandTypes';
+import type { RetargetOpenDocument } from '../../features/file-actions/useFileWorkflow';
 import type { WorkspaceWorkflow } from '../../features/workspace/useWorkspaceWorkflow';
 
 vi.mock('react-i18next', () => ({
@@ -39,6 +40,10 @@ function createWorkspaceMock(
   };
 }
 
+function createRetargetOpenDocumentMock(): RetargetOpenDocument {
+  return vi.fn(async () => ({ status: 'notCurrent' as const }));
+}
+
 describe('useFileTreeContextMenu', () => {
   beforeEach(() => {
     useAppStore.setState({ lastFileError: null });
@@ -55,7 +60,7 @@ describe('useFileTreeContextMenu', () => {
       const { result } = renderHook(() =>
         useFileTreeContextMenu({
           markOpenDocumentRemoved: vi.fn(),
-          retargetOpenDocument: vi.fn(),
+          retargetOpenDocument: createRetargetOpenDocumentMock(),
           workspace: createWorkspaceMock(),
         }),
       );
@@ -91,7 +96,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved: vi.fn(),
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock(),
       }),
     );
@@ -123,7 +128,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved: vi.fn(),
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock(),
       }),
     );
@@ -147,7 +152,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved: vi.fn(),
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock(),
       }),
     );
@@ -178,7 +183,9 @@ describe('useFileTreeContextMenu', () => {
   });
 
   it('retargets the open document after a successful rename', async () => {
-    const retargetOpenDocument = vi.fn();
+    const retargetOpenDocument = vi.fn().mockResolvedValue({
+      status: 'retargeted',
+    });
     const renameEntry = vi.fn().mockResolvedValue({
       ok: true,
       data: {
@@ -230,8 +237,372 @@ describe('useFileTreeContextMenu', () => {
     expect(retargetOpenDocument).toHaveBeenCalledWith('E:/notes/renamed.md');
   });
 
+  it('runs the disk rename and retarget inside the workflow mutation barrier', async () => {
+    const events: string[] = [];
+    const retargetWithinBarrier = vi.fn(async () => {
+      events.push('retarget');
+      return { status: 'retargeted' as const };
+    });
+    const runDocumentMutation = vi.fn(
+      async (
+        operation: (retarget: typeof retargetWithinBarrier) => Promise<void>,
+      ) => {
+        events.push('barrier:start');
+        await operation(retargetWithinBarrier);
+        events.push('barrier:end');
+      },
+    );
+    const retargetOpenDocument = Object.assign(vi.fn(), {
+      runDocumentMutation,
+    });
+    const renameEntry = vi.fn(async () => {
+      events.push('disk:rename');
+      return {
+        data: {
+          kind: 'markdownFile' as const,
+          name: 'renamed.md',
+          path: 'E:/notes/renamed.md',
+        },
+        ok: true as const,
+      };
+    });
+    useAppStore.getState().setCurrentFile({
+      name: 'old.md',
+      path: 'E:/notes/old.md',
+    });
+    const { result } = renderHook(() =>
+      useFileTreeContextMenu({
+        markOpenDocumentRemoved: vi.fn(),
+        retargetOpenDocument,
+        workspace: createWorkspaceMock({ renameEntry }),
+      }),
+    );
+    const rename = result.current
+      .getContextMenuNodes({
+        kind: 'file',
+        name: 'old.md',
+        path: 'E:/notes/old.md',
+      })
+      .find((node) => node.id === 'file-tree-rename');
+
+    act(() => invokeFileTreePayload(result.current.payloadHandlers, rename));
+    await act(async () => {
+      await result.current.mutationDialog.confirm('renamed.md');
+    });
+
+    expect(runDocumentMutation).toHaveBeenCalledTimes(1);
+    expect(retargetOpenDocument).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      'barrier:start',
+      'disk:rename',
+      'retarget',
+      'barrier:end',
+    ]);
+  });
+
+  it('rolls back a rename when the open document cannot claim the renamed path', async () => {
+    const claimError = {
+      code: 'document_claim.owned_by_other_window',
+      message: 'Another window owns the renamed path.',
+      recoverable: true,
+    };
+    const retargetOpenDocument = vi.fn().mockResolvedValue({
+      error: claimError,
+      status: 'failed',
+    });
+    const renameEntry = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          kind: 'markdownFile',
+          name: 'renamed.md',
+          path: 'E:/notes/renamed.md',
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          kind: 'markdownFile',
+          name: 'old.md',
+          path: 'E:/notes/old.md',
+        },
+      });
+    useAppStore.getState().setCurrentFile({
+      name: 'old.md',
+      path: 'E:/notes/old.md',
+    });
+    const { result } = renderHook(() =>
+      useFileTreeContextMenu({
+        markOpenDocumentRemoved: vi.fn(),
+        retargetOpenDocument,
+        workspace: createWorkspaceMock({ renameEntry }),
+      }),
+    );
+    const rename = result.current
+      .getContextMenuNodes({
+        kind: 'file',
+        name: 'old.md',
+        path: 'E:/notes/old.md',
+      })
+      .find((node) => node.id === 'file-tree-rename');
+
+    act(() => invokeFileTreePayload(result.current.payloadHandlers, rename));
+    await act(async () => {
+      await result.current.mutationDialog.confirm('renamed.md');
+    });
+
+    expect(renameEntry.mock.calls).toEqual([
+      ['E:/notes/old.md', 'renamed.md'],
+      ['E:/notes/renamed.md', 'old.md'],
+    ]);
+    expect(result.current.mutationDialog.request?.mode).toBe('rename');
+  });
+
+  it('does not roll back a disk rename when ownership reconciliation is indeterminate', async () => {
+    const ownershipError = {
+      code: 'document_claim.ownership_unknown',
+      message: 'The renamed document ownership could not be reconciled.',
+      recoverable: true,
+    };
+    const retargetOpenDocument = vi.fn(async () => {
+      useAppStore.getState().setCurrentFile({
+        name: 'renamed.md',
+        path: 'E:/notes/renamed.md',
+      });
+      useAppStore.getState().setDirty(true);
+      useAppStore.getState().setLastFileError(ownershipError);
+      return { error: ownershipError, status: 'indeterminate' as const };
+    });
+    const renameEntry = vi.fn().mockResolvedValue({
+      data: {
+        kind: 'markdownFile',
+        name: 'renamed.md',
+        path: 'E:/notes/renamed.md',
+      },
+      ok: true,
+    });
+    useAppStore.getState().setCurrentFile({
+      name: 'old.md',
+      path: 'E:/notes/old.md',
+    });
+    const { result } = renderHook(() =>
+      useFileTreeContextMenu({
+        markOpenDocumentRemoved: vi.fn(),
+        retargetOpenDocument,
+        workspace: createWorkspaceMock({ renameEntry }),
+      }),
+    );
+    const rename = result.current
+      .getContextMenuNodes({
+        kind: 'file',
+        name: 'old.md',
+        path: 'E:/notes/old.md',
+      })
+      .find((node) => node.id === 'file-tree-rename');
+
+    act(() => invokeFileTreePayload(result.current.payloadHandlers, rename));
+    await act(async () => {
+      await result.current.mutationDialog.confirm('renamed.md');
+    });
+
+    expect(renameEntry).toHaveBeenCalledTimes(1);
+    expect(result.current.mutationDialog.request).toBeNull();
+    expect(useAppStore.getState()).toMatchObject({
+      currentFile: { path: 'E:/notes/renamed.md' },
+      dirty: true,
+      lastFileError: ownershipError,
+    });
+  });
+
+  it('rolls back a rename when retargeting rejects after the disk rename', async () => {
+    const retargetOpenDocument = vi
+      .fn()
+      .mockRejectedValue(new Error('claim transport disconnected'));
+    const renameEntry = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          kind: 'markdownFile',
+          name: 'renamed.md',
+          path: 'E:/notes/renamed.md',
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          kind: 'markdownFile',
+          name: 'old.md',
+          path: 'E:/notes/old.md',
+        },
+      });
+    useAppStore.getState().setCurrentFile({
+      name: 'old.md',
+      path: 'E:/notes/old.md',
+    });
+    const { result } = renderHook(() =>
+      useFileTreeContextMenu({
+        markOpenDocumentRemoved: vi.fn(),
+        retargetOpenDocument,
+        workspace: createWorkspaceMock({ renameEntry }),
+      }),
+    );
+    const rename = result.current
+      .getContextMenuNodes({
+        kind: 'file',
+        name: 'old.md',
+        path: 'E:/notes/old.md',
+      })
+      .find((node) => node.id === 'file-tree-rename');
+
+    act(() => invokeFileTreePayload(result.current.payloadHandlers, rename));
+    await act(async () => {
+      await result.current.mutationDialog.confirm('renamed.md');
+    });
+
+    expect(renameEntry.mock.calls).toEqual([
+      ['E:/notes/old.md', 'renamed.md'],
+      ['E:/notes/renamed.md', 'old.md'],
+    ]);
+    expect(result.current.mutationDialog.request?.mode).toBe('rename');
+    expect(useAppStore.getState().lastFileError).toMatchObject({
+      code: 'document_claim.retarget_failed',
+    });
+  });
+
+  it('adopts the actual renamed path as fail-closed when rename rollback also fails', async () => {
+    const claimError = {
+      code: 'document_claim.owned_by_other_window',
+      message: 'Another window owns the renamed path.',
+      recoverable: true,
+    };
+    const rollbackError = {
+      code: 'file.io_error',
+      message: 'The rename could not be rolled back.',
+      recoverable: true,
+    };
+    const failClosedError = {
+      code: 'document_claim.irreversible_transition_in_progress',
+      message: 'The ownership transition is still active.',
+      recoverable: true,
+    };
+    const retargetOpenDocument = vi
+      .fn()
+      .mockResolvedValueOnce({ error: claimError, status: 'failed' })
+      .mockResolvedValueOnce({ error: failClosedError, status: 'failed' });
+    const renameEntry = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          kind: 'markdownFile',
+          name: 'renamed.md',
+          path: 'E:/notes/renamed.md',
+        },
+      })
+      .mockResolvedValueOnce({ error: rollbackError, ok: false });
+    useAppStore.getState().setCurrentFile({
+      name: 'old.md',
+      path: 'E:/notes/old.md',
+    });
+    const { result } = renderHook(() =>
+      useFileTreeContextMenu({
+        markOpenDocumentRemoved: vi.fn(),
+        retargetOpenDocument,
+        workspace: createWorkspaceMock({ renameEntry }),
+      }),
+    );
+    const rename = result.current
+      .getContextMenuNodes({
+        kind: 'file',
+        name: 'old.md',
+        path: 'E:/notes/old.md',
+      })
+      .find((node) => node.id === 'file-tree-rename');
+
+    act(() => invokeFileTreePayload(result.current.payloadHandlers, rename));
+    await act(async () => {
+      await result.current.mutationDialog.confirm('renamed.md');
+    });
+
+    expect(retargetOpenDocument).toHaveBeenNthCalledWith(
+      2,
+      'E:/notes/renamed.md',
+      {
+        expectedCurrentPath: 'E:/notes/old.md',
+        failClosedError: claimError,
+      },
+    );
+    expect(result.current.mutationDialog.request).toBeNull();
+    expect(useAppStore.getState().lastFileError).toMatchObject({
+      code: 'document_claim.irreversible_transition_in_progress',
+    });
+  });
+
+  it('adopts the actual renamed path as fail-closed when rename rollback rejects', async () => {
+    const claimError = {
+      code: 'document_claim.owned_by_other_window',
+      message: 'Another window owns the renamed path.',
+      recoverable: true,
+    };
+    const retargetOpenDocument = vi
+      .fn()
+      .mockResolvedValueOnce({ error: claimError, status: 'failed' })
+      .mockResolvedValueOnce({ status: 'failClosed' });
+    const renameEntry = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          kind: 'markdownFile',
+          name: 'renamed.md',
+          path: 'E:/notes/renamed.md',
+        },
+      })
+      .mockRejectedValueOnce(new Error('rollback transport disconnected'));
+    useAppStore.getState().setCurrentFile({
+      name: 'old.md',
+      path: 'E:/notes/old.md',
+    });
+    const { result } = renderHook(() =>
+      useFileTreeContextMenu({
+        markOpenDocumentRemoved: vi.fn(),
+        retargetOpenDocument,
+        workspace: createWorkspaceMock({ renameEntry }),
+      }),
+    );
+    const rename = result.current
+      .getContextMenuNodes({
+        kind: 'file',
+        name: 'old.md',
+        path: 'E:/notes/old.md',
+      })
+      .find((node) => node.id === 'file-tree-rename');
+
+    act(() => invokeFileTreePayload(result.current.payloadHandlers, rename));
+    await act(async () => {
+      await result.current.mutationDialog.confirm('renamed.md');
+    });
+
+    expect(retargetOpenDocument).toHaveBeenNthCalledWith(
+      2,
+      'E:/notes/renamed.md',
+      {
+        expectedCurrentPath: 'E:/notes/old.md',
+        failClosedError: claimError,
+      },
+    );
+    expect(result.current.mutationDialog.request).toBeNull();
+    expect(useAppStore.getState().lastFileError).toMatchObject({
+      code: 'workspace.rename_failed',
+    });
+  });
+
   it('retargets an open descendant when its directory is renamed', async () => {
-    const retargetOpenDocument = vi.fn();
+    const retargetOpenDocument = vi.fn().mockResolvedValue({
+      status: 'retargeted',
+    });
     const renameEntry = vi.fn().mockResolvedValue({
       ok: true,
       data: {
@@ -284,7 +655,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved,
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock({ deleteEntry }),
       }),
     );
@@ -330,7 +701,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved,
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock({ deleteEntry }),
       }),
     );
@@ -365,7 +736,7 @@ describe('useFileTreeContextMenu', () => {
       const { result } = renderHook(() =>
         useFileTreeContextMenu({
           markOpenDocumentRemoved: vi.fn(),
-          retargetOpenDocument: vi.fn(),
+          retargetOpenDocument: createRetargetOpenDocumentMock(),
           workspace: createWorkspaceMock({ deleteEntry }),
         }),
       );
@@ -394,7 +765,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved: vi.fn(),
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock(),
       }),
     );
@@ -429,7 +800,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved: vi.fn(),
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock({ createDirectory }),
       }),
     );
@@ -473,7 +844,7 @@ describe('useFileTreeContextMenu', () => {
     const { result } = renderHook(() =>
       useFileTreeContextMenu({
         markOpenDocumentRemoved: vi.fn(),
-        retargetOpenDocument: vi.fn(),
+        retargetOpenDocument: createRetargetOpenDocumentMock(),
         workspace: createWorkspaceMock({ createFile, openFile }),
       }),
     );

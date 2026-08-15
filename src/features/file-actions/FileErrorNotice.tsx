@@ -5,6 +5,7 @@ import type { CommandError } from '../../services/tauri/invokeCommand';
 type FileErrorNoticeProps = {
   error: CommandError;
   onDismiss: () => void;
+  onRetry?: () => void;
 };
 
 function messageKeyForError(code: string): string {
@@ -49,6 +50,9 @@ function messageKeyForError(code: string): string {
     case 'link.copy_failed':
       return 'linkError.copyFailed';
     default:
+      if (code.startsWith('desktop.open_request_')) {
+        return 'fileError.desktopOpenUnavailable';
+      }
       return 'fileError.operationFailed';
   }
 }
@@ -56,6 +60,7 @@ function messageKeyForError(code: string): string {
 export function FileErrorNotice({
   error,
   onDismiss,
+  onRetry,
 }: FileErrorNoticeProps) {
   const { t } = useTranslation();
 
@@ -65,6 +70,15 @@ export function FileErrorNotice({
       <div className="lm-file-error-copy">
         <strong>{t(messageKeyForError(error.code))}</strong>
         <span>{t('fileError.documentSafe')}</span>
+        {onRetry && error.recoverable ? (
+          <button
+            className="lm-file-error-retry"
+            onClick={onRetry}
+            type="button"
+          >
+            {t('fileError.retry')}
+          </button>
+        ) : null}
       </div>
       <button
         aria-label={t('dialog.close')}

@@ -1,47 +1,56 @@
-# ADR 0009：桌面 Markdown 文件打开桥
+# ADR 0009：桌面文件打开与多窗口路由
 
 **状态：** 已接受
 
-**日期：** 2026-08-05
+**日期：** 2026-08-05（2026-08-15 更新）
 
 ## 用途与范围
 
-本文记录单窗口 LumaMark 从操作系统启动参数和二次启动请求打开 Markdown 文件的边界。范围包括文件关联、路径保真、单实例转发、前端竞态、dirty 文档决策和失败降级；不定义多窗口文档模型。
+本文定义 LumaMark 从操作系统启动参数、文件关联和二次实例请求打开 Markdown 文件时的持久交接、文档身份、窗口所有权与路由边界。范围包括 `multiWindow` / `aggregateWindow`、动态 Tauri 窗口、崩溃恢复、exactly-once 生命周期和隔离的 Windows 路由验收；不引入页内 tabs，也不改变 Markdown 正文由 CodeMirror 独占的原则。
 
 ## 背景
 
-Windows 资源管理器双击 Markdown 文件时，首实例必须直接打开文件；应用已经运行时，新进程必须把请求交给现有窗口并恢复焦点。Tauri 事件是无确认的通知，如果前端尚未监听就发送 payload，事件可能丢失。另一方面，Rust 的 OS 启动参数允许非 UTF-8 路径，而 WebView IPC 只能传递 JSON 字符串，不能用 lossy 转换悄悄改写路径。
+桌面打开不是一次可丢失的 UI 事件。新窗口可能尚未 mount，目标窗口可能在请求完成确认前崩溃，别名路径也可能指向同一文件。只发事件或只看 live window 都会造成请求丢失、重复打开或同一文档被两个窗口同时编辑。
+
+Tauri 的 single-instance callback 是同步入口。官方 [`WebviewWindowBuilder` known issues](https://docs.rs/tauri/latest/tauri/webview/struct.WebviewWindowBuilder.html#known-issues) 明确指出，在 Windows 的同步 command/event handler 中直接创建 WebView 可能死锁，因此 callback 不能解析文件、读取设置、访问持久状态或创建窗口。
 
 ## 决策
 
-- 使用官方 `tauri-plugin-single-instance`，并在其他插件之前注册。Windows bundle 声明 `md`、`markdown`、`mdown` 文件关联；macOS/Linux 保留同一 bundle 声明和直接命令行启动能力，但安装器/桌面环境是否注册关联必须分别验收。
-- 文件关联 ProgId / NSIS `FILECLASS` 必须使用稳定标识符（例如 `LumaMark.Markdown`），禁止空格或任意描述文案；描述文案只放在 description 字段。
-- 首实例使用 `std::env::args_os()`，解析层只接收 `OsString`/`OsStr` 与 `Path`。路径先做词法规范化，只有在进入 JSON IPC 边界时才调用 `Path::to_str()`；不可表示为 UTF-8 时返回 `desktop.open_request_path_not_utf8`，禁止 `to_string_lossy`。
-- single-instance 插件回调由上游固定提供 `Vec<String>` 和 UTF-8 cwd，因此二次启动无法恢复已经被插件边界拒绝或转换的非 UTF-8 参数。该限制只存在于二次实例；若它成为真实用户问题，复审原生 Windows IPC 或 Tauri 上游能力。
-- 每次进程启动只接受参数中的第一个有效 Markdown 路径。Rust 待处理队列按词法规范化后的路径去重，排空后同一路径可再次作为新的用户操作进入队列。
-- `desktop-open-requests-available` 事件只表示“队列可能有数据”，不携带文件事实。前端必须先订阅事件，再调用 `open_requests_drain`；通知与初始排空竞态通过串行 drain 链收敛，因此重复通知不会重复消费已经排空的请求。
-- 监听注册失败时仍尝试初始 drain，并显示本地化可恢复错误。初始 drain reject 或返回 `ok: false` 时不得把 desktop bootstrap 标记完成，也不得启动最后会话恢复；错误必须保持可见直至用户关闭或后续重试策略明确实现。
-- 桌面请求复用 `fileWorkflow.openPath`。dirty 文档只为当前展示的请求确认；确认只打开该项，取消会清空当前前端批次及其尚未处理项。打开失败不调用成功回调，现有文件错误保持可见。
-- 成功处理二次实例后恢复、显示并聚焦 `main` 窗口。事件通知失败不丢弃 Rust 队列，前端下一次 drain 仍可取回。
+- 使用官方 `tauri-plugin-single-instance`，并严格把它注册为第一个 Tauri plugin；这是该插件保证 secondary 在其他 plugin setup 前退出的上游合同。builder 预先 manage 一个不读写配置的 readiness gate，single-instance 之后才注册专用 open-request state plugin；该 plugin 只初始化并 manage durable authority，不发布 ready。primary 的唯一启动 worker 必须先按固定顺序完成 retained target 恢复和初始 argv 路由，成功后才永久发布 routing ready。这样 secondary 不会恢复或改写持久状态，primary 在 setup 窗口收到的 callback 也不会越过启动恢复。dialog、updater、opener 等普通 UI/平台插件继续排在两者之后。Windows bundle 声明 `md`、`markdown`、`mdown` 文件关联；ProgId / NSIS `FILECLASS` 使用稳定标识符，描述文案不进入注册键。
+- 首实例保留 `std::env::args_os()`；二次实例受上游约束接收 `Vec<String>`。解析禁止 `std::env::args()` 和 `to_string_lossy`。一次 launch 中每个有效 Markdown 参数按原顺序进入同一个串行路由 worker；非 Markdown 参数和 flag 被忽略，不可表示为 UTF-8 的首实例路径显式失败。
+- single-instance 同步 callback 只复制 `AppHandle`、args 和 cwd，再以 `tauri::async_runtime::spawn_blocking` 投递工作。worker 先有界等待 routing readiness；ready 后才解析 config、identity、settings 或持久化，超时以稳定错误 `desktop.open_request_state_startup_timeout` fail closed 并留日志，禁止无限等待或绕过 authority。首实例 setup 由唯一 worker 先恢复 retained target、再路由初始 argv；任一步失败都不发布 ready，禁止绕过路由直接写入 `main`。
+- `DesktopWindowRoutingService` 持有全局 mutex。锁覆盖参数解析、一次 `DocumentPathIdentity::resolve`、claim owner 查询、active request 查询、窗口选择/创建和 durable enqueue，保证同路径并发不会双建窗口，不同路径并发不会复用同一 `document-N` label。
+- `DocumentClaimService` 是内存中的 Pending/Owned 权威；`OpenRequestService` 是 durable handoff 权威。两者共享同一 validated identity，不另造 path owner 表。持久记录保存词法别名与已解析 identity 快照，查询只扫描内存索引；无关的离线/UNC retained path 不得触盘或阻断当前路径。
+- durable request 使用 queued → processing → applied-pending → acknowledged 生命周期。只有 acknowledged 才删除 retained identity。`desktop-open-requests-available` 只是定向提示；窗口 mount 后必须主动 recover/claim，因此早到或重复通知不丢请求。已有 owner 或 active target 的再次启动仍执行幂等 durable enqueue，再通知并聚焦，避免 query/ack/claim 竞态吞掉 launch。
+- 每个有文件的路由先检查 claim owner，再检查 retained target；这两类权威命中不依赖 settings 可用性。owner/target label 缺失时用原 label 重建窗口。只有新 identity 才读取 canonical settings 中的 `openWindowMode`：
+  - `multiWindow`：首实例冷启动时，若 Tauri 已创建的空 `main` 没有 claim/retained authority，第一条新 identity 复用 `main`；同批后续路径和二次实例的新 identity 创建最低可用的 `document-N`，同时排除 live label 和 durable active target。若 `main` 已有 retained target，禁止覆盖，第一条新 identity 也创建 `document-N`；
+  - `aggregateWindow`：优先复用 `main`，否则复用确定性的首个 managed live window，再无窗口才创建 `main`；
+  - 无文件 activation：聚焦 `main` 或确定性的首个 managed live window，不读取 settings、不产生请求。
+- 动态窗口只能从 main `WindowConfig` 克隆，label 只允许 `main` 或规范的 `document-N`。default capability 精确覆盖 `['main', 'document-*']`，禁止使用全局 `*` 或扩大权限集。
+- 新窗口必须先安全创建，再持久 enqueue。enqueue 返回失败或拒绝时销毁刚创建的空窗口；rollback 失败返回组合错误。create、notify、show、restore、focus 任一步失败都显式记录并 fail closed；durable enqueue 已成功后即使通知/聚焦失败也不得删请求。
+- 启动时读取 durable `active_target_windows`，按确定性顺序重建缺失 label 并定向通知，避免旧 queued/processing/applied-pending 请求永久饥饿。恢复与首实例 argv 必须由同一个 `spawn_blocking` worker 在同一 routing mutex 内依次执行（先恢复、后路由），禁止两个并发 task 争抢执行顺序；只有整个批次成功后才能发布 readiness 并释放等待中的 secondary worker。
+- 路由验收使用 `LUMAMARK_ROUTING_ACCEPTANCE_MODE=1`，且必须同时提供已通过现有 settings acceptance 校验的 config dir：系统临时目录中的专属随机父目录、预创建固定 `settings-config` 叶、无 `.`/`..`、canonical 后仍被包含。marker 缺失时 menu acceptance 继续跳过 single-instance；marker 非 `1` 或缺少严格 config 时启动 fail closed。路由脚本还必须从全部子进程环境中移除 menu-only 的 `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR`，防止两个验收协议交叉污染。验收脚本必须使用每次运行独有的 ownership nonce/marker，清理前重新证明 canonical 路径、固定叶、所有权 marker 与无占用进程，禁止清理真实用户配置。
 
 ## 被否决方案
 
-- 直接把事件 payload 当作打开请求：监听建立前可能丢失，也没有确认或 exactly-once 语义。
-- 在 Rust 使用 `std::env::args()` 或 `to_string_lossy`：会 panic 或静默改写不可序列化路径，违反路径保真原则。
-- 一次启动打开全部 Markdown 参数：单窗口编辑器没有 tabs，连续替换文档会让 dirty 决策和最终可见文件含糊。
-- 前端收到失败后继续恢复最后会话：用户双击的目标会被旧会话覆盖，且 UI 会错误暗示桌面请求已经处理。
-- 自研单实例 socket/命名管道：官方插件已经覆盖当前单窗口需求；在没有非 UTF-8 二次实例证据前不扩大平台代码。
+- 把事件 payload 当作文件事实：监听建立前会丢失，且没有重放或完成确认。
+- primary argv 直接 enqueue 到 `main`：会绕过窗口模式、owner/retained authority，并把多路径错误聚合到一个窗口。
+- 把 open-request state plugin 放在 single-instance 之前：secondary 会先恢复或改写 primary 的 durable state；把 readiness 等待放在同步 callback 内同样会阻塞入口。同步 callback 中读取 settings、解析 identity、持久化或创建 WebView 还会在 Windows 引入死锁风险。
+- 每次 retained 查询重新 resolve 全表路径：一个无关离线/UNC 路径即可阻断全部路由，且把 O(N) 文件系统/网络 IO 放进启动链。
+- 仅按字符串或 live window 去重：路径别名、crash recovery 和 query/ack 竞态都会破坏单一 owner。
+- 动态窗口使用任意 label 或 capability `*`：权限边界不可审计。
+- 自研单实例 socket/命名管道：官方插件覆盖当前平台需求；二次实例非 UTF-8 的上游限制若形成真实需求再复审。
 
 ## 影响
 
-- 新增官方 `tauri-plugin-single-instance`、薄 `open_requests_drain` command、Rust 队列 service 和前端 typed client/controller。
-- Markdown 正文仍只由 CodeMirror 持有；队列只保存路径，不进入 React 全局 store。
-- 自动化测试覆盖 Unicode/emoji、Unix 非 UTF-8 拒绝、首个有效参数、规范化去重、监听/排空竞态与失败、dirty confirm/cancel，以及 AppShell 自适应与手动宽度优先。
-- 浏览器测试和 Rust 测试不能证明 Windows 安装器关联、资源管理器双击或现有窗口聚焦；这些仍是发布串行验收项。
+- Rust 增加聚焦的 desktop window router、document claim authority、durable open-request lifecycle 与 identity snapshot；Tauri commands 保持薄入口。
+- 前端按 window label 主动 recover/claim，完成打开后先 record-applied，再 acknowledge；窗口销毁释放 processing lease，但保留 applied-pending。
+- 自动化必须覆盖 default multi、aggregate、owner/pending coalesce、missing target/owner rebuild、无文件聚焦、create/enqueue rollback、同/不同路径并发、label 唯一性、批量 argv 精确分派、settings 不可用的权威命中和 startup recovery。
+- 浏览器 E2E、Rust fake 和 CDP 合成输入不能证明 Windows WebView、文件关联、二次实例和真实焦点。发布前仍需在隔离配置与隔离安装路径上运行真实 executable，并保存命令、退出码、日志、窗口 label/路径 JSON、截图和 `ClientToScreen` 后的 OS 指针证据。
 
 ## 回滚与复审条件
 
-- 若插件导致启动、打包或平台稳定性退化，先移除文件关联与 single-instance 插件，保留应用内“打开文件”对话框作为可恢复回滚路径。
-- 若产品引入多窗口或 tabs，重新定义多请求分派、dirty 决策和窗口所有权，不能继续沿用“首个有效路径”合同。
-- 若真实用户需要非 UTF-8 的二次实例路径，评估 Tauri 上游修复或平台原生 IPC；不得以 lossy 转换降级。
-- 若事件/command 桥在真实 Windows WebView 中无法稳定恢复焦点或排空队列，必须在发布前阻断文件关联交付并复审桥接方案。
+- 若动态窗口或 single-instance 使启动/打包稳定性退化，可临时关闭文件关联入口，但不得降级为可丢失事件或把所有请求静默塞回 `main`。
+- 若引入页内 tabs，必须重新定义 aggregate 的 tab 选择、dirty 决策和 document claim 粒度。
+- 若真实用户需要非 UTF-8 二次实例路径，评估 Tauri 上游或平台原生 IPC；不得使用 lossy 转换。
+- 若安装包不能稳定证明多窗口、aggregate 复用、crash recovery 和 exactly-once，发布门禁失败，不得 push/tag/Release。

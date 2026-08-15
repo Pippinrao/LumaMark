@@ -72,6 +72,7 @@ const requiredCoreKeys = [
   'fileError.desktopOpenUnavailable',
   'fileError.desktopPathUnsupported',
   'fileError.documentSafe',
+  'fileError.retry',
   'externalChange.title',
   'externalChange.description',
   'externalChange.reload',
@@ -145,6 +146,10 @@ const requiredCoreKeys = [
   'settings.startupBehaviorDescription',
   'settings.startupHome',
   'settings.startupRestore',
+  'settings.openWindowMode',
+  'settings.openWindowModeDescription',
+  'settings.openWindowModeMulti',
+  'settings.openWindowModeAggregate',
   'settings.startupPersistenceError',
   'settings.recentFilesPersistenceError',
   'settings.images',
@@ -275,4 +280,16 @@ describe('i18n resources', () => {
     expect(description).toBe(expected);
     expect(description).not.toMatch(/typora/i);
   });
+
+  it.each([
+    ['en', 'Check the current document state before continuing.'],
+    ['zh-CN', '继续前请确认当前文档状态。'],
+  ] as const)(
+    'uses neutral document-state guidance for desktop errors in %s',
+    (language, expected) => {
+      expect(
+        resources[language].translation['fileError.documentSafe'],
+      ).toBe(expected);
+    },
+  );
 });

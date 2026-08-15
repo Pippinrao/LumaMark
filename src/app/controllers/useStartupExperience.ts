@@ -44,10 +44,14 @@ export function useStartupExperience({
     setLastSession({ kind: 'workspace', path: openedWorkspace.path });
   }, [addRecentWorkspace, setLastSession]);
 
-  const newDocument = useCallback(() => {
-    fileWorkflow.createNewDocument();
+  const newDocument = useCallback(async () => {
+    const created = await fileWorkflow.createNewDocument();
+    if (!created) {
+      return false;
+    }
     setLastSession(null);
     setVisible(false);
+    return true;
   }, [fileWorkflow, setLastSession, setVisible]);
 
   const openFile = useCallback(async () => {

@@ -51,11 +51,15 @@ export const editorDisplayModeCompartment = new Compartment();
 export function editorDisplayModeExtension(
   mode: EditorDisplayMode,
   context: EditorDocumentContext = { path: null },
+  transitionLocked = false,
 ): Extension {
   if (mode === 'source') {
-    return EditorView.editorAttributes.of({
-      class: 'lm-editor-source-mode',
-    });
+    return [
+      EditorView.editorAttributes.of({
+        class: 'lm-editor-source-mode',
+      }),
+      ...(transitionLocked ? [EditorState.readOnly.of(true)] : []),
+    ];
   }
 
   if (mode === 'reading') {
@@ -74,6 +78,7 @@ export function editorDisplayModeExtension(
     EditorView.editorAttributes.of({
       class: 'lm-editor-live-preview-mode',
     }),
+    ...(transitionLocked ? [EditorState.readOnly.of(true)] : []),
     ...createLivePreviewExtensions(context),
   ];
 }

@@ -883,6 +883,23 @@ button {
   line-height: 1.35;
 }
 
+.lm-file-error-retry {
+  justify-self: start;
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-1);
+  background: var(--lm-color-surface-muted);
+  color: var(--lm-color-text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+}
+
+.lm-file-error-retry:hover,
+.lm-file-error-retry:focus-visible {
+  border-color: var(--lm-color-accent);
+  color: var(--lm-color-accent-strong);
+}
+
 .lm-file-error-dismiss {
   display: inline-grid;
   width: 24px;

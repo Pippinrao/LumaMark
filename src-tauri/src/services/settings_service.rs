@@ -51,7 +51,15 @@ pub struct EditorSettings {
 #[serde(rename_all = "camelCase")]
 pub struct GeneralSettings {
     pub language: String,
+    pub open_window_mode: OpenWindowMode,
     pub startup_behavior: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OpenWindowMode {
+    AggregateWindow,
+    MultiWindow,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -90,6 +98,7 @@ pub fn default_settings() -> LumaMarkSettings {
         },
         general: GeneralSettings {
             language: "zh-CN".to_string(),
+            open_window_mode: OpenWindowMode::MultiWindow,
             startup_behavior: "home".to_string(),
         },
         images: ImageSettings {
@@ -157,6 +166,14 @@ pub fn load_settings(config_dir: &Path) -> Result<SettingsLoadResult, AppError> 
         }
         Err(error) => Err(error),
     }
+}
+
+/// Reads the canonical file-opening mode before any Tauri window state exists.
+///
+/// This preserves the same migration, recovery, and future-version behavior as
+/// [`load_settings`], so cold-start routing cannot diverge from the settings UI.
+pub fn load_open_window_mode(config_dir: &Path) -> Result<OpenWindowMode, AppError> {
+    Ok(load_settings(config_dir)?.settings.general.open_window_mode)
 }
 
 pub fn save_settings(config_dir: &Path, settings: &LumaMarkSettings) -> Result<(), AppError> {
@@ -402,6 +419,8 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         &defaults.general.language,
         &mut had_invalid_fields,
     );
+    settings.general.open_window_mode =
+        read_open_window_mode_field(value.get("general"), &mut had_invalid_fields);
     settings.general.startup_behavior = read_enum_field(
         value.get("general"),
         "startupBehavior",
@@ -431,7 +450,7 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
     Ok(ParsedSettings {
         settings,
         had_invalid_fields,
-        needs_writeback: source_version < SETTINGS_VERSION,
+        needs_writeback: source_version < SETTINGS_VERSION || had_invalid_fields,
     })
 }
 
@@ -727,6 +746,24 @@ fn read_bool_field(
     }
 }
 
+fn read_open_window_mode_field(
+    section: Option<&Value>,
+    had_invalid_fields: &mut bool,
+) -> OpenWindowMode {
+    match section
+        .and_then(Value::as_object)
+        .and_then(|section| section.get("openWindowMode"))
+        .and_then(Value::as_str)
+    {
+        Some("aggregateWindow") => OpenWindowMode::AggregateWindow,
+        Some("multiWindow") => OpenWindowMode::MultiWindow,
+        _ => {
+            *had_invalid_fields = true;
+            OpenWindowMode::MultiWindow
+        }
+    }
+}
+
 fn read_zoom_field(
     section: Option<&Value>,
     key: &str,
@@ -779,6 +816,33 @@ mod tests {
         assert!(!result.settings_file_exists);
         assert!(!result.used_defaults_due_to_corruption);
         assert!(!settings_path(&dir).exists());
+        fs::remove_dir_all(dir).expect("cleanup");
+    }
+
+    #[test]
+    fn cold_start_reader_returns_the_persisted_open_window_mode() {
+        let dir = unique_test_dir("cold-start-open-window-mode");
+        let mut settings = default_settings();
+        settings.general.open_window_mode = OpenWindowMode::AggregateWindow;
+        save_settings(&dir, &settings).expect("save should succeed");
+
+        let mode = load_open_window_mode(&dir).expect("cold-start read should succeed");
+
+        assert_eq!(mode, OpenWindowMode::AggregateWindow);
+        fs::remove_dir_all(dir).expect("cleanup");
+    }
+
+    #[test]
+    fn cold_start_reader_rejects_a_future_version_without_rewriting_it() {
+        let dir = unique_test_dir("cold-start-future-version");
+        let path = settings_path(&dir);
+        let raw = br#"{"version":99,"future":"preserve exactly"}"#;
+        fs::write(&path, raw).expect("write future settings");
+
+        let error = load_open_window_mode(&dir).expect_err("future version must fail closed");
+
+        assert_eq!(error.code, "settings.unsupported_version");
+        assert_eq!(fs::read(&path).expect("read original"), raw);
         fs::remove_dir_all(dir).expect("cleanup");
     }
 
@@ -1020,6 +1084,7 @@ mod tests {
             },
             "general": {
                 "language": "fr",
+                "openWindowMode": "sameWindow",
                 "startupBehavior": "unknown"
             },
             "images": { "copyImagesToAssets": "yes" },
@@ -1036,7 +1101,29 @@ mod tests {
         assert!(!loaded.used_defaults_due_to_corruption);
         assert_eq!(value["appearance"]["fontZoomPercent"], 100);
         assert_eq!(value["appearance"]["pageWidth"], "standard");
+        assert_eq!(value["general"]["openWindowMode"], "multiWindow");
         assert_eq!(value["updates"]["autoCheckOnStartup"], true);
+        fs::remove_dir_all(dir).expect("cleanup");
+    }
+
+    #[test]
+    fn current_document_missing_open_window_mode_is_normalized_and_rewritten() {
+        let dir = unique_test_dir("v2-missing-open-window-mode");
+        let path = settings_path(&dir);
+        let mut value = serde_json::to_value(default_settings()).expect("serialize defaults");
+        value["general"]
+            .as_object_mut()
+            .expect("general object")
+            .remove("openWindowMode");
+        fs::write(&path, serde_json::to_vec_pretty(&value).expect("serialize"))
+            .expect("write v2 settings");
+
+        let loaded = load_settings(&dir).expect("v2 normalization should succeed");
+        let persisted: Value = serde_json::from_slice(&fs::read(&path).expect("read normalized"))
+            .expect("normalized settings should be valid json");
+
+        assert!(loaded.had_invalid_fields);
+        assert_eq!(persisted["general"]["openWindowMode"], "multiWindow");
         fs::remove_dir_all(dir).expect("cleanup");
     }
 
@@ -1050,17 +1137,23 @@ mod tests {
             .as_object_mut()
             .expect("root object")
             .remove("updates");
+        value["general"]
+            .as_object_mut()
+            .expect("general object")
+            .remove("openWindowMode");
         fs::write(&path, serde_json::to_vec_pretty(&value).expect("serialize")).expect("write v1");
 
         let loaded = load_settings(&dir).expect("v1 migration should succeed");
         let normalized = serde_json::to_value(&loaded.settings).expect("serialize normalized");
 
-        assert!(!loaded.had_invalid_fields);
+        assert!(loaded.had_invalid_fields);
         assert_eq!(normalized["version"], 2);
+        assert_eq!(normalized["general"]["openWindowMode"], "multiWindow");
         assert_eq!(normalized["updates"]["autoCheckOnStartup"], true);
         let persisted: Value = serde_json::from_slice(&fs::read(&path).expect("read migrated"))
             .expect("migrated settings should be valid json");
         assert_eq!(persisted["version"], 2);
+        assert_eq!(persisted["general"]["openWindowMode"], "multiWindow");
         assert_eq!(persisted["updates"]["autoCheckOnStartup"], true);
         fs::remove_dir_all(dir).expect("cleanup");
     }
@@ -1078,16 +1171,21 @@ mod tests {
             .as_object_mut()
             .expect("root object")
             .remove("updates");
+        value["general"]
+            .as_object_mut()
+            .expect("general object")
+            .remove("openWindowMode");
         fs::write(&path, serde_json::to_vec_pretty(&value).expect("serialize")).expect("write v0");
 
         let loaded = load_settings(&dir).expect("v0 migration should succeed");
         let persisted: Value = serde_json::from_slice(&fs::read(&path).expect("read migrated"))
             .expect("migrated settings should be valid json");
 
-        assert!(!loaded.had_invalid_fields);
+        assert!(loaded.had_invalid_fields);
         assert!(!loaded.used_defaults_due_to_corruption);
         assert_eq!(loaded.settings.version, 2);
         assert_eq!(persisted["version"], 2);
+        assert_eq!(persisted["general"]["openWindowMode"], "multiWindow");
         assert_eq!(persisted["updates"]["autoCheckOnStartup"], true);
         fs::remove_dir_all(dir).expect("cleanup");
     }

@@ -153,6 +153,9 @@ export function useAppShellSlots(
               <FileErrorNotice
                 error={model.desktopOpenRequests.error}
                 onDismiss={model.desktopOpenRequests.dismissError}
+                onRetry={
+                  model.desktopOpenRequests.retrySynchronization
+                }
               />
             ) : model.lastFileError ? (
               <FileErrorNotice

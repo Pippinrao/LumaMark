@@ -419,24 +419,33 @@ function Assert-MarkdownFileAssociation {
   }
 }
 
+function Get-InstalledAcceptanceScripts {
+  return @(
+    'scripts\release\verify-installed-window-chrome.mjs',
+    'scripts\release\verify-installed-second-instance-open.mjs',
+    'scripts\release\verify-packaged-argv-open.mjs',
+    'scripts\release\verify-packaged-menu-cold-start.mjs',
+    'scripts\release\verify-packaged-table-caret.mjs',
+    'scripts\release\verify-installed-media-caret-os.mjs',
+    'scripts\release\verify-installed-inline-code-caret-os.mjs'
+  )
+}
+
 function Invoke-InstalledAcceptance {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$ExecutablePath
+    [Parameter(Mandatory = $true)][string]$ExecutablePath,
+    [Parameter(Mandatory = $true)][string]$InstallerPath
   )
 
+  $hadExecutableOverride = Test-Path Env:LUMAMARK_EXECUTABLE
+  $previousExecutableOverride = $env:LUMAMARK_EXECUTABLE
+  $hadInstallerOverride = Test-Path Env:LUMAMARK_ROUTING_ACCEPTANCE_NSIS
+  $previousInstallerOverride = $env:LUMAMARK_ROUTING_ACCEPTANCE_NSIS
   $env:LUMAMARK_EXECUTABLE = $ExecutablePath
+  $env:LUMAMARK_ROUTING_ACCEPTANCE_NSIS = $InstallerPath
   try {
-    $scripts = @(
-      'scripts\release\verify-installed-window-chrome.mjs',
-      'scripts\release\verify-packaged-argv-open.mjs',
-      'scripts\release\verify-packaged-menu-cold-start.mjs',
-      'scripts\release\verify-packaged-table-caret.mjs',
-      'scripts\release\verify-installed-media-caret-os.mjs',
-      'scripts\release\verify-installed-inline-code-caret-os.mjs'
-    )
-
-    foreach ($relativeScript in $scripts) {
+    foreach ($relativeScript in @(Get-InstalledAcceptanceScripts)) {
       $scriptPath = Join-Path $RepoRoot $relativeScript
       if (-not (Test-Path -LiteralPath $scriptPath)) {
         throw "Installed acceptance script missing: $scriptPath"
@@ -455,7 +464,16 @@ function Invoke-InstalledAcceptance {
       }
     }
   } finally {
-    Remove-Item Env:LUMAMARK_EXECUTABLE -ErrorAction SilentlyContinue
+    if ($hadExecutableOverride) {
+      $env:LUMAMARK_EXECUTABLE = $previousExecutableOverride
+    } else {
+      Remove-Item Env:LUMAMARK_EXECUTABLE -ErrorAction SilentlyContinue
+    }
+    if ($hadInstallerOverride) {
+      $env:LUMAMARK_ROUTING_ACCEPTANCE_NSIS = $previousInstallerOverride
+    } else {
+      Remove-Item Env:LUMAMARK_ROUTING_ACCEPTANCE_NSIS -ErrorAction SilentlyContinue
+    }
   }
 }
 
@@ -543,6 +561,7 @@ $plan = [ordered]@{
   uninstallArguments = $uninstallArguments
   launchSeconds = $LaunchSeconds
   runInstalledAcceptance = $RunInstalledAcceptance.IsPresent
+  installedAcceptanceScripts = @(Get-InstalledAcceptanceScripts)
 }
 
 if ($PlanOnly) {
@@ -612,7 +631,8 @@ try {
   if ($RunInstalledAcceptance.IsPresent) {
     Invoke-InstalledAcceptance `
       -RepoRoot $repoRoot `
-      -ExecutablePath $executablePath
+      -ExecutablePath $executablePath `
+      -InstallerPath $resolvedInstallerPath
   }
 
   $launchedProcess = Start-Process `

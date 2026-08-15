@@ -588,6 +588,34 @@ describe('editorApi', () => {
     parent.remove();
   });
 
+  it('keeps a document transition read-only across display-mode changes and restores the mode policy after release', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+
+    const editor = createEditorApi({ doc: '# Initial\n', parent });
+
+    editor.setDocumentTransitionLocked(true);
+    expect(editor.view.state.readOnly).toBe(true);
+    expect(deleteCharBackward(editor.view)).toBe(false);
+
+    editor.setDisplayMode('source');
+    expect(editor.view.state.readOnly).toBe(true);
+
+    editor.setDocumentTransitionLocked(false);
+    expect(editor.view.state.readOnly).toBe(false);
+
+    editor.setDisplayMode('reading');
+    editor.setDocumentTransitionLocked(true);
+    editor.setDocumentTransitionLocked(false);
+    expect(editor.view.state.readOnly).toBe(true);
+
+    editor.setDisplayMode('livePreview');
+    expect(editor.view.state.readOnly).toBe(false);
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('keeps the completion state available after an asynchronous blur and display-mode change', async () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

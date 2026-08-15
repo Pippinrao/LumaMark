@@ -1,9 +1,16 @@
+import { resolveWindowSessionId } from '../window/windowSession';
+
 export type RecoveryDraft = {
   filePath: string | null;
   text: string;
 };
 
-const recoveryDraftKey = 'lumamark-recovery-draft-v1';
+const legacyRecoveryDraftKey = 'lumamark-recovery-draft-v1';
+const recoveryDraftKeyPrefix = 'lumamark-recovery-draft-v2:';
+
+function recoveryDraftKey(sessionId: string): string {
+  return `${recoveryDraftKeyPrefix}${encodeURIComponent(sessionId)}`;
+}
 
 function getStorage(): Storage | null {
   try {
@@ -29,19 +36,34 @@ function getStorage(): Storage | null {
   }
 }
 
-export function saveRecoveryDraft(draft: RecoveryDraft): void {
+export function saveRecoveryDraft(
+  draft: RecoveryDraft,
+  sessionId = resolveWindowSessionId(),
+): void {
   try {
-    getStorage()?.setItem(recoveryDraftKey, JSON.stringify(draft));
+    const storage = getStorage();
+    storage?.setItem(recoveryDraftKey(sessionId), JSON.stringify(draft));
+    if (sessionId === 'main') {
+      storage?.removeItem(legacyRecoveryDraftKey);
+    }
   } catch {
     // Recovery must never disrupt the active editing session.
   }
 }
 
-export function readRecoveryDraft(): RecoveryDraft | null {
+export function readRecoveryDraft(
+  sessionId = resolveWindowSessionId(),
+): RecoveryDraft | null {
   let serialized: string | null | undefined;
+  let migratedLegacy = false;
 
   try {
-    serialized = getStorage()?.getItem(recoveryDraftKey);
+    const storage = getStorage();
+    serialized = storage?.getItem(recoveryDraftKey(sessionId));
+    if (!serialized && sessionId === 'main') {
+      serialized = storage?.getItem(legacyRecoveryDraftKey);
+      migratedLegacy = Boolean(serialized);
+    }
   } catch {
     return null;
   }
@@ -64,15 +86,25 @@ export function readRecoveryDraft(): RecoveryDraft | null {
       return null;
     }
 
-    return { filePath: value.filePath, text: value.text };
+    const draft = { filePath: value.filePath, text: value.text };
+    if (migratedLegacy) {
+      saveRecoveryDraft(draft, sessionId);
+    }
+    return draft;
   } catch {
     return null;
   }
 }
 
-export function clearRecoveryDraft(): void {
+export function clearRecoveryDraft(
+  sessionId = resolveWindowSessionId(),
+): void {
   try {
-    getStorage()?.removeItem(recoveryDraftKey);
+    const storage = getStorage();
+    storage?.removeItem(recoveryDraftKey(sessionId));
+    if (sessionId === 'main') {
+      storage?.removeItem(legacyRecoveryDraftKey);
+    }
   } catch {
     // Recovery must never disrupt the active editing session.
   }

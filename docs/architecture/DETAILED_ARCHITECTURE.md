@@ -157,7 +157,7 @@ Rust 保存：
 | 视觉样式 | CSS variables + CSS Modules | Tailwind/shadcn/ui | 默认 CSS tokens + CSS Modules。暂不引入 shadcn 生成组件，避免基础组件变成自维护代码。 |
 | 图标 | lucide-react | Radix Icons | 选 lucide-react。图标覆盖更广。 |
 | 应用状态 | Zustand | Redux/Jotai/TanStack Store | 选 Zustand。轻量、低样板、适合桌面应用状态。 |
-| 路由 | 暂不引入路由 | TanStack Router/React Router | V1 以单窗口应用状态为主；多页面需求明确后再引入。 |
+| 页内路由 | 暂不引入路由 | TanStack Router/React Router | 每个桌面窗口仍是单一编辑器 shell；桌面多窗口由 Rust/Tauri 窗口路由负责，不需要引入 React Router。多页面需求明确后再复审。 |
 | 长列表虚拟化 | TanStack Virtual | react-window | 选 TanStack Virtual。headless，适合自定义 UI。 |
 | 文件树 | react-arborist | 自研树 + TanStack Virtual | 已采用 react-arborist，保留其虚拟化与键盘语义；不手搓树。 |
 | 分栏布局 | react-resizable-panels | 自研拖拽分栏 | 已采用 react-resizable-panels；不手搓拖拽布局。 |
@@ -368,7 +368,7 @@ feature workflow 规则：
 - 纯文本剪贴板 facade 位于 `services/clipboard/`：Tauri 运行时只调用官方 `tauri-plugin-clipboard-manager`，浏览器测试/预览才使用 navigator adapter。桌面权限严格限定为 `read-text` / `write-text`；原生失败必须向上返回，禁止静默回退 WebView Clipboard API。app controller 把结构化端口注入 `EditorCommandPort`，editor 与 feature 不直接依赖 Tauri plugin。
 - window facade 位于 `services/window/`，只暴露 `onCloseRequested`/`destroy` 等平台能力；app close coordinator 组合 settings flush，service 不反向依赖 feature。标题栏 X、Alt+F4 与系统关闭只有 flush 成功后才销毁窗口。
 - 文件监听 command/event wrapper 位于 `services/file-watch/`；打开结果 fingerprint 与 watch baseline 在这里形成竞态握手。图片 resolver 只向该 facade 串行同步已授权本地目标，editor capability 不直接依赖 Tauri。
-- 桌面打开请求 wrapper 位于 `services/open-requests/`；事件只通知队列可能变化，路径事实只能通过串行 `open_requests_drain` command 获取。路径与失败边界见 [ADR 0009](../decisions/0009-desktop-file-open-bridge.md)。
+- 桌面打开请求 wrapper 位于 `services/open-requests/`；它以当前 window label 主动 recover/claim，并经 `record_applied` / `acknowledge` 推进 durable lifecycle。`desktop-open-requests-available` 只提示指定窗口重新检查，不能承载路径事实。路径 identity、窗口 owner、串行路由与失败边界见 [ADR 0009](../decisions/0009-desktop-file-open-bridge.md)。
 - 浏览器/WebView 偏好存储适配位于 `services/preferences/`；它只暴露无业务方向的 key-value storage，不依赖 feature store，也不决定哪些字段持久化。
 - services 不能依赖 React 组件、Zustand store 或 app shell。
 
@@ -470,19 +470,27 @@ src-tauri/src/
 ├─ commands/
 │  ├─ assets.rs
 │  ├─ debug_log.rs
+│  ├─ document_claims.rs
 │  ├─ files.rs
 │  ├─ file_watch.rs
 │  ├─ opener.rs
 │  ├─ open_requests.rs
+│  ├─ recent_files.rs
 │  ├─ settings.rs
 │  └─ workspace.rs
 ├─ services/
 │  ├─ asset_service.rs
+│  ├─ desktop_window_service.rs
 │  ├─ debug_log_service.rs
+│  ├─ document_claim_service.rs
+│  ├─ document_path_identity.rs
 │  ├─ file_service.rs
 │  ├─ file_watch_service.rs
+│  ├─ file_watch_session_hub.rs
 │  ├─ opener_service.rs
+│  ├─ open_request_lifecycle.rs
 │  ├─ open_request_service.rs
+│  ├─ recent_files_service.rs
 │  ├─ settings_service.rs
 │  ├─ workspace_mutation_service.rs
 │  ├─ workspace_service.rs
@@ -536,7 +544,12 @@ workspace_create_file
 workspace_create_directory
 workspace_rename_entry
 workspace_delete_entry
-open_requests_drain
+open_requests_recover
+open_requests_claim
+open_requests_record_applied
+open_requests_acknowledge
+document_claim_heartbeat
+document_claim_release
 opener_open_url
 opener_reveal_path
 settings_get
@@ -581,24 +594,33 @@ interface AppError {
 
 ```text
 first instance args_os / second instance Vec<String>
--> Rust open_request_service selects the first valid Markdown path
--> lexical normalization + pending-path deduplication
--> queued path
--> desktop-open-requests-available notification
--> frontend listener-first serialized open_requests_drain
--> dirty confirmation if required
--> existing fileWorkflow.openPath
+-> synchronous entry copies launch data and dispatches a spawn_blocking worker
+-> worker bounded-waits for primary durable-state readiness before any config or filesystem access
+-> one global routing mutex serializes the complete launch batch
+-> each valid Markdown path resolves one validated DocumentPathIdentity
+-> claim owner / retained target authority wins without loading settings
+-> otherwise load openWindowMode for the new identity
+-> startup multi reuses an unowned blank main, later multi paths use document-N;
+   aggregate reuses main or a deterministic managed live window
+-> clone main WindowConfig when a managed window must be created
+-> durable enqueue_path_for_identity with queued -> processing -> applied-pending -> acknowledged lifecycle
+-> targeted desktop-open-requests-available hint
+-> target frontend recover/claim -> existing fileWorkflow.openPath
+-> record_applied, then acknowledge after the document is safely owned
 ```
 
 要求：
 
 - 首实例路径在 OS 层保持 `OsStr`/`Path`，禁止 lossy 转换；不能跨 JSON 边界的路径显式失败。
 - single-instance 上游的二次实例参数只能是 `Vec<String>`；该限制、平台差异和复审条件以 [ADR 0009](../decisions/0009-desktop-file-open-bridge.md) 为准。
-- 每次启动只接受第一个有效 Markdown，Rust 待处理队列按规范化路径去重。
-- `desktop-open-requests-available` 是可丢失通知而非事实来源；前端先监听再排空，并串行处理并发通知。
-- 监听失败仍尝试初始排空；初始排空失败时阻止会话恢复并显示本地化错误。
+- 同一次 launch 的全部有效 Markdown 参数按原顺序路由；每条路径只持久化到自己的目标窗口，禁止把整批 argv 对每个窗口重复入队。
+- 同一个 validated identity 在 claim、retained request 和并发 launch 中只允许一个窗口 owner；无关离线/UNC retained path 查询不得重新触盘或阻断当前路径。
+- `tauri-plugin-single-instance` 必须是第一个 Tauri plugin；无副作用 readiness gate 可预先 manage，durable state plugin 紧随其后但只构造并 manage authority。secondary 必须在 state plugin 前退出，不能读写持久状态。single-instance 同步 callback 只复制 `AppHandle`、args、cwd 与已校验的验收 config，再投递 `spawn_blocking`；worker 在任何 config/文件系统访问前有界等待 ready，超时显式 fail closed，不能无限等待。callback 内禁止解析、读设置、持久化或创建 WebView；Windows 同步 handler 直接创建 WebView 有死锁风险。
+- 首实例的初始 argv 必须走唯一的串行启动 worker。该 worker 先恢复 durable active target，再路由 argv，全部成功后才发布 readiness；失败时保留明确错误且不释放 secondary。`multiWindow` 冷启动第一条新路径只在空 `main` 无 authority 时复用它；两个新路径应得到 `main` + `document-1`，不得留下额外空窗。启动恢复先重建 durable active target，禁止覆盖已有 `main` owner。
+- `desktop-open-requests-available` 是可丢失、可重复的定向通知而非事实来源；目标窗口 mount 后必须主动 recover/claim，成功前不能 acknowledge durable request。
+- 路由、窗口创建、持久 enqueue、通知、show/unminimize/focus 任一失败都显式返回；若新建空窗后的 enqueue 失败，只销毁该空窗并保留明确错误。
 - dirty 取消清空当前本地批次，确认只处理当前展示项；成功前不得关闭开始页或写入最后会话。
-- Windows 文件关联、资源管理器双击、二次启动和窗口聚焦必须在真实安装器上串行验收；浏览器 bridge mock 不能替代该门禁。
+- Windows 文件关联、资源管理器双击、二次启动、多窗口/aggregate、exactly-once 和窗口聚焦必须在隔离配置的真实安装器上串行验收；浏览器 bridge mock 或 CDP 合成点击不能替代 `ClientToScreen` + OS 输入门禁。
 
 ### 打开文件
 

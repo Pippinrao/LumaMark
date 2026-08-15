@@ -9,8 +9,14 @@ import type { EditorDocumentPort } from '../../editor/commands/editorCommandPort
 import type { FileWatchChangeEvent, FileWatchClient } from '../../services/file-watch/fileWatchClient';
 import { areFilePathsEqual } from '../../services/files/filePathIdentity';
 import { resolveFileCommandClient } from '../../services/files/fileCommandClient';
-import { readTextFile } from '../../services/files/fileCommands';
-import type { CommandError } from '../../services/tauri/invokeCommand';
+import {
+  readTextFile,
+  type ReadTextFileResult,
+} from '../../services/files/fileCommands';
+import type {
+  CommandError,
+  CommandResult,
+} from '../../services/tauri/invokeCommand';
 import type { FileActionStateAdapter } from './fileActions';
 
 export type ExternalFileConflict = Pick<
@@ -27,6 +33,10 @@ type UseExternalFileWatchOptions = {
   fileWatch: FileWatchClient;
   onDocumentBecameSafe: () => void;
   onLocalImageChanged: (event: FileWatchChangeEvent) => void;
+  readLatestText?: (
+    path: string,
+  ) => Promise<CommandResult<ReadTextFileResult>>;
+  runDocumentMutation?: (operation: () => Promise<void>) => Promise<void>;
   state: FileActionStateAdapter;
   status: StatusAdapter;
 };
@@ -38,8 +48,13 @@ export type ExternalFileWatchModel = {
   replaceWatchedDocument: (
     path: string | null,
     knownFingerprint?: string | null,
-  ) => Promise<void>;
+  ) => Promise<WatchedDocumentReplacementOutcome>;
 };
+
+export type WatchedDocumentReplacementOutcome =
+  | { status: 'failed' }
+  | { status: 'ready' }
+  | { status: 'superseded' };
 
 export const areWatchedPathsEqual = areFilePathsEqual;
 
@@ -75,7 +90,7 @@ function fileWatchError(cause: unknown): CommandError {
   };
 }
 
-async function readLatestText(path: string) {
+async function readLatestTextFromDisk(path: string) {
   const browserCommands = resolveFileCommandClient();
 
   return browserCommands
@@ -88,6 +103,8 @@ export function useExternalFileWatch({
   fileWatch,
   onDocumentBecameSafe,
   onLocalImageChanged,
+  readLatestText = readLatestTextFromDisk,
+  runDocumentMutation = (operation) => operation(),
   state,
   status,
 }: UseExternalFileWatchOptions): ExternalFileWatchModel {
@@ -101,6 +118,21 @@ export function useExternalFileWatch({
     () => undefined,
   );
 
+  const reportDiskReadError = useCallback(
+    (error: CommandError) => {
+      state.setLastFileError(error);
+      if (error.code !== 'document_claim.path_identity_changed') {
+        return;
+      }
+
+      editorRef.current?.markUnsaved();
+      if (!state.getState().dirty) {
+        state.setDirty(true);
+      }
+    },
+    [editorRef, state],
+  );
+
   const replaceWatchedDocument = useCallback(
     async (path: string | null, knownFingerprint?: string | null) => {
       diskReadRequestRef.current += 1;
@@ -109,11 +141,11 @@ export function useExternalFileWatch({
         path &&
         areWatchedPathsEqual(watchedPathRef.current, path)
       ) {
-        return;
+        return { status: 'ready' } as const;
       }
 
       if (!watchedPathRef.current && !path) {
-        return;
+        return { status: 'ready' } as const;
       }
 
       const generation = ++generationRef.current;
@@ -125,30 +157,30 @@ export function useExternalFileWatch({
         const unwatchResult = await fileWatch.unwatchDocument();
 
         if (generation !== generationRef.current) {
-          return;
+          return { status: 'superseded' } as const;
         }
 
         if (!unwatchResult.ok) {
           state.setLastFileError(fileWatchError(unwatchResult.error));
-          return;
+          return { status: 'failed' } as const;
         }
 
         if (!path) {
-          return;
+          return { status: 'ready' } as const;
         }
 
         watchedPathRef.current = path;
         const watchResult = await fileWatch.watchDocument(path);
 
         if (generation !== generationRef.current) {
-          return;
+          return { status: 'superseded' } as const;
         }
 
         if (!watchResult.ok) {
           diskReadRequestRef.current += 1;
           watchedPathRef.current = null;
           state.setLastFileError(fileWatchError(watchResult.error));
-          return;
+          return { status: 'failed' } as const;
         }
 
         const watchFingerprint = watchResult.data?.fingerprint;
@@ -157,7 +189,7 @@ export function useExternalFileWatch({
           watchResult.data === undefined ||
           watchFingerprint === knownFingerprint
         ) {
-          return;
+          return { status: 'ready' } as const;
         }
 
         const diskReadRequest = ++diskReadRequestRef.current;
@@ -169,22 +201,22 @@ export function useExternalFileWatch({
           !watchedPathRef.current ||
           !areWatchedPathsEqual(watchedPathRef.current, path)
         ) {
-          return;
+          return { status: 'superseded' } as const;
         }
 
         if (!latest.ok) {
-          state.setLastFileError(latest.error);
-          return;
+          reportDiskReadError(latest.error);
+          return { status: 'failed' } as const;
         }
 
         const editor = editorRef.current;
         if (!editor || editor.serializeText() === latest.data.text) {
-          return;
+          return { status: 'ready' } as const;
         }
 
         if (state.getState().dirty) {
           setConflict({ fingerprint: watchFingerprint, path, revision: 0 });
-          return;
+          return { status: 'ready' } as const;
         }
 
         editor.loadText(latest.data.text, { preserveView: true });
@@ -192,15 +224,26 @@ export function useExternalFileWatch({
         state.setLastFileError(null);
         onDocumentBecameSafe();
         status.setStatusKey('status.externalReloaded');
+        return { status: 'ready' } as const;
       } catch (error) {
         if (generation === generationRef.current) {
           diskReadRequestRef.current += 1;
           watchedPathRef.current = null;
           state.setLastFileError(fileWatchError(error));
+          return { status: 'failed' } as const;
         }
+        return { status: 'superseded' } as const;
       }
     },
-    [editorRef, fileWatch, onDocumentBecameSafe, state, status],
+    [
+      editorRef,
+      fileWatch,
+      onDocumentBecameSafe,
+      readLatestText,
+      reportDiskReadError,
+      state,
+      status,
+    ],
   );
 
   const handleChange = useCallback(
@@ -272,11 +315,16 @@ export function useExternalFileWatch({
         return;
       }
 
-      acknowledgedChangeRef.current = null;
-      const generation = generationRef.current;
-      const diskReadRequest = ++diskReadRequestRef.current;
-
-      void (async () => {
+      void runDocumentMutation(async () => {
+        if (
+          !watchedPathRef.current ||
+          !areWatchedPathsEqual(watchedPathRef.current, watchedPath)
+        ) {
+          return;
+        }
+        acknowledgedChangeRef.current = null;
+        const generation = generationRef.current;
+        const diskReadRequest = ++diskReadRequestRef.current;
         const result = await readLatestText(watchedPath);
 
         if (
@@ -289,7 +337,7 @@ export function useExternalFileWatch({
         }
 
         if (!result.ok) {
-          state.setLastFileError(result.error);
+          reportDiskReadError(result.error);
           return;
         }
 
@@ -310,12 +358,17 @@ export function useExternalFileWatch({
         acknowledgedChangeRef.current = eventVersion;
         onDocumentBecameSafe();
         status.setStatusKey('status.externalReloaded');
-      })();
+      }).catch((error: unknown) => {
+        state.setLastFileError(fileWatchError(error));
+      });
     },
     [
       editorRef,
       onDocumentBecameSafe,
       onLocalImageChanged,
+      readLatestText,
+      reportDiskReadError,
+      runDocumentMutation,
       state,
       status,
     ],
@@ -358,51 +411,62 @@ export function useExternalFileWatch({
   }, [fileWatch, state]);
 
   const reloadFromDisk = useCallback(async () => {
-    const activeConflict = conflict;
-    const watchedPath = watchedPathRef.current;
+    await runDocumentMutation(async () => {
+      const activeConflict = conflict;
+      const watchedPath = watchedPathRef.current;
 
-    if (
-      !activeConflict ||
-      !watchedPath ||
-      !areWatchedPathsEqual(activeConflict.path, watchedPath)
-    ) {
-      return;
-    }
+      if (
+        !activeConflict ||
+        !watchedPath ||
+        !areWatchedPathsEqual(activeConflict.path, watchedPath)
+      ) {
+        return;
+      }
 
-    const generation = generationRef.current;
-    const diskReadRequest = ++diskReadRequestRef.current;
-    const result = await readLatestText(watchedPath);
+      const generation = generationRef.current;
+      const diskReadRequest = ++diskReadRequestRef.current;
+      const result = await readLatestText(watchedPath);
 
-    if (
-      diskReadRequest !== diskReadRequestRef.current ||
-      generation !== generationRef.current ||
-      !watchedPathRef.current ||
-      !areWatchedPathsEqual(watchedPathRef.current, watchedPath)
-    ) {
-      return;
-    }
+      if (
+        diskReadRequest !== diskReadRequestRef.current ||
+        generation !== generationRef.current ||
+        !watchedPathRef.current ||
+        !areWatchedPathsEqual(watchedPathRef.current, watchedPath)
+      ) {
+        return;
+      }
 
-    if (!result.ok) {
-      state.setLastFileError(result.error);
-      return;
-    }
+      if (!result.ok) {
+        reportDiskReadError(result.error);
+        return;
+      }
 
-    const editor = editorRef.current;
+      const editor = editorRef.current;
 
-    if (!editor) {
-      return;
-    }
+      if (!editor) {
+        return;
+      }
 
-    if (editor.serializeText() !== result.data.text) {
-      editor.loadText(result.data.text, { preserveView: true });
-    }
-    state.setDirty(false);
-    state.setLastFileError(null);
-    acknowledgedChangeRef.current = activeConflict;
-    setConflict(null);
-    onDocumentBecameSafe();
-    status.setStatusKey('status.externalReloaded');
-  }, [editorRef, conflict, onDocumentBecameSafe, state, status]);
+      if (editor.serializeText() !== result.data.text) {
+        editor.loadText(result.data.text, { preserveView: true });
+      }
+      state.setDirty(false);
+      state.setLastFileError(null);
+      acknowledgedChangeRef.current = activeConflict;
+      setConflict(null);
+      onDocumentBecameSafe();
+      status.setStatusKey('status.externalReloaded');
+    });
+  }, [
+    conflict,
+    editorRef,
+    onDocumentBecameSafe,
+    readLatestText,
+    reportDiskReadError,
+    runDocumentMutation,
+    state,
+    status,
+  ]);
 
   const keepCurrentContent = useCallback(() => {
     if (!conflict) {

@@ -72,7 +72,7 @@ docs/
 | [ADR 0006：Parity Reliability 编辑器合同](decisions/0006-parity-reliability-editor-contracts.md) | 决策 | 共享 interaction context、精确源码格式、Mermaid 单主编辑器与保存 diff 依赖边界 | 编辑交互、源码序列化、Mermaid 编辑所有权或保存转换变化 |
 | [ADR 0007：稳定的性能采样门禁](decisions/0007-stable-performance-sampling.md) | 决策 | 性能样本的 P80、最大值、独立冷路径与 CI 防抖口径 | 样本数量、统计方式、主预算或最大值硬上限变化 |
 | [ADR 0008：图片与 Mermaid 共享媒体查看器](decisions/0008-shared-media-viewer.md) | 决策 | 展开查看、缩放依赖、editor 事件和焦点/源码保真边界 | 媒体查看、缩放组件、payload 所有权或全屏语义变化 |
-| [ADR 0009：桌面 Markdown 文件打开桥](decisions/0009-desktop-file-open-bridge.md) | 决策 | 文件关联、单实例转发、路径保真、事件竞态和 dirty 决策边界 | 桌面文件关联、单窗口/多窗口策略、路径 IPC 或 single-instance 依赖变化 |
+| [ADR 0009：桌面文件打开与多窗口路由](decisions/0009-desktop-file-open-bridge.md) | 决策 | 文件关联、持久请求、文档 identity、单实例 worker、multi/aggregate 窗口所有权和恢复边界 | 桌面文件关联、窗口路由、路径 identity、请求生命周期或 single-instance 依赖变化 |
 | [ADR 0010：阅读模式的只读与渲染锁定合同](decisions/0010-reading-mode-readonly-contract.md) | 决策 | 只读实现方式、渲染态锁定、控件交互边界、反馈方式和显示模式循环 | 显示模式集合、只读语义、源码展开策略或只读反馈方式变化 |
 | [ADR 0011：侧边栏内容自适应宽度与约束放开](decisions/0011-sidebar-adaptive-width.md) | 决策 | 侧栏拖拽上下限、自适应依据与重算时机、宽度持久化边界 | 侧栏宽度约束、自适应算法、重算触发条件或宽度持久化策略变化 |
 | [ADR 0012：GitHub NSIS 自动更新](decisions/0012-github-nsis-auto-update.md) | 决策 | 官方 updater 插件、NSIS-only、GitHub `latest.json`、签名密钥、发布 workflow 与 Windows 手动系统代理边界 | 更新源、签名策略、发布产物形态、代理边界或安装确认交互变化 |

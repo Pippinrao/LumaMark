@@ -1,5 +1,6 @@
 import { i18n } from '../shared/i18n';
 import { applySettingsToLegacyStores } from './controllers/applySettings';
+import { useRecentFilesStore } from '../features/recent-files/recentFilesStore';
 import { useSettingsStore } from '../features/settings/settingsStore';
 import { useAppStore } from './stores/appStore';
 import {
@@ -19,6 +20,13 @@ export async function bootstrapApp(
   } catch {
     // Hydration records a structured read/compatibility error before rejecting.
     // Continue with in-memory defaults so the recovery UI can stay available.
+  }
+
+  try {
+    await useRecentFilesStore.getState().hydrateFromClient();
+  } catch {
+    // The recent-files store keeps its optimistic in-memory state and exposes
+    // a persistence error without preventing the application from starting.
   }
 
   const settings = useSettingsStore.getState().settings;

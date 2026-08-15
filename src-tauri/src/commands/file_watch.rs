@@ -1,35 +1,41 @@
 use std::path::{Path, PathBuf};
 
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
 use crate::errors::AppError;
-use crate::services::file_watch_service::{FileWatchError, FileWatchService, WatchDocumentResult};
+use crate::services::file_watch_service::{FileWatchError, WatchDocumentResult};
+use crate::services::file_watch_session_hub::FileWatchSessionHub;
 
 #[tauri::command]
 pub fn watch_document(
     path: String,
-    watcher: State<'_, FileWatchService>,
+    window: WebviewWindow,
+    watcher: State<'_, FileWatchSessionHub>,
 ) -> Result<WatchDocumentResult, AppError> {
     watcher
-        .watch_document(Path::new(&path))
+        .watch_document(window.label(), Path::new(&path))
         .map_err(file_watch_error_to_app_error)
 }
 
 #[tauri::command]
 pub fn replace_local_image_targets(
     paths: Vec<String>,
-    watcher: State<'_, FileWatchService>,
+    window: WebviewWindow,
+    watcher: State<'_, FileWatchSessionHub>,
 ) -> Result<(), AppError> {
     let paths = paths.into_iter().map(PathBuf::from).collect::<Vec<_>>();
     watcher
-        .replace_local_image_targets(&paths)
+        .replace_local_image_targets(window.label(), &paths)
         .map_err(file_watch_error_to_app_error)
 }
 
 #[tauri::command]
-pub fn unwatch_document(watcher: State<'_, FileWatchService>) -> Result<(), AppError> {
+pub fn unwatch_document(
+    window: WebviewWindow,
+    watcher: State<'_, FileWatchSessionHub>,
+) -> Result<(), AppError> {
     watcher
-        .unwatch_document()
+        .unwatch_document(window.label())
         .map_err(file_watch_error_to_app_error)
 }
 

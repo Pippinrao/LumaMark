@@ -4,6 +4,7 @@ import {
   MAX_SETTINGS_FONT_ZOOM_PERCENT,
   MIN_SETTINGS_FONT_ZOOM_PERCENT,
   SETTINGS_FONT_ZOOM_STEP_PERCENT,
+  type SettingsOpenWindowMode,
   type SettingsTheme,
 } from '../../services/settings/settingsTypes';
 import type { AppLanguage } from '../../shared/i18n';
@@ -30,7 +31,9 @@ type GeneralSettingsPageProps = {
   onClearRecentFilesEscape: () => void;
   onClearRecentFilesOpenChange: (open: boolean) => void;
   onLanguageChange: (language: AppLanguage) => void;
+  onOpenWindowModeChange: (mode: SettingsOpenWindowMode) => void;
   onStartupBehaviorChange: (startupBehavior: StartupBehavior) => void;
+  openWindowMode: SettingsOpenWindowMode;
   recentFilesPersistenceError: boolean;
   startupBehavior: StartupBehavior;
   startupPersistenceError: boolean;
@@ -45,7 +48,9 @@ export function GeneralSettingsPage({
   onClearRecentFilesEscape,
   onClearRecentFilesOpenChange,
   onLanguageChange,
+  onOpenWindowModeChange,
   onStartupBehaviorChange,
+  openWindowMode,
   recentFilesPersistenceError,
   startupBehavior,
   startupPersistenceError,
@@ -94,6 +99,26 @@ export function GeneralSettingsPage({
               },
             ]}
             value={startupBehavior}
+          />
+        </SettingRow>
+        <SettingRow
+          description={t('settings.openWindowModeDescription')}
+          label={t('settings.openWindowMode')}
+        >
+          <SettingsRadioGroup
+            label={t('settings.openWindowMode')}
+            onValueChange={onOpenWindowModeChange}
+            options={[
+              {
+                label: t('settings.openWindowModeMulti'),
+                value: 'multiWindow',
+              },
+              {
+                label: t('settings.openWindowModeAggregate'),
+                value: 'aggregateWindow',
+              },
+            ]}
+            value={openWindowMode}
           />
         </SettingRow>
         <SettingsSwitch

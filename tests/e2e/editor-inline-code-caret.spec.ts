@@ -73,16 +73,68 @@ async function openCleanDocument(page: Page): Promise<Locator> {
     ({ documentPath, markdown }) => {
       const files = { [documentPath]: markdown };
       window.__LUMAMARK_E2E_STATE__ = { files, lastWrite: null };
-      window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
-        readText: async (requestedPath) => ({
+      const readFile = async (requestedPath: string) => ({
+        ok: true as const,
+        data: {
+          byteLength: new TextEncoder().encode(files[requestedPath] ?? '')
+            .length,
+          path: requestedPath,
+          text: files[requestedPath] ?? '',
+        },
+      });
+      window.__LUMAMARK_E2E_DOCUMENT_CLAIMS__ = {
+        beginSession: async () => ({
+          ok: true,
+          data: { sessionGeneration: 1, status: 'began' },
+        }),
+        commitReservation: async () => ({
+          ok: true,
+          data: { status: 'committed' },
+        }),
+        focusWindow: async () => ({ ok: true, data: { status: 'focused' } }),
+        releaseOwnedDocument: async () => ({
+          ok: true,
+          data: { status: 'released' },
+        }),
+        releaseReservation: async () => ({
+          ok: true,
+          data: { status: 'released' },
+        }),
+        releaseSession: async () => ({
+          ok: true,
+          data: { releasedReservations: 0, status: 'released' },
+        }),
+        readTextClaimed: async (_operationId, requestedPath) =>
+          readFile(requestedPath),
+        reserveDocument: async () => ({
+          ok: true,
+          data: { status: 'reserved' },
+        }),
+        takeoverSession: async () => ({
           ok: true,
           data: {
-            byteLength: new TextEncoder().encode(files[requestedPath] ?? '')
-              .length,
-            path: requestedPath,
-            text: files[requestedPath] ?? '',
+            releasedReservations: 0,
+            sessionGeneration: 2,
+            status: 'takenOver',
           },
         }),
+        writeTextClaimed: async (_operationId, requestedPath, text) => {
+          files[requestedPath] = text;
+          window.__LUMAMARK_E2E_STATE__!.lastWrite = {
+            path: requestedPath,
+            text,
+          };
+          return {
+            ok: true,
+            data: {
+              byteLength: new TextEncoder().encode(text).length,
+              path: requestedPath,
+            },
+          };
+        },
+      };
+      window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+        readText: async (requestedPath) => readFile(requestedPath),
         showOpenDialog: async () => ({ ok: true, data: documentPath }),
         showSaveDialog: async () => ({ ok: true, data: null }),
         writeText: async (requestedPath, text) => {

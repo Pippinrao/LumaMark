@@ -1,12 +1,18 @@
 import {
   history,
-  invertedEffects,
   redoDepth,
+  undo,
   undoDepth,
 } from '@codemirror/commands';
-import { EditorState, Transaction } from '@codemirror/state';
+import {
+  EditorState,
+  StateEffect,
+  StateField,
+  Transaction,
+} from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { historyEffectProbeExtension } from '../../../tests/e2e/support/rootEditorHistoryBrowserBridge';
 import { markdownLanguage } from '../markdown/markdownLanguage';
 import {
   inlinePointerOwnerFromEvent,
@@ -178,7 +184,7 @@ describe('inline pointer selection', () => {
         doc: source,
         extensions: [
           history(),
-          invertedEffects.of((transaction) => transaction.effects),
+          historyEffectProbeExtension,
           markdownLanguage(),
           markdownWysiwygExtension(),
         ],
@@ -216,6 +222,43 @@ describe('inline pointer selection', () => {
         'caretPositionFromPoint',
         caretPositionDescriptor,
       );
+      view.destroy();
+      parent.remove();
+    }
+  });
+
+  it('does not replay observed effects when undoing a history probe event', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const observedEffect = StateEffect.define<number>();
+    const observedState = StateField.define<number>({
+      create: () => 0,
+      update: (value, transaction) => {
+        for (const effect of transaction.effects) {
+          if (effect.is(observedEffect)) {
+            value += effect.value;
+          }
+        }
+        return value;
+      },
+    });
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        extensions: [history(), historyEffectProbeExtension, observedState],
+      }),
+    });
+
+    try {
+      view.dispatch({ effects: observedEffect.of(1) });
+      expect(view.state.field(observedState)).toBe(1);
+      expect(undoDepth(view.state)).toBe(1);
+
+      expect(undo(view)).toBe(true);
+
+      expect(view.state.field(observedState)).toBe(1);
+      expect(redoDepth(view.state)).toBe(1);
+    } finally {
       view.destroy();
       parent.remove();
     }

@@ -17,14 +17,20 @@ type RootEditorHistoryContentBridge = HTMLElement & {
   resolveRootEditorViewForTest: () => EditorView;
 };
 
+const historyEffectProbeMarker = StateEffect.define<null>();
+
+export const historyEffectProbeExtension: Extension = invertedEffects.of(
+  (transaction) => transaction.effects.length > 0
+    ? [historyEffectProbeMarker.of(null)]
+    : [],
+);
+
 export function installRootEditorHistoryBrowserBridge(
   content: HTMLElement,
 ): void {
   const bridge = content as RootEditorHistoryContentBridge;
   const view = bridge.resolveRootEditorViewForTest();
-  const probeExtensions: Extension[] = [
-    invertedEffects.of((transaction) => transaction.effects),
-  ];
+  const probeExtensions: Extension[] = [historyEffectProbeExtension];
 
   if (!view.state.field(historyField, false)) {
     probeExtensions.unshift(history());

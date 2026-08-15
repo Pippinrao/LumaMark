@@ -2,6 +2,30 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+const codeSyntaxTokenVariables = {
+  atom: '--lm-code-syntax-number-atom',
+  comment: '--lm-code-syntax-comment',
+  definition: '--lm-code-syntax-function-definition',
+  function: '--lm-code-syntax-function-definition',
+  keyword: '--lm-code-syntax-keyword',
+  meta: '--lm-code-syntax-meta',
+  number: '--lm-code-syntax-number-atom',
+  operator: '--lm-code-syntax-operator',
+  property: '--lm-code-syntax-property',
+  punctuation: '--lm-code-syntax-punctuation',
+  string: '--lm-code-syntax-string',
+  type: '--lm-code-syntax-type',
+  variable: '--lm-code-syntax-variable',
+} as const;
+const codeBlockThemeVariables = [
+  '--lm-code-block-surface',
+  '--lm-code-block-surface-active',
+  '--lm-code-block-border',
+  '--lm-code-block-border-active',
+  '--lm-code-block-text',
+  '--lm-code-block-badge',
+] as const;
+
 describe('editor visual style contract', () => {
   it('uses system-first typography tokens for the app and editor', async () => {
     const tokens = await readCss('src', 'shared', 'styles', 'tokens.css');
@@ -38,6 +62,13 @@ describe('editor visual style contract', () => {
       'mermaid',
       'mermaid.css',
     );
+    const codeBlockCss = await readCss(
+      'src',
+      'editor',
+      'capabilities',
+      'code-block',
+      'codeBlock.css',
+    );
 
     expect(wysiwygCss).toContain('font-family: var(--lm-font-display);');
     expect(wysiwygCss).toContain('.cm-content .lm-md-blockquote');
@@ -45,7 +76,9 @@ describe('editor visual style contract', () => {
     expect(wysiwygCss).toContain('box-decoration-break: clone;');
     expect(wysiwygCss).toContain('.cm-content .lm-md-table');
     expect(wysiwygCss).toContain('.cm-content .lm-md-table-row');
-    expect(wysiwygCss).toContain('.cm-content .lm-md-code-block-line');
+    expect(wysiwygCss).not.toContain('.lm-md-code-block-');
+    expect(wysiwygCss).not.toContain('.lm-code-token-');
+    expect(codeBlockCss).toContain('.lm-md-code-block-line');
     expect(mermaidCss).toContain('border: 1px solid var(--lm-color-border-subtle);');
     expect(mermaidCss).toContain('margin: 0;');
     expect(mermaidCss).toContain(
@@ -58,28 +91,100 @@ describe('editor visual style contract', () => {
   });
 
   it('keeps focused code block visuals inside CodeMirror line geometry', async () => {
-    const wysiwygCss = await readCss('src', 'editor', 'wysiwyg', 'wysiwyg.css');
+    const codeBlockCss = await readCss(
+      'src',
+      'editor',
+      'capabilities',
+      'code-block',
+      'codeBlock.css',
+    );
     const lineRule = cssDeclarationBlock(
-      wysiwygCss,
-      '.cm-content .lm-md-code-block-line',
+      codeBlockCss,
+      '.lm-codemirror .cm-content .lm-md-code-block-line',
+    );
+    const surfaceRule = cssDeclarationBlock(
+      codeBlockCss,
+      '.cm-content .lm-md-code-block-line::before',
+    );
+    const startRule = cssDeclarationBlock(
+      codeBlockCss,
+      '.cm-content .lm-md-code-block-start::before',
+    );
+    const endRule = cssDeclarationBlock(
+      codeBlockCss,
+      '.cm-content .lm-md-code-block-end::before',
+    );
+    const singleLineRule = cssDeclarationBlock(
+      codeBlockCss,
+      '.cm-content .lm-md-code-block-start.lm-md-code-block-end::before',
     );
     const activeRule = cssDeclarationBlock(
-      wysiwygCss,
+      codeBlockCss,
       '.cm-editor.cm-focused .cm-content .lm-md-code-block-active',
     );
     const languageRule = cssDeclarationBlock(
-      wysiwygCss,
-      '.cm-editor.cm-focused .cm-content .lm-md-code-block-start[data-lm-code-language]::after',
+      codeBlockCss,
+      '.cm-editor.cm-focused .cm-content .lm-md-code-block-active.lm-md-code-block-start[data-lm-code-language]::after',
     );
 
     expect(lineRule).not.toBeNull();
     expect(lineRule).toContain('position: relative;');
-    expect(lineRule).not.toMatch(/\b(?:margin|padding|line-height)\s*:/);
-    expect(activeRule).toContain('--lm-code-block-border-color:');
-    expect(activeRule).not.toMatch(/\b(?:margin|padding|line-height)\s*:/);
+    expect(lineRule).toContain('padding-inline: var(--lm-space-3);');
+    expect(lineRule).not.toMatch(
+      /\b(?:margin(?:-[a-z-]+)?|padding(?!-inline\b)(?:-[a-z-]+)?|line-height|transform|filter|overflow)\s*:/,
+    );
+    expect(surfaceRule).toContain("content: '';");
+    expect(surfaceRule).toContain('position: absolute;');
+    expect(surfaceRule).toContain('pointer-events: none;');
+    expect(surfaceRule).toContain('background: var(--lm-code-block-current-surface);');
+    expect(startRule).toContain('inset-block-start: 50%;');
+    expect(startRule).toContain('inset-block-end: 0;');
+    expect(endRule).toContain('inset-block-start: 0;');
+    expect(endRule).toContain('inset-block-end: 50%;');
+    expect(singleLineRule).toContain('inset-block: 25%;');
+    expect(activeRule).toContain('--lm-code-block-current-border:');
+    expect(activeRule).toContain('--lm-code-block-current-surface:');
+    expect(activeRule).not.toMatch(
+      /\b(?:background|box-shadow|margin(?:-[a-z-]+)?|padding(?:-[a-z-]+)?|line-height|transform|filter|overflow)\s*:/,
+    );
+    for (const declaration of activeRule
+      ?.split(';')
+      .map((value) => value.trim())
+      .filter(Boolean) ?? []) {
+      expect(declaration).toMatch(/^--[a-z0-9-]+\s*:/);
+    }
     expect(languageRule).toContain('content: attr(data-lm-code-language);');
     expect(languageRule).toContain('position: absolute;');
     expect(languageRule).toContain('pointer-events: none;');
+    expect(codeBlockCss).not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(/i);
+    for (const [tokenClass, syntaxVariable] of Object.entries(
+      codeSyntaxTokenVariables,
+    )) {
+      const tokenRule = cssDeclarationBlockForSelector(
+        codeBlockCss,
+        `.cm-content .lm-code-token-${tokenClass}`,
+      );
+
+      expect(tokenRule).not.toBeNull();
+      expect(tokenRule).toContain(`color: var(${syntaxVariable});`);
+    }
+  });
+
+  it('defines every code block theme token for light and dark surfaces', async () => {
+    const tokensCss = await readCss('src', 'shared', 'styles', 'tokens.css');
+    const lightTokens = cssDeclarationBlock(tokensCss, ':root');
+    const darkTokens = cssDeclarationBlock(tokensCss, ":root[data-theme='dark']");
+    const requiredVariables = new Set([
+      ...codeBlockThemeVariables,
+      ...Object.values(codeSyntaxTokenVariables),
+    ]);
+
+    expect(lightTokens).not.toBeNull();
+    expect(darkTokens).not.toBeNull();
+    for (const variable of requiredVariables) {
+      expect(lightTokens).toMatch(new RegExp(`${variable}\\s*:`));
+      expect(darkTokens).toMatch(new RegExp(`${variable}\\s*:`));
+    }
   });
 });
 
@@ -100,4 +205,19 @@ function cssDeclarationBlock(css: string, selector: string): string | null {
   return declarationEnd < 0
     ? null
     : css.slice(declarationStart, declarationEnd);
+}
+
+function cssDeclarationBlockForSelector(
+  css: string,
+  selector: string,
+): string | null {
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = match[1].split(',').map((value) => value.trim());
+
+    if (selectors.includes(selector)) {
+      return match[2];
+    }
+  }
+
+  return null;
 }

@@ -1,5 +1,7 @@
 # 08：代码块竞品分析
 
+> **代码块视觉实施更新（2026-08-13）：** 代码块外壳继续遵循 Typora-like 的安静写作基线，同时用 LumaMark 自有亮暗主题 token 建立 JetBrains-inspired 的语义配色；这不是对 JetBrains 专有主题、素材或精确调色板的复制。代码块表面和 token 样式已从通用 WYSIWYG CSS 迁入 code-block capability；正文行保留真实 CodeMirror 行盒并使用一致的 12px 横向内距，opening/closing 围栏行只在各自真实行内绘制半行表面，避免把隐藏围栏误呈现为整行空白。active/inactive 只切换表面与边界 token，不改变纵向 margin、padding、line-height、height map 或源码；范围仍不包含行号、复制按钮、语言选择器和独立标题栏。专项浏览器回归覆盖亮暗主题、焦点几何、语言徽标、语义 token 对比度、跨行选区与局部像素基线；Windows 打包验收继续以真实 Win32 鼠标/键盘验证点击、焦点和源码保真。
+
 > **围栏可靠性实施更新（2026-08-12）：** 下方主体保留为历史专题审计快照；本次 code-block capability 已在 live preview 中补齐“真实 opening fence 后按 Enter”的闭合行为。实现以 Lezer `FencedCode`/`CodeMark` 为结构事实，保留反引号或波浪线、围栏长度、0–3 个前导空格和完整 info string；已有 closing fence 不重复生成，paste、IME composition、非空选区、程序化载入、undo/redo 和 source mode 不被误当作触发源。聚焦代码块时，opening 行通过行级 decoration 显示官方语言名称，未知语言显示用户原始 info 首词；活动代码行与聚焦的 CodeMirror content DOM 同步 `aria-description`。提示为绝对定位且不可命中的伪元素，不增加 block widget、假空行或代码块专属 vertical margin/padding/line-height。专项测试覆盖一次 undo/redo、退出围栏、CRLF+BOM 保存往返、明暗主题对比度、active/inactive height-map 几何与代码块密集交互延迟；安装包门禁只用 CDP 观察，并以精确子进程 PID、`ClientToScreen` 和 Win32 `SendInput` 驱动真实鼠标/键盘。当前范围不包含语言选择器、复制按钮、通用 Markdown 自动配对或数学/图表围栏。
 
 > **菜单系统实施更新（2026-08-02）：** “段落 → 块 → 代码块”、命令面板和 `Ctrl+Shift+K` 现在调用同一 fenced-code command，菜单可见键位与 Typora 已核实 Windows/Linux 快捷键一致。用例覆盖菜单创建、快捷键创建、源码模式检查和一次撤销；下方旧摘要中“没有注册快捷键、命令面板没有入口”已经过期。该更新只补齐创建入口，不代表未知语言、复杂粘贴、IME、可访问性或代码块密集滚动已经追平。

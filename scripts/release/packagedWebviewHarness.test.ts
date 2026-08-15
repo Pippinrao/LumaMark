@@ -185,6 +185,12 @@ describe('packaged WebView release harness', () => {
       "openingPosition + '```ts\\n'.length",
     );
     expect(acceptanceScript).not.toContain("row.paddingTop !== '0px'");
+    expect(acceptanceScript).toContain(
+      "start instanceof HTMLElement ? getComputedStyle(start, '::before') : null",
+    );
+    expect(acceptanceScript).not.toContain(
+      'start instanceof HTMLElement ? getComputedStyle(start) : null',
+    );
     expect(acceptanceScript).not.toContain('LUMAMARK_EXECUTABLE');
     expect(acceptanceScript).not.toMatch(
       /page\.(?:mouse|keyboard)|\.(?:check|click|dispatchEvent|fill|focus|hover|press|selectOption|setInputFiles|tap|type|uncheck)\(|GetWindowRect|mouse_event|Get-Process\s+lumamark/,

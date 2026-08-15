@@ -15,6 +15,7 @@ import { deriveEditorInteractionContext } from '../../interaction/editorInteract
 import type { MarkdownDecorationRange } from '../../markdown/markdownDecorationTypes';
 import { iterateLines } from '../../markdown/markdownDecorationTypes';
 import { codeLanguageDisplayName } from '../../markdown/markdownLanguage';
+import './codeBlock.css';
 
 const INLINE_CODE_PATTERN = /`[^`\n]+?`/g;
 const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})/;
@@ -210,6 +211,7 @@ function buildCodeBlockLineDecorations(
         const isActive = activeCodeBlocks.some(
           ({ from, to }) => from === node.from && to === node.to,
         );
+        const hasClosingFence = fencedCodeHasClosingMark(node.node);
         const language = isActive
           ? codeLanguageForFencedNode(state, node.node)
           : null;
@@ -226,7 +228,7 @@ function buildCodeBlockLineDecorations(
             classes.push('lm-md-code-block-start');
           }
 
-          if (lineNumber === lastLine.number) {
+          if (hasClosingFence && lineNumber === lastLine.number) {
             classes.push('lm-md-code-block-end');
           }
 
@@ -298,6 +300,26 @@ function codeLanguageForFencedNode(
   }
 
   return null;
+}
+
+function fencedCodeHasClosingMark(node: MarkdownSyntaxNode): boolean {
+  const openingMark = node.firstChild;
+
+  if (openingMark?.name !== 'CodeMark') {
+    return false;
+  }
+
+  for (
+    let child = openingMark.nextSibling;
+    child;
+    child = child.nextSibling
+  ) {
+    if (child.name === 'CodeMark') {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function activeCodeBlockRanges(view: EditorView): ActiveCodeBlockRange[] {

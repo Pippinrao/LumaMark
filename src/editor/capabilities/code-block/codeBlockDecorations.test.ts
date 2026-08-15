@@ -222,6 +222,19 @@ describe('code block line decorations', () => {
     ]);
   });
 
+  it('keeps the final body row uncapped when a fenced block is unclosed', () => {
+    const doc = ['```ts', 'const first = 1', 'const final = 2'].join('\n');
+    const view = createView(doc);
+    const lineDecorations = codeBlockLineDecorations(view);
+    const finalDecoration = lineDecorations.at(-1);
+
+    expect(lineDecorations).toHaveLength(3);
+    expect(finalDecoration?.position).toBe(view.state.doc.line(3).from);
+    expect(finalDecoration?.className.split(' ')).not.toContain(
+      'lm-md-code-block-end',
+    );
+  });
+
   it.each([
     ['```ts', '```', 'TypeScript'],
     ['~~~bash', '~~~', 'Shell'],

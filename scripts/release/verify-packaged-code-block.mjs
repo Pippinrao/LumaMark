@@ -862,7 +862,7 @@ async function readEditorSnapshot(currentPage) {
     });
     const start = content.querySelector('.lm-md-code-block-start');
     const startStyle =
-      start instanceof HTMLElement ? getComputedStyle(start) : null;
+      start instanceof HTMLElement ? getComputedStyle(start, '::before') : null;
     const tailPosition = source.indexOf('fence-target');
     const openingPosition = source.indexOf('```ts');
     const bodyPosition = source.indexOf('const n = 1;');

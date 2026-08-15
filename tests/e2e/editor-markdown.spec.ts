@@ -208,11 +208,11 @@ async function readCodeBlockGeometry(
 
     const contentBounds = view.contentDOM.getBoundingClientRect();
     const documentTop = contentBounds.top + view.viewState.paddingTop;
-    const startStyle = getComputedStyle(rows[0]);
+    const surfaceStyle = getComputedStyle(rows[0], '::before');
     const pseudoStyle = getComputedStyle(rows[0], '::after');
 
     return {
-      backgroundColor: startStyle.backgroundColor,
+      backgroundColor: surfaceStyle.backgroundColor,
       language: rows[0].getAttribute('data-lm-code-language'),
       pseudoColor: pseudoStyle.color,
       pseudoContent: pseudoStyle.content,

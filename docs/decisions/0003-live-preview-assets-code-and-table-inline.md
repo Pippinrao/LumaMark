@@ -12,6 +12,8 @@
 
 更新：2026-08-12（明确代码块语言提示、围栏补齐与行盒几何合同）
 
+更新：2026-08-13（明确代码块表面、横向内距与语义主题合同）
+
 更新：2026-08-13（阻止成熟表格组件被动规范化非规范 Markdown 源码）
 
 ## 背景
@@ -53,6 +55,14 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 语言提示继续复用 `@codemirror/language-data` 的名称与 alias。已知语言显示官方规范名称，未知语言只显示用户原始 info 首词并保持无高亮降级；不引入语言选择器或另一份 alias 表。
 - 聚焦提示消费 ADR 0006 的共享 `EditorInteractionContext.activeBlocks`，在 code-block capability 的 opening `Decoration.line` 上附加视觉属性，并把语言描述同步到活动代码行及当前聚焦的 CodeMirror content DOM。视觉由绝对定位、`pointer-events: none` 的伪元素呈现；它不是 block widget，不创建第二份可交互文本，也不修改通用 fence/source reveal 合同。
 - 代码块 focused/inactive 两态只改变背景色和 inset border token。禁止在代码块行或多行 mark 上增加专属 vertical margin、padding、line-height、transform 或不可选占位；真实 `.cm-line` 的 DOM 边界与 CodeMirror height map 必须保持一致。
+
+### 2026-08-13 代码块视觉更新
+
+- 代码块表面和语法 token 样式归属 code-block capability；通用 WYSIWYG 样式不再持有 fenced-code 专属规则。亮暗配色集中在 shared theme tokens，继续复用 CodeMirror/Lezer 产生的语义 class，不引入自研 tokenizer、额外 DOM 或新依赖。
+- 代码正文行使用一致的 12px `padding-inline`，active/inactive 两态不改变该值。该内距属于真实 `.cm-line` 点击与选区几何，不通过假空格、复制文本或 overlay 模拟；禁止新增 `padding-block`、专属 `line-height`、纵向 margin、transform、filter 或内层滚动容器。
+- 表面由各真实代码行内部、不可命中的空 `::before` 绘制。正文行绘制完整行内表面；opening 只绘制真实 opening 行的下半，closing 只绘制真实 closing 行的上半，单行退化节点只绘制行内中间半行。伪元素不得越出行盒、插入字符或创造块外命中区。
+- focused/inactive 仍只切换表面与边界 custom properties；语言提示保持在 active opening 行下半表面内，继续绝对定位、`pointer-events: none`，并在源码 mark 显露时隐藏。外壳采用中性细框、小圆角和无投影的 Typora-like 节奏；内部使用 LumaMark 自有、JetBrains-inspired 语义配色，但不复制专有主题或素材。
+- 浏览器回归必须同时覆盖亮暗主题、active/inactive 几何、语言提示对比度、语义 token 对比度、原生跨行选区以及局部像素基线。Windows 打包验收读取真实 `::before` 表面，并继续用 Win32 `SendInput` 验证点击、焦点、无虚构纵向命中区和源码保存。
 
 ## 被否决方案
 

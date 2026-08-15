@@ -8,6 +8,7 @@ pub mod commands {
     pub mod opener;
     pub mod recent_files;
     pub mod settings;
+    pub mod trash;
     pub mod workspace;
 }
 
@@ -27,6 +28,7 @@ pub mod services {
     pub mod opener_service;
     pub mod recent_files_service;
     pub mod settings_service;
+    pub mod trash_service;
     pub mod workspace_mutation_service;
     pub mod workspace_service;
     pub mod workspace_session_service;
@@ -61,6 +63,9 @@ use commands::settings::{
     settings_acceptance_mark_close_entered, settings_acceptance_write_barrier_dir, settings_get,
     settings_set,
 };
+use commands::trash::{
+    trash_archive, trash_empty, trash_list, trash_read, trash_remove, trash_restore,
+};
 use commands::workspace::{
     workspace_create_directory, workspace_create_file, workspace_delete_entry,
     workspace_list_children, workspace_open_directory, workspace_open_path, workspace_rename_entry,
@@ -72,6 +77,9 @@ use services::file_watch_service::FILE_WATCH_CHANGED_EVENT;
 use services::file_watch_session_hub::FileWatchSessionHub;
 use services::open_request_service::OpenRequestService;
 use services::recent_files_service::RecentFilesService;
+use services::trash_service::{
+    TrashLimits, TrashService, DEFAULT_MAX_ENTRIES, DEFAULT_MAX_TOTAL_BYTES,
+};
 use services::workspace_session_service::WorkspaceSession;
 use tauri::{Emitter, Manager};
 
@@ -381,6 +389,17 @@ pub fn run() {
             if !app.manage(RecentFilesService::new(app_config_dir.clone())) {
                 return Err(std::io::Error::other("recent files state is already managed").into());
             }
+            let trash = TrashService::open(
+                app.path().app_data_dir()?.join("trash"),
+                TrashLimits {
+                    max_entries: DEFAULT_MAX_ENTRIES,
+                    max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
+                },
+            )
+            .map_err(|error| std::io::Error::other(error.message))?;
+            if !app.manage(trash) {
+                return Err(std::io::Error::other("trash service state is already managed").into());
+            }
             let startup_route_app = app.handle().clone();
             let startup_route_config_dir = app_config_dir.clone();
             let _startup_route_task = tauri::async_runtime::spawn_blocking(move || {
@@ -465,6 +484,12 @@ pub fn run() {
             settings_acceptance_config_dir,
             settings_acceptance_write_barrier_dir,
             settings_acceptance_mark_close_entered,
+            trash_archive,
+            trash_list,
+            trash_read,
+            trash_restore,
+            trash_remove,
+            trash_empty,
             debug_append_log
         ])
         .run(tauri::generate_context!())

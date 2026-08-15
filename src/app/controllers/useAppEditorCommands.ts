@@ -124,8 +124,8 @@ export function useAppEditorCommands() {
     return commandPortRef.current?.getEditState() ?? unavailableEditorEditState;
   }, []);
 
-  const selectPosition = useCallback((position: number) => {
-    commandPortRef.current?.selectPosition(position);
+  const revealPosition = useCallback((position: number) => {
+    commandPortRef.current?.revealPosition(position);
   }, []);
 
   const setDisplayMode = useCallback((mode: EditorDisplayMode) => {
@@ -169,7 +169,7 @@ export function useAppEditorCommands() {
     runFormat,
     redo,
     selectAll,
-    selectPosition,
+    revealPosition,
     setDisplayMode,
     toggleDisplayMode,
     undo,

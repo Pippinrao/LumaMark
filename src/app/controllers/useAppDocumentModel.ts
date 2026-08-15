@@ -93,18 +93,26 @@ export function useAppDocumentModel(
   const dismissFileError = useCallback(() => {
     setLastFileError(null);
   }, [setLastFileError]);
-  const { headings, scheduleRefresh: scheduleOutlineRefresh } =
-    useDebouncedOutline({
-      getDocumentText,
-    });
+  const {
+    awaitCurrentSnapshot: awaitCurrentOutlineSnapshot,
+    headings,
+    isCurrent: isOutlineCurrent,
+    isCurrentHeading: isCurrentOutlineHeading,
+    scheduleRefresh: scheduleOutlineRefresh,
+  } = useDebouncedOutline({
+    getDocumentText,
+  });
 
   return {
+    awaitCurrentOutlineSnapshot,
     currentFile,
     documentStatistics,
     dismissFileError,
     dirty,
     fileWorkflow,
     headings,
+    isCurrentOutlineHeading,
+    isOutlineCurrent,
     lastFileError,
     recentFiles: recentFileItems,
     recoveryDraft,

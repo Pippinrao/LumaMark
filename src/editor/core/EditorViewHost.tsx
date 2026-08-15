@@ -12,6 +12,10 @@ import type {
   EditorMediaPreviewRequestHandler,
 } from './editorEvents';
 import type { ReadOnlyEditAttemptHandler } from './readOnlyEditAttempt';
+import {
+  editorLinkNavigationExtension,
+  type EditorLinkNavigationRequestHandler,
+} from './editorLinkNavigationExtension';
 import type {
   EditorAppearance,
   EditorZoomRequestedHandler,
@@ -33,6 +37,7 @@ export type EditorViewHostProps = {
   onDocumentChanged?: EditorDocumentChangedHandler;
   onEditorReady?: (editor: EditorApi) => void;
   onFocusChanged?: EditorFocusChangedHandler;
+  onLinkNavigationRequest: EditorLinkNavigationRequestHandler;
   onZoomRequested: EditorZoomRequestedHandler;
   onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
   onReadOnlyEditAttempt?: ReadOnlyEditAttemptHandler;
@@ -51,6 +56,7 @@ export function EditorViewHost({
   onDocumentChanged,
   onEditorReady,
   onFocusChanged,
+  onLinkNavigationRequest,
   onZoomRequested,
   onMediaPreviewRequest,
   onReadOnlyEditAttempt,
@@ -67,6 +73,7 @@ export function EditorViewHost({
   const onDocumentChangedRef = useRef(onDocumentChanged);
   const onEditorReadyRef = useRef(onEditorReady);
   const onFocusChangedRef = useRef(onFocusChanged);
+  const onLinkNavigationRequestRef = useRef(onLinkNavigationRequest);
   const onZoomRequestedRef = useRef(onZoomRequested);
   const onReadOnlyEditAttemptRef = useRef(onReadOnlyEditAttempt);
   const titleId = useId();
@@ -82,6 +89,10 @@ export function EditorViewHost({
   useEffect(() => {
     onFocusChangedRef.current = onFocusChanged;
   }, [onFocusChanged]);
+
+  useEffect(() => {
+    onLinkNavigationRequestRef.current = onLinkNavigationRequest;
+  }, [onLinkNavigationRequest]);
 
   useEffect(() => {
     onZoomRequestedRef.current = onZoomRequested;
@@ -122,6 +133,11 @@ export function EditorViewHost({
         onZoomRequestedRef.current(direction);
       },
       parent,
+      extensions: [
+        editorLinkNavigationExtension((href) => {
+          onLinkNavigationRequestRef.current?.(href);
+        }),
+      ],
       documentContext: {
         imageAssetResolver: initialImageAssetResolverRef.current,
         imageImportErrorHandler: initialImageImportErrorHandlerRef.current,

@@ -619,8 +619,9 @@ describe('createEditorContextMenuModels', () => {
   it('exposes open and copy link actions for a link target', () => {
     const nodes = createModels({
       from: 0,
-      href: 'https://example.com',
+      href: 'foo(bar).md',
       kind: 'link',
+      rawHref: 'foo\\(bar\\).md',
       to: 8,
     });
 
@@ -641,14 +642,14 @@ describe('createEditorContextMenuModels', () => {
       invocation: {
         action: 'openLink',
         kind: 'payloadAction',
-        payload: { href: 'https://example.com' },
+        payload: { href: 'foo(bar).md' },
       },
     });
     expect(copyNode).toMatchObject({
       invocation: {
         action: 'copyLinkAddress',
         kind: 'payloadAction',
-        payload: { href: 'https://example.com' },
+        payload: { href: 'foo\\(bar\\).md' },
       },
     });
   });
@@ -782,6 +783,7 @@ describe('createEditorContextMenuModels', () => {
       from: 0,
       href: 'https://example.com',
       kind: 'link',
+      rawHref: 'https://example.com',
       to: 8,
     });
     const imageNodes = createTargetModels({
@@ -834,6 +836,7 @@ describe('createEditorContextMenuModels', () => {
           from: 0,
           href: 'https://example.com',
           kind: 'link',
+          rawHref: 'https://example.com',
           to: 8,
         }),
         'copy-link-address',

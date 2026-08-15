@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { resolveImageFilesystemPath } from '../../editor/capabilities/image/imagePathResolver';
 import type { EditorEditState } from '../../editor/commands/editorCommandPort';
@@ -12,17 +12,14 @@ import type {
 import { useWorkspaceStore } from '../../features/workspace/workspaceStore';
 import { writeClipboardText } from '../../services/clipboard/clipboardTextClient';
 import {
-  openExternalUrl,
   revealPathInOs,
 } from '../../services/opener/openerCommands';
-import { classifyLinkUrl } from '../../services/opener/linkUrlClassification';
-import { resolveRelativeLinkPath } from '../../services/opener/resolveRelativeLinkPath';
 import { useAppStore } from '../stores/appStore';
 
 type UseEditorContextMenuOptions = {
   editorAvailable: boolean;
   getEditState: () => EditorEditState;
-  openDocumentPath: (path: string) => void | Promise<unknown>;
+  navigateLinkHref: (href: string) => void | Promise<unknown>;
   shortcuts: CommandShortcutLabels;
 };
 
@@ -34,48 +31,43 @@ export type EditorContextPayloadHandlers = Pick<
   | 'revealImage'
 >;
 
-function linkErrorMessage(code: string, t: (key: string) => string): string {
-  switch (code) {
-    case 'link.empty':
-      return t('linkError.empty');
-    case 'link.protocol_javascript':
-      return t('linkError.protocolJavascript');
-    case 'link.protocol_data':
-      return t('linkError.protocolData');
-    case 'link.protocol_file':
-      return t('linkError.protocolFile');
-    case 'link.open_failed':
-      return t('linkError.openFailed');
-    case 'link.relativeUnavailable':
-      return t('linkError.relativeUnavailable');
-    default:
-      return t('linkError.protocolRejected');
-  }
-}
-
 async function writeContextClipboardText(
   text: string,
-  onFailure: () => void,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await writeClipboardText(text);
+    return true;
   } catch {
-    onFailure();
+    return false;
   }
 }
 
 export function useEditorContextMenu({
   editorAvailable,
   getEditState,
-  openDocumentPath,
+  navigateLinkHref,
   shortcuts,
 }: UseEditorContextMenuOptions) {
   const { t } = useTranslation();
+  const linkCopyGenerationRef = useRef(0);
 
   const onCopyLinkAddress = useCallback(
     (href: string) => {
-      void writeContextClipboardText(href, () => {
-        useAppStore.getState().setLastFileError({
+      const generation = ++linkCopyGenerationRef.current;
+      void writeContextClipboardText(href).then((copied) => {
+        if (generation !== linkCopyGenerationRef.current) {
+          return;
+        }
+
+        const store = useAppStore.getState();
+        if (copied) {
+          if (store.lastFileError?.code === 'link.copy_failed') {
+            store.setLastFileError(null);
+          }
+          return;
+        }
+
+        store.setLastFileError({
           code: 'link.copy_failed',
           message: t('linkError.copyFailed'),
           recoverable: true,
@@ -87,44 +79,9 @@ export function useEditorContextMenu({
 
   const onOpenLink = useCallback(
     (href: string) => {
-      const classification = classifyLinkUrl(href);
-
-      if (classification.kind === 'absoluteAllowed') {
-        void openExternalUrl(href).then((result) => {
-          if (!result.ok) {
-            useAppStore.getState().setLastFileError({
-              code: result.error.code,
-              message: linkErrorMessage(result.error.code, t),
-              recoverable: true,
-            });
-          }
-        });
-        return;
-      }
-
-      if (classification.kind === 'rejected') {
-        useAppStore.getState().setLastFileError({
-          code: classification.code,
-          message: linkErrorMessage(classification.code, t),
-          recoverable: true,
-        });
-        return;
-      }
-
-      const currentPath = useAppStore.getState().currentFile?.path ?? null;
-      const resolved = resolveRelativeLinkPath(href, currentPath);
-      if (!resolved) {
-        useAppStore.getState().setLastFileError({
-          code: 'link.relativeUnavailable',
-          message: linkErrorMessage('link.relativeUnavailable', t),
-          recoverable: true,
-        });
-        return;
-      }
-
-      void openDocumentPath(resolved);
+      void navigateLinkHref(href);
     },
-    [openDocumentPath, t],
+    [navigateLinkHref],
   );
 
   const onCopyImagePath = useCallback(
@@ -142,12 +99,14 @@ export function useEditorContextMenu({
       }
 
       const text = resolved.kind === 'remote' ? resolved.url : resolved.path;
-      void writeContextClipboardText(text, () => {
-        useAppStore.getState().setLastFileError({
-          code: 'image.copy_path_failed',
-          message: t('imageError.copyPathFailed'),
-          recoverable: true,
-        });
+      void writeContextClipboardText(text).then((copied) => {
+        if (!copied) {
+          useAppStore.getState().setLastFileError({
+            code: 'image.copy_path_failed',
+            message: t('imageError.copyPathFailed'),
+            recoverable: true,
+          });
+        }
       });
     },
     [t],

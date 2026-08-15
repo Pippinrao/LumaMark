@@ -3,6 +3,7 @@ import type {
   EditorState,
   SelectionRange,
 } from '@codemirror/state';
+import { resolveEditorLinkTarget } from './editorLinkTarget';
 import { collectProtectedSourceRanges } from './protectedSourceRanges';
 
 export type EditorInteractionRange = {
@@ -552,7 +553,13 @@ export function deriveEditorInteractionContext(
 
 export type EditorContextTarget =
   | { at: number; kind: 'plain' }
-  | { from: number; href: string; kind: 'link'; to: number }
+  | {
+      from: number;
+      href: string;
+      kind: 'link';
+      rawHref: string;
+      to: number;
+    }
   | { from: number; kind: 'codeBlock'; to: number }
   | { from: number; kind: 'mermaid'; to: number }
   | { from: number; kind: 'selection'; to: number }
@@ -713,19 +720,15 @@ export function deriveInteractionAtPosition(
     }
   }
 
-  const link =
-    findInlineOwnerAt(state, clamped, 'Link') ??
-    findInlineOwnerAt(state, clamped, 'Autolink');
+  const link = resolveEditorLinkTarget(state, clamped);
   if (link) {
-    const href = readUrlChildHref(state, link);
-    if (href !== null) {
-      return {
-        from: link.from,
-        href,
-        kind: 'link',
-        to: link.to,
-      };
-    }
+    return {
+      from: link.from,
+      href: link.href,
+      kind: 'link',
+      rawHref: link.rawHref,
+      to: link.to,
+    };
   }
 
   const table = deriveTableInteractionAtPosition(state, clamped);

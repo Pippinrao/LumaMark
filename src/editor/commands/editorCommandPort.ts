@@ -2,8 +2,10 @@ import {
   applyMarkdownFormatCommand,
   type MarkdownFormatCommand,
 } from './markdownFormatCommands';
+import { Transaction } from '@codemirror/state';
 import { redo, undo } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
+import { EditorView } from '@codemirror/view';
 import { createEditorCapabilityCommands } from '../capabilities';
 import type {
   EditorApi,
@@ -66,7 +68,7 @@ export type EditorCommandPort = {
   runFormat: (command: MarkdownFormatCommand) => void;
   redo: () => void;
   selectAll: () => boolean;
-  selectPosition: (position: number) => void;
+  revealPosition: (position: number) => void;
   setDisplayMode: (mode: EditorDisplayMode) => void;
   undo: () => void;
 };
@@ -286,9 +288,18 @@ export function createEditorCommandPort(
       editor.focus();
       return true;
     },
-    selectPosition: (position) => {
+    revealPosition: (position) => {
+      if (
+        !Number.isInteger(position) ||
+        position < 0 ||
+        position > editor.view.state.doc.length
+      ) {
+        return;
+      }
+
       editor.view.dispatch({
-        scrollIntoView: true,
+        annotations: Transaction.addToHistory.of(false),
+        effects: EditorView.scrollIntoView(position, { y: 'center' }),
         selection: {
           anchor: position,
         },

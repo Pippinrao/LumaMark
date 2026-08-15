@@ -20,11 +20,23 @@ describe('classifyLinkUrl', () => {
     'folder/file.md',
     'note.md',
     '#heading',
-    '/absolute/but/local.md',
   ])('treats %s as a relative document path', (href) => {
     expect(classifyLinkUrl(href)).toEqual({
       href,
       kind: 'relative',
+    });
+  });
+
+  it.each([
+    '/absolute/local.md',
+    '\\\\server\\share\\note.md',
+    'C:/Windows/note.md',
+    'C:\\Windows\\note.md',
+  ])('rejects rooted local target %s', (href) => {
+    expect(classifyLinkUrl(href)).toEqual({
+      code: 'link.protocol_file',
+      href,
+      kind: 'rejected',
     });
   });
 

@@ -28,6 +28,26 @@ function messageKeyForError(code: string): string {
       return 'fileError.desktopOpenUnavailable';
     case 'desktop.open_request_path_not_utf8':
       return 'fileError.desktopPathUnsupported';
+    case 'link.empty':
+      return 'linkError.empty';
+    case 'link.protocol_javascript':
+      return 'linkError.protocolJavascript';
+    case 'link.protocol_data':
+      return 'linkError.protocolData';
+    case 'link.protocol_file':
+      return 'linkError.protocolFile';
+    case 'link.protocol_rejected':
+      return 'linkError.protocolRejected';
+    case 'link.open_failed':
+      return 'linkError.openFailed';
+    case 'link.unsavedChanges':
+      return 'linkError.unsavedChanges';
+    case 'link.relativeUnavailable':
+      return 'linkError.relativeUnavailable';
+    case 'link.fragmentUnavailable':
+      return 'linkError.fragmentUnavailable';
+    case 'link.copy_failed':
+      return 'linkError.copyFailed';
     default:
       return 'fileError.operationFailed';
   }

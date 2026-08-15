@@ -17,7 +17,9 @@ import { EditorPane } from './EditorPane';
 
 afterEach(() => cleanup());
 
-function renderEditorPane() {
+function renderEditorPane(
+  onLinkNavigationRequest: (href: string) => void = vi.fn(),
+) {
   let editor: EditorApi | null = null;
   const getContextMenuNodes = vi.fn(() => []);
 
@@ -33,6 +35,7 @@ function renderEditorPane() {
         editor = readyEditor;
       }}
       onInvoke={vi.fn()}
+      onLinkNavigationRequest={onLinkNavigationRequest}
       onMediaPreviewRequest={vi.fn()}
       onZoomRequested={vi.fn()}
       visibleDocumentTitle="note.md"
@@ -44,6 +47,42 @@ function renderEditorPane() {
     readEditor: () => editor,
   };
 }
+
+describe('EditorPane link navigation wiring', () => {
+  it('forwards one completed Ctrl primary link gesture without moving the selection', async () => {
+    const onLinkNavigationRequest = vi.fn();
+    const { readEditor } = renderEditorPane(onLinkNavigationRequest);
+    await waitFor(() => expect(readEditor()).not.toBeNull());
+    const editor = readEditor();
+    if (!editor) {
+      throw new Error('editor should be ready');
+    }
+
+    act(() => {
+      editor.loadDocument('[docs](https://example.com)');
+      editor.view.dispatch({ selection: { anchor: 0 } });
+    });
+    const selectionBefore = editor.view.state.selection.main;
+    vi.spyOn(editor.view, 'posAtCoords').mockReturnValue(2);
+
+    fireEvent.mouseDown(editor.view.contentDOM, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      ctrlKey: true,
+    });
+    fireEvent.mouseUp(document, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      ctrlKey: true,
+    });
+
+    expect(onLinkNavigationRequest).toHaveBeenCalledOnce();
+    expect(onLinkNavigationRequest).toHaveBeenCalledWith('https://example.com');
+    expect(editor.view.state.selection.main).toEqual(selectionBefore);
+  });
+});
 
 describe('EditorPane context menu targeting', () => {
   it('uses the stable outer EditorApi when the event target belongs to a nested CodeMirror', async () => {
@@ -88,6 +127,7 @@ describe('EditorPane context menu targeting', () => {
       from: 0,
       href: 'https://outer.test',
       kind: 'link',
+      rawHref: 'https://outer.test',
       to: 27,
     });
     expect(editor.view.state.selection.main).toEqual(selectionBefore);
@@ -227,6 +267,7 @@ describe('EditorPane context menu targeting', () => {
           from: source.indexOf('[later]'),
           href: 'https://later.test',
           kind: 'link',
+          rawHref: 'https://later.test',
           to: source.length,
         }),
       );

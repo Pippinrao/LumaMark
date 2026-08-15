@@ -7,6 +7,7 @@ import {
 } from 'react';
 import type { EditorDocumentPort } from '../../editor/commands/editorCommandPort';
 import type { FileWatchChangeEvent, FileWatchClient } from '../../services/file-watch/fileWatchClient';
+import { areFilePathsEqual } from '../../services/files/filePathIdentity';
 import { resolveFileCommandClient } from '../../services/files/fileCommandClient';
 import { readTextFile } from '../../services/files/fileCommands';
 import type { CommandError } from '../../services/tauri/invokeCommand';
@@ -40,27 +41,7 @@ export type ExternalFileWatchModel = {
   ) => Promise<void>;
 };
 
-function normalizeSeparators(path: string): string {
-  return path.replaceAll('\\', '/');
-}
-
-function isWindowsDrivePath(path: string): boolean {
-  return /^[a-zA-Z]:\//.test(path);
-}
-
-export function areWatchedPathsEqual(left: string, right: string): boolean {
-  const normalizedLeft = normalizeSeparators(left);
-  const normalizedRight = normalizeSeparators(right);
-
-  if (
-    isWindowsDrivePath(normalizedLeft) &&
-    isWindowsDrivePath(normalizedRight)
-  ) {
-    return normalizedLeft.toLowerCase() === normalizedRight.toLowerCase();
-  }
-
-  return normalizedLeft === normalizedRight;
-}
+export const areWatchedPathsEqual = areFilePathsEqual;
 
 function sameExternalVersion(
   left: ExternalFileConflict,

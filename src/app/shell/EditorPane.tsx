@@ -21,6 +21,7 @@ import type {
   ImageImportErrorHandler,
   ImageImportHandler,
 } from '../../editor/core/editorDisplayMode';
+import type { EditorLinkNavigationRequestHandler } from '../../editor/core/editorLinkNavigationExtension';
 import {
   deriveInteractionAtPosition,
   deriveTableInteractionAtPosition,
@@ -47,6 +48,7 @@ type EditorPaneProps = {
   onDocumentChanged: EditorDocumentChangedHandler;
   onEditorReady: (editor: EditorApi) => void;
   onInvoke: (invocation: ShellMenuInvocation) => void;
+  onLinkNavigationRequest: EditorLinkNavigationRequestHandler;
   onZoomRequested: EditorZoomRequestedHandler;
   onMediaPreviewRequest: EditorMediaPreviewRequestHandler;
   onReadOnlyEditAttempt?: () => void;
@@ -113,6 +115,7 @@ export function EditorPane({
   onDocumentChanged,
   onEditorReady,
   onInvoke,
+  onLinkNavigationRequest,
   onZoomRequested,
   onMediaPreviewRequest,
   onReadOnlyEditAttempt,
@@ -201,6 +204,7 @@ export function EditorPane({
                     editorRef.current = editor;
                     onEditorReady(editor);
                   }}
+                  onLinkNavigationRequest={onLinkNavigationRequest}
                   onZoomRequested={onZoomRequested}
                   onMediaPreviewRequest={onMediaPreviewRequest}
                   onReadOnlyEditAttempt={onReadOnlyEditAttempt}

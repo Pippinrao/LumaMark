@@ -1,7 +1,10 @@
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it, vi } from 'vitest';
+import { undo, undoDepth } from '@codemirror/commands';
 import { searchPanelOpen } from '@codemirror/search';
+import { EditorView, type ViewUpdate } from '@codemirror/view';
 import { createEditorApi } from '../core/editorApi';
+import { isDocumentDirty } from '../core/createEditorState';
 import {
   createEditorCommandPort as createEditorCommandPortBase,
   createEditorDocumentPort,
@@ -25,6 +28,75 @@ function createEditorCommandPort(
 }
 
 describe('editor command port', () => {
+  it('reveals a valid position at the viewport center without adding undo history', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const updates: ViewUpdate[] = [];
+    const source = ['# First', '', 'body', '', '# Target'].join('\n');
+    const target = source.indexOf('# Target');
+    const editor = createEditorApi({
+      doc: source,
+      extensions: [
+        EditorView.updateListener.of((update) => {
+          updates.push(update);
+        }),
+      ],
+      parent,
+    });
+    const commands = createEditorCommandPort(editor);
+
+    editor.view.dispatch({
+      changes: { from: source.indexOf('body') + 4, insert: ' edited' },
+      userEvent: 'input.type',
+    });
+    const undoDepthBefore = undoDepth(editor.view.state);
+    const textBefore = editor.getDocumentText();
+
+    commands.revealPosition(target);
+
+    const navigation = updates.at(-1)?.transactions.at(0);
+    const scrollEffect = navigation?.effects
+      .map((effect) => effect.value as {
+        range?: { from: number; to: number };
+        y?: string;
+      })
+      .find((effect) => effect.y === 'center');
+    expect(editor.view.state.selection.main).toMatchObject({
+      anchor: target,
+      head: target,
+    });
+    expect(scrollEffect).toMatchObject({
+      range: { from: target, to: target },
+      y: 'center',
+    });
+    expect(editor.getDocumentText()).toBe(textBefore);
+    expect(isDocumentDirty(editor.view.state)).toBe(true);
+    expect(undoDepth(editor.view.state)).toBe(undoDepthBefore);
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.getDocumentText()).toBe(source);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('ignores non-integer and out-of-range reveal positions', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: 'before', parent });
+    const commands = createEditorCommandPort(editor);
+    const selectionBefore = editor.view.state.selection;
+
+    commands.revealPosition(-1);
+    commands.revealPosition(7);
+    commands.revealPosition(1.5);
+
+    expect(editor.view.state.selection).toEqual(selectionBefore);
+    expect(undoDepth(editor.view.state)).toBe(0);
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('reports live selection, read-only, and clipboard capability state on demand', () => {
     installClipboard({
       readText: vi.fn().mockResolvedValue(''),

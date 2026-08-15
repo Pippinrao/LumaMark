@@ -241,6 +241,7 @@ export function useAppShellSlots(
             }
           }}
           onEditorReady={model.editor.onReady}
+          onLinkNavigationRequest={model.editor.onLinkNavigationRequest}
           onZoomRequested={model.editor.onZoomRequested}
           onMediaPreviewRequest={model.mediaViewer.openMedia}
           onReadOnlyEditAttempt={onReadOnlyEditAttempt}

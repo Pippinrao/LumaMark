@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { EditorApi } from '../../editor/core/editorApi';
 import { createCommandShortcutLabels } from '../../features/commands/commandShortcuts';
 import { useMediaViewer } from '../../features/media-viewer/useMediaViewer';
 import { useWorkspaceWorkflow } from '../../features/workspace/useWorkspaceWorkflow';
@@ -22,6 +21,7 @@ import { useStartupExperience } from './useStartupExperience';
 import { useDesktopOpenRequests } from './useDesktopOpenRequests';
 import { useUpdateModel } from './useUpdateModel';
 import { useAppShellCommandHandlers } from './useAppShellCommandHandlers';
+import { useAppEditorNavigation } from './useAppEditorNavigation';
 import { useStartupStore } from '../../features/startup/startupStore';
 import { useAppStore } from '../stores/appStore';
 export function useAppShellModel() {
@@ -56,6 +56,7 @@ export function useAppShellModel() {
     editor.refreshLocalImage,
     applyDefaultDisplayMode,
   );
+  const navigation = useAppEditorNavigation(document, editor);
   const readingAppearance = useReadingAppearanceModel(editor.focusEditor);
   const { openAbout, openSettings, restoreDialogFocus } = useMenuDialogFocus({
     setAboutOpen,
@@ -94,10 +95,6 @@ export function useAppShellModel() {
     focusEditor: editor.focusEditor,
   });
   const shortcuts = useMemo(() => createCommandShortcutLabels(globalThis.navigator.userAgent), []);
-  const onEditorReady = useCallback((editorApi: EditorApi) => {
-    editor.onEditorReady(editorApi);
-    document.scheduleOutlineRefresh();
-  }, [document, editor]);
   const { exitFocusMode, focusMode, toggleFocusMode } = useFocusMode({
     focusEditor: editor.focusEditor,
     initialFocusMode: settings.focusModeOnStartup,
@@ -124,7 +121,7 @@ export function useAppShellModel() {
   const editorContextMenu = useEditorContextMenu({
     editorAvailable: !startup.visible,
     getEditState: editor.getEditState,
-    openDocumentPath: (path) => { void document.fileWorkflow.openPath(path); },
+    navigateLinkHref: navigation.navigateLinkHref,
     shortcuts,
   });
   const fileTreeContextMenu = useFileTreeContextMenu({
@@ -170,9 +167,10 @@ export function useAppShellModel() {
       imageImportErrorHandler: editor.imageImportErrorHandler,
       imageImportHandler: editor.imageImportHandler,
       markDocumentDirty: document.fileWorkflow.markDocumentDirty,
-      onReady: onEditorReady,
+      onLinkNavigationRequest: navigation.onLinkNavigationRequest,
+      onReady: navigation.onEditorReady,
       onZoomRequested: readingAppearance.onZoomRequested,
-      selectHeading: (heading: { from: number }) => editor.selectPosition(heading.from),
+      selectHeading: navigation.selectHeading,
     },
     externalFileConflict: {
       conflict: document.fileWorkflow.externalConflict,

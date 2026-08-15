@@ -1554,6 +1554,215 @@ describe('useFileWorkflow', () => {
     expect(onDocumentLoaded).toHaveBeenCalledTimes(1);
   });
 
+  it('explicitly supersedes a pending link open before a newer non-file navigation', async () => {
+    const pendingRead = createDeferred<CommandResult<{
+      byteLength: number;
+      path: string;
+      text: string;
+    }>>();
+    const loadDocument = vi.fn();
+    const state = createState({
+      currentFile: { name: 'current.md', path: 'E:/docs/current.md' },
+    });
+    const setStatusKey = vi.fn();
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn(() => pendingRead.promise),
+      showOpenDialog: vi.fn(),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    } satisfies FileCommandClient;
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: vi.fn(),
+            loadText: loadDocument,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey }}
+      />,
+    );
+    const workflow = workflowRef.current;
+    if (!workflow) {
+      throw new Error('File workflow was not initialized.');
+    }
+
+    const pendingOpen = workflow.openPath('E:/docs/older.md');
+    act(() => {
+      workflow.supersedePendingOpen();
+    });
+
+    expect(workflowRef.current?.fileOpening).toBe(false);
+    expect(setStatusKey).toHaveBeenLastCalledWith('status.ready');
+
+    await act(async () => {
+      pendingRead.resolve({
+        ok: true,
+        data: {
+          byteLength: 7,
+          path: 'E:/docs/older.md',
+          text: '# Older',
+        },
+      });
+      await pendingOpen;
+    });
+
+    expect(loadDocument).not.toHaveBeenCalled();
+    expect(state.getState().currentFile?.path).toBe('E:/docs/current.md');
+  });
+
+  it('fails closed without changing status when an open starts on a dirty document', async () => {
+    const readText = vi.fn();
+    const showOpenDialog = vi.fn();
+    const setStatusKey = vi.fn();
+    const state = createState({
+      currentFile: { name: 'current.md', path: 'E:/docs/current.md' },
+      dirty: true,
+      dirtyRevision: 3,
+    });
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText,
+      showOpenDialog,
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    } satisfies FileCommandClient;
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => '# Current\n\nUnsaved',
+            loadText: vi.fn(),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey }}
+      />,
+    );
+    const workflow = workflowRef.current;
+    if (!workflow) {
+      throw new Error('File workflow was not initialized.');
+    }
+
+    await expect(workflow.openPath('E:/docs/other.md')).resolves.toEqual({
+      status: 'superseded',
+    });
+    await expect(workflow.openFromDialog()).resolves.toEqual({
+      status: 'superseded',
+    });
+
+    expect(readText).not.toHaveBeenCalled();
+    expect(showOpenDialog).not.toHaveBeenCalled();
+    expect(setStatusKey).not.toHaveBeenCalled();
+    expect(workflowRef.current?.fileOpening).toBe(false);
+  });
+
+  it('does not apply a pending open after the current document changes', async () => {
+    const pendingRead = createDeferred<CommandResult<{
+      byteLength: number;
+      path: string;
+      text: string;
+    }>>();
+    let editorText = '# Current';
+    const loadDocument = vi.fn((text: string) => {
+      editorText = text;
+    });
+    const addRecentFile = vi.fn();
+    const onDocumentLoaded = vi.fn();
+    const onDocumentBecameSafe = vi.fn();
+    const fileWatch = createFileWatchClient();
+    const state = createState({
+      currentFile: { name: 'current.md', path: 'E:/docs/current.md' },
+      dirty: false,
+      dirtyRevision: 7,
+    });
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: vi.fn(() => pendingRead.promise),
+      showOpenDialog: vi.fn(),
+      showSaveDialog: vi.fn(),
+      writeText: vi.fn(),
+    } satisfies FileCommandClient;
+
+    render(
+      <WorkflowHarness
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => editorText,
+            loadText: loadDocument,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={fileWatch}
+        onDocumentBecameSafe={onDocumentBecameSafe}
+        onDocumentLoaded={onDocumentLoaded}
+        onWorkflow={(value) => {
+          workflowRef.current = value;
+        }}
+        recentFiles={{ addRecentFile }}
+        state={state}
+        status={{ setStatusKey: vi.fn() }}
+      />,
+    );
+    const workflow = workflowRef.current;
+    if (!workflow) {
+      throw new Error('File workflow was not initialized.');
+    }
+
+    const pendingOpen = workflow.openPath('E:/docs/other.md');
+    editorText = '# Current\n\nNew IME input';
+    state.setDirty(true);
+    let outcome: Awaited<typeof pendingOpen> | undefined;
+    await act(async () => {
+      pendingRead.resolve({
+        ok: true,
+        data: {
+          byteLength: 7,
+          path: 'E:/docs/other.md',
+          text: '# Other',
+        },
+      });
+      outcome = await pendingOpen;
+    });
+
+    expect(outcome).toEqual({ status: 'superseded' });
+    expect(loadDocument).not.toHaveBeenCalled();
+    expect(editorText).toBe('# Current\n\nNew IME input');
+    expect(state.getState()).toMatchObject({
+      currentFile: { name: 'current.md', path: 'E:/docs/current.md' },
+      dirty: true,
+      dirtyRevision: 8,
+    });
+    expect(addRecentFile).not.toHaveBeenCalled();
+    expect(fileWatch.watchDocument).not.toHaveBeenCalled();
+    expect(onDocumentLoaded).not.toHaveBeenCalled();
+    expect(onDocumentBecameSafe).not.toHaveBeenCalled();
+    expect(workflowRef.current?.fileOpening).toBe(false);
+  });
+
   it('does not clear recovery or overwrite ready status when an open becomes stale while watch starts', async () => {
     const pendingWatch = createDeferred<
       Awaited<ReturnType<FileWatchClient['watchDocument']>>
@@ -1921,7 +2130,7 @@ describe('useFileWorkflow', () => {
     });
     const state = createState({
       currentFile: { name: 'draft.md', path: 'E:/docs/draft.md' },
-      dirty: true,
+      dirty: false,
     });
     const workflowRef: { current: FileWorkflow | null } = { current: null };
 

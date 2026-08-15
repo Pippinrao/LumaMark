@@ -17,6 +17,18 @@ type OpenerCommandOptions = {
   invokeFn?: InvokeCommandFunction;
 };
 
+type E2EOpenerCommandClient = {
+  openUrl: (
+    url: string,
+  ) => Promise<CommandResult<OpenExternalUrlResult>>;
+};
+
+declare global {
+  interface Window {
+    __LUMAMARK_E2E_OPENER_COMMANDS__?: E2EOpenerCommandClient;
+  }
+}
+
 export async function openExternalUrl(
   url: string,
   options: OpenerCommandOptions = {},
@@ -36,11 +48,27 @@ export async function openExternalUrl(
     };
   }
 
+  const browserTestClient =
+    options.invokeFn === undefined ? resolveBrowserTestClient() : undefined;
+  if (browserTestClient) {
+    return browserTestClient.openUrl(url);
+  }
+
   return invokeCommand<OpenExternalUrlResult>(
     'opener_open_url',
     { url },
     options.invokeFn,
   );
+}
+
+function resolveBrowserTestClient(): E2EOpenerCommandClient | undefined {
+  if (
+    !(import.meta.env.DEV || import.meta.env.MODE === 'test') ||
+    typeof window === 'undefined'
+  ) {
+    return undefined;
+  }
+  return window.__LUMAMARK_E2E_OPENER_COMMANDS__;
 }
 
 export async function revealPathInOs(

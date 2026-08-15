@@ -30,6 +30,14 @@ export function classifyLinkUrl(href: string): LinkUrlClassification {
     };
   }
 
+  if (/^(?:[\\/]|[a-zA-Z]:[\\/])/.test(trimmed)) {
+    return {
+      code: 'link.protocol_file',
+      href,
+      kind: 'rejected',
+    };
+  }
+
   const schemeMatch = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(trimmed);
   if (!schemeMatch) {
     return {

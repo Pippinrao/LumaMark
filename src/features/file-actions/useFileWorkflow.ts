@@ -43,6 +43,7 @@ export type FileWorkflow = {
   retargetOpenDocument: (path: string) => Promise<void>;
   save: () => Promise<void>;
   saveAs: () => Promise<void>;
+  supersedePendingOpen: () => void;
 };
 
 export type StatusAdapter = {
@@ -65,6 +66,48 @@ export type UseFileWorkflowOptions = {
   state: FileActionStateAdapter;
   status: StatusAdapter;
 };
+
+type DocumentOpenBaseline = {
+  currentDocumentPath: string | null;
+  dirtyRevision: number;
+  snapshot: ReturnType<EditorDocumentPort['captureSnapshot']>;
+};
+
+function captureDocumentOpenBaseline(
+  editor: EditorDocumentPort,
+  state: FileActionStateAdapter,
+): DocumentOpenBaseline | null {
+  const current = state.getState();
+  if (current.dirty) {
+    return null;
+  }
+
+  return {
+    currentDocumentPath: current.currentFile?.path ?? null,
+    dirtyRevision: current.dirtyRevision,
+    snapshot: editor.captureSnapshot(),
+  };
+}
+
+function isDocumentOpenBaselineCurrent(
+  baseline: DocumentOpenBaseline,
+  editor: EditorDocumentPort,
+  state: FileActionStateAdapter,
+): boolean {
+  const current = state.getState();
+  const currentPath = current.currentFile?.path ?? null;
+  const samePath =
+    baseline.currentDocumentPath === null || currentPath === null
+      ? baseline.currentDocumentPath === currentPath
+      : areWatchedPathsEqual(baseline.currentDocumentPath, currentPath);
+
+  return (
+    !current.dirty &&
+    current.dirtyRevision === baseline.dirtyRevision &&
+    samePath &&
+    editor.isSnapshotCurrent(baseline.snapshot)
+  );
+}
 
 export function useFileWorkflow({
   editorReady,
@@ -184,23 +227,45 @@ export function useFileWorkflow({
   }, [editorRef, prepareTextForSave, recentFiles, state]);
 
   const openFromDialog = useCallback(async () => {
-    if (fileOpeningRef.current) {
+    if (fileOpeningRef.current || state.getState().dirty) {
       return { status: 'superseded' } as const;
     }
 
     const requestId = ++operationIdRef.current;
-    const isCurrentRequest = () => requestId === operationIdRef.current;
+    const ownsRequest = () => requestId === operationIdRef.current;
+    let baseline: DocumentOpenBaseline | null = null;
+    let openResultWasCurrent = false;
+    const isCurrentRequest = () => {
+      const editor = editorRef.current;
+      return Boolean(
+        ownsRequest() &&
+        baseline &&
+        editor &&
+        isDocumentOpenBaselineCurrent(baseline, editor, state),
+      );
+    };
+    const shouldApplyOpenResult = () => {
+      const current = isCurrentRequest();
+      openResultWasCurrent = current;
+      return current;
+    };
     fileOpeningRef.current = true;
     setFileOpening(true);
     status.setStatusKey('status.opening');
     try {
       await waitForEditor();
 
-      if (!isCurrentRequest()) {
+      if (!ownsRequest()) {
         return { status: 'superseded' } as const;
       }
 
-      const actions = createActions(isCurrentRequest);
+      const editor = editorRef.current;
+      baseline = editor ? captureDocumentOpenBaseline(editor, state) : null;
+      if (!baseline) {
+        return { status: 'superseded' } as const;
+      }
+
+      const actions = createActions(shouldApplyOpenResult);
 
       if (!actions) {
         return { status: 'superseded' } as const;
@@ -208,17 +273,30 @@ export function useFileWorkflow({
 
       const result = await actions.openFileFromDialog();
 
-      if (!isCurrentRequest()) {
-        return { status: 'superseded' } as const;
-      }
-
       if (result.ok && result.data) {
+        if (!ownsRequest() || !openResultWasCurrent) {
+          return { status: 'superseded' } as const;
+        }
+        const appliedBaseline = editorRef.current
+          ? captureDocumentOpenBaseline(editorRef.current, state)
+          : null;
+        if (!appliedBaseline) {
+          return { status: 'superseded' } as const;
+        }
         onDocumentLoaded();
         await replaceWatchedDocument(
           result.data.path,
           result.data.fingerprint,
         );
-        if (!isCurrentRequest()) {
+        if (
+          !ownsRequest() ||
+          !editorRef.current ||
+          !isDocumentOpenBaselineCurrent(
+            appliedBaseline,
+            editorRef.current,
+            state,
+          )
+        ) {
           return { status: 'superseded' } as const;
         }
         onDocumentBecameSafe();
@@ -228,20 +306,27 @@ export function useFileWorkflow({
           ? { file, status: 'opened' } as const
           : { status: 'failed' } as const;
       } else if (!result.ok) {
+        if (!ownsRequest() || !openResultWasCurrent) {
+          return { status: 'superseded' } as const;
+        }
         status.setStatusKey('status.openFailed');
         return { status: 'failed' } as const;
       } else {
+        if (!isCurrentRequest()) {
+          return { status: 'superseded' } as const;
+        }
         status.setStatusKey('status.ready');
         return { status: 'cancelled' } as const;
       }
     } finally {
-      if (isCurrentRequest()) {
+      if (ownsRequest()) {
         fileOpeningRef.current = false;
         setFileOpening(false);
       }
     }
   }, [
     createActions,
+    editorRef,
     onDocumentBecameSafe,
     onDocumentLoaded,
     replaceWatchedDocument,
@@ -252,19 +337,45 @@ export function useFileWorkflow({
 
   const openPath = useCallback(
     async (path: string) => {
+      if (state.getState().dirty) {
+        return { status: 'superseded' } as const;
+      }
+
       const requestId = ++operationIdRef.current;
-      const isCurrentRequest = () => requestId === operationIdRef.current;
+      const ownsRequest = () => requestId === operationIdRef.current;
+      let baseline: DocumentOpenBaseline | null = null;
+      let openResultWasCurrent = false;
+      const isCurrentRequest = () => {
+        const editor = editorRef.current;
+        return Boolean(
+          ownsRequest() &&
+          baseline &&
+          editor &&
+          isDocumentOpenBaselineCurrent(baseline, editor, state),
+        );
+      };
+      const shouldApplyOpenResult = () => {
+        const current = isCurrentRequest();
+        openResultWasCurrent = current;
+        return current;
+      };
       fileOpeningRef.current = true;
       setFileOpening(true);
       status.setStatusKey('status.opening');
       try {
         await waitForEditor();
 
-        if (!isCurrentRequest()) {
+        if (!ownsRequest()) {
           return { status: 'superseded' } as const;
         }
 
-        const actions = createActions(isCurrentRequest);
+        const editor = editorRef.current;
+        baseline = editor ? captureDocumentOpenBaseline(editor, state) : null;
+        if (!baseline) {
+          return { status: 'superseded' } as const;
+        }
+
+        const actions = createActions(shouldApplyOpenResult);
 
         if (!actions) {
           return { status: 'superseded' } as const;
@@ -272,17 +383,31 @@ export function useFileWorkflow({
 
         const result = await actions.openFile(path);
 
-        if (!isCurrentRequest()) {
+        if (!ownsRequest() || !openResultWasCurrent) {
           return { status: 'superseded' } as const;
         }
 
         if (result.ok) {
+          const appliedBaseline = editorRef.current
+            ? captureDocumentOpenBaseline(editorRef.current, state)
+            : null;
+          if (!appliedBaseline) {
+            return { status: 'superseded' } as const;
+          }
           onDocumentLoaded();
           await replaceWatchedDocument(
             result.data.path,
             result.data.fingerprint,
           );
-          if (!isCurrentRequest()) {
+          if (
+            !ownsRequest() ||
+            !editorRef.current ||
+            !isDocumentOpenBaselineCurrent(
+              appliedBaseline,
+              editorRef.current,
+              state,
+            )
+          ) {
             return { status: 'superseded' } as const;
           }
           onDocumentBecameSafe();
@@ -296,7 +421,7 @@ export function useFileWorkflow({
           return { status: 'failed' } as const;
         }
       } finally {
-        if (isCurrentRequest()) {
+        if (ownsRequest()) {
           fileOpeningRef.current = false;
           setFileOpening(false);
         }
@@ -304,6 +429,7 @@ export function useFileWorkflow({
     },
     [
       createActions,
+      editorRef,
       onDocumentBecameSafe,
       onDocumentLoaded,
       replaceWatchedDocument,
@@ -333,6 +459,17 @@ export function useFileWorkflow({
     replaceWatchedDocument,
     status,
   ]);
+
+  const supersedePendingOpen = useCallback(() => {
+    if (!fileOpeningRef.current) {
+      return;
+    }
+
+    operationIdRef.current += 1;
+    fileOpeningRef.current = false;
+    setFileOpening(false);
+    status.setStatusKey('status.ready');
+  }, [status]);
 
   const save = useCallback(() => {
     if (fileOpeningRef.current) {
@@ -505,5 +642,6 @@ export function useFileWorkflow({
     retargetOpenDocument,
     save,
     saveAs,
+    supersedePendingOpen,
   };
 }

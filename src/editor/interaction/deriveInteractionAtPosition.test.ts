@@ -1,6 +1,7 @@
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import { markdownLanguage } from '../markdown/markdownLanguage';
+import { advanceEditorReferenceIndex } from './editorLinkTarget';
 import { deriveInteractionAtPosition } from './editorInteractionContext';
 
 function createState(doc: string): EditorState {
@@ -28,6 +29,7 @@ describe('deriveInteractionAtPosition', () => {
       from: posOf(doc, '[docs]'),
       href: 'https://example.com',
       kind: 'link',
+      rawHref: 'https://example.com',
       to: posOf(doc, ') here') + 1,
     });
   });
@@ -190,6 +192,36 @@ describe('deriveInteractionAtPosition', () => {
       href: 'https://example.com',
       kind: 'link',
     });
+  });
+
+  it('shares reference-link resolution with modifier navigation', () => {
+    const doc = 'Read [Guide][manual].\n\n[manual]: ./guide.md#install';
+    const state = createState(doc);
+    expect(
+      advanceEditorReferenceIndex(state, {
+        maxNodes: 1_000,
+        maxWorkMs: 100,
+      }),
+    ).toBe('ready');
+
+    expect(
+      deriveInteractionAtPosition(state, posOf(doc, 'Guide') + 1),
+    ).toMatchObject({
+      href: './guide.md#install',
+      kind: 'link',
+    });
+  });
+
+  it.each([
+    ['www.example.com/docs', 'https://www.example.com/docs'],
+    ['writer@example.com', 'mailto:writer@example.com'],
+  ])('normalizes a bare %s target as %s', (source, href) => {
+    const doc = `Visit ${source} now`;
+    const state = createState(doc);
+
+    expect(
+      deriveInteractionAtPosition(state, posOf(doc, source) + 1),
+    ).toMatchObject({ href, kind: 'link' });
   });
 
   it('targets a mermaid fenced block', () => {

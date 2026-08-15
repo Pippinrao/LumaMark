@@ -7,13 +7,15 @@ export type RootEditorViewTestBridge = {
     precise?: boolean,
   ): number | null;
   dispatch(spec: {
+    changes?: { from: number; insert: string; to?: number };
     scrollIntoView?: boolean;
-    selection: { anchor: number; head?: number };
+    selection?: { anchor: number; head?: number };
   }): void;
   focus(): void;
   scrollDOM: HTMLElement;
   state: {
     doc: {
+      length: number;
       sliceString(from: number, to?: number): string;
       toString(): string;
     };

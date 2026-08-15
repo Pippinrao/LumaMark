@@ -633,6 +633,7 @@ export function createEditorContextMenuModels({
 
   if (target.kind === 'link') {
     const href = target.href;
+    const rawHref = target.rawHref;
     contextualNodes.push(
       payloadMenuItem(
         'open-link',
@@ -648,7 +649,7 @@ export function createEditorContextMenuModels({
         {
           action: 'copyLinkAddress',
           kind: 'payloadAction',
-          payload: { href },
+          payload: { href: rawHref },
         },
         context,
         { disabled: !editorAvailable || !editorState.clipboardWriteAvailable },

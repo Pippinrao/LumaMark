@@ -2,6 +2,32 @@ import { describe, expect, it, vi } from 'vitest';
 import { openExternalUrl, revealPathInOs } from './openerCommands';
 
 describe('openExternalUrl', () => {
+  it('uses the development E2E opener client for allowed URLs', async () => {
+    const openUrl = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { opened: true },
+    });
+    (
+      window as Window & {
+        __LUMAMARK_E2E_OPENER_COMMANDS__?: { openUrl: typeof openUrl };
+      }
+    ).__LUMAMARK_E2E_OPENER_COMMANDS__ = { openUrl };
+
+    try {
+      const result = await openExternalUrl('https://example.com/e2e');
+
+      expect(result).toEqual({ ok: true, data: { opened: true } });
+      expect(openUrl).toHaveBeenCalledOnce();
+      expect(openUrl).toHaveBeenCalledWith('https://example.com/e2e');
+    } finally {
+      delete (
+        window as Window & {
+          __LUMAMARK_E2E_OPENER_COMMANDS__?: { openUrl: typeof openUrl };
+        }
+      ).__LUMAMARK_E2E_OPENER_COMMANDS__;
+    }
+  });
+
   it('rejects disallowed protocols without invoking Tauri', async () => {
     const invokeFn = vi.fn();
 

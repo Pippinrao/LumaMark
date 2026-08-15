@@ -44,6 +44,7 @@ describe('useEditorContextMenu clipboard actions', () => {
         from: 0,
         href: 'https://example.com',
         kind: 'link',
+        rawHref: 'https://example.com',
         to: 8,
       } satisfies EditorContextTarget,
     },
@@ -70,7 +71,7 @@ describe('useEditorContextMenu clipboard actions', () => {
             readOnly: false,
             selectionEmpty: true,
           }),
-          openDocumentPath: vi.fn(),
+          navigateLinkHref: vi.fn(),
           shortcuts,
         }),
       );
@@ -101,6 +102,7 @@ describe('useEditorContextMenu clipboard actions', () => {
         from: 0,
         href: 'https://example.com',
         kind: 'link',
+        rawHref: 'https://example.com',
         to: 8,
       } satisfies EditorContextTarget,
     },
@@ -129,7 +131,7 @@ describe('useEditorContextMenu clipboard actions', () => {
             readOnly: false,
             selectionEmpty: true,
           }),
-          openDocumentPath: vi.fn(),
+          navigateLinkHref: vi.fn(),
           shortcuts,
         }),
       );
@@ -148,6 +150,61 @@ describe('useEditorContextMenu clipboard actions', () => {
       expect(writeText).toHaveBeenCalledOnce();
     },
   );
+
+  it('keeps a newer successful link copy authoritative over an older late failure', async () => {
+    const olderWrite = createDeferred<void>();
+    const writeText = vi
+      .fn()
+      .mockImplementationOnce(() => olderWrite.promise)
+      .mockResolvedValueOnce(undefined);
+    installClipboard({ writeText });
+    useAppStore.getState().setLastFileError({
+      code: 'link.copy_failed',
+      message: 'linkError.copyFailed',
+      recoverable: true,
+    });
+    const { result } = renderHook(() =>
+      useEditorContextMenu({
+        editorAvailable: true,
+        getEditState: () => ({
+          clipboardReadAvailable: false,
+          clipboardWriteAvailable: true,
+          readOnly: false,
+          selectionEmpty: true,
+        }),
+        navigateLinkHref: vi.fn(),
+        shortcuts,
+      }),
+    );
+    const target = {
+      from: 0,
+      href: 'https://example.com',
+      kind: 'link',
+      rawHref: 'https://example.com',
+      to: 8,
+    } satisfies EditorContextTarget;
+    const node = findItem(
+      result.current.getContextMenuNodes(target),
+      'copy-link-address',
+    );
+
+    act(() => {
+      invokeClipboardPayload(result.current.payloadHandlers, node);
+      invokeClipboardPayload(result.current.payloadHandlers, node);
+    });
+
+    await waitFor(() => {
+      expect(useAppStore.getState().lastFileError).toBeNull();
+    });
+
+    await act(async () => {
+      olderWrite.reject(new Error('older denied'));
+      await olderWrite.promise.catch(() => undefined);
+    });
+
+    expect(useAppStore.getState().lastFileError).toBeNull();
+    expect(writeText).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('useEditorContextMenu link actions', () => {
@@ -160,14 +217,10 @@ describe('useEditorContextMenu link actions', () => {
     });
   });
 
-  it('reports the localized open failure when the system opener rejects an allowed URL', async () => {
-    openerMocks.openExternalUrl.mockResolvedValue({
-      ok: false,
-      error: {
-        code: 'link.open_failed',
-        message: 'Failed to open URL.',
-        recoverable: true,
-      },
+  it('routes open-link payloads through the shared navigation handler exactly once', async () => {
+    const navigateLinkHref = vi.fn().mockResolvedValue({
+      status: 'navigated',
+      target: 'external',
     });
     const { result } = renderHook(() =>
       useEditorContextMenu({
@@ -178,7 +231,7 @@ describe('useEditorContextMenu link actions', () => {
           readOnly: false,
           selectionEmpty: true,
         }),
-        openDocumentPath: vi.fn(),
+        navigateLinkHref,
         shortcuts,
       }),
     );
@@ -189,16 +242,9 @@ describe('useEditorContextMenu link actions', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(useAppStore.getState().lastFileError).toEqual({
-        code: 'link.open_failed',
-        message: 'linkError.openFailed',
-        recoverable: true,
-      });
-    });
-    expect(openerMocks.openExternalUrl).toHaveBeenCalledWith(
-      'https://example.com',
-    );
+    await waitFor(() => expect(navigateLinkHref).toHaveBeenCalledOnce());
+    expect(navigateLinkHref).toHaveBeenCalledWith('https://example.com');
+    expect(openerMocks.openExternalUrl).not.toHaveBeenCalled();
   });
 });
 
@@ -217,6 +263,16 @@ function installClipboard(
     configurable: true,
     value: clipboard,
   });
+}
+
+function createDeferred<T>() {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
 }
 
 function invokeClipboardPayload(

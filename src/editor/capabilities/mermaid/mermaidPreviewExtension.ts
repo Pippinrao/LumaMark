@@ -10,6 +10,7 @@ import { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import { renderWithMermaid } from './mermaidRenderAdapter';
 import { changedRangesRequireMermaidRebuild } from './mermaidChangeDetection';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
 import {
   activeMermaidBlock,
   mermaidEditingStateField,
@@ -94,6 +95,13 @@ function mermaidDecorationsField(
       return rebuildAll(state);
     },
     update(value, transaction) {
+      if (
+        isEditorRenderLocked(transaction.startState) !==
+        isEditorRenderLocked(transaction.state)
+      ) {
+        return rebuildAll(transaction.state);
+      }
+
       if (transaction.effects.some((effect) => effect.is(mermaidThemeChangedEffect))) {
         return rebuildAll(transaction.state);
       }

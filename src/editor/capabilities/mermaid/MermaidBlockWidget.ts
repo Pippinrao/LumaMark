@@ -2,6 +2,8 @@ import { EditorState } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { i18n } from '../../../shared/i18n';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
+import { announceReadOnlyEditAttempt } from '../../core/readOnlyEditAttempt';
 import type { AbsoluteMermaidBlock } from './mermaidBlockDetection';
 import {
   setActiveMermaidBlockEffect,
@@ -45,6 +47,7 @@ export class MermaidBlockWidget extends WidgetType {
     private readonly editing = false,
     geometryCache = new BlockWidgetGeometryCache(),
     geometryKey = mermaidBlockGeometryKey(block),
+    private readonly sourceControlsEnabled = true,
   ) {
     super();
     this.geometry = new BlockWidgetGeometryTracker(
@@ -61,7 +64,8 @@ export class MermaidBlockWidget extends WidgetType {
       widget.theme === this.theme &&
       widget.options.mermaidVersion === this.options.mermaidVersion &&
       widget.options.onMediaPreviewRequest === this.options.onMediaPreviewRequest &&
-      widget.editing === this.editing
+      widget.editing === this.editing &&
+      widget.sourceControlsEnabled === this.sourceControlsEnabled
     );
   }
 
@@ -72,12 +76,16 @@ export class MermaidBlockWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const dom: MermaidWidgetDom = createMermaidWidgetDom({
       expandLabel: getMediaPreviewButtonLabel(view.state),
-      onDelete: () => {
-        this.deleteBlock(view, dom.wrapper);
-      },
-      onEdit: () => {
-        beginMermaidSourceEditing(view, dom.wrapper, this.block);
-      },
+      onDelete: this.sourceControlsEnabled
+        ? () => {
+            this.deleteBlock(view, dom.wrapper);
+          }
+        : undefined,
+      onEdit: this.sourceControlsEnabled
+        ? () => {
+            beginMermaidSourceEditing(view, dom.wrapper, this.block);
+          }
+        : undefined,
       onExpand: this.options.onMediaPreviewRequest
         ? () => {
             if (this.renderedSvg !== null) {
@@ -120,6 +128,7 @@ export class MermaidBlockWidget extends WidgetType {
     this.cancelRender = this.scheduler.request({
       blockId: this.block.blockId,
       config: safeMermaidConfig(this.options.config),
+      jobOwner: view,
       mermaidVersion: this.options.mermaidVersion ?? this.defaultMermaidVersion,
       onError: () => {
         dom.expand?.setAttribute('hidden', '');
@@ -157,6 +166,11 @@ export class MermaidBlockWidget extends WidgetType {
   }
 
   private deleteBlock(view: EditorView, widget: HTMLElement): void {
+    if (isEditorRenderLocked(view.state)) {
+      announceReadOnlyEditAttempt(view);
+      return;
+    }
+
     const block = resolveCurrentMermaidBlock(view, widget, this.block);
     if (!block) {
       return;

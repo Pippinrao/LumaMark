@@ -23,6 +23,7 @@ import {
   imageBlockGeometryKey,
   type ImagePreviewContext,
 } from './ImageBlockWidget';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
 import './image.css';
 
 export { collectImageBlocksInRanges } from './imageBlockDetection';
@@ -65,6 +66,9 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
       const shouldRefresh = transaction.effects.some((effect) =>
         effect.is(refreshImagePreviews),
       );
+      const renderLockChanged =
+        isEditorRenderLocked(transaction.startState) !==
+        isEditorRenderLocked(transaction.state);
 
       if (transaction.docChanged) {
         if (changedRangesAffectImageBlocks(transaction)) {
@@ -84,6 +88,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
         const blocks = mapImageBlocks(value.blocks, transaction.changes);
         const shouldRebuildDecorations =
           shouldRefresh ||
+          renderLockChanged ||
           imageBlockPositionsChanged(value.blocks, blocks) ||
           imageSelectionStateChanged(
             transaction.startState,
@@ -107,6 +112,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
 
       if (
         shouldRefresh ||
+        renderLockChanged ||
         imageSelectionStateChanged(
           transaction.startState,
           value.blocks,
@@ -148,7 +154,8 @@ function buildImageDecorations(
   for (const { block, geometryKey } of keyedBlocks) {
     const revision =
       context.imageAssetResolver?.getLocalSourceRevision?.(block.source);
-    const active = selectionIntersectsBlock(state, block);
+    const active =
+      !isEditorRenderLocked(state) && selectionIntersectsBlock(state, block);
     const widget = new ImageBlockWidget(
       block,
       context,

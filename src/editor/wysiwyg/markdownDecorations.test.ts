@@ -16,6 +16,7 @@ import {
   mermaidEditingStateField,
   setActiveMermaidBlockEffect,
 } from '../capabilities/mermaid/mermaidEditingState';
+import { createEditorApi } from '../core/editorApi';
 
 function visibleLineTexts(parent: HTMLElement): string[] {
   return [...parent.querySelectorAll('.cm-line')].map(
@@ -873,6 +874,126 @@ describe('markdown WYSIWYG extension', () => {
     expect(visibleSourceMarks()).toEqual(['1.']);
 
     view.destroy();
+    parent.remove();
+  });
+
+  it.each([
+    ['active unordered', ['-']],
+    ['active ordered', ['9)']],
+    ['active task', ['-', '[ ]']],
+    ['active ordered task', ['7.', '[x]']],
+    ['nested unordered', ['-']],
+    ['nested ordered', ['3)']],
+    ['nested task', ['-', '[ ]']],
+    ['nested ordered task', ['4.', '[x]']],
+  ] as const)(
+    'locks every list marker while reading from %s and restores its live context',
+    (activeText, expectedLiveMarks) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const doc = [
+        '- active unordered',
+        '',
+        '9) active ordered',
+        '',
+        '- [ ] active task',
+        '',
+        '7. [x] active ordered task',
+        '',
+        '- parent unordered',
+        '  - nested unordered',
+        '',
+        '1. parent ordered',
+        '   3) nested ordered',
+        '',
+        '- parent task',
+        '  - [ ] nested task',
+        '',
+        '1. parent ordered task',
+        '   4. [x] nested ordered task',
+        '',
+        '**active strong**',
+      ].join('\n');
+      const editor = createEditorApi({ doc, parent });
+      editor.view.dispatch({
+        selection: EditorSelection.cursor(doc.indexOf(activeText)),
+      });
+
+      editor.setDisplayMode('reading');
+
+      expect(parent.querySelector('.lm-md-source-mark')).toBeNull();
+      const listBullets = [
+        ...parent.querySelectorAll<HTMLElement>('.lm-md-list-bullet'),
+      ];
+      expect(listBullets).toHaveLength(4);
+      for (const bullet of listBullets) {
+        expect(bullet.getAttribute('aria-hidden')).toBeNull();
+      }
+      expect(
+        [...parent.querySelectorAll('.lm-md-list-order')].map(
+          (marker) => marker.textContent,
+        ),
+      ).toEqual(['9)', '7.', '1.', '3)', '1.', '4.']);
+      const taskLines = [
+        ...parent.querySelectorAll<HTMLElement>('.lm-md-task-list-line'),
+      ];
+      expect(taskLines).toHaveLength(4);
+      for (const taskLine of taskLines) {
+        expect(taskLine.querySelector('.lm-md-source-mark')).toBeNull();
+        expect(
+          taskLine.querySelector<HTMLInputElement>('.lm-md-task-checkbox')
+            ?.disabled,
+        ).toBe(true);
+      }
+      for (const taskLine of [taskLines[0], taskLines[2]]) {
+        expect(taskLine.querySelector('.lm-md-list-order')).toBeNull();
+        expect(taskLine.textContent).not.toMatch(/^\s*-\s/);
+      }
+      expect(
+        taskLines[1].querySelector('.lm-md-list-order')?.textContent,
+      ).toBe('7.');
+      expect(
+        taskLines[3].querySelector('.lm-md-list-order')?.textContent,
+      ).toBe('4.');
+
+      editor.setDisplayMode('livePreview');
+
+      const activeLine = [...parent.querySelectorAll<HTMLElement>('.cm-line')].find(
+        (line) => line.textContent?.includes(activeText),
+      );
+      expect(
+        [...(activeLine?.querySelectorAll('.lm-md-source-mark') ?? [])].map(
+          (marker) => marker.textContent,
+        ),
+      ).toEqual([...expectedLiveMarks]);
+
+      editor.destroy();
+      parent.remove();
+    },
+  );
+
+  it('keeps ordinary active source marks hidden only while reading', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = '**active strong**';
+    const editor = createEditorApi({ doc, parent });
+    editor.view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('strong')),
+    });
+
+    expect(parent.querySelectorAll('.lm-md-source-mark-inline')).toHaveLength(2);
+
+    editor.setDisplayMode('reading');
+
+    expect(parent.querySelector('.lm-md-source-mark')).toBeNull();
+    expect(parent.textContent).toContain('active strong');
+
+    editor.setDisplayMode('livePreview');
+
+    expect(parent.querySelectorAll('.lm-md-source-mark-inline')).toHaveLength(2);
+    expect(editor.getDocumentText()).toBe(doc);
+
+    editor.destroy();
     parent.remove();
   });
 

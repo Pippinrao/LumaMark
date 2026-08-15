@@ -27,6 +27,7 @@ import {
   type EditorInteractionRange,
 } from '../interaction';
 import { activeMermaidBlock } from '../capabilities/mermaid/mermaidEditingState';
+import { isEditorRenderLocked } from '../core/editorRenderLock';
 import {
   toggleTaskAtPosition,
   toggleTaskListCommand,
@@ -119,18 +120,23 @@ class HiddenMarkdownMarkWidget extends WidgetType {
 }
 
 class ListBulletWidget extends WidgetType {
-  constructor(private readonly marker: string) {
+  constructor(
+    private readonly marker: string,
+    private readonly accessible: boolean,
+  ) {
     super();
   }
 
   eq(widget: ListBulletWidget): boolean {
-    return widget.marker === this.marker;
+    return widget.marker === this.marker && widget.accessible === this.accessible;
   }
 
   toDOM(): HTMLElement {
     const element = document.createElement('span');
     element.className = 'lm-md-list-bullet';
-    element.setAttribute('aria-hidden', 'true');
+    if (!this.accessible) {
+      element.setAttribute('aria-hidden', 'true');
+    }
     element.textContent = '•';
 
     return element;
@@ -350,6 +356,7 @@ function buildDecorations(view: EditorView): DecorationSet {
     view.state,
     view.compositionStarted,
   );
+  const renderLocked = isEditorRenderLocked(view.state);
 
   for (
     const item of collectListLineDecorations(
@@ -396,7 +403,7 @@ function buildDecorations(view: EditorView): DecorationSet {
       interaction,
     )
   ) {
-    if (marker.active) {
+    if (marker.active && !renderLocked) {
       decorations.push({
         decoration: Decoration.mark({
           class: markdownSourceMarkClassName('TaskMarker'),
@@ -412,7 +419,7 @@ function buildDecorations(view: EditorView): DecorationSet {
         widget: new TaskCheckboxWidget(
           marker.checked,
           marker.from,
-          view.state.readOnly,
+          renderLocked,
           view.state.phrase(TASK_CHECKBOX_ARIA_LABEL),
         ),
       }),
@@ -635,6 +642,7 @@ function collectListMarkers(
   interaction: EditorInteractionContext,
 ): DecorationItem[] {
   const markers: DecorationItem[] = [];
+  const renderLocked = isEditorRenderLocked(view.state);
 
   for (const range of view.visibleRanges) {
     syntaxTree(view.state).iterate({
@@ -648,7 +656,9 @@ function collectListMarkers(
         const marker = view.state.doc.sliceString(node.from, node.to);
         const line = view.state.doc.lineAt(node.from);
         const lineText = view.state.doc.sliceString(line.from, line.to);
-        const taskMarker = /^\s{0,3}[-*+]\s+\[[ xX]\](?=\s|$)/.test(lineText);
+        const taskMarker = /^\s{0,3}(?:[-*+]|\d+[.)])\s+\[[ xX]\](?=\s|$)/.test(
+          lineText,
+        );
         const unorderedMarker = /^[-*+]$/.test(marker);
         const orderedMarker = /^\d+[.)]$/.test(marker);
         const owner = findAncestorBlock(node.node, 'ListItem');
@@ -663,10 +673,32 @@ function collectListMarkers(
           return;
         }
 
-        if (owner && isActiveBlock(interaction, owner)) {
+        if (!renderLocked && owner && isActiveBlock(interaction, owner)) {
           markers.push({
             decoration: Decoration.mark({
               class: markdownSourceMarkClassName('ListMark'),
+            }),
+            from: node.from,
+            to: node.to,
+          });
+          return;
+        }
+
+        if (renderLocked && orderedMarker) {
+          markers.push({
+            decoration: Decoration.mark({
+              class: 'lm-md-list-order',
+            }),
+            from: node.from,
+            to: node.to,
+          });
+          return;
+        }
+
+        if (renderLocked && taskMarker) {
+          markers.push({
+            decoration: Decoration.replace({
+              widget: new HiddenMarkdownMarkWidget(),
             }),
             from: node.from,
             to: node.to,
@@ -680,7 +712,7 @@ function collectListMarkers(
 
         markers.push({
           decoration: Decoration.replace({
-            widget: new ListBulletWidget(marker),
+            widget: new ListBulletWidget(marker, renderLocked),
           }),
           from: node.from,
           to: node.to,
@@ -960,7 +992,7 @@ function shouldRevealSyntaxNode(
 ): boolean {
   // Reading mode keeps the rendered view still: revealing source under the
   // caret is an editing affordance, and the page must not reflow while reading.
-  if (view.state.readOnly) {
+  if (isEditorRenderLocked(view.state)) {
     return false;
   }
 
@@ -1088,6 +1120,8 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
           update.selectionSet ||
           update.viewportChanged ||
           update.startState.readOnly !== update.state.readOnly ||
+          isEditorRenderLocked(update.startState) !==
+            isEditorRenderLocked(update.state) ||
           activeMermaidBlockChanged(update) ||
           update.startState.phrase(TASK_CHECKBOX_ARIA_LABEL) !==
             update.state.phrase(TASK_CHECKBOX_ARIA_LABEL) ||

@@ -64,6 +64,13 @@
   caret-color: transparent;
 }
 
+.lm-codemirror
+  .lm-editor-reading-mode
+  .cm-search
+  :is(input[name="replace"], button[name="replace"], button[name="replaceAll"]) {
+  display: none;
+}
+
 .lm-codemirror > .cm-editor > .cm-scroller > .cm-content {
   flex-grow: 0;
   flex-shrink: 0;

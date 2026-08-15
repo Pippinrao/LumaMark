@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.2.44",
+  "version": "0.2.45",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -36,6 +36,7 @@
     "release:packaged-media-caret": "node scripts/release/verify-packaged-media-caret.mjs",
     "release:packaged-code-block": "pnpm build && node scripts/release/verify-packaged-code-block.mjs",
     "release:installed-media-caret-os": "node scripts/release/verify-installed-media-caret-os.mjs",
+    "release:installed-reading-mode-os": "node scripts/release/verify-installed-reading-mode-os.mjs",
     "release:installed-inline-code-caret-os": "node scripts/release/verify-installed-inline-code-caret-os.mjs",
     "release:installed-window-chrome": "node scripts/release/verify-installed-window-chrome.mjs",
     "release:installed-window-routing": "node scripts/release/verify-installed-second-instance-open.mjs",

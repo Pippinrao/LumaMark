@@ -1,5 +1,7 @@
 import { EditorSelection, type Extension } from '@codemirror/state';
 import { type EditorView, keymap } from '@codemirror/view';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
+import { announceReadOnlyEditAttempt } from '../../core/readOnlyEditAttempt';
 import {
   collectMermaidBlocksInRanges,
   type AbsoluteMermaidBlock,
@@ -14,6 +16,11 @@ export function beginMermaidSourceEditing(
   widget: HTMLElement,
   fallbackBlock: AbsoluteMermaidBlock,
 ): boolean {
+  if (isEditorRenderLocked(view.state)) {
+    announceReadOnlyEditAttempt(view);
+    return false;
+  }
+
   const block = resolveCurrentMermaidBlock(view, widget, fallbackBlock);
   if (!block) {
     return false;

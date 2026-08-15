@@ -1,5 +1,13 @@
-import { Facet, type Extension } from '@codemirror/state';
+import {
+  Annotation,
+  EditorState,
+  Facet,
+  StateEffect,
+  Transaction,
+  type Extension,
+} from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { isEditorRenderLocked } from './editorRenderLock';
 
 export type ReadOnlyEditAttemptHandler = () => void;
 
@@ -9,6 +17,8 @@ export const readOnlyEditAttemptFacet = Facet.define<
 >({
   combine: (values) => values.find((value) => value != null) ?? null,
 });
+export const allowReadOnlyDocumentChange = Annotation.define<boolean>();
+const reportReadOnlyEditAttempt = StateEffect.define<null>();
 
 export function announceReadOnlyEditAttempt(view: EditorView): void {
   view.state.facet(readOnlyEditAttemptFacet)?.();
@@ -23,6 +33,31 @@ export function readOnlyEditAttemptExtension(
 ): Extension {
   return [
     readOnlyEditAttemptFacet.of(onAttempt ?? null),
+    EditorState.transactionFilter.of((transaction) => {
+      if (
+        !transaction.docChanged ||
+        transaction.annotation(allowReadOnlyDocumentChange) ||
+        !isEditorRenderLocked(transaction.startState)
+      ) {
+        return transaction;
+      }
+
+      return {
+        annotations: Transaction.addToHistory.of(false),
+        effects: reportReadOnlyEditAttempt.of(null),
+      };
+    }),
+    EditorView.updateListener.of((update) => {
+      if (
+        update.transactions.some((transaction) =>
+          transaction.effects.some((effect) =>
+            effect.is(reportReadOnlyEditAttempt),
+          ),
+        )
+      ) {
+        announceReadOnlyEditAttempt(update.view);
+      }
+    }),
     EditorView.domEventHandlers({
       beforeinput(event, view) {
         if (!view.state.readOnly) {

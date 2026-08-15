@@ -21,6 +21,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 import type { AppLanguage } from '../../shared/i18n';
 import { markdownFormatKeymap } from '../commands/markdownFormatKeymap';
+import { tableCellRenderLockBaseExtension } from '../capabilities/table/tableCellRenderLock';
 import { recordEditorTransactionMetric } from '../metrics/editorMetrics';
 import {
   markdownLanguage,
@@ -36,6 +37,8 @@ import {
 import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
+  editorReadOnlyCompartment,
+  editorReadOnlyExtension,
   type EditorDocumentContext,
   type EditorDisplayMode,
 } from './editorDisplayMode';
@@ -214,6 +217,8 @@ export function createEditorState(
       editorDisplayModeCompartment.of(
         editorDisplayModeExtension(displayMode, documentContext),
       ),
+      editorReadOnlyCompartment.of(editorReadOnlyExtension(displayMode)),
+      tableCellRenderLockBaseExtension(),
       EditorState.phrases.of(searchPhrases),
       documentSavepointField,
       editorHistoryCompartment.of(history()),

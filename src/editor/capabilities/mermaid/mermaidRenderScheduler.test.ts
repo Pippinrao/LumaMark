@@ -79,6 +79,7 @@ describe('MermaidRenderScheduler', () => {
 
   it('cancels stale work so an old result cannot overwrite a newer request', async () => {
     vi.useFakeTimers();
+    const jobOwner = {};
     const first = deferred<string>();
     const second = deferred<string>();
     const render = vi
@@ -94,6 +95,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess,
       source: 'old',
@@ -104,6 +106,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess,
       source: 'new',
@@ -137,6 +140,7 @@ describe('MermaidRenderScheduler', () => {
 
   it('reuses a cached render result for identical inputs', async () => {
     vi.useFakeTimers();
+    const jobOwner = {};
     const render = vi.fn<() => Promise<string>>().mockResolvedValue('<svg />');
     const scheduler = new MermaidRenderScheduler({
       debounceMs: 0,
@@ -146,6 +150,7 @@ describe('MermaidRenderScheduler', () => {
     const request = {
       blockId: 'block-1',
       config: { securityLevel: 'strict' },
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess,
       source: 'flowchart TD\nA-->B',
@@ -163,8 +168,50 @@ describe('MermaidRenderScheduler', () => {
     expect(onSuccess).toHaveBeenCalledTimes(2);
   });
 
+  it('shares cached content across owners and block positions', async () => {
+    vi.useFakeTimers();
+    const ownerA = {};
+    const ownerB = {};
+    const render = vi
+      .fn<() => Promise<string>>()
+      .mockResolvedValue('<svg>shared</svg>');
+    const scheduler = new MermaidRenderScheduler({ debounceMs: 0, render });
+    const onSuccessA = vi.fn();
+    const onSuccessB = vi.fn();
+    const content = {
+      config: { securityLevel: 'strict' },
+      mermaidVersion: '11.0.0',
+      source: 'flowchart TD\nA-->B',
+      theme: 'default' as const,
+    };
+
+    scheduler.request({
+      ...content,
+      blockId: '0:40',
+      jobOwner: ownerA,
+      onSuccess: onSuccessA,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.runAllTicks();
+
+    scheduler.request({
+      ...content,
+      blockId: '80:120',
+      jobOwner: ownerB,
+      onSuccess: onSuccessB,
+    });
+
+    expect(onSuccessA).toHaveBeenCalledTimes(1);
+    expect(onSuccessB).toHaveBeenCalledTimes(1);
+    expect(onSuccessA.mock.calls[0]?.[0].cacheKey).toBe(
+      onSuccessB.mock.calls[0]?.[0].cacheKey,
+    );
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
   it('cancels an in-flight job before returning a cached result for the same block', async () => {
     vi.useFakeTimers();
+    const jobOwner = {};
     const oldRender = deferred<string>();
     const render = vi
       .fn<() => Promise<string>>()
@@ -180,6 +227,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess: cachedSuccess,
       source: 'cached',
@@ -191,6 +239,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess: oldSuccess,
       source: 'old',
@@ -201,6 +250,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess: cachedSuccess,
       source: 'cached',
@@ -216,6 +266,7 @@ describe('MermaidRenderScheduler', () => {
 
   it('uses a monotonic job token after cache hits so older renders cannot match newer jobs', async () => {
     vi.useFakeTimers();
+    const jobOwner = {};
     const oldRender = deferred<string>();
     const newerRender = deferred<string>();
     const render = vi
@@ -234,6 +285,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess: cachedSuccess,
       source: 'cached',
@@ -245,6 +297,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess: oldSuccess,
       source: 'old',
@@ -255,6 +308,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess: cachedSuccess,
       source: 'cached',
@@ -264,6 +318,7 @@ describe('MermaidRenderScheduler', () => {
     scheduler.request({
       blockId: 'block-1',
       config: {},
+      jobOwner,
       mermaidVersion: '11.0.0',
       onSuccess: newerSuccess,
       source: 'newer',

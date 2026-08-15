@@ -1,9 +1,14 @@
-import { EditorSelection, EditorState } from '@codemirror/state';
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+} from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { undoDepth } from '@codemirror/commands';
+import { history, undoDepth } from '@codemirror/commands';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '../../../shared/i18n';
 import { createEditorApi } from '../../core/editorApi';
+import { editorRenderLockExtension } from '../../core/editorRenderLock';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
 import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
 import { ImageBlockWidget } from './ImageBlockWidget';
@@ -32,6 +37,23 @@ function imageWidgets(view: EditorView): ImageBlockWidget[] {
   }
 
   return widgets;
+}
+
+function imageWidgetRanges(
+  view: EditorView,
+): Array<{ from: number; to: number }> {
+  const ranges: Array<{ from: number; to: number }> = [];
+
+  for (const source of view.state.facet(EditorView.decorations)) {
+    const decorations = typeof source === 'function' ? source(view) : source;
+    decorations.between(0, view.state.doc.length, (from, to, decoration) => {
+      if (decoration.spec.widget instanceof ImageBlockWidget) {
+        ranges.push({ from, to });
+      }
+    });
+  }
+
+  return ranges;
 }
 
 describe('image preview extension', () => {
@@ -465,6 +487,225 @@ describe('image preview extension', () => {
 
     expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
     expect(parent.textContent).toContain('![Alt](https://example.com/pic.png)');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps a locked image preview from moving the root selection into its owner', () => {
+    const doc = ['![Alt](data:image/png;base64,AA==)', '', 'after'].join('\n');
+    const renderLock = new Compartment();
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          history(),
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+          renderLock.of(editorRenderLockExtension(false)),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('after')),
+      }),
+    });
+
+    view.dispatch({
+      changes: { from: view.state.doc.length, insert: '\nmore' },
+    });
+    view.dispatch({
+      effects: renderLock.reconfigure(editorRenderLockExtension(true)),
+    });
+
+    const [block] = collectImageBlocksInRanges(view.state, [
+      { from: 0, to: view.state.doc.length },
+    ]);
+    if (!block) {
+      throw new Error('Expected a block image.');
+    }
+    const documentBefore = view.state.doc.toString();
+    const selectionBefore = view.state.selection;
+    const historyBefore = undoDepth(view.state);
+    const widgetRangesBefore = imageWidgetRanges(view);
+    const preview = parent.querySelector<HTMLElement>('.lm-image-preview');
+    const pointerDown = new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    expect(historyBefore).toBeGreaterThan(0);
+    expect(widgetRangesBefore).toEqual([
+      { from: block.from, to: block.to },
+    ]);
+    expect(preview).not.toBeNull();
+
+    preview?.dispatchEvent(pointerDown);
+
+    expect(pointerDown.defaultPrevented).toBe(false);
+    expect(view.state.doc.toString()).toBe(documentBefore);
+    expect(view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(view.state)).toBe(historyBefore);
+    expect(imageWidgetRanges(view)).toEqual(widgetRangesBefore);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it.each([
+    {
+      name: 'opening',
+      position: 0,
+    },
+    {
+      name: 'closing',
+      position: '![Alt](data:image/png;base64,AA==)'.length,
+    },
+  ])(
+    'keeps a caret on the $name boundary outside the active image owner',
+    ({ position }) => {
+      const doc = '![Alt](data:image/png;base64,AA==)';
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const view = new EditorView({
+        parent,
+        state: EditorState.create({
+          doc,
+          extensions: [
+            markdownLanguage(),
+            imagePreviewExtension({ documentPath: null }),
+          ],
+          selection: EditorSelection.cursor(position),
+        }),
+      });
+
+      expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+      expect(parent.textContent).not.toContain(doc);
+
+      view.destroy();
+      parent.remove();
+    },
+  );
+
+  it('keeps the image preview visible while its active markdown line is editable', () => {
+    const doc = ['![Alt](https://example.com/pic.png)', '', 'after'].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('Alt')),
+      }),
+    });
+
+    expect(parent.querySelector('.lm-image-preview')).not.toBeNull();
+    expect(parent.textContent).toContain('![Alt](https://example.com/pic.png)');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('replaces an active image owner while render lock is enabled', () => {
+    const doc = ['![Alt](https://example.com/pic.png)', '', 'after'].join('\n');
+    const renderLock = new Compartment();
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          history(),
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+          renderLock.of(editorRenderLockExtension(false)),
+        ],
+        selection: EditorSelection.cursor(doc.indexOf('Alt')),
+      }),
+    });
+
+    view.dispatch({
+      changes: { from: view.state.doc.length, insert: '\nmore' },
+    });
+
+    const [block] = collectImageBlocksInRanges(view.state, [
+      { from: 0, to: view.state.doc.length },
+    ]);
+    if (!block) {
+      throw new Error('Expected a block image.');
+    }
+    const documentBefore = view.state.doc.toString();
+    const selectionBefore = view.state.selection;
+    const historyBefore = undoDepth(view.state);
+
+    expect(historyBefore).toBeGreaterThan(0);
+
+    expect(imageWidgetRanges(view)).toEqual([
+      { from: block.to, to: block.to },
+    ]);
+
+    view.dispatch({
+      effects: renderLock.reconfigure(editorRenderLockExtension(true)),
+    });
+
+    expect(imageWidgetRanges(view)).toEqual([
+      { from: block.from, to: block.to },
+    ]);
+    expect(view.state.doc.toString()).toBe(documentBefore);
+    expect(view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(view.state)).toBe(historyBefore);
+
+    view.dispatch({
+      effects: renderLock.reconfigure(editorRenderLockExtension(false)),
+    });
+
+    expect(imageWidgetRanges(view)).toEqual([
+      { from: block.to, to: block.to },
+    ]);
+    expect(view.state.doc.toString()).toBe(documentBefore);
+    expect(view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(view.state)).toBe(historyBefore);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('replaces an active image owner when render lock is initially enabled', () => {
+    const doc = ['![Alt](https://example.com/pic.png)', '', 'after'].join('\n');
+    const selection = EditorSelection.create([
+      EditorSelection.cursor(doc.indexOf('Alt')),
+    ]);
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          markdownLanguage(),
+          imagePreviewExtension({ documentPath: null }),
+          editorRenderLockExtension(true),
+        ],
+        selection,
+      }),
+    });
+    const [block] = collectImageBlocksInRanges(view.state, [
+      { from: 0, to: view.state.doc.length },
+    ]);
+    if (!block) {
+      throw new Error('Expected a block image.');
+    }
+
+    expect(imageWidgetRanges(view)).toEqual([
+      { from: block.from, to: block.to },
+    ]);
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.state.selection.eq(selection)).toBe(true);
 
     view.destroy();
     parent.remove();

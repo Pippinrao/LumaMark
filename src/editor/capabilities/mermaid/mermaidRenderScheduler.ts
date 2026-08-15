@@ -11,6 +11,7 @@ type RenderJobResult<T> = {
 
 export type MermaidRenderRequest = MermaidCacheKeyInput & {
   blockId: string;
+  jobOwner: object;
   onError?: (error: unknown) => void;
   onLoading?: () => void;
   onSuccess: (result: MermaidRenderResult) => void;
@@ -35,11 +36,15 @@ type PendingJob = {
   timer: ReturnType<typeof setTimeout> | null;
 };
 
+type OwnerJobState = {
+  jobs: Map<string, PendingJob>;
+  nextGenerationByBlockId: Map<string, number>;
+};
+
 export class MermaidRenderScheduler {
   private readonly cache: MermaidRenderCache;
   private readonly debounceMs: number;
-  private readonly jobs = new Map<string, PendingJob>();
-  private readonly nextGenerationByBlockId = new Map<string, number>();
+  private readonly ownerJobStates = new WeakMap<object, OwnerJobState>();
   private readonly render: (context: MermaidRenderContext) => Promise<string>;
 
   constructor(options: MermaidRenderSchedulerOptions) {
@@ -50,14 +55,15 @@ export class MermaidRenderScheduler {
 
   request(request: MermaidRenderRequest): { cancel: () => void } {
     const cacheKey = createMermaidCacheKey(request);
-    const previousJob = this.jobs.get(request.blockId);
-    const generation = this.nextGeneration(request.blockId);
+    const ownerState = this.getOwnerJobState(request.jobOwner);
+    const previousJob = ownerState.jobs.get(request.blockId);
+    const generation = this.nextGeneration(ownerState, request.blockId);
 
     if (previousJob?.timer) {
       clearTimeout(previousJob.timer);
     }
 
-    this.jobs.delete(request.blockId);
+    ownerState.jobs.delete(request.blockId);
 
     const cachedSvg = this.cache.get(cacheKey);
 
@@ -72,28 +78,47 @@ export class MermaidRenderScheduler {
     request.onLoading?.();
 
     const timer = setTimeout(() => {
-      void this.runRender(request, cacheKey, generation);
+      void this.runRender(request, cacheKey, generation, ownerState);
     }, this.debounceMs);
 
-    this.jobs.set(request.blockId, {
+    ownerState.jobs.set(request.blockId, {
       generation,
       timer,
     });
 
     return {
-      cancel: () => this.cancel(request.blockId, generation),
+      cancel: () => this.cancel(ownerState, request.blockId, generation),
     };
   }
 
-  private nextGeneration(blockId: string): number {
-    const generation = (this.nextGenerationByBlockId.get(blockId) ?? 0) + 1;
-    this.nextGenerationByBlockId.set(blockId, generation);
+  private getOwnerJobState(owner: object): OwnerJobState {
+    let ownerState = this.ownerJobStates.get(owner);
+
+    if (!ownerState) {
+      ownerState = {
+        jobs: new Map(),
+        nextGenerationByBlockId: new Map(),
+      };
+      this.ownerJobStates.set(owner, ownerState);
+    }
+
+    return ownerState;
+  }
+
+  private nextGeneration(ownerState: OwnerJobState, blockId: string): number {
+    const generation =
+      (ownerState.nextGenerationByBlockId.get(blockId) ?? 0) + 1;
+    ownerState.nextGenerationByBlockId.set(blockId, generation);
 
     return generation;
   }
 
-  private cancel(blockId: string, generation: number): void {
-    const job = this.jobs.get(blockId);
+  private cancel(
+    ownerState: OwnerJobState,
+    blockId: string,
+    generation: number,
+  ): void {
+    const job = ownerState.jobs.get(blockId);
 
     if (!job || job.generation !== generation) {
       return;
@@ -103,13 +128,14 @@ export class MermaidRenderScheduler {
       clearTimeout(job.timer);
     }
 
-    this.jobs.delete(blockId);
+    ownerState.jobs.delete(blockId);
   }
 
   private async runRender(
     request: MermaidRenderRequest,
     cacheKey: string,
     generation: number,
+    ownerState: OwnerJobState,
   ): Promise<void> {
     try {
       const svg = await this.render({
@@ -119,27 +145,27 @@ export class MermaidRenderScheduler {
         source: request.source,
         theme: request.theme,
       });
-      const activeJob = this.jobs.get(request.blockId);
+      const activeJob = ownerState.jobs.get(request.blockId);
 
       if (!activeJob || activeJob.generation !== generation) {
         return;
       }
 
       this.cache.set(cacheKey, svg);
-      this.jobs.delete(request.blockId);
+      ownerState.jobs.delete(request.blockId);
       request.onSuccess({
         cacheKey,
         svg,
         value: svg,
       });
     } catch (error) {
-      const activeJob = this.jobs.get(request.blockId);
+      const activeJob = ownerState.jobs.get(request.blockId);
 
       if (!activeJob || activeJob.generation !== generation) {
         return;
       }
 
-      this.jobs.delete(request.blockId);
+      ownerState.jobs.delete(request.blockId);
       request.onError?.(error);
     }
   }

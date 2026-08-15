@@ -14,11 +14,14 @@ import {
 import type { AppLanguage } from '../../shared/i18n';
 import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 import {
+  editorReadOnlyCompartment,
+  editorReadOnlyExtension,
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
   type EditorDocumentContext,
   type EditorDisplayMode,
 } from './editorDisplayMode';
+import { allowReadOnlyDocumentChange } from './readOnlyEditAttempt';
 import { invalidatePendingImageImports } from '../capabilities/image/imageInputExtension';
 import { relabelMediaPreviewButtons } from '../capabilities/mediaPreviewButton';
 import { relabelTaskCheckboxes } from '../wysiwyg/markdownDecorations';
@@ -196,6 +199,7 @@ export class CodeMirrorEditorApi implements EditorApi {
       });
     }
     this.editorView.dispatch({
+      annotations: allowReadOnlyDocumentChange.of(true),
       changes: mapPreparedDocument
         ? createExactDocumentChanges(
             this.editorView.state.doc,
@@ -307,13 +311,18 @@ export class CodeMirrorEditorApi implements EditorApi {
 
     this.documentContext = nextContext;
     this.editorView.dispatch({
-      effects: editorDisplayModeCompartment.reconfigure(
-        editorDisplayModeExtension(
-          this.displayMode,
-          this.documentContext,
-          this.transitionLocked,
+      effects: [
+        editorDisplayModeCompartment.reconfigure(
+          editorDisplayModeExtension(
+            this.displayMode,
+            this.documentContext,
+            this.transitionLocked,
+          ),
         ),
-      ),
+        editorReadOnlyCompartment.reconfigure(
+          editorReadOnlyExtension(this.displayMode, this.transitionLocked),
+        ),
+      ],
     });
   }
 
@@ -324,13 +333,18 @@ export class CodeMirrorEditorApi implements EditorApi {
 
     this.transitionLocked = locked;
     this.editorView.dispatch({
-      effects: editorDisplayModeCompartment.reconfigure(
-        editorDisplayModeExtension(
-          this.displayMode,
-          this.documentContext,
-          this.transitionLocked,
+      effects: [
+        editorDisplayModeCompartment.reconfigure(
+          editorDisplayModeExtension(
+            this.displayMode,
+            this.documentContext,
+            this.transitionLocked,
+          ),
         ),
-      ),
+        editorReadOnlyCompartment.reconfigure(
+          editorReadOnlyExtension(this.displayMode, this.transitionLocked),
+        ),
+      ],
     });
   }
 
@@ -349,6 +363,9 @@ export class CodeMirrorEditorApi implements EditorApi {
             this.documentContext,
             this.transitionLocked,
           ),
+        ),
+        editorReadOnlyCompartment.reconfigure(
+          editorReadOnlyExtension(mode, this.transitionLocked),
         ),
       ],
     });

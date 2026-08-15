@@ -26,6 +26,11 @@ export function useAppEditorImageInput(
     let unlisten: () => void = () => undefined;
 
     void subscribeToLocalImageDrops((drop) => {
+      const commandPort = commandPortRef.current;
+      if (isImageInsertLocked(commandPort)) {
+        return;
+      }
+
       const state = useAppStore.getState();
       const documentPath = state.currentFile?.path ?? null;
       void createLocalImageReferences({
@@ -62,7 +67,7 @@ export function useAppEditorImageInput(
   }, [commandPortRef]);
 
   const insertLocalImages = useCallback(async () => {
-    if (!commandPortRef.current) {
+    if (!commandPortRef.current || isImageInsertLocked(commandPortRef.current)) {
       return;
     }
 
@@ -79,7 +84,7 @@ export function useAppEditorImageInput(
         throw new Error(result.error.code);
       }
 
-      if (!result.data?.length) {
+      if (!result.data?.length || isImageInsertLocked(commandPortRef.current)) {
         return;
       }
 
@@ -108,4 +113,12 @@ export function useAppEditorImageInput(
     insertLocalImages,
     refreshLocalImage: imageAssets.refreshLocalImage,
   };
+}
+
+function isImageInsertLocked(commandPort: EditorCommandPort | null): boolean {
+  return (
+    commandPort == null ||
+    commandPort.getDisplayMode() === 'reading' ||
+    commandPort.getEditState().readOnly
+  );
 }

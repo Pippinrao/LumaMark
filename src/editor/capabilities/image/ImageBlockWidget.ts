@@ -6,6 +6,7 @@ import type {
   ImageAssetResolver,
 } from '../../core/editorDisplayMode';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
 import {
   BlockWidgetGeometryCache,
   BlockWidgetGeometryTracker,
@@ -66,7 +67,9 @@ export class ImageBlockWidget extends WidgetType {
     wrapper.className = 'lm-image-preview';
     this.geometry.mount(view, wrapper);
     wrapper.addEventListener('mousedown', (event) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || isEditorRenderLocked(view.state)) {
+        return;
+      }
       event.preventDefault();
       view.dispatch({
         selection: EditorSelection.cursor(

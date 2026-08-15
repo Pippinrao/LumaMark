@@ -5,6 +5,8 @@ import {
   type Annotation,
   EditorState,
   Prec,
+  StateEffect,
+  StateField,
   Transaction,
   type Extension,
 } from '@codemirror/state';
@@ -17,15 +19,24 @@ import {
 } from 'codemirror-markdown-tables';
 import { Strikethrough } from '@lezer/markdown';
 import { markdownSyntaxHighlighting } from '../../markdown/markdownLanguage';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
 import {
   tableCellClickSyncNestedExtension,
   tableCellClickSyncRootExtension,
 } from './tableCellClickSync';
 import { tableCellEditingExtension } from './tableCellEditing';
+import {
+  createTableCellRenderLockScope,
+  tableCellRenderLockNestedExtension,
+  tableCellRenderLockScopeExtension,
+} from './tableCellRenderLock';
 import './table.css';
 
-export function tablePreviewExtension(): Extension {
+export function tablePreviewExtension(renderLocked: boolean): Extension {
+  const renderLockScope = createTableCellRenderLockScope(renderLocked);
+
   return [
+    tableCellRenderLockScopeExtension(renderLockScope),
     tableCellClickSyncRootExtension(),
     codemirrorMarkdownLanguage.data.of({
       autocomplete: markdownTableAutocompleter({
@@ -48,6 +59,7 @@ export function tablePreviewExtension(): Extension {
         EditorView.lineWrapping,
         markdownSyntaxHighlighting(),
         tableCellEditingExtension(),
+        tableCellRenderLockNestedExtension(renderLockScope),
         tableCellClickSyncNestedExtension(),
         keymap.of(defaultKeymap),
       ],
@@ -95,6 +107,7 @@ export function tablePreviewExtension(): Extension {
       },
     }),
     Prec.highest(preservePassiveTableSourceFormatting()),
+    ...blockLockedTableLibraryWriteback(),
   ];
 }
 
@@ -113,6 +126,78 @@ function preservePassiveTableSourceFormatting(): Extension {
 function getRuntimeTableFormatAnnotation(
   transaction: Transaction,
 ): Annotation<unknown> | undefined {
+  return getRuntimeTableLibraryAnnotation(transaction, (value) => value === 'table.format');
+}
+
+const clearLockedTableWritebackGuard = StateEffect.define<null>();
+const lockedTableWritebackGuard = StateField.define<boolean>({
+  create: () => false,
+  update(suppress, transaction) {
+    const locked = isEditorRenderLocked(transaction.state);
+    const wasLocked = isEditorRenderLocked(transaction.startState);
+    if (transaction.effects.some((effect) => effect.is(clearLockedTableWritebackGuard))) {
+      return false;
+    }
+    if (!locked && wasLocked) {
+      return true;
+    }
+    if (locked) {
+      return false;
+    }
+    if (
+      suppress &&
+      !getRuntimeTableLibraryAnnotation(
+        transaction,
+        isMutatingTableLibraryAnnotation,
+      )
+    ) {
+      return false;
+    }
+    return suppress;
+  },
+});
+
+function blockLockedTableLibraryWriteback(): Extension[] {
+  return [
+    lockedTableWritebackGuard,
+    Prec.highest(
+      EditorState.transactionFilter.of((transaction) => {
+      if (!transaction.docChanged) {
+        return transaction;
+      }
+
+      const tableAnnotation = getRuntimeTableLibraryAnnotation(
+        transaction,
+        isMutatingTableLibraryAnnotation,
+      );
+      if (!tableAnnotation) {
+        return transaction;
+      }
+
+      const dropLatentWriteback =
+        isEditorRenderLocked(transaction.startState) ||
+        transaction.startState.field(lockedTableWritebackGuard, false) === true;
+      if (!dropLatentWriteback) {
+        return transaction;
+      }
+
+      return {
+        annotations: [tableAnnotation, Transaction.addToHistory.of(false)],
+        effects: clearLockedTableWritebackGuard.of(null),
+      };
+      }),
+    ),
+  ];
+}
+
+function isMutatingTableLibraryAnnotation(value: unknown): boolean {
+  return value === 'table.edit' || value === 'table.delete' || value === 'table.correct';
+}
+
+function getRuntimeTableLibraryAnnotation(
+  transaction: Transaction,
+  matches: (value: unknown) => boolean,
+): Annotation<unknown> | undefined {
   // codemirror-markdown-tables@1.0.0 has no public autoformat opt-out. Keep
   // this compatibility cast at the library boundary and review it whenever
   // the dependency changes. The original annotation is preserved so the
@@ -122,9 +207,9 @@ function getRuntimeTableFormatAnnotation(
       readonly annotations?: readonly { readonly value?: unknown }[];
     }
   ).annotations;
-  const formatAnnotation = annotations?.find(
-    (annotation) => annotation.value === 'table.format',
+  const tableAnnotation = annotations?.find((annotation) =>
+    matches(annotation.value),
   );
 
-  return formatAnnotation as Annotation<unknown> | undefined;
+  return tableAnnotation as Annotation<unknown> | undefined;
 }

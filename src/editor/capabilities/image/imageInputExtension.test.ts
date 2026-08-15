@@ -1,11 +1,14 @@
 import { EditorSelection, EditorState, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
+import { editorRenderLockExtension } from '../../core/editorRenderLock';
 import {
+  imageInputExtension,
   imageInputTrackingExtension,
   imageMarkdown,
   invalidatePendingImageImports,
   importFiles,
+  insertImageReferences,
 } from './imageInputExtension';
 
 function imageFile(name: string): File {
@@ -153,5 +156,40 @@ describe('image input extension', () => {
 
     expect(view.state.doc.toString()).toBe('new document');
     view.destroy();
+  });
+
+  it('does not write imported assets before the render-lock check', async () => {
+    const handler = vi.fn(async () => ({
+      markdownSource: 'note.assets/image-001.png',
+    }));
+    const parent = document.createElement('div');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'original',
+        extensions: [
+          editorRenderLockExtension(true),
+          imageInputTrackingExtension,
+          imageInputExtension(handler, 'E:\\notes\\note.md'),
+        ],
+        selection: EditorSelection.cursor(0),
+      }),
+    });
+
+    await importFiles(
+      view,
+      [imageFile('locked.png')],
+      handler,
+      'E:\\notes\\note.md',
+    );
+    insertImageReferences(view, [
+      { alt: 'locked.png', markdownSource: 'note.assets/image-001.png' },
+    ]);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe('original');
+
+    view.destroy();
+    parent.remove();
   });
 });

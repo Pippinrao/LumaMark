@@ -7,6 +7,8 @@ import { EditorView } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import type { ImageImportHandler } from '../../core/editorDisplayMode';
 import type { ImageImportErrorHandler } from '../../core/editorDisplayMode';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
+import { announceReadOnlyEditAttempt } from '../../core/readOnlyEditAttempt';
 
 type PendingImageImport = {
   from: number;
@@ -101,6 +103,11 @@ export function insertImageReferences(
   position?: { x: number; y: number },
   selectionOverride?: { from: number; to: number },
 ): void {
+  if (isEditorRenderLocked(view.state)) {
+    announceReadOnlyEditAttempt(view);
+    return;
+  }
+
   if (position) {
     const bounds = view.dom.getBoundingClientRect();
 
@@ -140,6 +147,11 @@ export async function importFiles(
   handler: ImageImportHandler,
   documentPath: string | null,
 ): Promise<void> {
+  if (isEditorRenderLocked(view.state)) {
+    announceReadOnlyEditAttempt(view);
+    return;
+  }
+
   const initialSelection = view.state.selection.main;
   const pendingId = nextPendingImageImportId++;
   const inserted: { alt: string; markdownSource: string }[] = [];
@@ -202,6 +214,11 @@ export function imageInputExtension(
       }
 
       event.preventDefault();
+      if (isEditorRenderLocked(view.state)) {
+        announceReadOnlyEditAttempt(view);
+        return true;
+      }
+
       void importFiles(view, files, handler, documentPath).catch(onError);
       return true;
     },
@@ -212,6 +229,11 @@ export function imageInputExtension(
       }
 
       event.preventDefault();
+      if (isEditorRenderLocked(view.state)) {
+        announceReadOnlyEditAttempt(view);
+        return true;
+      }
+
       void importFiles(view, files, handler, documentPath).catch(onError);
       return true;
     },

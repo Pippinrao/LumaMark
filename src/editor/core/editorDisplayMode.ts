@@ -2,6 +2,7 @@ import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { createLivePreviewExtensions } from '../capabilities';
 import type { EditorMediaPreviewRequestHandler } from './editorEvents';
+import { editorRenderLockExtension } from './editorRenderLock';
 
 export type EditorDisplayMode = 'livePreview' | 'reading' | 'source';
 export type ImageAssetRequest = {
@@ -47,38 +48,44 @@ export type EditorDocumentContext = {
 };
 
 export const editorDisplayModeCompartment = new Compartment();
+export const editorReadOnlyCompartment = new Compartment();
+
+export function editorReadOnlyExtension(
+  mode: EditorDisplayMode,
+  transitionLocked = false,
+): Extension {
+  return EditorState.readOnly.of(mode === 'reading' || transitionLocked);
+}
 
 export function editorDisplayModeExtension(
   mode: EditorDisplayMode,
   context: EditorDocumentContext = { path: null },
-  transitionLocked = false,
+  _transitionLocked = false,
 ): Extension {
   if (mode === 'source') {
     return [
+      editorRenderLockExtension(false),
       EditorView.editorAttributes.of({
         class: 'lm-editor-source-mode',
       }),
-      ...(transitionLocked ? [EditorState.readOnly.of(true)] : []),
     ];
   }
 
   if (mode === 'reading') {
     return [
+      editorRenderLockExtension(true),
       EditorView.editorAttributes.of({
         class: 'lm-editor-reading-mode',
       }),
-      // contenteditable stays on so selection, copy, find and keyboard
-      // navigation keep working; only document changes are refused.
-      EditorState.readOnly.of(true),
-      ...createLivePreviewExtensions(context),
+      ...createLivePreviewExtensions(context, true),
     ];
   }
 
   return [
+    editorRenderLockExtension(false),
     EditorView.editorAttributes.of({
       class: 'lm-editor-live-preview-mode',
     }),
-    ...(transitionLocked ? [EditorState.readOnly.of(true)] : []),
-    ...createLivePreviewExtensions(context),
+    ...createLivePreviewExtensions(context, false),
   ];
 }

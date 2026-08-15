@@ -21,6 +21,7 @@ import {
 } from './MermaidBlockWidget';
 import type { MermaidRenderScheduler } from './mermaidRenderScheduler';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
+import { isEditorRenderLocked } from '../../core/editorRenderLock';
 
 type MermaidDecorationOptions = {
   config?: Record<string, unknown>;
@@ -158,7 +159,8 @@ function createMermaidDecoration(
   context: MermaidDecorationContext,
   geometryKey = mermaidBlockGeometryKey(block),
 ): Range<Decoration> {
-  const editing = isActiveMermaidBlock(state, block);
+  const sourceControlsEnabled = !isEditorRenderLocked(state);
+  const editing = sourceControlsEnabled && isActiveMermaidBlock(state, block);
   const widget = new MermaidBlockWidget(
     block,
     context.scheduler,
@@ -168,6 +170,7 @@ function createMermaidDecoration(
     editing,
     context.geometryCache,
     geometryKey,
+    sourceControlsEnabled,
   );
 
   return editing

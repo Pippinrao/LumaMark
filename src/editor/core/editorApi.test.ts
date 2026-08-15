@@ -14,6 +14,10 @@ import { importFiles } from '../capabilities/image/imageInputExtension';
 import { isDocumentDirty } from './createEditorState';
 import { parseDocumentSource } from './documentSourceFormat';
 import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
+import {
+  editorDisplayModeCompartment,
+  editorDisplayModeExtension,
+} from './editorDisplayMode';
 
 describe('editorApi', () => {
   it('keeps adjacent inserted logical line endings distinct after serialization', () => {
@@ -563,6 +567,106 @@ describe('editorApi', () => {
     expect(deleteCharBackward(editor.view)).toBe(false);
     expect(insertNewlineAndIndent(editor.view)).toBe(false);
     expect(editor.getDocumentText()).toBe('# Initial\n\n**Bold**\n');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('keeps read-only state in an independent compartment while switching modes', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '# Initial\n', parent });
+
+    expect(editor.view.state.readOnly).toBe(false);
+
+    editor.setDisplayMode('reading');
+
+    expect(editor.view.state.readOnly).toBe(true);
+
+    editor.view.dispatch({
+      effects: editorDisplayModeCompartment.reconfigure(
+        editorDisplayModeExtension('source'),
+      ),
+    });
+
+    expect(editor.view.state.readOnly).toBe(true);
+    expect(parent.querySelector('.lm-editor-source-mode')).not.toBeNull();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('rejects programmatic document changes while reading and reports one attempt', () => {
+    const onReadOnlyEditAttempt = vi.fn();
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '# Initial\n',
+      onReadOnlyEditAttempt,
+      parent,
+    });
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: 'draft' },
+    });
+    expect(undoDepth(editor.view.state)).toBe(1);
+    editor.setDisplayMode('reading');
+    const documentBeforeAttempt = editor.getDocumentText();
+    const selectionBeforeAttempt = editor.view.state.selection;
+    const historyBeforeAttempt = undoDepth(editor.view.state);
+
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: 'blocked' },
+    });
+
+    expect(editor.getDocumentText()).toBe(documentBeforeAttempt);
+    expect(editor.view.state.selection.eq(selectionBeforeAttempt)).toBe(true);
+    expect(undoDepth(editor.view.state)).toBe(historyBeforeAttempt);
+    expect(onReadOnlyEditAttempt).toHaveBeenCalledTimes(1);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('allows effects-only transactions while reading', () => {
+    const onReadOnlyEditAttempt = vi.fn();
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '# Initial\n',
+      onReadOnlyEditAttempt,
+      parent,
+    });
+    editor.setDisplayMode('reading');
+
+    editor.markDocumentUnsaved();
+
+    expect(isDocumentDirty(editor.view.state)).toBe(true);
+    expect(onReadOnlyEditAttempt).not.toHaveBeenCalled();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('loads controlled document refreshes while reading without reporting an edit attempt', () => {
+    const onReadOnlyEditAttempt = vi.fn();
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '# Initial\n',
+      onReadOnlyEditAttempt,
+      parent,
+    });
+    editor.setDisplayMode('reading');
+
+    editor.loadDocument('# Refreshed\r\n\r\nBody', {
+      preserveView: true,
+      resetHistory: false,
+    });
+
+    expect(editor.getDocumentText()).toBe('# Refreshed\n\nBody');
+    expect(editor.getSerializedDocumentText()).toBe('# Refreshed\r\n\r\nBody');
+    expect(editor.view.state.readOnly).toBe(true);
+    expect(onReadOnlyEditAttempt).not.toHaveBeenCalled();
 
     editor.destroy();
     parent.remove();

@@ -39,8 +39,8 @@ export function createMermaidWidgetDom({
   onExpand,
 }: {
   expandLabel?: string;
-  onDelete: () => void;
-  onEdit: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
   onExpand?: () => void;
 }): MermaidWidgetDom {
   const wrapper = document.createElement('section');
@@ -69,8 +69,8 @@ export function createMermaidWidgetDom({
   }
   actions.replaceChildren(
     ...(expand ? [expand] : []),
-    createEditButton(onEdit),
-    createDeleteButton(onDelete),
+    ...(onEdit ? [createEditButton(onEdit)] : []),
+    ...(onDelete ? [createDeleteButton(onDelete)] : []),
   );
 
   return {

@@ -144,6 +144,126 @@ describe('package quality scripts', () => {
     expect(acceptance).not.toContain('page.keyboard');
   });
 
+  it('defines installed reading-mode acceptance with guarded Win32 input', async () => {
+    const packageJson = await readPackageJson();
+    const acceptance = await readFile(
+      join(
+        process.cwd(),
+        'scripts',
+        'release',
+        'verify-installed-reading-mode-os.mjs',
+      ),
+      'utf8',
+    );
+    const installerSmoke = await readFile(
+      join(process.cwd(), 'scripts', 'release', 'windows-installer-smoke.ps1'),
+      'utf8',
+    );
+    const win32Helper = await readFile(
+      join(
+        process.cwd(),
+        'scripts',
+        'release',
+        'verify-installed-media-caret-os.mjs',
+      ),
+      'utf8',
+    );
+    const tableTests = await readFile(
+      join(
+        process.cwd(),
+        'src',
+        'editor',
+        'capabilities',
+        'table',
+        'tablePreviewExtension.test.ts',
+      ),
+      'utf8',
+    );
+
+    expect(packageJson.scripts['release:installed-reading-mode-os']).toBe(
+      'node scripts/release/verify-installed-reading-mode-os.mjs',
+    );
+    expect(installerSmoke).toContain(
+      'verify-installed-reading-mode-os.mjs',
+    );
+    expect(acceptance).toContain('verify-installed-media-caret-os.mjs');
+    expect(acceptance).toContain("'--write-win32-helper'");
+    expect(acceptance).toContain('LUMAMARK_EXECUTABLE');
+    expect(acceptance).toContain('createPackagedWebviewEnvironment({');
+    expect(acceptance).toContain('app.pid');
+    expect(acceptance).toContain("invokeWin32('Probe')");
+    expect(acceptance).toContain("invokeWin32('Click'");
+    expect(acceptance).toContain("invokeWin32('Unicode'");
+    expect(acceptance).toContain("invokeWin32('Save')");
+    expect(acceptance).toContain('targetVerifiedBeforeInput');
+    expect(acceptance).toContain('pointIsInTargetWindow');
+    expect(acceptance).toContain('.lm-editor-reading-mode');
+    expect(acceptance).toContain('.tbl-cell-view');
+    expect(acceptance).toContain('aria-readonly');
+    expect(acceptance).toContain('lm-status-readonly-flash');
+    expect(acceptance).toContain('sourceUnchangedAfterBlockedInput');
+    expect(acceptance).toContain('selectionUnchangedAfterBlockedInput');
+    expect(acceptance).toContain('undoHistoryNotMeasuredByInstalledScript');
+    expect(acceptance).toContain('savedMarkdownExact');
+    expect(acceptance).toContain('view.state.readOnly');
+    expect(acceptance).toContain('view.state.facet(editableFacet)');
+    expect(acceptance).toContain('view.state.selection.toJSON()');
+    expect(acceptance).toContain('event.isTrusted');
+    expect(acceptance).toContain('matchesExpectedTarget');
+    expect(acceptance).toContain('readOnlyFlashCount');
+    expect(acceptance).toContain('isProcessRunning(app.pid)');
+    expect(acceptance).toContain('AbortSignal.timeout(2_000)');
+    expect(acceptance).toMatch(
+      /await\s+awaitRunAcceptanceShutdown\(\s*runAcceptancePromise,\s*cleanupFailures,\s*\)/,
+    );
+    expect(acceptance).toContain('expectedRootDocument');
+    expect(acceptance).toContain('expectedNestedSelectionHead');
+    expect(acceptance).toContain('const acceptanceAbort = new AbortController();');
+    expect(acceptance).toContain('watchdogExpired');
+    expect(acceptance).toContain('terminateProcessTree');
+    expect(acceptance).toContain('removePackagedWebviewTempDirectory');
+    expect(acceptance).not.toContain('GetWindowRect');
+    expect(acceptance).not.toContain('mouse_event');
+    expect(acceptance).not.toContain('page.mouse');
+    expect(acceptance).not.toContain('page.keyboard');
+    expect(acceptance).not.toMatch(
+      /\.(?:click|dblclick|press|type|fill|focus|dispatchEvent)\s*\(/,
+    );
+    expect(acceptance).not.toMatch(
+      /new\s+(?:KeyboardEvent|MouseEvent|PointerEvent|InputEvent)\s*\(/,
+    );
+    expect(acceptance).not.toMatch(/\.dispatch\s*\(/);
+
+    const orderedWin32Path = [
+      "'activate-live-table-cell'",
+      "label: 'live-cell-unicode'",
+      "clickLocatorWithWin32(viewMenu, 'open-view-menu')",
+      "clickLocatorWithWin32(readingModeItem, 'enter-reading-mode')",
+      "clickLocatorWithWin32(readingPreview, 'click-locked-table-preview')",
+      "clickLocatorWithWin32(readingParagraph, 'focus-reading-root')",
+      "label: 'blocked-reading-unicode'",
+      "invokeWin32('Save')",
+    ].map((token) => acceptance.indexOf(token));
+    expect(orderedWin32Path.every((index) => index >= 0)).toBe(true);
+    expect(orderedWin32Path).toEqual(
+      [...orderedWin32Path].sort((left, right) => left - right),
+    );
+
+    expect(win32Helper).toContain('ClientToScreen');
+    expect(win32Helper).toContain('WindowFromPoint');
+    expect(win32Helper).toContain('SendInput');
+    expect(win32Helper).toContain('KEYEVENTF_UNICODE');
+    expect(win32Helper).toContain('targetVerifiedBeforeInput');
+    expect(win32Helper).toContain('pointIsInTargetWindow');
+    expect(tableTests).toContain(
+      'restores nested focus after moving it to the root while reading',
+    );
+    expect(tableTests).toContain('expect(undo(editor.view)).toBe(true)');
+    expect(tableTests).toContain('expect(redo(editor.view)).toBe(true)');
+    expect(tableTests).toContain('expect(undoDepth(editor.view.state))');
+    expect(tableTests).toContain('expect(redoDepth(editor.view.state))');
+  });
+
   it('keeps the installed table OS matrix on the maintained blur target', async () => {
     const matrix = await readFile(
       join(

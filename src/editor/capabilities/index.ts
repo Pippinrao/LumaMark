@@ -19,21 +19,23 @@ export type {
 
 export function createLivePreviewCapabilities(
   context: EditorDocumentContext,
+  renderLocked: boolean,
 ): EditorCapability[] {
   return [
     createCodeBlockCapability(),
     createImageCapability(context),
-    createTableCapability(),
+    createTableCapability(renderLocked),
     createMermaidCapability(context),
   ];
 }
 
 export function createLivePreviewExtensions(
   context: EditorDocumentContext,
+  renderLocked: boolean,
 ): Extension[] {
   return [
     markdownWysiwygExtension(),
-    ...createLivePreviewCapabilities(context).flatMap(
+    ...createLivePreviewCapabilities(context, renderLocked).flatMap(
       (capability) => capability.extensions,
     ),
   ];

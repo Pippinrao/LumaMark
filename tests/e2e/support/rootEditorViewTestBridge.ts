@@ -2,6 +2,10 @@ import type { Locator } from '@playwright/test';
 
 export type RootEditorViewTestBridge = {
   coordsAtPos(position: number, side?: number): DOMRect | null;
+  posAtCoords(
+    coords: { x: number; y: number },
+    precise?: boolean,
+  ): number | null;
   dispatch(spec: {
     scrollIntoView?: boolean;
     selection: { anchor: number; head?: number };
@@ -20,6 +24,7 @@ export type RootEditorViewTestBridge = {
 };
 
 export type RootEditorContentTestBridge = HTMLElement & {
+  readRootEditorHistoryDepthForTest(): { redo: number; undo: number };
   resolveRootEditorViewForTest(): RootEditorViewTestBridge;
 };
 
@@ -44,6 +49,8 @@ export async function installRootEditorViewTestBridge(
       typeof view !== 'object' ||
       !('coordsAtPos' in view) ||
       typeof view.coordsAtPos !== 'function' ||
+      !('posAtCoords' in view) ||
+      typeof view.posAtCoords !== 'function' ||
       !('dispatch' in view) ||
       typeof view.dispatch !== 'function' ||
       !('focus' in view) ||
@@ -72,5 +79,30 @@ export async function installRootEditorViewTestBridge(
       configurable: true,
       value: () => view,
     });
+  });
+}
+
+export async function installRootEditorHistoryTestBridge(
+  editor: Locator,
+): Promise<void> {
+  await editor.evaluate(async (content) => {
+    const modulePath = '/tests/e2e/support/rootEditorHistoryBrowserBridge.ts';
+    const historyBridge = await import(/* @vite-ignore */ modulePath) as {
+      installRootEditorHistoryBrowserBridge(target: HTMLElement): void;
+    };
+
+    historyBridge.installRootEditorHistoryBrowserBridge(content as HTMLElement);
+  });
+}
+
+export async function readRootEditorHistoryDepth(
+  editor: Locator,
+): Promise<{ redo: number; undo: number }> {
+  return editor.evaluate((content) => {
+    const bridge = content as RootEditorContentTestBridge;
+    if (typeof bridge.readRootEditorHistoryDepthForTest !== 'function') {
+      throw new Error('CodeMirror history test bridge is unavailable.');
+    }
+    return bridge.readRootEditorHistoryDepthForTest();
   });
 }

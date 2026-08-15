@@ -4,6 +4,7 @@ import {
   type Extension,
   RangeSetBuilder,
   StateEffect,
+  Transaction,
 } from '@codemirror/state';
 import {
   Decoration,
@@ -34,6 +35,12 @@ import {
   isReplaceableMarkdownSourceMark,
   markdownSourceMarkClassName,
 } from './markdownSourceMarks';
+import {
+  INLINE_OWNER_FROM_ATTRIBUTE,
+  INLINE_OWNER_TO_ATTRIBUTE,
+  inlinePointerOwnerFromEvent,
+  inlinePointerPosition,
+} from './inlinePointerSelection';
 import './wysiwyg.css';
 
 export type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
@@ -51,15 +58,19 @@ type DecorationItem = {
   to: number;
 };
 
-type InlinePointerCandidate = {
+type SettledInlinePointerCandidate = {
+  from: number;
   position: number;
+  to: number;
   x: number;
   y: number;
 };
 
+type InlinePointerCandidate = SettledInlinePointerCandidate & {
+  intent: 'caret' | 'word';
+};
+
 const TASK_CHECKBOX_ARIA_LABEL = 'Toggle task completion';
-const INLINE_OWNER_FROM_ATTRIBUTE = 'data-lm-inline-owner-from';
-const INLINE_OWNER_TO_ATTRIBUTE = 'data-lm-inline-owner-to';
 const INLINE_DECORATION_KINDS = new Set<MarkdownDecorationRange['kind']>([
   'emphasis',
   'inlineCode',
@@ -1034,6 +1045,7 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
     private gestureActive = false;
     private gestureCleanup: (() => void) | null = null;
     private inlinePointerCandidate: InlinePointerCandidate | null = null;
+    private lastInlinePointerCandidate: SettledInlinePointerCandidate | null = null;
     private settlementQueued = false;
     private wasComposing: boolean;
 
@@ -1044,17 +1056,27 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
 
     update(update: ViewUpdate) {
       const compositionStarted = update.view.compositionStarted;
-      if (this.gestureActive && update.docChanged) {
-        // A document change can invalidate both the source offset and the
-        // Markdown owner captured at pointer-down. This includes IME commits,
-        // whose resulting caret must never be replaced by a stale click fixup.
-        this.inlinePointerCandidate = null;
-      }
       const pointerSettlement = update.transactions.some((transaction) =>
         transaction.effects.some((effect) =>
           effect.is(settlePointerMarkdownDecorations),
         ),
       );
+      if (update.docChanged) {
+        // A document change can invalidate the source offsets captured by the
+        // current gesture or its preceding click. This includes IME commits,
+        // whose resulting caret must never be replaced by a stale fixup.
+        if (this.gestureActive) {
+          this.inlinePointerCandidate = null;
+        }
+        this.lastInlinePointerCandidate = null;
+      }
+      if (
+        !this.gestureActive &&
+        update.selectionSet &&
+        !pointerSettlement
+      ) {
+        this.lastInlinePointerCandidate = null;
+      }
 
       const mode = selectMarkdownDecorationUpdateMode({
         compositionStarted,
@@ -1088,40 +1110,56 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
 
       if (
         event.button !== 0 ||
-        event.detail !== 1 ||
         event.altKey ||
         event.ctrlKey ||
         event.metaKey ||
-        event.shiftKey
+        event.shiftKey ||
+        (event.detail !== 1 && event.detail !== 2)
       ) {
+        this.lastInlinePointerCandidate = null;
         return;
       }
 
-      const target = event.target;
-      const owner = target instanceof Element
-        ? target.closest<HTMLElement>(`[${INLINE_OWNER_FROM_ATTRIBUTE}]`)
-        : null;
-      const from = Number(owner?.getAttribute(INLINE_OWNER_FROM_ATTRIBUTE));
-      const to = Number(owner?.getAttribute(INLINE_OWNER_TO_ATTRIBUTE));
+      const owner = inlinePointerOwnerFromEvent(event);
+      if (!owner) {
+        this.lastInlinePointerCandidate = null;
+        return;
+      }
+      const { from, to } = owner;
 
-      if (
-        !owner ||
-        !Number.isInteger(from) ||
-        !Number.isInteger(to) ||
-        to - from < 2
-      ) {
+      if (event.detail === 2) {
+        // The first settlement may reveal delimiters and move this fixed
+        // screen point. Keep the first rendered hit as the double-click word
+        // anchor when the browser classifies the next press as the same
+        // owner's double-click. The current press coordinates remain the drag
+        // guard for its matching mouseup.
+        const previous = this.lastInlinePointerCandidate;
+        this.lastInlinePointerCandidate = null;
+        if (
+          previous &&
+          previous.from === from &&
+          previous.to === to
+        ) {
+          this.inlinePointerCandidate = {
+            ...previous,
+            intent: 'word',
+            x: event.clientX,
+            y: event.clientY,
+          };
+        }
         return;
       }
 
-      const coordinatePosition = view.posAtCoords({
-        x: event.clientX,
-        y: event.clientY,
-      });
+      this.lastInlinePointerCandidate = null;
       this.inlinePointerCandidate = {
-        position: Math.max(
-          from + 1,
-          Math.min(coordinatePosition ?? from + 1, to - 1),
+        from,
+        intent: 'caret',
+        position: inlinePointerPosition(
+          view,
+          owner,
+          { x: event.clientX, y: event.clientY },
         ),
+        to,
         x: event.clientX,
         y: event.clientY,
       };
@@ -1130,6 +1168,7 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
     beginTouchSelection(view: EditorView): void {
       this.beginGesture(view);
       this.inlinePointerCandidate = null;
+      this.lastInlinePointerCandidate = null;
     }
 
     private beginGesture(view: EditorView): void {
@@ -1192,9 +1231,34 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
         event !== null &&
         Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y) <= 3;
 
+      let selection: { anchor: number; head?: number } | undefined;
+      if (isPrimaryClick && candidate.intent === 'caret') {
+        selection = { anchor: candidate.position };
+        this.lastInlinePointerCandidate = {
+          from: candidate.from,
+          position: candidate.position,
+          to: candidate.to,
+          x: candidate.x,
+          y: candidate.y,
+        };
+      } else if (isPrimaryClick) {
+        const word = view.state.wordAt(candidate.position);
+        if (
+          word &&
+          word.from >= candidate.from &&
+          word.to <= candidate.to
+        ) {
+          selection = { anchor: word.anchor, head: word.head };
+        }
+        this.lastInlinePointerCandidate = null;
+      } else {
+        this.lastInlinePointerCandidate = null;
+      }
+
       view.dispatch({
+        annotations: Transaction.addToHistory.of(false),
         effects: settlePointerMarkdownDecorations.of(null),
-        ...(isPrimaryClick ? { selection: { anchor: candidate.position } } : {}),
+        ...(selection ? { selection } : {}),
       });
     }
 
@@ -1208,6 +1272,7 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
       this.gestureActive = false;
       this.settlementQueued = false;
       this.inlinePointerCandidate = null;
+      this.lastInlinePointerCandidate = null;
       this.cleanupGestureListeners();
     }
   },

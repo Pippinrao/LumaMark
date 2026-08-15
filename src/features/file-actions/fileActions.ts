@@ -37,6 +37,7 @@ export type FileActions = {
     result: CommandResult<ReadTextFileResult>,
   ) => CommandResult<ReadTextFileResult>;
   createNewDocument: () => void;
+  loadUnsavedSnapshot: (text: string) => void;
   openFile: (path: string) => Promise<CommandResult<ReadTextFileResult>>;
   openFileFromDialog: () => Promise<CommandResult<ReadTextFileResult | null>>;
   prepareCurrentFileSave: (
@@ -289,6 +290,15 @@ export function createFileActions({
       editor.setDocumentContext?.({ path: null });
       state.setCurrentFile(null);
       state.setDirty(false);
+      state.setLastFileError(null);
+      editor.focus();
+    },
+    loadUnsavedSnapshot(text: string) {
+      editor.loadDocument(text);
+      editor.setDocumentContext?.({ path: null });
+      editor.markDocumentUnsaved();
+      state.setCurrentFile(null);
+      state.setDirty(true);
       state.setLastFileError(null);
       editor.focus();
     },

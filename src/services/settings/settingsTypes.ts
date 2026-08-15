@@ -13,6 +13,7 @@ export type LumaMarkSettings = {
     theme: SettingsTheme;
   };
   editor: {
+    autosaveEnabled: boolean;
     defaultDisplayMode: SettingsDisplayMode;
     focusModeOnStartup: boolean;
   };
@@ -38,7 +39,7 @@ export type SettingsLoadResult = {
   usedDefaultsDueToCorruption: boolean;
 };
 
-export const SETTINGS_VERSION = 2 as const;
+export const SETTINGS_VERSION = 3 as const;
 export const MIN_SETTINGS_FONT_ZOOM_PERCENT = 50;
 export const MAX_SETTINGS_FONT_ZOOM_PERCENT = 250;
 export const SETTINGS_FONT_ZOOM_STEP_PERCENT = 10;
@@ -51,6 +52,7 @@ export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
     theme: 'light',
   },
   editor: {
+    autosaveEnabled: false,
     defaultDisplayMode: 'livePreview',
     focusModeOnStartup: false,
   },
@@ -166,6 +168,13 @@ export function normalizeLumaMarkSettings(
     editor.focusModeOnStartup,
     defaults.editor.focusModeOnStartup,
   );
+  const autosaveEnabled =
+    sourceVersion.value < SETTINGS_VERSION && editor.autosaveEnabled === undefined
+      ? { invalid: false, value: defaults.editor.autosaveEnabled }
+      : normalizeBoolean(
+          editor.autosaveEnabled,
+          defaults.editor.autosaveEnabled,
+        );
   const copyImagesToAssets = normalizeBoolean(
     images.copyImagesToAssets,
     defaults.images.copyImagesToAssets,
@@ -189,6 +198,7 @@ export function normalizeLumaMarkSettings(
     sidebarOpenOnStartup.invalid ||
     focusModeOnStartup.invalid ||
     copyImagesToAssets.invalid ||
+    autosaveEnabled.invalid ||
     autoCheckOnStartup.invalid
   ) {
     hadInvalidFields = true;
@@ -204,6 +214,7 @@ export function normalizeLumaMarkSettings(
         theme: theme.value,
       },
       editor: {
+        autosaveEnabled: autosaveEnabled.value,
         defaultDisplayMode: defaultDisplayMode.value,
         focusModeOnStartup: focusModeOnStartup.value,
       },

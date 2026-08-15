@@ -3,17 +3,25 @@ import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type DiscardChangesDialogProps = {
+  descriptionKey?: string;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
   onReturnFocus: () => void;
+  onSave?: () => void;
   open: boolean;
+  saveKey?: string;
+  titleKey?: string;
 };
 
 export function DiscardChangesDialog({
+  descriptionKey = 'newDocument.discardDescription',
   onConfirm,
   onOpenChange,
   onReturnFocus,
+  onSave,
   open,
+  saveKey = 'closeDocument.save',
+  titleKey = 'newDocument.discardTitle',
 }: DiscardChangesDialogProps) {
   const { t } = useTranslation();
   const confirmedRef = useRef(false);
@@ -32,14 +40,26 @@ export function DiscardChangesDialog({
             confirmedRef.current = false;
           }}
         >
-          <Dialog.Title>{t('newDocument.discardTitle')}</Dialog.Title>
+          <Dialog.Title>{t(titleKey)}</Dialog.Title>
           <Dialog.Description className="lm-dialog-description">
-            {t('newDocument.discardDescription')}
+            {t(descriptionKey)}
           </Dialog.Description>
           <div className="lm-dialog-actions">
             <Dialog.Close className="lm-icon-button">
               {t('newDocument.cancel')}
             </Dialog.Close>
+            {onSave ? (
+              <button
+                className="lm-button"
+                onClick={() => {
+                  confirmedRef.current = true;
+                  onSave();
+                }}
+                type="button"
+              >
+                {t(saveKey)}
+              </button>
+            ) : null}
             <button
               className="lm-danger-button"
               onClick={() => {

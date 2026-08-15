@@ -97,7 +97,18 @@ export function useAppShellSlots(
             ) : null
           }
           discardChangesDialog={
-            model.desktopOpenRequests.pendingRequest ? (
+            model.documentClose.open ? (
+              <DiscardChangesDialog
+                descriptionKey="closeDocument.description"
+                onConfirm={model.documentClose.chooseDiscard}
+                onOpenChange={model.documentClose.setOpen}
+                onReturnFocus={model.editor.focusEditor}
+                onSave={model.documentClose.chooseSave}
+                open
+                saveKey="closeDocument.save"
+                titleKey="closeDocument.title"
+              />
+            ) : model.desktopOpenRequests.pendingRequest ? (
               <DiscardChangesDialog
                 onConfirm={model.desktopOpenRequests.confirmDiscard}
                 onOpenChange={(open) => {
@@ -179,13 +190,16 @@ export function useAppShellSlots(
             model.settingsOpen ? (
               <LazySettingsDialog
                 autoCheckUpdates={model.updateDialog.autoCheckOnStartup}
+                autosaveEnabled={model.autosaveEnabled}
                 closeErrorCode={model.windowControls.closeErrorCode}
                 copyImagesToAssets={model.copyImagesToAssets}
                 defaultDisplayMode={model.defaultDisplayMode}
                 focusModeOnStartup={model.focusModeOnStartup}
                 fontZoomPercent={model.fontZoomPercent}
                 language={model.language}
+                loadUnsavedDocument={model.loadUnsavedSnapshot}
                 onAutoCheckUpdatesChange={model.updateDialog.setAutoCheckOnStartup}
+                onAutosaveEnabledChange={model.setAutosaveEnabled}
                 onClearRecentFiles={model.clearRecentFiles}
                 onCopyImagesToAssetsChange={model.setCopyImagesToAssets}
                 onDefaultDisplayModeChange={model.setDefaultDisplayMode}

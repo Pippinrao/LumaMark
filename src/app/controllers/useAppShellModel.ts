@@ -22,6 +22,7 @@ import { useDesktopOpenRequests } from './useDesktopOpenRequests';
 import { useUpdateModel } from './useUpdateModel';
 import { useAppShellCommandHandlers } from './useAppShellCommandHandlers';
 import { useAppEditorNavigation } from './useAppEditorNavigation';
+import { useDocumentCloseController } from '../../features/file-actions/useDocumentCloseController';
 import { useStartupStore } from '../../features/startup/startupStore';
 import { useAppStore } from '../stores/appStore';
 export function useAppShellModel() {
@@ -62,7 +63,26 @@ export function useAppShellModel() {
     setAboutOpen,
     setSettingsOpen: settings.setSettingsOpen,
   });
-  const windowControls = useAppWindowControls(settings.flushPendingWrites, settings.setSettingsOpen);
+  const documentClose = useDocumentCloseController({
+    currentFilePath: document.currentFile?.path ?? null,
+    flushAutosave: document.autosave.flush,
+    getSession: () => {
+      const state = useAppStore.getState();
+      return {
+        dirty: state.dirty,
+        hasPersistedPath: state.currentFile !== null,
+        revision: state.dirtyRevision,
+      };
+    },
+    readDocumentText: () => editor.documentPortRef.current?.getText() ?? '',
+    save: document.fileWorkflow.save,
+  });
+  const windowControls = useAppWindowControls(
+    settings.flushPendingWrites,
+    settings.setSettingsOpen,
+    undefined,
+    documentClose.prepareClose,
+  );
   const workspace = useWorkspaceWorkflow({
     openDocumentPath: document.fileWorkflow.openPath,
     status: document.status,
@@ -157,6 +177,7 @@ export function useAppShellModel() {
     desktopOpenRequests,
     dismissFileError: document.dismissFileError,
     dirty: document.dirty,
+    documentClose,
     documentStatistics: document.documentStatistics,
     documentTitle,
     editor: {
@@ -190,6 +211,7 @@ export function useAppShellModel() {
       t,
     }),
     lastFileError: document.lastFileError,
+    loadUnsavedSnapshot: document.loadUnsavedSnapshot,
     mediaViewer,
     newDocumentConfirmOpen: newDocumentConfirmation.open,
     pageWidth: settings.pageWidth ?? readingAppearance.pageWidth,

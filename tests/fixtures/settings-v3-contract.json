@@ -1,0 +1,42 @@
+{
+  "version": 3,
+  "defaults": {
+    "appearance": {
+      "fontZoomPercent": 100,
+      "pageWidth": "standard",
+      "sidebarOpenOnStartup": true,
+      "theme": "light"
+    },
+    "editor": {
+      "autosaveEnabled": false,
+      "defaultDisplayMode": "livePreview",
+      "focusModeOnStartup": false
+    },
+    "general": {
+      "language": "zh-CN",
+      "openWindowMode": "multiWindow",
+      "startupBehavior": "home"
+    },
+    "images": {
+      "copyImagesToAssets": false
+    },
+    "updates": {
+      "autoCheckOnStartup": true
+    },
+    "version": 3
+  },
+  "allowedEnums": {
+    "appearance.pageWidth": ["narrow", "standard", "wide", "fluid"],
+    "appearance.theme": ["light", "dark", "system"],
+    "editor.defaultDisplayMode": ["livePreview", "source"],
+    "general.language": ["zh-CN", "en"],
+    "general.openWindowMode": ["multiWindow", "aggregateWindow"],
+    "general.startupBehavior": ["home", "restoreLastSession"]
+  },
+  "fontZoom": {
+    "default": 100,
+    "min": 50,
+    "max": 250,
+    "step": 10
+  }
+}

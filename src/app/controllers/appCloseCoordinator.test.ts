@@ -104,6 +104,45 @@ describe('appCloseCoordinator', () => {
     expect(destroy).toHaveBeenCalledTimes(1);
   });
 
+  it('runs the document close guard before flushing settings or destroying', async () => {
+    const order: string[] = [];
+    const destroy = vi.fn(async () => {
+      order.push('destroy');
+      return true;
+    });
+    const coordinator = createAppCloseCoordinator({
+      destroy,
+      flushSettings: async () => {
+        order.push('flush-settings');
+      },
+      onCloseBlocked: vi.fn(),
+      prepareDocumentClose: async () => {
+        order.push('prepare-document');
+        return 'proceed';
+      },
+    });
+
+    await expect(coordinator.requestClose()).resolves.toBe('closed');
+    expect(order).toEqual(['prepare-document', 'flush-settings', 'destroy']);
+  });
+
+  it('keeps the window open when the document close guard cancels', async () => {
+    const destroy = vi.fn().mockResolvedValue(true);
+    const flushSettings = vi.fn().mockResolvedValue(undefined);
+    const onCloseBlocked = vi.fn();
+    const coordinator = createAppCloseCoordinator({
+      destroy,
+      flushSettings,
+      onCloseBlocked,
+      prepareDocumentClose: async () => 'cancelled',
+    });
+
+    await expect(coordinator.requestClose()).resolves.toBe('cancelled');
+    expect(flushSettings).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+    expect(onCloseBlocked).not.toHaveBeenCalled();
+  });
+
   it('reports destroy exceptions with a stable window-specific code', async () => {
     const onCloseBlocked = vi.fn();
     const coordinator = createAppCloseCoordinator({

@@ -20,13 +20,16 @@ function renderSettings(
 ) {
   const props: ComponentProps<typeof SettingsDialog> = {
     autoCheckUpdates: true,
+    autosaveEnabled: false,
     closeErrorCode: null,
     copyImagesToAssets: false,
     defaultDisplayMode: 'livePreview',
     focusModeOnStartup: false,
     fontZoomPercent: 100,
     language: 'zh-CN',
+    loadUnsavedDocument: vi.fn(),
     onAutoCheckUpdatesChange: vi.fn(),
+    onAutosaveEnabledChange: vi.fn(),
     onClearRecentFiles: vi.fn(),
     onCopyImagesToAssetsChange: vi.fn(),
     onDefaultDisplayModeChange: vi.fn(),
@@ -122,7 +125,7 @@ describe('SettingsDialog', () => {
       within(tablist)
         .getAllByRole('tab')
         .map((tab) => tab.getAttribute('data-value')),
-    ).toEqual(['general', 'appearance', 'editor', 'images']);
+    ).toEqual(['general', 'appearance', 'editor', 'images', 'trash']);
   });
 
   it.each([
@@ -564,6 +567,7 @@ describe('SettingsDialog', () => {
       '外观',
       '编辑器',
       '图片',
+      '回收站',
     ]);
     expect(tabs[0]?.closest('[aria-orientation="vertical"]')).not.toBeNull();
   });
@@ -774,5 +778,34 @@ describe('SettingsDialog', () => {
     expect(system).toBeChecked();
     fireEvent.click(light);
     expect(onThemeChange).toHaveBeenCalledWith('light');
+  });
+
+  it('defaults autosave off and persists an explicit opt-in from the editor page', () => {
+    useAppPreferencesStore.setState({ language: 'en' });
+    const onAutosaveEnabledChange = vi.fn();
+    renderSettings({
+      autosaveEnabled: false,
+      language: 'en',
+      onAutosaveEnabledChange,
+    });
+
+    activateTab('Editor');
+    const autosave = screen.getByRole('switch', {
+      name: 'Automatically save documents while editing',
+    });
+    expect(autosave).not.toBeChecked();
+    fireEvent.click(autosave);
+    expect(onAutosaveEnabledChange).toHaveBeenCalledWith(true);
+  });
+
+  it('exposes a trash section for restore, preview, and permanent delete', () => {
+    useAppPreferencesStore.setState({ language: 'en' });
+    renderSettings({ language: 'en' });
+
+    const trashTab = activateTab('Trash');
+    expect(trashTab).toHaveAttribute('data-value', 'trash');
+    expect(
+      screen.getByRole('heading', { name: 'Trash' }),
+    ).toBeInTheDocument();
   });
 });

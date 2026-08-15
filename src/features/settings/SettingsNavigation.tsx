@@ -4,17 +4,24 @@ import {
   Palette,
   Settings2,
   SquarePen,
+  Trash2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-export type SettingsSection = 'general' | 'appearance' | 'editor' | 'images';
+export type SettingsSection =
+  | 'general'
+  | 'appearance'
+  | 'editor'
+  | 'images'
+  | 'trash';
 
 export function isSettingsSection(value: string): value is SettingsSection {
   return (
     value === 'general' ||
     value === 'appearance' ||
     value === 'editor' ||
-    value === 'images'
+    value === 'images' ||
+    value === 'trash'
   );
 }
 
@@ -42,6 +49,10 @@ export function SettingsNavigation() {
       <Tabs.Trigger data-value="images" value="images">
         <ImageIcon aria-hidden="true" size={16} />
         <span>{t('settings.sectionImages')}</span>
+      </Tabs.Trigger>
+      <Tabs.Trigger data-value="trash" value="trash">
+        <Trash2 aria-hidden="true" size={16} />
+        <span>{t('settings.sectionTrash')}</span>
       </Tabs.Trigger>
     </Tabs.List>
   );

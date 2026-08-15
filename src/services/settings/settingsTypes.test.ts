@@ -8,7 +8,7 @@ import {
   SETTINGS_FONT_ZOOM_STEP_PERCENT,
   SETTINGS_VERSION,
 } from './settingsTypes';
-import settingsContract from '../../../tests/fixtures/settings-v2-contract.json';
+import settingsContract from '../../../tests/fixtures/settings-v3-contract.json';
 
 function createRawSettings(version: number | undefined = SETTINGS_VERSION) {
   const value: Record<string, unknown> = {
@@ -19,6 +19,9 @@ function createRawSettings(version: number | undefined = SETTINGS_VERSION) {
       theme: 'light',
     },
     editor: {
+      ...(version === undefined || version >= SETTINGS_VERSION
+        ? { autosaveEnabled: false }
+        : {}),
       defaultDisplayMode: 'livePreview',
       focusModeOnStartup: false,
     },
@@ -38,9 +41,9 @@ function createRawSettings(version: number | undefined = SETTINGS_VERSION) {
   return value;
 }
 
-describe('settings v2 contract', () => {
-  it('defines one complete v2 default document', () => {
-    expect(SETTINGS_VERSION).toBe(2);
+describe('settings v3 contract', () => {
+  it('defines one complete v3 default document', () => {
+    expect(SETTINGS_VERSION).toBe(3);
     expect(createDefaultLumaMarkSettings()).toEqual({
       appearance: {
         fontZoomPercent: 100,
@@ -49,6 +52,7 @@ describe('settings v2 contract', () => {
         theme: 'light',
       },
       editor: {
+        autosaveEnabled: false,
         defaultDisplayMode: 'livePreview',
         focusModeOnStartup: false,
       },
@@ -59,7 +63,7 @@ describe('settings v2 contract', () => {
       },
       images: { copyImagesToAssets: false },
       updates: { autoCheckOnStartup: true },
-      version: 2,
+      version: 3,
     });
   });
 
@@ -190,20 +194,24 @@ describe('settings v2 contract', () => {
     },
   );
 
-  it.each(['missing', 0, 1] as const)(
-    'migrates settings version %s to v2 and supplies the updater default',
+  it.each(['missing', 0, 1, 2] as const)(
+    'migrates settings version %s to v3 and supplies updater and autosave defaults',
     (version) => {
       const raw = createRawSettings(version === 'missing' ? 0 : version);
       if (version === 'missing') {
         delete raw.version;
       }
       delete raw.updates;
+      if (version !== 3) {
+        delete (raw.editor as Record<string, unknown>).autosaveEnabled;
+      }
 
       const result = normalizeLumaMarkSettings(raw);
 
       expect(result.hadInvalidFields).toBe(false);
-      expect(result.settings.version).toBe(2);
+      expect(result.settings.version).toBe(3);
       expect(result.settings.updates.autoCheckOnStartup).toBe(true);
+      expect(result.settings.editor.autosaveEnabled).toBe(false);
     },
   );
 
@@ -245,5 +253,43 @@ describe('settings v2 contract', () => {
 
     expect(result.hadInvalidFields).toBe(false);
     expect(result.settings).not.toHaveProperty('pluginBucket');
+  });
+});
+
+describe('settings v3 autosave preference', () => {
+  it('defaults autosave to off in the canonical v3 document', () => {
+    expect(SETTINGS_VERSION).toBe(3);
+    expect(createDefaultLumaMarkSettings().editor.autosaveEnabled).toBe(false);
+    expect(createDefaultLumaMarkSettings().version).toBe(3);
+  });
+
+  it('migrates a valid v2 document without marking autosave missing as invalid', () => {
+    const raw = createRawSettings(2);
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(false);
+    expect(result.settings.version).toBe(3);
+    expect(result.settings.editor.autosaveEnabled).toBe(false);
+  });
+
+  it('preserves an explicit autosave opt-in', () => {
+    const raw = createRawSettings(3);
+    (raw.editor as Record<string, unknown>).autosaveEnabled = true;
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(false);
+    expect(result.settings.editor.autosaveEnabled).toBe(true);
+  });
+
+  it('marks a current-version document missing autosave as recovered to off', () => {
+    const raw = createRawSettings(3);
+    delete (raw.editor as Record<string, unknown>).autosaveEnabled;
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(true);
+    expect(result.settings.editor.autosaveEnabled).toBe(false);
   });
 });

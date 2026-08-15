@@ -3,13 +3,14 @@ import {
   type WindowCloseRequestedEvent,
 } from '../../services/window/windowControls';
 
-export type AppCloseResult = 'blocked' | 'closed';
+export type AppCloseResult = 'blocked' | 'cancelled' | 'closed';
 
 type AppCloseCoordinatorOptions = {
   destroy: () => Promise<boolean>;
   flushSettings: () => Promise<void>;
   markAcceptanceCloseEntered?: () => Promise<void>;
   onCloseBlocked: (error: unknown) => void;
+  prepareDocumentClose?: () => Promise<'proceed' | 'cancelled' | 'blocked'>;
 };
 
 export type AppCloseCoordinator = {
@@ -24,6 +25,7 @@ export function createAppCloseCoordinator({
   flushSettings,
   markAcceptanceCloseEntered = async () => undefined,
   onCloseBlocked,
+  prepareDocumentClose,
 }: AppCloseCoordinatorOptions): AppCloseCoordinator {
   let closeInFlight: Promise<AppCloseResult> | null = null;
 
@@ -33,6 +35,21 @@ export function createAppCloseCoordinator({
     }
 
     const closeAttempt = (async (): Promise<AppCloseResult> => {
+      if (prepareDocumentClose) {
+        try {
+          const documentDecision = await prepareDocumentClose();
+          if (documentDecision === 'cancelled') {
+            return 'cancelled';
+          }
+          if (documentDecision === 'blocked') {
+            return 'blocked';
+          }
+        } catch (error) {
+          onCloseBlocked(error);
+          return 'blocked';
+        }
+      }
+
       try {
         await Promise.all([
           flushSettings(),

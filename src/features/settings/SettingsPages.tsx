@@ -258,15 +258,19 @@ export function AppearanceSettingsPage({
 }
 
 type EditorSettingsPageProps = {
+  autosaveEnabled: boolean;
   defaultDisplayMode: SettingsDisplayMode;
   focusModeOnStartup: boolean;
+  onAutosaveEnabledChange: (autosaveEnabled: boolean) => void;
   onDefaultDisplayModeChange: (mode: SettingsDisplayMode) => void;
   onFocusModeOnStartupChange: (focusModeOnStartup: boolean) => void;
 };
 
 export function EditorSettingsPage({
+  autosaveEnabled,
   defaultDisplayMode,
   focusModeOnStartup,
+  onAutosaveEnabledChange,
   onDefaultDisplayModeChange,
   onFocusModeOnStartupChange,
 }: EditorSettingsPageProps) {
@@ -305,6 +309,12 @@ export function EditorSettingsPage({
           description={t('settings.focusModeOnStartupDescription')}
           label={t('settings.focusModeOnStartup')}
           onCheckedChange={onFocusModeOnStartupChange}
+        />
+        <SettingsSwitch
+          checked={autosaveEnabled}
+          description={t('settings.autosaveEnabledDescription')}
+          label={t('settings.autosaveEnabled')}
+          onCheckedChange={onAutosaveEnabledChange}
         />
       </SettingsGroup>
     </Tabs.Content>

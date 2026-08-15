@@ -126,6 +126,13 @@ export function useSettingsModel() {
     }));
   }, []);
 
+  const setAutosaveEnabled = useCallback((next: boolean) => {
+    patchSettings((current) => ({
+      ...current,
+      editor: { ...current.editor, autosaveEnabled: next },
+    }));
+  }, []);
+
   const toggleLanguage = useCallback(() => {
     setLanguage(language === 'zh-CN' ? 'en' : 'zh-CN');
   }, [language, setLanguage]);
@@ -142,6 +149,7 @@ export function useSettingsModel() {
     clearRecentFiles,
     copyImagesToAssets,
     defaultDisplayMode: settings.editor.defaultDisplayMode,
+    autosaveEnabled: settings.editor.autosaveEnabled,
     focusModeOnStartup: settings.editor.focusModeOnStartup,
     fontZoomPercent,
     flushPendingWrites,
@@ -150,6 +158,7 @@ export function useSettingsModel() {
     pageWidthPersistenceError,
     recentFilesPersistenceError,
     retrySettingsWrite,
+    setAutosaveEnabled,
     setCopyImagesToAssets,
     setDefaultDisplayMode,
     setFocusModeOnStartup,

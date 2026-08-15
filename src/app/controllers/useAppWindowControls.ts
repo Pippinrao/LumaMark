@@ -17,6 +17,7 @@ export function useAppWindowControls(
   flushSettings: () => Promise<void>,
   setSettingsOpen: (open: boolean) => void,
   controls: AppCloseWindowControls = windowControls,
+  prepareDocumentClose?: () => Promise<'proceed' | 'cancelled' | 'blocked'>,
 ) {
   const [closeErrorCode, setCloseErrorCode] =
     useState<WindowControlErrorCode | null>(null);
@@ -34,6 +35,7 @@ export function useAppWindowControls(
     controls,
     flushSettings,
     onCloseBlocked,
+    prepareDocumentClose,
   });
   const windowControlsModel = useWindowControlsModel({ requestClose });
 

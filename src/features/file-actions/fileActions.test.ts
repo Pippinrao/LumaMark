@@ -302,6 +302,45 @@ describe('file actions', () => {
     });
   });
 
+  it('loads a restored snapshot as a new unsaved document without a source path', () => {
+    const editor = {
+      focus: vi.fn(),
+      getDocumentText: vi.fn(),
+      loadDocument: vi.fn(),
+      markDocumentSaved: vi.fn(),
+      setDocumentContext: vi.fn(),
+    };
+    const writeText = vi.fn();
+    const state = createState({
+      currentFile: { name: 'note.md', path: 'E:/docs/note.md' },
+      dirty: false,
+    });
+    const wrappedEditor = withExactSnapshotMethods(editor);
+    const actions = createFileActions({
+      commands: {
+        readText: vi.fn(),
+        showOpenDialog: vi.fn(),
+        showSaveDialog: vi.fn(),
+        writeText,
+      },
+      editor: wrappedEditor,
+      recentFiles: { addRecentFile: vi.fn() },
+      state,
+    });
+
+    actions.loadUnsavedSnapshot('# restored\n');
+
+    expect(editor.loadDocument).toHaveBeenCalledWith('# restored\n');
+    expect(editor.setDocumentContext).toHaveBeenCalledWith({ path: null });
+    expect(wrappedEditor.markDocumentUnsaved).toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(state.getState()).toMatchObject({
+      currentFile: null,
+      dirty: true,
+      lastFileError: null,
+    });
+  });
+
   it('keeps dirty state when saving the current file fails', async () => {
     const editor = {
       focus: vi.fn(),

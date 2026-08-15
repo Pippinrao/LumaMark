@@ -21,6 +21,8 @@ import {
   ImagesSettingsPage,
   type SettingsDisplayMode,
 } from './SettingsPages';
+import { TrashSettingsPage } from '../trash/TrashSettingsPage';
+import { useTrashSettings } from '../trash/useTrashSettings';
 import {
   isSettingsSection,
   SettingsNavigation,
@@ -37,13 +39,16 @@ import './settingsDialog.css';
 
 type SettingsDialogProps = {
   autoCheckUpdates: boolean;
+  autosaveEnabled: boolean;
   closeErrorCode: WindowControlErrorCode | null;
   copyImagesToAssets: boolean;
   defaultDisplayMode: SettingsDisplayMode;
   focusModeOnStartup: boolean;
   fontZoomPercent: number;
   language: AppLanguage;
+  loadUnsavedDocument: (text: string) => void;
   onAutoCheckUpdatesChange: (autoCheckUpdates: boolean) => void;
+  onAutosaveEnabledChange: (autosaveEnabled: boolean) => void;
   onClearRecentFiles: () => void;
   onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
   onDefaultDisplayModeChange: (mode: SettingsDisplayMode) => void;
@@ -72,13 +77,16 @@ type SettingsDialogProps = {
 
 export function SettingsDialog({
   autoCheckUpdates,
+  autosaveEnabled,
   closeErrorCode,
   copyImagesToAssets,
   defaultDisplayMode,
   focusModeOnStartup,
   fontZoomPercent,
   language,
+  loadUnsavedDocument,
   onAutoCheckUpdatesChange,
+  onAutosaveEnabledChange,
   onClearRecentFiles,
   onCopyImagesToAssetsChange,
   onDefaultDisplayModeChange,
@@ -112,6 +120,11 @@ export function SettingsDialog({
     (state) => state.settings.general.openWindowMode,
   );
   const updateSettings = useSettingsStore((state) => state.updateSettings);
+  const trash = useTrashSettings({
+    enabled: activeSection === 'trash',
+    loadUnsavedDocument,
+    onRestored: () => onOpenChange(false),
+  });
   const clearConfirmOpenRef = useRef(false);
   const [fontZoomEdit, setFontZoomEdit] = useState<{
     base: number;
@@ -239,14 +252,36 @@ export function SettingsDialog({
                 theme={theme}
               />
               <EditorSettingsPage
+                autosaveEnabled={autosaveEnabled}
                 defaultDisplayMode={defaultDisplayMode}
                 focusModeOnStartup={focusModeOnStartup}
+                onAutosaveEnabledChange={onAutosaveEnabledChange}
                 onDefaultDisplayModeChange={onDefaultDisplayModeChange}
                 onFocusModeOnStartupChange={onFocusModeOnStartupChange}
               />
               <ImagesSettingsPage
                 copyImagesToAssets={copyImagesToAssets}
                 onCopyImagesToAssetsChange={onCopyImagesToAssetsChange}
+              />
+              <TrashSettingsPage
+                emptyBusy={trash.emptyBusy}
+                entries={trash.entries}
+                loadError={trash.loadError}
+                onEmpty={() => {
+                  void trash.onEmpty();
+                }}
+                onPreview={(id) => {
+                  void trash.onPreview(id);
+                }}
+                onRemove={(id) => {
+                  void trash.onRemove(id);
+                }}
+                onRestore={(id) => {
+                  void trash.onRestore(id);
+                }}
+                preview={trash.preview}
+                previewBusy={trash.previewBusy}
+                restoreBusyId={trash.restoreBusyId}
               />
             </div>
           </Tabs.Root>

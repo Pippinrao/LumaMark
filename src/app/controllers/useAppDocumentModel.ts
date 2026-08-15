@@ -2,10 +2,13 @@ import { useCallback, useMemo } from 'react';
 import type { RefObject } from 'react';
 import type { EditorDocumentPort } from '../../editor/commands/editorCommandPort';
 import { useFileWorkflow } from '../../features/file-actions/useFileWorkflow';
+import { saveVoidAsOutcome } from '../../features/file-actions/documentSaveOutcome';
 import { useDocumentStatistics } from '../../features/document-statistics/useDocumentStatistics';
 import { useDebouncedOutline } from '../../features/outline/useDebouncedOutline';
 import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
 import { useRecoveryDraft } from '../../features/recovery-drafts/useRecoveryDraft';
+import { useWindowAutosave } from '../../features/autosave/useWindowAutosave';
+import { useSettingsStore } from '../../features/settings/settingsStore';
 import { useAppStore, type StatusKey } from '../stores/appStore';
 import { finalizeAllDraftImages } from '../../services/assets/assetCommands';
 import type { FileWatchChangeEvent } from '../../services/file-watch/fileWatchClient';
@@ -18,6 +21,7 @@ export function useAppDocumentModel(
 ) {
   const currentFile = useAppStore((state) => state.currentFile);
   const dirty = useAppStore((state) => state.dirty);
+  const dirtyRevision = useAppStore((state) => state.dirtyRevision);
   const lastFileError = useAppStore((state) => state.lastFileError);
   const recentFileItems = useRecentFilesStore((state) => state.recentFiles);
   const statusKey = useAppStore((state) => state.statusKey);
@@ -90,6 +94,51 @@ export function useAppDocumentModel(
     status,
   });
 
+  const autosaveEnabled = useSettingsStore(
+    (state) => state.settings.editor.autosaveEnabled,
+  );
+  const saveDocument = fileWorkflow.save;
+  const saveAutosaveRevision = useCallback(
+    (revision: number) =>
+      saveVoidAsOutcome({
+        attemptedRevision: revision,
+        readSessionAfter: () => {
+          const state = useAppStore.getState();
+          return {
+            dirty: state.dirty,
+            revision: state.dirtyRevision,
+          };
+        },
+        save: saveDocument,
+      }),
+    [saveDocument],
+  );
+  const autosave = useWindowAutosave({
+    autosaveEnabled,
+    currentFilePath: currentFile?.path ?? null,
+    dirty,
+    dirtyRevision,
+    externalConflict: fileWorkflow.externalConflict !== null,
+    fileOpening: fileWorkflow.fileOpening,
+    save: saveAutosaveRevision,
+  });
+  const loadUnsavedSnapshot = useCallback(
+    (text: string) => {
+      const editor = documentPortRef.current;
+      if (!editor) {
+        return;
+      }
+      editor.loadText(text, { saved: false });
+      editor.setContext({ path: null });
+      editor.markUnsaved();
+      fileState.setCurrentFile(null);
+      fileState.setDirty(true);
+      fileState.setLastFileError(null);
+      editor.focus();
+    },
+    [documentPortRef, fileState],
+  );
+
   const dismissFileError = useCallback(() => {
     setLastFileError(null);
   }, [setLastFileError]);
@@ -104,8 +153,10 @@ export function useAppDocumentModel(
   });
 
   return {
+    autosave,
     awaitCurrentOutlineSnapshot,
     currentFile,
+    dirtyRevision,
     documentStatistics,
     dismissFileError,
     dirty,
@@ -114,6 +165,7 @@ export function useAppDocumentModel(
     isCurrentOutlineHeading,
     isOutlineCurrent,
     lastFileError,
+    loadUnsavedSnapshot,
     recentFiles: recentFileItems,
     recoveryDraft,
     scheduleOutlineRefresh,

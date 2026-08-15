@@ -17,6 +17,7 @@ type UseAppCloseCoordinatorOptions = {
   flushSettings: () => Promise<void>;
   markAcceptanceCloseEntered?: () => Promise<void>;
   onCloseBlocked: (error: unknown) => void;
+  prepareDocumentClose?: () => Promise<'proceed' | 'cancelled' | 'blocked'>;
 };
 
 export function useAppCloseCoordinator({
@@ -24,6 +25,7 @@ export function useAppCloseCoordinator({
   flushSettings,
   markAcceptanceCloseEntered = markSettingsAcceptanceCloseEntered,
   onCloseBlocked,
+  prepareDocumentClose,
 }: UseAppCloseCoordinatorOptions) {
   const coordinator = useMemo(
     () =>
@@ -32,8 +34,15 @@ export function useAppCloseCoordinator({
         flushSettings,
         markAcceptanceCloseEntered,
         onCloseBlocked,
+        prepareDocumentClose,
       }),
-    [controls.destroy, flushSettings, markAcceptanceCloseEntered, onCloseBlocked],
+    [
+      controls.destroy,
+      flushSettings,
+      markAcceptanceCloseEntered,
+      onCloseBlocked,
+      prepareDocumentClose,
+    ],
   );
 
   useEffect(() => {

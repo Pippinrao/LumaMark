@@ -12,7 +12,7 @@ use crate::errors::AppError;
 use crate::services::file_service::write_bytes_atomically;
 
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
-pub const SETTINGS_VERSION: u32 = 2;
+pub const SETTINGS_VERSION: u32 = 3;
 const ACCEPTANCE_WRITE_BARRIER_TIMEOUT: Duration = Duration::from_secs(60);
 const ACCEPTANCE_WRITE_BARRIER_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const ACCEPTANCE_WRITE_BARRIER_ARM: &str = "arm";
@@ -43,6 +43,7 @@ pub struct AppearanceSettings {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorSettings {
+    pub autosave_enabled: bool,
     pub default_display_mode: String,
     pub focus_mode_on_startup: bool,
 }
@@ -93,6 +94,7 @@ pub fn default_settings() -> LumaMarkSettings {
             theme: "light".to_string(),
         },
         editor: EditorSettings {
+            autosave_enabled: false,
             default_display_mode: "livePreview".to_string(),
             focus_mode_on_startup: false,
         },
@@ -412,6 +414,23 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         defaults.editor.focus_mode_on_startup,
         &mut had_invalid_fields,
     );
+    settings.editor.autosave_enabled = {
+        let autosave_missing = value
+            .get("editor")
+            .and_then(Value::as_object)
+            .map(|editor| editor.get("autosaveEnabled").is_none())
+            .unwrap_or(true);
+        if source_version < SETTINGS_VERSION && autosave_missing {
+            defaults.editor.autosave_enabled
+        } else {
+            read_bool_field(
+                value.get("editor"),
+                "autosaveEnabled",
+                defaults.editor.autosave_enabled,
+                &mut had_invalid_fields,
+            )
+        }
+    };
     settings.general.language = read_enum_field(
         value.get("general"),
         "language",
@@ -985,19 +1004,51 @@ mod tests {
     }
 
     #[test]
-    fn defaults_match_the_v2_contract() {
+    fn defaults_match_the_v3_contract() {
         let value = serde_json::to_value(default_settings()).expect("serialize defaults");
 
-        assert_eq!(SETTINGS_VERSION, 2);
-        assert_eq!(value["version"], 2);
+        assert_eq!(SETTINGS_VERSION, 3);
+        assert_eq!(value["version"], 3);
         assert_eq!(value["appearance"]["fontZoomPercent"], 100);
+        assert_eq!(value["editor"]["autosaveEnabled"], false);
         assert_eq!(value["updates"]["autoCheckOnStartup"], true);
+    }
+
+    #[test]
+    fn v2_documents_migrate_autosave_off_without_invalid_fields() {
+        let raw = serde_json::json!({
+            "appearance": {
+                "fontZoomPercent": 100,
+                "pageWidth": "standard",
+                "sidebarOpenOnStartup": true,
+                "theme": "light"
+            },
+            "editor": {
+                "defaultDisplayMode": "livePreview",
+                "focusModeOnStartup": false
+            },
+            "general": {
+                "language": "zh-CN",
+                "openWindowMode": "multiWindow",
+                "startupBehavior": "home"
+            },
+            "images": { "copyImagesToAssets": false },
+            "updates": { "autoCheckOnStartup": true },
+            "version": 2
+        });
+        let parsed = parse_and_normalize_settings(&serde_json::to_vec(&raw).expect("serialize"))
+            .expect("v2 settings should migrate");
+
+        assert!(!parsed.had_invalid_fields);
+        assert_eq!(parsed.settings.version, SETTINGS_VERSION);
+        assert!(!parsed.settings.editor.autosave_enabled);
+        assert!(parsed.needs_writeback);
     }
 
     #[test]
     fn defaults_enums_and_zoom_match_the_shared_contract_fixture() {
         let contract: Value = serde_json::from_str(include_str!(
-            "../../../tests/fixtures/settings-v2-contract.json"
+            "../../../tests/fixtures/settings-v3-contract.json"
         ))
         .expect("shared settings contract should be valid json");
         let defaults = serde_json::to_value(default_settings()).expect("serialize defaults");
@@ -1128,7 +1179,7 @@ mod tests {
     }
 
     #[test]
-    fn v1_document_migrates_to_v2_with_update_default() {
+    fn v1_document_migrates_to_current_with_update_and_autosave_defaults() {
         let dir = unique_test_dir("v1-migration");
         let path = settings_path(&dir);
         let mut value = serde_json::to_value(default_settings()).expect("serialize defaults");
@@ -1147,19 +1198,21 @@ mod tests {
         let normalized = serde_json::to_value(&loaded.settings).expect("serialize normalized");
 
         assert!(loaded.had_invalid_fields);
-        assert_eq!(normalized["version"], 2);
+        assert_eq!(normalized["version"], SETTINGS_VERSION);
         assert_eq!(normalized["general"]["openWindowMode"], "multiWindow");
         assert_eq!(normalized["updates"]["autoCheckOnStartup"], true);
+        assert_eq!(normalized["editor"]["autosaveEnabled"], false);
         let persisted: Value = serde_json::from_slice(&fs::read(&path).expect("read migrated"))
             .expect("migrated settings should be valid json");
-        assert_eq!(persisted["version"], 2);
+        assert_eq!(persisted["version"], SETTINGS_VERSION);
         assert_eq!(persisted["general"]["openWindowMode"], "multiWindow");
         assert_eq!(persisted["updates"]["autoCheckOnStartup"], true);
+        assert_eq!(persisted["editor"]["autosaveEnabled"], false);
         fs::remove_dir_all(dir).expect("cleanup");
     }
 
     #[test]
-    fn versionless_document_is_persisted_as_v2_without_becoming_invalid() {
+    fn versionless_document_is_persisted_as_current_without_becoming_invalid() {
         let dir = unique_test_dir("v0-migration");
         let path = settings_path(&dir);
         let mut value = serde_json::to_value(default_settings()).expect("serialize defaults");
@@ -1183,8 +1236,8 @@ mod tests {
 
         assert!(loaded.had_invalid_fields);
         assert!(!loaded.used_defaults_due_to_corruption);
-        assert_eq!(loaded.settings.version, 2);
-        assert_eq!(persisted["version"], 2);
+        assert_eq!(loaded.settings.version, SETTINGS_VERSION);
+        assert_eq!(persisted["version"], SETTINGS_VERSION);
         assert_eq!(persisted["general"]["openWindowMode"], "multiWindow");
         assert_eq!(persisted["updates"]["autoCheckOnStartup"], true);
         fs::remove_dir_all(dir).expect("cleanup");
@@ -1215,12 +1268,12 @@ mod tests {
     fn version_number_rejects_future_fractional_values_without_filesystem_mutation() {
         for (case, raw) in [
             (
-                "two-point-five",
-                &br#"{"version":2.5,"future":"preserve exactly"}"#[..],
-            ),
-            (
                 "three-point-five",
                 &br#"{"version":3.5,"future":"preserve exactly"}"#[..],
+            ),
+            (
+                "four-point-five",
+                &br#"{"version":4.5,"future":"preserve exactly"}"#[..],
             ),
         ] {
             let dir = unique_test_dir(case);
@@ -1376,7 +1429,7 @@ mod tests {
         assert!(second.corrupt_backup_path.is_none());
         let recovered: Value = serde_json::from_slice(&fs::read(&path).expect("read recovered"))
             .expect("recovered settings should be valid json");
-        assert_eq!(recovered["version"], 2);
+        assert_eq!(recovered["version"], SETTINGS_VERSION);
         fs::remove_dir_all(dir).expect("cleanup");
     }
 

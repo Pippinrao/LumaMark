@@ -4,7 +4,11 @@ import {
   historyKeymap,
 } from '@codemirror/commands';
 import { autocompletion } from '@codemirror/autocomplete';
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+import {
+  highlightSelectionMatches,
+  search,
+  searchKeymap,
+} from '@codemirror/search';
 import {
   Compartment,
   EditorState,
@@ -214,6 +218,7 @@ export function createEditorState(
       documentSavepointField,
       editorHistoryCompartment.of(history()),
       autocompletion(),
+      search({ top: true }),
       highlightSelectionMatches(),
       EditorView.lineWrapping,
       documentChangeListener,

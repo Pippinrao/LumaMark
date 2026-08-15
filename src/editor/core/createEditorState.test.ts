@@ -102,6 +102,7 @@ describe('createEditorState', () => {
     expect(openSearchPanel(view)).toBe(true);
     expect(searchPanelOpen(view.state)).toBe(true);
     expect(parent.querySelector('.cm-search')).not.toBeNull();
+    expect(parent.querySelector('.cm-panels-top > .cm-search')).not.toBeNull();
 
     view.destroy();
     parent.remove();

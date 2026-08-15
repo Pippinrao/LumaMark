@@ -740,7 +740,7 @@ export function deriveInteractionAtPosition(
   if (
     !selection.empty &&
     selection.from <= clamped &&
-    clamped <= selection.to
+    clamped < selection.to
   ) {
     return {
       from: selection.from,

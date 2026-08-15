@@ -8,39 +8,45 @@ import type {
 
 type ContextMenuSurfaceProps = {
   nodes: ShellMenuNode[];
-  onActionFocusReturn?: () => void;
+  onClose?: (restoreFocus: boolean) => void;
   onInvoke: (invocation: ShellMenuInvocation) => void;
 };
 
 export function ContextMenuSurface({
   nodes,
-  onActionFocusReturn,
+  onClose,
   onInvoke,
 }: ContextMenuSurfaceProps) {
   const invoke = (invocation: ShellMenuInvocation) => {
+    const actionManagesFocus = invocation.focusManagement === 'action';
     for (const content of globalThis.document.querySelectorAll<HTMLElement>(
       '.lm-context-menu-content[data-state="open"]',
     )) {
       content.dataset.lmFocusManagement =
-        invocation.focusManagement === 'action' ? 'action' : 'menu';
+        actionManagesFocus ? 'action' : 'menu';
+    }
+    if (actionManagesFocus) {
+      globalThis.setTimeout(() => onInvoke(invocation), 0);
+      return;
     }
     onInvoke(invocation);
   };
-  const preserveActionFocus = (event: Event) => {
-    const content = event.currentTarget as HTMLElement | null;
-    if (content?.dataset.lmFocusManagement !== 'action') {
+  const close = (event: Event) => {
+    if (!onClose) {
       return;
     }
-
+    const content = event.currentTarget as HTMLElement | null;
+    const restoreFocus =
+      content?.dataset.lmFocusManagement !== 'action';
     event.preventDefault();
-    globalThis.setTimeout(() => onActionFocusReturn?.(), 0);
+    globalThis.setTimeout(() => onClose(restoreFocus), 0);
   };
 
   return (
     <ContextMenu.Content
       className="lm-menu-content lm-context-menu-content"
       data-lm-window-interactive="true"
-      onCloseAutoFocus={preserveActionFocus}
+      onCloseAutoFocus={close}
     >
       {renderNodes(nodes, invoke)}
     </ContextMenu.Content>
@@ -158,7 +164,9 @@ function renderNode(
     case 'item':
       return (
         <ContextMenu.Item
-          className="lm-menu-item lm-context-menu-item"
+          className={`lm-menu-item lm-context-menu-item${
+            node.danger ? ' lm-menu-item-danger' : ''
+          }`}
           disabled={node.disabled}
           key={node.id}
           onSelect={() => {

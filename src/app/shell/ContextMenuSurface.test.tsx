@@ -124,14 +124,58 @@ describe('ContextMenuSurface', () => {
     expect(onInvoke).not.toHaveBeenCalled();
   });
 
-  it('supports keyboard navigation and restores trigger focus on Escape', async () => {
+  it('exposes dangerous editor actions through the shared danger style hook', async () => {
+    render(
+      <ContextMenu.Root>
+        <ContextMenu.Trigger asChild>
+          <button type="button">danger trigger</button>
+        </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenuSurface
+            nodes={[
+              {
+                danger: true,
+                id: 'delete-selection',
+                invocation: { action: 'deleteSelection', kind: 'action' },
+                label: '删除所选内容',
+                type: 'item',
+              },
+            ]}
+            onInvoke={vi.fn()}
+          />
+        </ContextMenu.Portal>
+      </ContextMenu.Root>,
+    );
+    fireEvent.contextMenu(
+      screen.getByRole('button', { name: 'danger trigger' }),
+      { clientX: 10, clientY: 10 },
+    );
+
+    expect(
+      await screen.findByRole('menuitem', { name: '删除所选内容' }),
+    ).toHaveClass('lm-menu-item-danger');
+  });
+
+  it('supports keyboard navigation and requests active-editor focus on Escape', async () => {
+    const editor = document.createElement('textarea');
+    editor.setAttribute('aria-label', 'active editor');
+    document.body.appendChild(editor);
+    const onClose = vi.fn((restoreFocus: boolean) => {
+      if (restoreFocus) {
+        editor.focus();
+      }
+    });
     render(
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
           <button type="button">editor</button>
         </ContextMenu.Trigger>
         <ContextMenu.Portal>
-          <ContextMenuSurface nodes={nodes} onInvoke={vi.fn()} />
+          <ContextMenuSurface
+            nodes={nodes}
+            onClose={onClose}
+            onInvoke={vi.fn()}
+          />
         </ContextMenu.Portal>
       </ContextMenu.Root>,
     );
@@ -152,13 +196,41 @@ describe('ContextMenuSurface', () => {
     fireEvent.keyDown(document.activeElement ?? firstItem, { key: 'Escape' });
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith(true));
+    expect(editor).toHaveFocus();
+    expect(trigger).not.toHaveFocus();
+    editor.remove();
+  });
+
+  it('preserves Radix default focus restoration when no close handler owns focus', async () => {
+    render(
+      <ContextMenu.Root>
+        <ContextMenu.Trigger asChild>
+          <button type="button">workspace entry</button>
+        </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenuSurface nodes={nodes} onInvoke={vi.fn()} />
+        </ContextMenu.Portal>
+      </ContextMenu.Root>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'workspace entry' });
+    trigger.focus();
+    fireEvent.contextMenu(trigger, { clientX: 10, clientY: 10 });
+
+    const menu = await screen.findByRole('menu');
+    await waitFor(() => expect(menu).toHaveFocus());
+    fireEvent.keyDown(menu, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 
-  it('does not steal focus back from an action that manages editor focus', async () => {
-    const editor = document.createElement('textarea');
-    editor.setAttribute('aria-label', 'CodeMirror editor');
-    document.body.appendChild(editor);
+  it('preserves action-managed focus and closes without restoring the editor', async () => {
+    const search = document.createElement('input');
+    search.setAttribute('aria-label', 'search');
+    document.body.appendChild(search);
+    const onClose = vi.fn();
     render(
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
@@ -178,8 +250,8 @@ describe('ContextMenuSurface', () => {
                 type: 'item',
               },
             ]}
-            onActionFocusReturn={() => editor.focus()}
-            onInvoke={vi.fn()}
+            onClose={onClose}
+            onInvoke={() => search.focus()}
           />
         </ContextMenu.Portal>
       </ContextMenu.Root>,
@@ -190,7 +262,8 @@ describe('ContextMenuSurface', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: '全选' }));
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-    await waitFor(() => expect(editor).toHaveFocus());
-    editor.remove();
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith(false));
+    expect(search).toHaveFocus();
+    search.remove();
   });
 });

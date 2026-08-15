@@ -32,7 +32,7 @@ export function shouldInsertAfterFinalFence({
 export function wrapCodeBlockSelection(view: EditorView): boolean {
   const selection = view.state.selection.main;
   const selectedText = view.state.doc.sliceString(selection.from, selection.to);
-  const content = selectedText || 'code';
+  const content = selectedText;
   const insert = `\`\`\`\n${content}\n\`\`\``;
   const cursorFrom = selection.from + 4;
   const cursorTo = cursorFrom + content.length;

@@ -25,6 +25,18 @@ vi.mock('react-i18next', () => ({
 const shortcuts = createCommandShortcutLabels(
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
 );
+const editableState = {
+  canFormat: true,
+  canInsert: true,
+  canRedo: false,
+  canUndo: false,
+  composing: false,
+  eligibleFindSelection: false,
+  readOnly: false,
+  selectionCount: 1,
+  selectionEmpty: true,
+  selectionLength: 0,
+} as const;
 
 describe('useEditorContextMenu clipboard actions', () => {
   beforeEach(() => {
@@ -66,10 +78,9 @@ describe('useEditorContextMenu clipboard actions', () => {
         useEditorContextMenu({
           editorAvailable: true,
           getEditState: () => ({
+            ...editableState,
             clipboardReadAvailable: false,
             clipboardWriteAvailable: false,
-            readOnly: false,
-            selectionEmpty: true,
           }),
           navigateLinkHref: vi.fn(),
           shortcuts,
@@ -126,10 +137,9 @@ describe('useEditorContextMenu clipboard actions', () => {
         useEditorContextMenu({
           editorAvailable: true,
           getEditState: () => ({
+            ...editableState,
             clipboardReadAvailable: false,
             clipboardWriteAvailable: true,
-            readOnly: false,
-            selectionEmpty: true,
           }),
           navigateLinkHref: vi.fn(),
           shortcuts,
@@ -167,10 +177,9 @@ describe('useEditorContextMenu clipboard actions', () => {
       useEditorContextMenu({
         editorAvailable: true,
         getEditState: () => ({
+          ...editableState,
           clipboardReadAvailable: false,
           clipboardWriteAvailable: true,
-          readOnly: false,
-          selectionEmpty: true,
         }),
         navigateLinkHref: vi.fn(),
         shortcuts,
@@ -226,10 +235,9 @@ describe('useEditorContextMenu link actions', () => {
       useEditorContextMenu({
         editorAvailable: true,
         getEditState: () => ({
+          ...editableState,
           clipboardReadAvailable: false,
           clipboardWriteAvailable: false,
-          readOnly: false,
-          selectionEmpty: true,
         }),
         navigateLinkHref,
         shortcuts,

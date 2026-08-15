@@ -54,7 +54,34 @@ function editorPolicyDisabled(
     return true;
   }
 
+  if (policy.blockedDuringComposition && editorState.composing) {
+    return true;
+  }
+
+  if (
+    policy.requiresSingleSelection &&
+    editorState.selectionCount !== 1
+  ) {
+    return true;
+  }
+
   if (policy.requiresSelection && editorState.selectionEmpty) {
+    return true;
+  }
+
+  if (policy.history === 'undo' && !editorState.canUndo) {
+    return true;
+  }
+
+  if (policy.history === 'redo' && !editorState.canRedo) {
+    return true;
+  }
+
+  if (policy.capability === 'format' && !editorState.canFormat) {
+    return true;
+  }
+
+  if (policy.capability === 'insert' && !editorState.canInsert) {
     return true;
   }
 

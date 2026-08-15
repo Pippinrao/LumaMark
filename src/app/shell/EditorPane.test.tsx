@@ -13,7 +13,9 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_EDITOR_APPEARANCE } from '../../editor/core/editorAppearance';
 import type { EditorApi } from '../../editor/core/editorApi';
+import type { EditorContextTarget } from '../../editor/interaction';
 import { EditorPane } from './EditorPane';
+import type { ShellMenuNode } from './shellTypes';
 
 afterEach(() => cleanup());
 
@@ -21,13 +23,18 @@ function renderEditorPane(
   onLinkNavigationRequest: (href: string) => void = vi.fn(),
 ) {
   let editor: EditorApi | null = null;
-  const getContextMenuNodes = vi.fn(() => []);
+  const closeContextMenu = vi.fn();
+  const getContextMenuNodes = vi.fn(
+    (_target: EditorContextTarget): ShellMenuNode[] => [],
+  );
+  const prepareContextMenu = vi.fn();
 
   render(
     <EditorPane
       accessibleTitle="note.md"
       appearance={DEFAULT_EDITOR_APPEARANCE}
       ariaLabel="Editor"
+      closeContextMenu={closeContextMenu}
       getContextMenuNodes={getContextMenuNodes}
       language="en"
       onDocumentChanged={vi.fn()}
@@ -38,12 +45,15 @@ function renderEditorPane(
       onLinkNavigationRequest={onLinkNavigationRequest}
       onMediaPreviewRequest={vi.fn()}
       onZoomRequested={vi.fn()}
+      prepareContextMenu={prepareContextMenu}
       visibleDocumentTitle="note.md"
     />,
   );
 
   return {
+    closeContextMenu,
     getContextMenuNodes,
+    prepareContextMenu,
     readEditor: () => editor,
   };
 }
@@ -86,7 +96,8 @@ describe('EditorPane link navigation wiring', () => {
 
 describe('EditorPane context menu targeting', () => {
   it('uses the stable outer EditorApi when the event target belongs to a nested CodeMirror', async () => {
-    const { getContextMenuNodes, readEditor } = renderEditorPane();
+    const { getContextMenuNodes, prepareContextMenu, readEditor } =
+      renderEditorPane();
     await waitFor(() => expect(readEditor()).not.toBeNull());
     const editor = readEditor();
     if (!editor) {
@@ -123,6 +134,11 @@ describe('EditorPane context menu targeting', () => {
 
     expect(outerPosAtCoords).toHaveBeenCalledWith({ x: 24, y: 32 });
     expect(nestedPosAtCoords).not.toHaveBeenCalled();
+    expect(prepareContextMenu).toHaveBeenCalledWith(
+      nestedView.contentDOM,
+      { x: 24, y: 32 },
+      'pointer',
+    );
     expect(getContextMenuNodes).toHaveBeenCalledWith({
       from: 0,
       href: 'https://outer.test',
@@ -137,7 +153,8 @@ describe('EditorPane context menu targeting', () => {
   });
 
   it('resolves the exact outer table range from a nested table cell without moving selection', async () => {
-    const { getContextMenuNodes, readEditor } = renderEditorPane();
+    const { getContextMenuNodes, prepareContextMenu, readEditor } =
+      renderEditorPane();
     await waitFor(() => expect(readEditor()).not.toBeNull());
     const editor = readEditor();
     if (!editor) {
@@ -188,6 +205,11 @@ describe('EditorPane context menu targeting', () => {
       kind: 'table',
       to: secondRange?.to,
     });
+    expect(prepareContextMenu).toHaveBeenCalledWith(
+      secondCell,
+      { x: 24, y: 32 },
+      'pointer',
+    );
     expect(editor.view.state.selection.main).toEqual(selectionBefore);
   });
 
@@ -204,7 +226,8 @@ describe('EditorPane context menu targeting', () => {
     { key: 'F10', shiftKey: true },
     { key: 'ContextMenu', shiftKey: false },
   ])('opens from the keyboard path $key', async ({ key, shiftKey }) => {
-    const { getContextMenuNodes, readEditor } = renderEditorPane();
+    const { getContextMenuNodes, prepareContextMenu, readEditor } =
+      renderEditorPane();
     await waitFor(() => expect(readEditor()).not.toBeNull());
     const editor = readEditor();
     if (!editor) {
@@ -224,6 +247,11 @@ describe('EditorPane context menu targeting', () => {
         at: 2,
         kind: 'plain',
       }),
+    );
+    expect(prepareContextMenu).toHaveBeenCalledWith(
+      editor.view.contentDOM,
+      undefined,
+      'keyboard',
     );
     expect(await screen.findByRole('menu')).toHaveAttribute(
       'data-lm-window-interactive',
@@ -274,4 +302,97 @@ describe('EditorPane context menu targeting', () => {
       expect(coordsAtPos).toHaveBeenCalledWith(caret);
     },
   );
+
+  it.each([
+    { key: 'F10', shiftKey: true },
+    { key: 'ContextMenu', shiftKey: false },
+  ])(
+    'keeps a non-empty selection intact for the keyboard path $key',
+    async ({ key, shiftKey }) => {
+      const { getContextMenuNodes, prepareContextMenu, readEditor } =
+        renderEditorPane();
+      await waitFor(() => expect(readEditor()).not.toBeNull());
+      const editor = readEditor();
+      if (!editor) {
+        throw new Error('editor should be ready');
+      }
+      act(() => {
+        editor.loadDocument('selected rest');
+        editor.view.dispatch({ selection: { anchor: 0, head: 8 } });
+        editor.focus();
+      });
+      const selectionBefore = editor.view.state.selection;
+
+      fireEvent.keyDown(editor.view.contentDOM, { key, shiftKey });
+
+      await waitFor(() =>
+        expect(getContextMenuNodes).toHaveBeenCalledWith({
+          from: 0,
+          kind: 'selection',
+          to: 8,
+        }),
+      );
+      expect(prepareContextMenu).toHaveBeenCalledWith(
+        editor.view.contentDOM,
+        undefined,
+        'keyboard',
+      );
+      expect(editor.view.state.selection).toEqual(selectionBefore);
+    },
+  );
+
+  it('uses the original keyboard target to resolve an outer table action', async () => {
+    const { getContextMenuNodes, prepareContextMenu, readEditor } =
+      renderEditorPane();
+    await waitFor(() => expect(readEditor()).not.toBeNull());
+    const editor = readEditor();
+    if (!editor) {
+      throw new Error('editor should be ready');
+    }
+    const secondTable = ['| X | Y |', '| - | - |', '| 3 | 4 |'].join('\n');
+    const source = [
+      'before',
+      '',
+      '| A | B |',
+      '| - | - |',
+      '| 1 | 2 |',
+      '',
+      secondTable,
+      '',
+      'after',
+    ].join('\n');
+    act(() => {
+      editor.loadDocument(source);
+      editor.view.dispatch({ selection: { anchor: 0 } });
+      editor.focus();
+    });
+    const cell = await waitFor(() => {
+      const resolved = document
+        .querySelectorAll('.tbl-table-widget')[1]
+        ?.querySelector('.tbl-data-cell');
+      expect(resolved).not.toBeNull();
+      return resolved;
+    });
+    if (!(cell instanceof HTMLElement)) {
+      throw new Error('table cell should be rendered');
+    }
+
+    fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
+
+    const tableRange = await waitFor(() => {
+      const call = getContextMenuNodes.mock.calls.at(-1)?.[0];
+      expect(call).toMatchObject({ kind: 'table' });
+      return call;
+    });
+    expect(tableRange).toMatchObject({
+      from: source.indexOf(secondTable),
+      kind: 'table',
+      to: source.indexOf(secondTable) + secondTable.length,
+    });
+    expect(prepareContextMenu).toHaveBeenCalledWith(
+      cell,
+      undefined,
+      'keyboard',
+    );
+  });
 });

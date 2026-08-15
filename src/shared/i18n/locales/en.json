@@ -172,6 +172,8 @@
   "about.version": "Version",
   "table.copyTable": "Copy table",
   "table.deleteTable": "Delete table",
+  "contextMenu.deleteSelection": "Delete selected content",
+  "contextMenu.findSelection": "Find selected content",
   "contextMenu.openLink": "Open link",
   "contextMenu.copyLinkAddress": "Copy link address",
   "contextMenu.copyImagePath": "Copy image path",

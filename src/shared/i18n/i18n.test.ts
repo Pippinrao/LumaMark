@@ -197,6 +197,8 @@ const requiredCoreKeys = [
   'image.unsavedRemoteCacheUnavailable',
   'table.copyTable',
   'table.deleteTable',
+  'contextMenu.deleteSelection',
+  'contextMenu.findSelection',
   'contextMenu.openLink',
   'contextMenu.copyLinkAddress',
   'contextMenu.copyImagePath',

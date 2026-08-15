@@ -11,6 +11,7 @@ describe('useAppCommandHandlers availability guard', () => {
     const cut = vi.fn().mockResolvedValue(true);
     const paste = vi.fn().mockResolvedValue(true);
     const deleteImageReference = vi.fn();
+    const deleteSelection = vi.fn(() => true);
     const deleteTable = vi.fn(() => true);
     const copy = vi.fn().mockResolvedValue(true);
     const copyTable = vi.fn().mockResolvedValue(true);
@@ -22,16 +23,25 @@ describe('useAppCommandHandlers availability guard', () => {
       copyTable,
       cut,
       deleteImageReference,
+      deleteSelection,
       deleteTable,
       editorAvailable: true,
       exitFocusMode: vi.fn(),
       fileOpening: false,
       focusEditor: vi.fn(),
       getEditState: () => ({
+        canFormat: true,
+        canInsert: true,
+        canRedo: true,
+        canUndo: true,
         clipboardReadAvailable: true,
         clipboardWriteAvailable: true,
+        composing: false,
+        eligibleFindSelection: true,
         readOnly,
+        selectionCount: 1,
         selectionEmpty: false,
+        selectionLength: 4,
       }),
       insertImage,
       newDocument: vi.fn(),
@@ -69,6 +79,7 @@ describe('useAppCommandHandlers availability guard', () => {
       result.current.cut();
       result.current.paste();
       result.current.deleteImageReference({ from: 0, to: 4 });
+      result.current.deleteSelection();
       result.current.deleteTable({ from: 0, to: 4 });
     });
 
@@ -78,6 +89,7 @@ describe('useAppCommandHandlers availability guard', () => {
     expect(cut).not.toHaveBeenCalled();
     expect(paste).not.toHaveBeenCalled();
     expect(deleteImageReference).not.toHaveBeenCalled();
+    expect(deleteSelection).not.toHaveBeenCalled();
     expect(deleteTable).not.toHaveBeenCalled();
 
     act(() => {
@@ -102,6 +114,34 @@ describe('useAppCommandHandlers availability guard', () => {
     expect(runFormat).toHaveBeenCalledWith('bold');
     expect(insertImage).toHaveBeenCalledOnce();
     expect(deleteImageReference).toHaveBeenCalledWith({ from: 0, to: 4 });
+
+    const composingHandlers = renderHook(() =>
+      useAppCommandHandlers({
+        ...options,
+        getEditState: () => ({
+          ...options.getEditState(),
+          composing: true,
+        }),
+      }),
+    );
+    act(() => {
+      composingHandlers.result.current.cut();
+      composingHandlers.result.current.paste();
+      composingHandlers.result.current.deleteSelection();
+      composingHandlers.result.current.bold();
+      composingHandlers.result.current.image();
+      composingHandlers.result.current.copy();
+      composingHandlers.result.current.selectAll();
+      composingHandlers.result.current.openSearch();
+    });
+    expect(cut).not.toHaveBeenCalled();
+    expect(paste).not.toHaveBeenCalled();
+    expect(deleteSelection).not.toHaveBeenCalled();
+    expect(runFormat).toHaveBeenCalledTimes(1);
+    expect(insertImage).toHaveBeenCalledTimes(1);
+    expect(copy).toHaveBeenCalledTimes(2);
+    expect(selectAll).toHaveBeenCalledTimes(2);
+    expect(openSearch).toHaveBeenCalledTimes(2);
 
     const fileOpeningHandlers = renderHook(() =>
       useAppCommandHandlers({ ...options, fileOpening: true }),

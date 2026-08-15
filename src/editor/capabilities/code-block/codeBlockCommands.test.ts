@@ -74,6 +74,23 @@ describe('code block capability', () => {
     parent.remove();
   });
 
+  it('inserts an empty fenced block with the caret on its content line', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      doc: '',
+      extensions: [markdownLanguage()],
+      parent,
+    });
+
+    wrapCodeBlockSelection(view);
+
+    expect(view.state.doc.toString()).toBe('```\n\n```');
+    expect(view.state.selection.main).toMatchObject({ from: 4, to: 4 });
+    view.destroy();
+    parent.remove();
+  });
+
   it('detects ordinary text appended after a final closing fence', () => {
     const doc = ['```ts', 'const value = 1', '```'].join('\n');
 

@@ -172,6 +172,8 @@
   "about.version": "版本",
   "table.copyTable": "复制表格",
   "table.deleteTable": "删除表格",
+  "contextMenu.deleteSelection": "删除所选内容",
+  "contextMenu.findSelection": "查找所选内容",
   "contextMenu.openLink": "打开链接",
   "contextMenu.copyLinkAddress": "复制链接地址",
   "contextMenu.copyImagePath": "复制图片路径",

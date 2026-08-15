@@ -14,6 +14,7 @@ type UseAppShellCommandHandlersOptions = {
     | 'copyTable'
     | 'cut'
     | 'deleteImageReference'
+    | 'deleteSelection'
     | 'deleteTable'
     | 'focusEditor'
     | 'getEditState'
@@ -76,6 +77,7 @@ export function useAppShellCommandHandlers({
     copyTable: editor.copyTable,
     cut: editor.cut,
     deleteImageReference: editor.deleteImageReference,
+    deleteSelection: editor.deleteSelection,
     deleteTable: editor.deleteTable,
     editorAvailable,
     exitFocusMode,

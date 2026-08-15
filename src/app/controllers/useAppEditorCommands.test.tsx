@@ -180,11 +180,43 @@ describe('useAppEditorCommands', () => {
     });
 
     expect(result.current.getEditState()).toEqual({
+      canFormat: true,
+      canInsert: true,
+      canRedo: false,
+      canUndo: false,
       clipboardReadAvailable: true,
       clipboardWriteAvailable: true,
+      composing: false,
+      eligibleFindSelection: true,
       readOnly: false,
+      selectionCount: 1,
       selectionEmpty: false,
+      selectionLength: 6,
     });
+
+    unmount();
+    editor.destroy();
+  });
+
+  it('forwards deletion of the live editor selection without touching the clipboard', () => {
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText: vi.fn(), writeText },
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: 'delete me', parent });
+    editor.view.dispatch({ selection: { anchor: 0, head: 6 } });
+    const { result, unmount } = renderHook(() => useAppEditorCommands());
+    act(() => result.current.onEditorReady(editor));
+
+    act(() => {
+      expect(result.current.deleteSelection()).toBe(true);
+    });
+
+    expect(editor.getDocumentText()).toBe(' me');
+    expect(writeText).not.toHaveBeenCalled();
 
     unmount();
     editor.destroy();

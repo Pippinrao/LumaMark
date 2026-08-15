@@ -2,9 +2,15 @@ import {
   applyMarkdownFormatCommand,
   type MarkdownFormatCommand,
 } from './markdownFormatCommands';
+import { syntaxTree } from '@codemirror/language';
 import { Transaction } from '@codemirror/state';
-import { redo, undo } from '@codemirror/commands';
-import { openSearchPanel } from '@codemirror/search';
+import { redo, redoDepth, undo, undoDepth } from '@codemirror/commands';
+import {
+  getSearchQuery,
+  openSearchPanel,
+  SearchQuery,
+  setSearchQuery,
+} from '@codemirror/search';
 import { EditorView } from '@codemirror/view';
 import { createEditorCapabilityCommands } from '../capabilities';
 import type {
@@ -13,13 +19,24 @@ import type {
   LoadDocumentOptions,
 } from '../core/editorApi';
 import type { EditorDisplayMode } from '../core/editorDisplayMode';
-import type { EditorInteractionRange } from '../interaction';
+import {
+  deriveEditorInteractionContext,
+  type EditorInteractionRange,
+} from '../interaction';
 
 export type EditorEditState = {
+  canFormat: boolean;
+  canInsert: boolean;
+  canRedo: boolean;
+  canUndo: boolean;
   clipboardReadAvailable: boolean;
   clipboardWriteAvailable: boolean;
+  composing: boolean;
+  eligibleFindSelection: boolean;
   readOnly: boolean;
+  selectionCount: number;
   selectionEmpty: boolean;
+  selectionLength: number;
 };
 
 export type EditorClipboardError = {
@@ -31,6 +48,13 @@ export type EditorClipboardTextPort = {
   readText?: () => Promise<string>;
   writeText?: (text: string) => Promise<void>;
 };
+
+export type EditorContextMenuCoordinates = {
+  x: number;
+  y: number;
+};
+
+export type EditorContextMenuSource = 'keyboard' | 'pointer';
 
 type CreateEditorCommandPortOptions = {
   onClipboardError?: (error: EditorClipboardError) => void;
@@ -52,10 +76,12 @@ export type EditorDocumentPort = {
 };
 
 export type EditorCommandPort = {
+  closeContextMenu: (restoreFocus: boolean) => void;
   copy: () => Promise<boolean>;
   copyTable: (range?: EditorInteractionRange) => Promise<boolean>;
   cut: () => Promise<boolean>;
   deleteImageReference: (range: { from: number; to: number }) => void;
+  deleteSelection: () => boolean;
   deleteTable: (range?: EditorInteractionRange) => boolean;
   focus: () => void;
   getDisplayMode: () => EditorDisplayMode;
@@ -64,8 +90,13 @@ export type EditorCommandPort = {
     images: readonly { alt: string; markdownSource: string }[],
     position?: { x: number; y: number },
   ) => void;
-  openSearch: () => void;
+  openSearch: (query?: string) => void;
   paste: () => Promise<boolean>;
+  prepareContextMenu: (
+    target: EventTarget | null,
+    coordinates: EditorContextMenuCoordinates | undefined,
+    source: EditorContextMenuSource,
+  ) => void;
   runFormat: (command: MarkdownFormatCommand) => void;
   redo: () => void;
   selectAll: () => boolean;
@@ -115,35 +146,63 @@ export function createEditorCommandPort(
   ) => {
     options.onClipboardError?.({ cause, operation });
   };
+  let contextView: EditorView | null = null;
+  const getContextView = () => {
+    if (contextView && isEditorViewLive(editor.view, contextView)) {
+      return contextView;
+    }
+
+    contextView = null;
+    return editor.view;
+  };
+  const focusView = (view: EditorView) => {
+    const target = isEditorViewLive(editor.view, view) ? view : editor.view;
+    target.focus();
+  };
 
   return {
+    closeContextMenu: (restoreFocus) => {
+      const view = getContextView();
+      if (restoreFocus) {
+        view.focus();
+      }
+      contextView = null;
+    },
     copy: async () => {
-      const { main } = editor.view.state.selection;
+      const view = getContextView();
+      const selections = view.state.selection.ranges.filter(
+        (range) => !range.empty,
+      );
       const clipboard = resolveClipboard();
-      if (main.empty || !clipboard?.writeText) {
+      if (selections.length === 0 || !clipboard?.writeText) {
         return false;
       }
 
       try {
         await clipboard.writeText(
-          editor.view.state.doc.sliceString(main.from, main.to),
+          selections
+            .map((selection) =>
+              view.state.doc.sliceString(selection.from, selection.to),
+            )
+            .join('\n'),
         );
-        editor.focus();
+        focusView(view);
         return true;
       } catch (cause) {
         reportClipboardError('copy', cause);
-        editor.focus();
+        focusView(view);
         return false;
       }
     },
     copyTable: async (range) => {
+      const view = getContextView();
       const clipboard = resolveClipboard();
       if (typeof clipboard?.writeText !== 'function') {
         reportClipboardError(
           'copy',
           new Error('The Clipboard API is unavailable.'),
         );
-        editor.focus();
+        focusView(view);
         return false;
       }
 
@@ -151,21 +210,26 @@ export function createEditorCommandPort(
         const copied = await createEditorCapabilityCommands(editor.view, {
           writeClipboardText: (text) => clipboard.writeText!(text),
         }).copyTable(range);
-        if (copied) {
-          editor.focus();
-        }
+        focusView(view);
         return copied;
       } catch (cause) {
         reportClipboardError('copy', cause);
-        editor.focus();
+        focusView(view);
         return false;
       }
     },
     cut: async () => {
-      const startState = editor.view.state;
+      const view = getContextView();
+      const startState = view.state;
       const { main } = startState.selection;
       const clipboard = resolveClipboard();
-      if (startState.readOnly || main.empty || !clipboard?.writeText) {
+      if (
+        startState.readOnly ||
+        view.composing ||
+        startState.selection.ranges.length !== 1 ||
+        main.empty ||
+        !clipboard?.writeText
+      ) {
         return false;
       }
 
@@ -175,31 +239,31 @@ export function createEditorCommandPort(
         );
       } catch (cause) {
         reportClipboardError('cut', cause);
-        editor.focus();
+        focusView(view);
         return false;
       }
 
-      if (!isAsyncEditTargetCurrent(editor, startState)) {
+      if (!isAsyncEditTargetCurrent(editor.view, view, startState)) {
         reportClipboardError(
           'cut',
           new Error(
             'The document or selection changed before the cut could be applied.',
           ),
         );
-        editor.focus();
+        focusView(view);
         return false;
       }
 
-      editor.view.dispatch({
+      view.dispatch({
         changes: { from: main.from, to: main.to },
         selection: { anchor: main.from },
         userEvent: 'delete.cut',
       });
-      editor.focus();
+      focusView(view);
       return true;
     },
     deleteImageReference: (range) => {
-      if (editor.view.state.readOnly) {
+      if (editor.view.state.readOnly || editor.view.composing) {
         return;
       }
 
@@ -207,8 +271,30 @@ export function createEditorCommandPort(
         editor.focus();
       }
     },
+    deleteSelection: () => {
+      const view = getContextView();
+      const { state } = view;
+      const { main } = state.selection;
+
+      if (
+        state.readOnly ||
+        view.composing ||
+        state.selection.ranges.length !== 1 ||
+        main.empty
+      ) {
+        return false;
+      }
+
+      view.dispatch({
+        changes: { from: main.from, to: main.to },
+        selection: { anchor: main.from },
+        userEvent: 'delete.selection',
+      });
+      focusView(view);
+      return true;
+    },
     deleteTable: (range) => {
-      if (editor.view.state.readOnly) {
+      if (editor.view.state.readOnly || editor.view.composing) {
         return false;
       }
 
@@ -223,29 +309,78 @@ export function createEditorCommandPort(
     focus: () => editor.focus(),
     getDisplayMode: () => editor.getDisplayMode(),
     getEditState: () => {
+      const view = getContextView();
       const clipboard = resolveClipboard();
+      const { state } = view;
+      const selectionCount = state.selection.ranges.length;
+      const selectionLength = state.selection.ranges.reduce(
+        (length, range) => length + range.to - range.from,
+        0,
+      );
+      const { canFormat, canInsert } =
+        view === editor.view
+          ? deriveEditCapabilities(view)
+          : { canFormat: false, canInsert: false };
       return {
+        canFormat,
+        canInsert,
+        canRedo: !state.readOnly && redoDepth(state) > 0,
+        canUndo: !state.readOnly && undoDepth(state) > 0,
         clipboardReadAvailable: typeof clipboard?.readText === 'function',
         clipboardWriteAvailable: typeof clipboard?.writeText === 'function',
-        readOnly: editor.view.state.readOnly,
-        selectionEmpty: editor.view.state.selection.main.empty,
+        composing: view.composing,
+        eligibleFindSelection:
+          selectionCount === 1 && selectionLength > 0 && selectionLength <= 100,
+        readOnly: state.readOnly,
+        selectionCount,
+        selectionEmpty: selectionLength === 0,
+        selectionLength,
       };
     },
     insertImages: (images, position) => {
-      if (editor.view.state.readOnly) {
+      const view = getContextView();
+      if (view !== editor.view) {
+        return;
+      }
+      const { canInsert } = deriveEditCapabilities(editor.view);
+      if (
+        editor.view.state.readOnly ||
+        editor.view.composing ||
+        editor.view.state.selection.ranges.length !== 1 ||
+        !canInsert
+      ) {
         return;
       }
 
       createEditorCapabilityCommands(editor.view).insertImages(images, position);
     },
-    openSearch: () => {
+    openSearch: (query) => {
+      const sourceView = getContextView();
+      const currentQuery = getSearchQuery(editor.view.state);
+      const searchText = resolveSearchText(sourceView, query);
+
       openSearchPanel(editor.view);
+
+      const nextQuery =
+        searchText === null
+          ? currentQuery
+          : replaceSearchText(currentQuery, searchText);
+      if (!nextQuery.eq(getSearchQuery(editor.view.state))) {
+        editor.view.dispatch({ effects: setSearchQuery.of(nextQuery) });
+      }
+      focusSearchInput(editor.view);
     },
     paste: async () => {
-      const startState = editor.view.state;
+      const view = getContextView();
+      const startState = view.state;
       const { main } = startState.selection;
       const clipboard = resolveClipboard();
-      if (startState.readOnly || !clipboard?.readText) {
+      if (
+        startState.readOnly ||
+        view.composing ||
+        startState.selection.ranges.length !== 1 ||
+        !clipboard?.readText
+      ) {
         return false;
       }
 
@@ -254,42 +389,87 @@ export function createEditorCommandPort(
         text = await clipboard.readText();
       } catch (cause) {
         reportClipboardError('paste', cause);
-        editor.focus();
+        focusView(view);
         return false;
       }
 
-      if (!isAsyncEditTargetCurrent(editor, startState)) {
+      if (!isAsyncEditTargetCurrent(editor.view, view, startState)) {
         reportClipboardError(
           'paste',
           new Error(
             'The document or selection changed before the paste could be applied.',
           ),
         );
-        editor.focus();
+        focusView(view);
         return false;
       }
 
-      editor.view.dispatch({
+      view.dispatch({
         changes: { from: main.from, insert: text, to: main.to },
         selection: { anchor: main.from + text.length },
         userEvent: 'input.paste',
       });
-      editor.focus();
+      focusView(view);
       return true;
     },
+    prepareContextMenu: (target, coordinates, source) => {
+      const view = resolveContextEditorView(editor.view, target);
+      contextView = view;
+
+      if (source !== 'pointer' || !coordinates || view.composing) {
+        return;
+      }
+
+      const position = view.posAtCoords(coordinates);
+      if (position == null) {
+        return;
+      }
+
+      const insideSelection = view.state.selection.ranges.some(
+        (range) =>
+          !range.empty && range.from <= position && position < range.to,
+      );
+      if (!insideSelection) {
+        view.dispatch({
+          selection: { anchor: position },
+          userEvent: 'select.pointer',
+        });
+      }
+    },
     runFormat: (command) => {
+      const view = getContextView();
+      if (view !== editor.view) {
+        return;
+      }
+      const capabilities = deriveEditCapabilities(editor.view);
+      const capability = INSERT_COMMANDS.has(command)
+        ? capabilities.canInsert
+        : capabilities.canFormat;
+      if (
+        editor.view.state.readOnly ||
+        editor.view.composing ||
+        editor.view.state.selection.ranges.length !== 1 ||
+        !capability
+      ) {
+        return;
+      }
+
       applyMarkdownFormatCommand(editor.view, command);
     },
     redo: () => {
-      redo(editor.view);
-      editor.focus();
+      const view = getContextView();
+      if (!view.state.readOnly) {
+        redo(view);
+      }
+      focusView(view);
     },
     selectAll: () => {
-      editor.view.dispatch({
-        selection: { anchor: 0, head: editor.view.state.doc.length },
+      const view = getContextView();
+      view.dispatch({
+        selection: { anchor: 0, head: view.state.doc.length },
         userEvent: 'select.all',
       });
-      editor.focus();
+      focusView(view);
       return true;
     },
     revealPosition: (position) => {
@@ -314,20 +494,165 @@ export function createEditorCommandPort(
       editor.setDisplayMode(mode);
     },
     undo: () => {
-      undo(editor.view);
-      editor.focus();
+      const view = getContextView();
+      if (!view.state.readOnly) {
+        undo(view);
+      }
+      focusView(view);
     },
   };
 }
 
-function isAsyncEditTargetCurrent(
-  editor: EditorApi,
-  startState: EditorApi['view']['state'],
+const INSERT_COMMANDS = new Set<MarkdownFormatCommand>([
+  'horizontalRule',
+  'image',
+  'table',
+]);
+
+function resolveSearchText(
+  view: EditorView,
+  explicitQuery: string | undefined,
+): string | null {
+  if (explicitQuery !== undefined) {
+    return isEligibleSearchText(explicitQuery) ? explicitQuery : null;
+  }
+
+  const ranges = view.state.selection.ranges;
+  if (ranges.length !== 1) {
+    return null;
+  }
+
+  const { from, to } = ranges[0];
+  const selectedText = view.state.doc.sliceString(from, to);
+  return isEligibleSearchText(selectedText) ? selectedText : null;
+}
+
+function isEligibleSearchText(text: string): boolean {
+  return text.length > 0 && text.length <= 100;
+}
+
+function replaceSearchText(query: SearchQuery, searchText: string): SearchQuery {
+  return new SearchQuery({
+    caseSensitive: query.caseSensitive,
+    literal: query.literal,
+    regexp: query.regexp,
+    replace: query.replace,
+    search: searchText,
+    test: query.test,
+    wholeWord: query.wholeWord,
+  });
+}
+
+function focusSearchInput(view: EditorView): void {
+  const searchInput = view.dom.querySelector<HTMLInputElement>(
+    '.cm-search [name="search"]',
+  );
+  searchInput?.focus();
+  searchInput?.select();
+}
+
+function deriveEditCapabilities(view: EditorView): {
+  canFormat: boolean;
+  canInsert: boolean;
+} {
+  const context = deriveEditorInteractionContext(view.state, view.composing);
+  const insideUnsafeBlock = context.activeBlocks.some(
+    ({ kind }) => kind === 'FencedCode' || kind === 'TableCell',
+  );
+  const insideImage = context.activeInlineOwners.some(
+    ({ kind }) => kind === 'Image',
+  );
+  const touchesProtectedSource = context.selections.some(({ selection }) =>
+    context.protectedSourceRanges.some((range) =>
+      selectionTouchesRange(selection, range),
+    ),
+  );
+  const crossesUnsafeBlock = context.selections.some(({ selection }) =>
+    selectionTouchesUnsafeBlock(view, selection),
+  );
+  const canFormat =
+    !insideUnsafeBlock &&
+    !insideImage &&
+    !touchesProtectedSource &&
+    !crossesUnsafeBlock;
+
+  return {
+    canFormat,
+    canInsert: canFormat,
+  };
+}
+
+function selectionTouchesRange(
+  selection: EditorInteractionRange,
+  range: EditorInteractionRange,
 ): boolean {
-  const current = editor.view.state;
+  return selection.from <= range.to && selection.to >= range.from;
+}
+
+function selectionTouchesUnsafeBlock(
+  view: EditorView,
+  selection: EditorInteractionRange,
+): boolean {
+  let touchesUnsafeBlock = false;
+  syntaxTree(view.state).iterate({
+    from: Math.max(0, selection.from - 1),
+    to: Math.min(view.state.doc.length, selection.to + 1),
+    enter(node) {
+      if (
+        (node.name === 'FencedCode' || node.name === 'TableCell') &&
+        selection.from <= node.to &&
+        selection.to >= node.from
+      ) {
+        touchesUnsafeBlock = true;
+        return false;
+      }
+    },
+  });
+  return touchesUnsafeBlock;
+}
+
+function isAsyncEditTargetCurrent(
+  root: EditorView,
+  view: EditorView,
+  startState: EditorView['state'],
+): boolean {
+  if (!isEditorViewLive(root, view)) {
+    return false;
+  }
+
+  const current = view.state;
   return (
     !current.readOnly &&
-    current.doc.eq(startState.doc) &&
-    current.selection.eq(startState.selection)
+    !view.composing &&
+    current === startState
+  );
+}
+
+function resolveContextEditorView(
+  root: EditorView,
+  target: EventTarget | null,
+): EditorView {
+  const element =
+    target instanceof Element
+      ? target
+      : target instanceof Node
+        ? target.parentElement
+        : null;
+  const editorDom = element?.closest<HTMLElement>('.cm-editor');
+  if (
+    !editorDom ||
+    (editorDom !== root.dom && !root.dom.contains(editorDom))
+  ) {
+    return root;
+  }
+
+  const view = EditorView.findFromDOM(editorDom);
+  return view && isEditorViewLive(root, view) ? view : root;
+}
+
+function isEditorViewLive(root: EditorView, view: EditorView): boolean {
+  return (
+    (view === root || root.dom.contains(view.dom)) &&
+    EditorView.findFromDOM(view.dom) === view
   );
 }

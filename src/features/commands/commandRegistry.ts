@@ -71,9 +71,13 @@ export type CommandAvailabilityPolicy =
       scope: 'always';
     }
   | {
+      blockedDuringComposition?: true;
       blockWhileFileOpening?: true;
+      capability?: 'format' | 'insert';
       clipboard?: 'read' | 'write';
+      history?: 'redo' | 'undo';
       requiresSelection?: true;
+      requiresSingleSelection?: true;
       scope: 'editor';
       writable?: true;
     }
@@ -96,7 +100,13 @@ const blockWhileFileOpening = {
 } as const;
 const editor = { availability: { scope: 'editor' } } as const;
 const editorClipboardRead = {
-  availability: { clipboard: 'read', scope: 'editor', writable: true },
+  availability: {
+    blockedDuringComposition: true,
+    clipboard: 'read',
+    requiresSingleSelection: true,
+    scope: 'editor',
+    writable: true,
+  },
 } as const;
 const editorClipboardWrite = {
   availability: { clipboard: 'write', scope: 'editor' },
@@ -108,13 +118,12 @@ const editorSelectionClipboardWrite = {
     scope: 'editor',
   },
 } as const;
-const editorWritable = {
-  availability: { scope: 'editor', writable: true },
-} as const;
 const editorWritableSelectionClipboardWrite = {
   availability: {
+    blockedDuringComposition: true,
     clipboard: 'write',
     requiresSelection: true,
+    requiresSingleSelection: true,
     scope: 'editor',
     writable: true,
   },
@@ -125,7 +134,37 @@ const editorWhileFileOpening = {
 const focusAction = { focusManagement: 'action' } as const;
 const surface = { availability: { scope: 'surface' } } as const;
 const formatAction = (icon: LucideIcon, labelKey: string, shortcutKey?: keyof CommandShortcutLabels) => ({
-  ...editorWritable,
+  availability: {
+    blockedDuringComposition: true,
+    capability: 'format',
+    requiresSingleSelection: true,
+    scope: 'editor',
+    writable: true,
+  } as const,
+  ...focusAction,
+  icon,
+  labelKey,
+  shortcutKey,
+});
+const insertAction = (icon: LucideIcon, labelKey: string, shortcutKey?: keyof CommandShortcutLabels) => ({
+  availability: {
+    blockedDuringComposition: true,
+    capability: 'insert',
+    requiresSingleSelection: true,
+    scope: 'editor',
+    writable: true,
+  } as const,
+  ...focusAction,
+  icon,
+  labelKey,
+  shortcutKey,
+});
+const exactRangeDeleteAction = (icon: LucideIcon, labelKey: string, shortcutKey?: keyof CommandShortcutLabels) => ({
+  availability: {
+    blockedDuringComposition: true,
+    scope: 'editor',
+    writable: true,
+  } as const,
   ...focusAction,
   icon,
   labelKey,
@@ -148,8 +187,21 @@ export const commandRegistry = {
   copyLinkAddress: { ...surface, icon: Link, labelKey: 'contextMenu.copyLinkAddress' },
   copyTable: { ...editorClipboardWrite, ...focusAction, icon: Table2, labelKey: 'table.copyTable', shortcutKey: 'copyTable' },
   cut: { ...editorWritableSelectionClipboardWrite, ...focusAction, icon: Scissors, labelKey: 'menu.cut', shortcutKey: 'cut' },
-  deleteImageReference: formatAction(Trash2, 'contextMenu.deleteImageReference'),
-  deleteTable: formatAction(Table2, 'table.deleteTable', 'deleteTable'),
+  deleteImageReference: exactRangeDeleteAction(Trash2, 'contextMenu.deleteImageReference'),
+  deleteSelection: {
+    availability: {
+      blockedDuringComposition: true,
+      requiresSelection: true,
+      requiresSingleSelection: true,
+      scope: 'editor',
+      writable: true,
+    },
+    ...focusAction,
+    icon: Trash2,
+    labelKey: 'contextMenu.deleteSelection',
+    shortcutKey: 'deleteSelection',
+  },
+  deleteTable: exactRangeDeleteAction(Trash2, 'table.deleteTable', 'deleteTable'),
   exitFocusMode: editorAction(Focus, 'command.exitFocusMode'),
   fileTreeCopyPath: { ...surface, icon: FileText, labelKey: 'contextMenu.copyPath' },
   fileTreeCreateDirectory: { ...surface, icon: FolderPlus, labelKey: 'contextMenu.newFolder' },
@@ -164,8 +216,8 @@ export const commandRegistry = {
   heading4: formatAction(Heading, 'menu.heading4', 'heading4'),
   heading5: formatAction(Heading, 'menu.heading5', 'heading5'),
   heading6: formatAction(Heading, 'menu.heading6', 'heading6'),
-  horizontalRule: formatAction(Minus, 'menu.horizontalRule'),
-  image: formatAction(Image, 'menu.image', 'image'),
+  horizontalRule: insertAction(Minus, 'menu.horizontalRule'),
+  image: insertAction(Image, 'menu.image', 'image'),
   inlineCode: formatAction(Code, 'menu.inlineCode'),
   italic: formatAction(Italic, 'menu.italic', 'italic'),
   link: formatAction(Link, 'menu.link'),
@@ -182,7 +234,13 @@ export const commandRegistry = {
   paragraph: formatAction(Pilcrow, 'menu.normalParagraph', 'normalParagraph'),
   paste: { ...editorClipboardRead, ...focusAction, icon: ClipboardPaste, labelKey: 'menu.paste', shortcutKey: 'paste' },
   quote: formatAction(Quote, 'menu.quote'),
-  redo: formatAction(Redo2, 'menu.redo', 'redo'),
+  redo: {
+    availability: { history: 'redo', scope: 'editor', writable: true },
+    ...focusAction,
+    icon: Redo2,
+    labelKey: 'menu.redo',
+    shortcutKey: 'redo',
+  },
   resetZoom: editorAction(RotateCcw, 'menu.resetZoom'),
   revealImage: { ...surface, icon: FolderOpen, labelKey: 'contextMenu.revealImage' },
   save: { ...editorWhileFileOpening, icon: Save, labelKey: 'command.save', shortcutKey: 'save' },
@@ -197,7 +255,7 @@ export const commandRegistry = {
   setReadingMode: { ...editor, icon: BookOpen, labelKey: 'menu.readingMode' },
   setSourceMode: { ...editor, icon: FileCode2, labelKey: 'menu.sourceMode' },
   strikethrough: formatAction(Strikethrough, 'menu.strikethrough'),
-  table: formatAction(Table2, 'menu.table', 'table'),
+  table: insertAction(Table2, 'menu.table', 'table'),
   taskList: formatAction(ListChecks, 'menu.taskList'),
   toggleDisplayMode: { ...editor, icon: Eye, labelKey: 'command.toggleDisplayMode', shortcutKey: 'sourceMode' },
   toggleFocusMode: {
@@ -215,7 +273,13 @@ export const commandRegistry = {
   toggleLanguage: { ...always, icon: Languages, labelKey: 'command.toggleLanguage' },
   toggleSidebar: { ...always, icon: PanelLeft, labelKey: 'command.toggleSidebar', shortcutKey: 'sidebar' },
   toggleTheme: { ...always, icon: Moon, labelKey: 'command.toggleTheme' },
-  undo: formatAction(Undo2, 'menu.undo', 'undo'),
+  undo: {
+    availability: { history: 'undo', scope: 'editor', writable: true },
+    ...focusAction,
+    icon: Undo2,
+    labelKey: 'menu.undo',
+    shortcutKey: 'undo',
+  },
   unorderedList: formatAction(List, 'menu.unorderedList'),
 } satisfies Record<CommandDescriptorActionId, CommandDescriptor>;
 

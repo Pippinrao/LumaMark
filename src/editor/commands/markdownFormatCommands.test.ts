@@ -18,11 +18,82 @@ describe('markdown format commands', () => {
   });
 
   it.each([
+    ['bold', '****', 2],
+    ['italic', '**', 1],
+    ['strikethrough', '~~~~', 2],
+    ['inlineCode', '``', 1],
+  ] satisfies Array<[MarkdownFormatCommand, string, number]>)(
+    'inserts empty %s markers and leaves a caret between them',
+    (command, expected, caret) => {
+      const view = createView('', 0, 0);
+
+      applyMarkdownFormatCommand(view, command);
+
+      expect(view.state.doc.toString()).toBe(expected);
+      expect(view.state.selection.main).toMatchObject({ from: caret, to: caret });
+      view.destroy();
+    },
+  );
+
+  it.each([
+    ['', 0, 0, '[]()', 1],
+    ['plain', 0, 5, '[plain]()', 8],
+  ])(
+    'places a link insertion caret in the next editable field',
+    (doc, from, to, expected, caret) => {
+      const view = createView(doc, from, to);
+
+      applyMarkdownFormatCommand(view, 'link');
+
+      expect(view.state.doc.toString()).toBe(expected);
+      expect(view.state.selection.main).toMatchObject({ from: caret, to: caret });
+      view.destroy();
+    },
+  );
+
+  it.each([
+    ['[plain](https://example.test)', 1, 6],
+    ['[plain](https://example.test)', 0, 29],
+  ])('toggles an existing markdown link back to its label', (doc, from, to) => {
+    const view = createView(doc, from, to);
+
+    applyMarkdownFormatCommand(view, 'link');
+
+    expect(view.state.doc.toString()).toBe('plain');
+    expect(
+      view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to),
+    ).toBe('plain');
+    view.destroy();
+  });
+
+  it('applies headings to every selected non-empty effective line', () => {
+    const doc = 'one\n\n  two\nthree\nnext';
+    const view = createView(doc, 0, doc.indexOf('next'));
+
+    applyMarkdownFormatCommand(view, 'heading2');
+
+    expect(view.state.doc.toString()).toBe('## one\n\n  ## two\n## three\nnext');
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+    view.destroy();
+  });
+
+  it('normalizes headings on every selected effective line', () => {
+    const doc = '# one\nplain\n  ### three\n# next';
+    const view = createView(doc, 0, doc.indexOf('# next'));
+
+    applyMarkdownFormatCommand(view, 'paragraph');
+
+    expect(view.state.doc.toString()).toBe('one\nplain\n  three\n# next');
+    view.destroy();
+  });
+
+  it.each([
     ['bold', 'plain text', 0, 5, '**plain** text'],
     ['italic', 'plain text', 0, 5, '*plain* text'],
     ['strikethrough', 'plain text', 0, 5, '~~plain~~ text'],
     ['inlineCode', 'plain text', 0, 5, '`plain` text'],
-    ['link', 'plain text', 0, 5, '[plain](url) text'],
+    ['link', 'plain text', 0, 5, '[plain]() text'],
     ['image', 'plain text', 0, 5, '![plain](url) text'],
   ] satisfies Array<[MarkdownFormatCommand, string, number, number, string]>)(
     'wraps the current selection as %s',
@@ -88,20 +159,14 @@ describe('markdown format commands', () => {
     view.destroy();
   });
 
-  it.each([
-    ['link', '[plain](url) text', 1, 6, '[[plain](url)](url) text'],
-    ['image', '![plain](url) text', 2, 7, '![![plain](url)](url) text'],
-  ] satisfies Array<[MarkdownFormatCommand, string, number, number, string]>)(
-    'does not discard existing %s destinations when formatting their selected text',
-    (command, doc, from, to, expected) => {
-      const view = createView(doc, from, to);
+  it('does not discard an existing image destination when formatting its selected text', () => {
+    const view = createView('![plain](url) text', 2, 7);
 
-      applyMarkdownFormatCommand(view, command);
+    applyMarkdownFormatCommand(view, 'image');
 
-      expect(view.state.doc.toString()).toBe(expected);
-      view.destroy();
-    },
-  );
+    expect(view.state.doc.toString()).toBe('![![plain](url)](url) text');
+    view.destroy();
+  });
 
   it('inserts a horizontal rule after the current non-empty block without replacing its source', () => {
     const view = createView('Before\nAfter', 3, 3);
@@ -259,6 +324,23 @@ describe('markdown format commands', () => {
     expect(view.state.doc.toString()).toBe('first\n\nsecond');
     view.destroy();
   });
+
+  it.each([
+    ['orderedList', '1. '],
+    ['unorderedList', '- '],
+    ['taskList', '- [ ] '],
+  ] satisfies Array<[MarkdownFormatCommand, string]>)(
+    'does not apply %s to the next paragraph when selection ends at its line start',
+    (command, prefix) => {
+      const doc = 'first\nsecond';
+      const view = createView(doc, 0, doc.indexOf('second'));
+
+      applyMarkdownFormatCommand(view, command);
+
+      expect(view.state.doc.toString()).toBe(`${prefix}first\nsecond`);
+      view.destroy();
+    },
+  );
 
   it.each([
     ['heading3', '#   Title', '###   Title'],

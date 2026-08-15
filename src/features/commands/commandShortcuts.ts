@@ -13,6 +13,7 @@ export function createCommandShortcutLabels(userAgent: string) {
     copy: `${primary}+C`,
     copyTable: `${primary}+Alt+C`,
     cut: `${primary}+X`,
+    deleteSelection: 'Delete',
     deleteTable: `${primary}+Alt+Backspace`,
     find: `${primary}+F`,
     focusMode: `${primary}+Shift+F`,

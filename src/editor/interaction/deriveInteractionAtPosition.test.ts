@@ -182,6 +182,25 @@ describe('deriveInteractionAtPosition', () => {
     );
   });
 
+  it('treats text selections as half-open hit-test ranges', () => {
+    const doc = 'selected rest';
+    const state = EditorState.create({
+      doc,
+      extensions: [markdownLanguage()],
+      selection: EditorSelection.range(0, 8),
+    });
+
+    expect(deriveInteractionAtPosition(state, 7)).toEqual({
+      from: 0,
+      kind: 'selection',
+      to: 8,
+    });
+    expect(deriveInteractionAtPosition(state, 8)).toEqual({
+      at: 8,
+      kind: 'plain',
+    });
+  });
+
   it('targets an autolink URL', () => {
     const doc = 'visit <https://example.com> please';
     const state = createState(doc);

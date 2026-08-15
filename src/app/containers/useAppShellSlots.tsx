@@ -243,6 +243,7 @@ export function useAppShellSlots(
           accessibleTitle={model.documentTitle}
           appearance={model.editor.appearance}
           ariaLabel={model.labels.editor}
+          closeContextMenu={model.editor.closeContextMenu}
           getContextMenuNodes={model.editor.getContextMenuNodes}
           onInvoke={model.runMenuInvocation}
           onDocumentChanged={(event) => {
@@ -262,6 +263,7 @@ export function useAppShellSlots(
           onZoomRequested={model.editor.onZoomRequested}
           onMediaPreviewRequest={model.mediaViewer.openMedia}
           onReadOnlyEditAttempt={onReadOnlyEditAttempt}
+          prepareContextMenu={model.editor.prepareContextMenu}
           imageAssetResolver={model.editor.imageAssetResolver}
           imageImportErrorHandler={model.editor.imageImportErrorHandler}
           imageImportHandler={model.editor.imageImportHandler}

@@ -182,6 +182,7 @@ export function useAppShellModel() {
     documentTitle,
     editor: {
       appearance: readingAppearance.appearance,
+      closeContextMenu: editor.closeContextMenu,
       editorDisplayMode: editor.editorDisplayMode,
       focusEditor: editor.focusEditor,
       getContextMenuNodes: editorContextMenu.getContextMenuNodes,
@@ -192,6 +193,7 @@ export function useAppShellModel() {
       onLinkNavigationRequest: navigation.onLinkNavigationRequest,
       onReady: navigation.onEditorReady,
       onZoomRequested: readingAppearance.onZoomRequested,
+      prepareContextMenu: editor.prepareContextMenu,
       selectHeading: navigation.selectHeading,
     },
     externalFileConflict: {

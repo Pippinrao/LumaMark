@@ -16,6 +16,7 @@ type UseAppCommandHandlersOptions = {
   copyTable: (range?: EditorInteractionRange) => Promise<boolean>;
   cut: () => Promise<boolean>;
   deleteImageReference: (range?: EditorInteractionRange) => void;
+  deleteSelection: () => boolean;
   deleteTable: (range?: EditorInteractionRange) => boolean;
   editorAvailable: boolean;
   exitFocusMode: () => void;
@@ -56,6 +57,7 @@ export function useAppCommandHandlers({
   copyTable,
   cut,
   deleteImageReference,
+  deleteSelection,
   deleteTable,
   editorAvailable,
   exitFocusMode,
@@ -146,6 +148,7 @@ export function useAppCommandHandlers({
         'deleteImageReference',
         deleteImageReference,
       ),
+      deleteSelection: guardAction('deleteSelection', deleteSelection),
       deleteTable: guardAction('deleteTable', deleteTable),
       exitFocusMode: guardAction('exitFocusMode', exitFocusMode),
       focusEditor: guardAction('focusEditor', focusEditor),
@@ -206,6 +209,7 @@ export function useAppCommandHandlers({
     copyTable,
     cut,
     deleteImageReference,
+    deleteSelection,
     deleteTable,
     editorAvailable,
     exitFocusMode,

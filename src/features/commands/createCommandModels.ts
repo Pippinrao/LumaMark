@@ -1,4 +1,4 @@
-import { FileText, History, List, Quote } from 'lucide-react';
+import { Bold, FilePlus, FileText, History, List, Pilcrow, Quote } from 'lucide-react';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
 import type { EditorEditState } from '../../editor/commands/editorCommandPort';
 import type {
@@ -334,7 +334,7 @@ function menuItem(
   action: Exclude<CommandActionId, CommandRangeActionId>,
   context: CommandBuildContext,
   disabled = false,
-): CommandMenuNode {
+): Extract<CommandMenuNode, { type: 'item' }> {
   const presentation = resolveCommandPresentation(action, context);
   return {
     disabled: commandDisabled(action, context, disabled),
@@ -355,7 +355,7 @@ function rangeMenuItem(
   range: EditorInteractionRange,
   context: CommandBuildContext,
   disabled = false,
-): CommandMenuNode {
+): Extract<CommandMenuNode, { type: 'item' }> {
   const presentation = resolveCommandPresentation(action, context);
   return {
     disabled: commandDisabled(action, context, disabled),
@@ -619,14 +619,103 @@ export function createEditorContextMenuModels({
   const item = (
     id: string,
     action: Exclude<CommandActionId, CommandRangeActionId>,
-  ) => menuItem(id, action, context);
+    {
+      danger,
+      disabled = false,
+      label,
+    }: { danger?: boolean; disabled?: boolean; label?: string } = {},
+  ) => ({
+    ...menuItem(id, action, context, disabled),
+    danger,
+    ...(label ? { label } : {}),
+  });
+  const unsafeTarget =
+    target.kind === 'codeBlock' ||
+    target.kind === 'image' ||
+    target.kind === 'mermaid' ||
+    target.kind === 'table';
+  const formatTargetDisabled = unsafeTarget;
+  const insertTargetDisabled = unsafeTarget;
+  const formatItems: CommandMenuNode[] = [
+    item('context-bold', 'bold', { disabled: formatTargetDisabled }),
+    item('context-italic', 'italic', { disabled: formatTargetDisabled }),
+    item('context-strikethrough', 'strikethrough', {
+      disabled: formatTargetDisabled,
+    }),
+    item('context-inline-code', 'inlineCode', {
+      disabled: formatTargetDisabled,
+    }),
+    item('context-link', 'link', { disabled: formatTargetDisabled }),
+  ];
+  const paragraphItems: CommandMenuNode[] = [
+    item('context-normal-paragraph', 'paragraph', {
+      disabled: formatTargetDisabled,
+    }),
+    item('context-heading-1', 'heading1', { disabled: formatTargetDisabled }),
+    item('context-heading-2', 'heading2', { disabled: formatTargetDisabled }),
+    item('context-heading-3', 'heading3', { disabled: formatTargetDisabled }),
+    item('context-heading-4', 'heading4', { disabled: formatTargetDisabled }),
+    item('context-heading-5', 'heading5', { disabled: formatTargetDisabled }),
+    item('context-heading-6', 'heading6', { disabled: formatTargetDisabled }),
+    item('context-quote', 'quote', { disabled: formatTargetDisabled }),
+    item('context-ordered-list', 'orderedList', {
+      disabled: formatTargetDisabled,
+    }),
+    item('context-unordered-list', 'unorderedList', {
+      disabled: formatTargetDisabled,
+    }),
+    item('context-task-list', 'taskList', {
+      disabled: formatTargetDisabled,
+    }),
+    item('context-code-block', 'codeBlock', {
+      disabled: formatTargetDisabled,
+    }),
+  ];
+  const insertItems: CommandMenuNode[] = [
+    item('context-insert-image', 'image', { disabled: insertTargetDisabled }),
+    item('context-insert-table', 'table', { disabled: insertTargetDisabled }),
+    item('context-horizontal-rule', 'horizontalRule', {
+      disabled: insertTargetDisabled,
+    }),
+  ];
+  const findSelection = editorState.eligibleFindSelection;
   const nodes: CommandMenuNode[] = [
+    item('context-undo', 'undo'),
+    item('context-redo', 'redo'),
+    separator('context-history-separator'),
     item('context-cut', 'cut'),
     item('context-copy', 'copy'),
     item('context-paste', 'paste'),
+    item('context-delete-selection', 'deleteSelection', { danger: true }),
     item('context-select-all', 'selectAll'),
-    separator('context-edit-separator'),
-    item('context-table', 'table'),
+    separator('context-clipboard-separator'),
+    item(
+      findSelection ? 'context-find-selection' : 'context-find',
+      'openSearch',
+      findSelection ? { label: t('contextMenu.findSelection') } : undefined,
+    ),
+    separator('context-find-separator'),
+    submenu(
+      'context-format',
+      Bold,
+      t('menu.format'),
+      formatItems,
+      formatItems.every((node) => node.type !== 'item' || node.disabled),
+    ),
+    submenu(
+      'context-paragraph',
+      Pilcrow,
+      t('menu.paragraph'),
+      paragraphItems,
+      paragraphItems.every((node) => node.type !== 'item' || node.disabled),
+    ),
+    submenu(
+      'context-insert',
+      FilePlus,
+      t('menu.insert'),
+      insertItems,
+      insertItems.every((node) => node.type !== 'item' || node.disabled),
+    ),
   ];
 
   const contextualNodes: CommandMenuNode[] = [];
@@ -643,6 +732,7 @@ export function createEditorContextMenuModels({
           payload: { href },
         },
         context,
+        { disabled: !editorAvailable || editorState.readOnly },
       ),
       payloadMenuItem(
         'copy-link-address',
@@ -669,7 +759,10 @@ export function createEditorContextMenuModels({
           payload: { src },
         },
         context,
-        { disabled: !editorAvailable || !editorState.clipboardWriteAvailable },
+        {
+          disabled:
+            !editorAvailable || !editorState.clipboardWriteAvailable,
+        },
       ),
     );
 
@@ -683,18 +776,18 @@ export function createEditorContextMenuModels({
             payload: { src },
           },
           context,
+          { disabled: !editorAvailable || editorState.readOnly },
         ),
       );
     }
 
-    contextualNodes.push(
-      rangeMenuItem(
+    const deleteImageNode = rangeMenuItem(
         'delete-image-reference',
         'deleteImageReference',
         range,
         context,
-      ),
-    );
+      );
+    contextualNodes.push(deleteImageNode);
   }
 
   if (target.kind === 'table') {
@@ -706,12 +799,15 @@ export function createEditorContextMenuModels({
         range,
         context,
       ),
-      rangeMenuItem(
+      {
+        ...rangeMenuItem(
         'context-delete-table',
         'deleteTable',
         range,
         context,
-      ),
+        ),
+        danger: true,
+      },
     );
   }
 

@@ -37,15 +37,15 @@ export function applyMarkdownFormatCommand(
 
   switch (command) {
     case 'bold':
-      return wrapSelection(view, '**', '**', 'bold', true);
+      return wrapSelection(view, '**', '**', '', true);
     case 'italic':
-      return wrapSelection(view, '*', '*', 'italic', true);
+      return wrapSelection(view, '*', '*', '', true);
     case 'strikethrough':
-      return wrapSelection(view, '~~', '~~', 'strikethrough', true);
+      return wrapSelection(view, '~~', '~~', '', true);
     case 'inlineCode':
-      return wrapSelection(view, '`', '`', 'code', true);
+      return wrapSelection(view, '`', '`', '', true);
     case 'link':
-      return wrapSelection(view, '[', '](url)', 'link');
+      return insertLink(view);
     case 'image':
       return wrapSelection(view, '![', '](url)', 'image');
     case 'horizontalRule':
@@ -85,26 +85,40 @@ export function applyMarkdownFormatCommand(
 
 function normalizeParagraph(view: EditorView): boolean {
   const selection = view.state.selection.main;
-  const line = view.state.doc.lineAt(selection.from);
-  const heading = /^( {0,3})#{1,6}[ \t]+/.exec(line.text);
+  const firstLine = view.state.doc.lineAt(selection.from);
+  const effectiveTo =
+    selection.to > selection.from &&
+    view.state.doc.lineAt(selection.to).from === selection.to
+      ? selection.to - 1
+      : selection.to;
+  const lastLine = view.state.doc.lineAt(effectiveTo);
+  const changes = [];
 
-  if (!heading) {
+  for (
+    let lineNumber = firstLine.number;
+    lineNumber <= lastLine.number;
+    lineNumber += 1
+  ) {
+    const line = view.state.doc.line(lineNumber);
+    const heading = /^( {0,3})#{1,6}[ \t]+/.exec(line.text);
+
+    if (heading) {
+      const markerFrom = line.from + heading[1].length;
+      changes.push({
+        from: markerFrom,
+        insert: '',
+        to: line.from + heading[0].length,
+      });
+    }
+  }
+
+  if (!changes.length) {
     view.focus();
     return true;
   }
 
-  const markerLength = heading[0].length - heading[1].length;
-  const markerFrom = line.from + heading[1].length;
-
   view.dispatch({
-    changes: {
-      from: markerFrom,
-      to: markerFrom + markerLength,
-      insert: '',
-    },
-    selection: EditorSelection.cursor(
-      Math.max(markerFrom, selection.head - markerLength),
-    ),
+    changes,
     userEvent: 'input.format',
   });
   view.focus();
@@ -154,6 +168,78 @@ function wrapSelection(
       to: selection.to,
     },
     selection: EditorSelection.range(cursorFrom, cursorTo),
+    userEvent: 'input.format',
+  });
+  view.focus();
+
+  return true;
+}
+
+function insertLink(view: EditorView): boolean {
+  const selection = view.state.selection.main;
+  const selectedText = view.state.doc.sliceString(selection.from, selection.to);
+  const fullLink = /^\[([^\]\n]*)\]\([^)\n]*\)$/.exec(selectedText);
+
+  if (fullLink) {
+    return replaceLinkWithLabel(
+      view,
+      selection.from,
+      selection.to,
+      fullLink[1],
+    );
+  }
+
+  const isImageLabel =
+    selection.from > 1 &&
+    view.state.doc.sliceString(selection.from - 2, selection.from) === '![';
+
+  if (
+    !isImageLabel &&
+    selection.from > 0 &&
+    view.state.doc.sliceString(selection.from - 1, selection.from) === '['
+  ) {
+    const suffix = /^\]\([^)\n]*\)/.exec(
+      view.state.doc.sliceString(selection.to),
+    );
+
+    if (suffix) {
+      return replaceLinkWithLabel(
+        view,
+        selection.from - 1,
+        selection.to + suffix[0].length,
+        selectedText,
+      );
+    }
+  }
+
+  const insert = `[${selectedText}]()`;
+  const caret = selectedText
+    ? selection.from + selectedText.length + 3
+    : selection.from + 1;
+
+  view.dispatch({
+    changes: {
+      from: selection.from,
+      insert,
+      to: selection.to,
+    },
+    selection: EditorSelection.cursor(caret),
+    userEvent: 'input.format',
+  });
+  view.focus();
+
+  return true;
+}
+
+function replaceLinkWithLabel(
+  view: EditorView,
+  from: number,
+  to: number,
+  label: string,
+): boolean {
+  view.dispatch({
+    changes: { from, insert: label, to },
+    selection: EditorSelection.range(from, from + label.length),
     userEvent: 'input.format',
   });
   view.focus();
@@ -219,20 +305,45 @@ function insertHorizontalRule(view: EditorView): boolean {
 
 function replaceHeadingPrefix(view: EditorView, marker: string): boolean {
   const selection = view.state.selection.main;
-  const line = view.state.doc.lineAt(selection.from);
-  const text = line.text;
-  const headingMatch = /^(#{1,6})(?=[ \t]+)/.exec(text);
-  const from = line.from;
-  const to = headingMatch ? line.from + headingMatch[0].length : line.from;
-  const insert = headingMatch ? marker : `${marker} `;
+  const firstLine = view.state.doc.lineAt(selection.from);
+  const effectiveTo =
+    selection.to > selection.from &&
+    view.state.doc.lineAt(selection.to).from === selection.to
+      ? selection.to - 1
+      : selection.to;
+  const lastLine = view.state.doc.lineAt(effectiveTo);
+  const changes = [];
+
+  for (
+    let lineNumber = firstLine.number;
+    lineNumber <= lastLine.number;
+    lineNumber += 1
+  ) {
+    const line = view.state.doc.line(lineNumber);
+
+    if (!line.text.trim()) {
+      continue;
+    }
+
+    const heading = /^( {0,3})(#{1,6})(?=[ \t]+)/.exec(line.text);
+    const indent = /^( {0,3})/.exec(line.text)?.[1] ?? '';
+
+    changes.push(
+      heading
+        ? {
+            from: line.from + heading[1].length,
+            insert: marker,
+            to: line.from + heading[1].length + heading[2].length,
+          }
+        : {
+            from: line.from + indent.length,
+            insert: `${marker} `,
+          },
+    );
+  }
 
   view.dispatch({
-    changes: {
-      from,
-      insert,
-      to,
-    },
-    selection: EditorSelection.cursor(selection.head + insert.length - (to - from)),
+    changes,
     userEvent: 'input.format',
   });
   view.focus();
@@ -247,7 +358,12 @@ function prefixSelectedLines(
 ): boolean {
   const selection = view.state.selection.main;
   const fromLine = view.state.doc.lineAt(selection.from);
-  const toLine = view.state.doc.lineAt(selection.to);
+  const effectiveTo =
+    selection.to > selection.from &&
+    view.state.doc.lineAt(selection.to).from === selection.to
+      ? selection.to - 1
+      : selection.to;
+  const toLine = view.state.doc.lineAt(effectiveTo);
   const lines = [];
 
   for (let lineNumber = fromLine.number; lineNumber <= toLine.number; lineNumber += 1) {

@@ -22,10 +22,18 @@ const shortcuts = createCommandShortcutLabels(
 );
 
 const editableSelection = {
+  canFormat: true,
+  canInsert: true,
+  canRedo: true,
+  canUndo: true,
   clipboardReadAvailable: true,
   clipboardWriteAvailable: true,
+  composing: false,
+  eligibleFindSelection: true,
   readOnly: false,
+  selectionCount: 1,
   selectionEmpty: false,
+  selectionLength: 4,
 } as const;
 
 describe('shared command contracts', () => {
@@ -106,7 +114,7 @@ describe('shared command contracts', () => {
       ['copy', 'copy', 'context-copy'],
       ['paste', 'paste', 'context-paste'],
       ['select-all', 'select-all', 'context-select-all'],
-      ['insert-table', 'insert-table', 'context-table'],
+      ['insert-table', 'insert-table', 'context-insert-table'],
     ] as const) {
       const paletteCommand = palette.find(({ id }) => id === paletteId)!;
       const menuNode = findNode(menuNodes, menuId);
@@ -573,17 +581,79 @@ describe('createEditorContextMenuModels', () => {
       node.type === 'item' ? [node.invocation.action] : [],
     );
 
-  it('orders the shared edit actions before insert table for a plain target', () => {
+  it('builds the complete editor topology in fixed groups with shared recursive command nodes', () => {
     const nodes = createModels({ at: 0, kind: 'plain' });
+    expect(nodes.map(({ id }) => id)).toEqual([
+      'context-undo',
+      'context-redo',
+      'context-history-separator',
+      'context-cut',
+      'context-copy',
+      'context-paste',
+      'context-delete-selection',
+      'context-select-all',
+      'context-clipboard-separator',
+      'context-find-selection',
+      'context-find-separator',
+      'context-format',
+      'context-paragraph',
+      'context-insert',
+    ]);
     expect(actionIds(nodes)).toEqual([
+      'undo',
+      'redo',
       'cut',
       'copy',
       'paste',
+      'deleteSelection',
       'selectAll',
-      'table',
+      'openSearch',
     ]);
-    expect(nodes.find((node) => node.id === 'context-table')).toMatchObject({
+    expect(
+      (findNode(nodes, 'context-format') as Extract<CommandMenuNode, { type: 'submenu' }>).items.map(
+        ({ id }) => id,
+      ),
+    ).toEqual([
+      'context-bold',
+      'context-italic',
+      'context-strikethrough',
+      'context-inline-code',
+      'context-link',
+    ]);
+    expect(
+      (findNode(nodes, 'context-paragraph') as Extract<CommandMenuNode, { type: 'submenu' }>).items.map(
+        ({ id }) => id,
+      ),
+    ).toEqual([
+      'context-normal-paragraph',
+      'context-heading-1',
+      'context-heading-2',
+      'context-heading-3',
+      'context-heading-4',
+      'context-heading-5',
+      'context-heading-6',
+      'context-quote',
+      'context-ordered-list',
+      'context-unordered-list',
+      'context-task-list',
+      'context-code-block',
+    ]);
+    expect(
+      (findNode(nodes, 'context-insert') as Extract<CommandMenuNode, { type: 'submenu' }>).items.map(
+        ({ id }) => id,
+      ),
+    ).toEqual([
+      'context-insert-image',
+      'context-insert-table',
+      'context-horizontal-rule',
+    ]);
+    expect(findNode(nodes, 'context-insert-table')).toMatchObject({
       shortcut: 'Ctrl+T',
+      type: 'item',
+    });
+    expect(findNode(nodes, 'context-delete-selection')).toMatchObject({
+      danger: true,
+      shortcut: 'Delete',
       type: 'item',
     });
   });
@@ -592,11 +662,14 @@ describe('createEditorContextMenuModels', () => {
     const nodes = createModels({ from: 4, kind: 'table', to: 18 });
 
     expect(actionIds(nodes)).toEqual([
+      'undo',
+      'redo',
       'cut',
       'copy',
       'paste',
+      'deleteSelection',
       'selectAll',
-      'table',
+      'openSearch',
       'copyTable',
       'deleteTable',
     ]);
@@ -608,6 +681,7 @@ describe('createEditorContextMenuModels', () => {
       },
     });
     expect(findNode(nodes, 'context-delete-table')).toMatchObject({
+      danger: true,
       invocation: {
         action: 'deleteTable',
         kind: 'rangeAction',
@@ -626,11 +700,14 @@ describe('createEditorContextMenuModels', () => {
     });
 
     expect(actionIds(nodes)).toEqual([
+      'undo',
+      'redo',
       'cut',
       'copy',
       'paste',
+      'deleteSelection',
       'selectAll',
-      'table',
+      'openSearch',
       'openLink',
       'copyLinkAddress',
     ]);
@@ -657,7 +734,16 @@ describe('createEditorContextMenuModels', () => {
   it('hides link actions for code targets', () => {
     expect(
       actionIds(createModels({ from: 0, kind: 'codeBlock', to: 4 })),
-    ).toEqual(['cut', 'copy', 'paste', 'selectAll', 'table']);
+    ).toEqual([
+      'undo',
+      'redo',
+      'cut',
+      'copy',
+      'paste',
+      'deleteSelection',
+      'selectAll',
+      'openSearch',
+    ]);
   });
 
   it('exposes copy path, reveal, and delete reference for a local image target', () => {
@@ -675,11 +761,14 @@ describe('createEditorContextMenuModels', () => {
     });
 
     expect(actionIds(nodes)).toEqual([
+      'undo',
+      'redo',
       'cut',
       'copy',
       'paste',
+      'deleteSelection',
       'selectAll',
-      'table',
+      'openSearch',
       'copyImagePath',
       'revealImage',
       'deleteImageReference',
@@ -729,45 +818,129 @@ describe('createEditorContextMenuModels', () => {
     });
 
     expect(actionIds(nodes)).toEqual([
+      'undo',
+      'redo',
       'cut',
       'copy',
       'paste',
+      'deleteSelection',
       'selectAll',
-      'table',
+      'openSearch',
       'copyImagePath',
       'deleteImageReference',
     ]);
   });
 
-  it('disables edit actions from live selection, read-only, and clipboard capability state', () => {
+  it('allows only copy, select-all, find, and exact contextual copy in read-only mode', () => {
     const nodes = createEditorContextMenuModels({
       editorAvailable: true,
       editorState: {
+        ...editableSelection,
+        canRedo: false,
+        canUndo: false,
         clipboardReadAvailable: false,
         clipboardWriteAvailable: true,
         readOnly: true,
-        selectionEmpty: true,
       },
+      shortcuts,
+      t: (key) => key,
+      target: { from: 4, kind: 'table', to: 18 },
+    });
+
+    expect(
+      collectInvokableNodes(nodes)
+        .filter((node) => !node.disabled)
+        .map(({ id }) => id),
+    ).toEqual([
+      'context-copy',
+      'context-select-all',
+      'context-find-selection',
+      'context-copy-table',
+    ]);
+  });
+
+  it('blocks composition-sensitive changes while keeping copy, select-all, find, and history available', () => {
+    const nodes = createEditorContextMenuModels({
+      editorAvailable: true,
+      editorState: { ...editableSelection, composing: true },
       shortcuts,
       t: (key) => key,
       target: { at: 0, kind: 'plain' },
     });
 
-    expect(findNode(nodes, 'context-cut')).toMatchObject({ disabled: true });
-    expect(findNode(nodes, 'context-copy')).toMatchObject({ disabled: true });
-    expect(findNode(nodes, 'context-paste')).toMatchObject({ disabled: true });
-    expect(findNode(nodes, 'context-select-all')).not.toMatchObject({
-      disabled: true,
+    for (const id of [
+      'context-cut',
+      'context-paste',
+      'context-delete-selection',
+      'context-bold',
+      'context-normal-paragraph',
+      'context-insert-image',
+    ]) {
+      expect(findNode(nodes, id), id).toMatchObject({ disabled: true });
+    }
+    for (const id of [
+      'context-undo',
+      'context-redo',
+      'context-copy',
+      'context-select-all',
+      'context-find-selection',
+    ]) {
+      expect(findNode(nodes, id), id).not.toMatchObject({ disabled: true });
+    }
+  });
+
+  it('disables main-selection mutations for multiple selections but keeps exact table range actions available', () => {
+    const nodes = createEditorContextMenuModels({
+      editorAvailable: true,
+      editorState: {
+        ...editableSelection,
+        eligibleFindSelection: false,
+        selectionCount: 2,
+        selectionLength: 8,
+      },
+      shortcuts,
+      t: (key) => key,
+      target: { from: 4, kind: 'table', to: 18 },
     });
-    expect(findNode(nodes, 'context-table')).toMatchObject({ disabled: true });
+
+    for (const id of [
+      'context-cut',
+      'context-paste',
+      'context-delete-selection',
+      'context-bold',
+      'context-normal-paragraph',
+      'context-insert-table',
+    ]) {
+      expect(findNode(nodes, id), id).toMatchObject({ disabled: true });
+    }
+    expect(findNode(nodes, 'context-copy')).not.toMatchObject({ disabled: true });
+    expect(findNode(nodes, 'context-find')).not.toMatchObject({ disabled: true });
+    expect(findNode(nodes, 'context-find-selection')).toBeUndefined();
+    expect(findNode(nodes, 'context-copy-table')).not.toMatchObject({ disabled: true });
+    expect(findNode(nodes, 'context-delete-table')).not.toMatchObject({ disabled: true });
+  });
+
+  it.each([
+    { from: 0, kind: 'codeBlock' as const, to: 4 },
+    { from: 0, kind: 'mermaid' as const, to: 4 },
+    { from: 0, kind: 'image' as const, src: './a.png', to: 4 },
+    { from: 0, kind: 'table' as const, to: 4 },
+  ])('disables format and insert groups for unsafe $kind targets', (target) => {
+    const nodes = createModels(target);
+
+    expect(findNode(nodes, 'context-format')).toMatchObject({ disabled: true });
+    expect(findNode(nodes, 'context-paragraph')).toMatchObject({ disabled: true });
+    expect(findNode(nodes, 'context-insert')).toMatchObject({ disabled: true });
+    expect(findNode(nodes, 'context-bold')).toMatchObject({ disabled: true });
+    expect(findNode(nodes, 'context-insert-table')).toMatchObject({ disabled: true });
   });
 
   it('disables contextual copy and delete actions from the same live editor state', () => {
     const unavailableClipboard = {
+      ...editableSelection,
       clipboardReadAvailable: true,
       clipboardWriteAvailable: false,
       readOnly: true,
-      selectionEmpty: false,
     } as const;
     const createTargetModels = (
       target: Parameters<typeof createEditorContextMenuModels>[0]['target'],
@@ -797,18 +970,14 @@ describe('createEditorContextMenuModels', () => {
     expect(findNode(linkNodes, 'copy-link-address')).toMatchObject({
       disabled: true,
     });
-    expect(findNode(linkNodes, 'open-link')).not.toMatchObject({
-      disabled: true,
-    });
+    expect(findNode(linkNodes, 'open-link')).toMatchObject({ disabled: true });
     expect(findNode(imageNodes, 'copy-image-path')).toMatchObject({
       disabled: true,
     });
     expect(findNode(imageNodes, 'delete-image-reference')).toMatchObject({
       disabled: true,
     });
-    expect(findNode(imageNodes, 'reveal-image')).not.toMatchObject({
-      disabled: true,
-    });
+    expect(findNode(imageNodes, 'reveal-image')).toMatchObject({ disabled: true });
     expect(findNode(tableNodes, 'context-copy-table')).toMatchObject({
       disabled: true,
     });
@@ -1001,10 +1170,12 @@ describe('createTopMenuModels', () => {
     const edit = createModels({
       editorDisplayMode: 'reading',
       editorState: {
+        ...editableSelection,
         clipboardReadAvailable: true,
         clipboardWriteAvailable: true,
         readOnly: true,
         selectionEmpty: true,
+        selectionLength: 0,
       },
     }).find((group) => group.id === 'edit');
 
@@ -1389,5 +1560,21 @@ function collectActionNodes(
     }
 
     return node.invocation.kind === 'action' ? [node] : [];
+  });
+}
+
+function collectInvokableNodes(
+  nodes: readonly CommandMenuNode[],
+): Extract<CommandMenuNode, { type: 'checkbox' | 'item' | 'radio' }>[] {
+  return nodes.flatMap((node) => {
+    if (node.type === 'label' || node.type === 'separator') {
+      return [];
+    }
+
+    if (node.type === 'submenu') {
+      return collectInvokableNodes(node.items);
+    }
+
+    return [node];
   });
 }

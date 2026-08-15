@@ -8,6 +8,7 @@ import {
 } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { EditorApi } from '../../editor/core/editorApi';
+import type { EditorCommandPort } from '../../editor/commands/editorCommandPort';
 import type {
   EditorAppearance,
   EditorZoomRequestedHandler,
@@ -44,6 +45,7 @@ type EditorPaneProps = {
   accessibleTitle: string;
   appearance: EditorAppearance;
   ariaLabel: string;
+  closeContextMenu: EditorCommandPort['closeContextMenu'];
   getContextMenuNodes: (target: EditorContextTarget) => ShellMenuNode[];
   onDocumentChanged: EditorDocumentChangedHandler;
   onEditorReady: (editor: EditorApi) => void;
@@ -52,6 +54,7 @@ type EditorPaneProps = {
   onZoomRequested: EditorZoomRequestedHandler;
   onMediaPreviewRequest: EditorMediaPreviewRequestHandler;
   onReadOnlyEditAttempt?: () => void;
+  prepareContextMenu: EditorCommandPort['prepareContextMenu'];
   imageAssetResolver?: ImageAssetResolver;
   imageImportErrorHandler?: ImageImportErrorHandler;
   imageImportHandler?: ImageImportHandler;
@@ -107,10 +110,26 @@ function isContextMenuKeyboardGesture(
   return event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey);
 }
 
+function resolveKeyboardContextTarget(
+  editor: EditorApi,
+  eventTarget: EventTarget,
+): EditorContextTarget {
+  const widgetTableTarget = resolveWidgetTableTarget(editor, eventTarget);
+  if (widgetTableTarget) {
+    return widgetTableTarget;
+  }
+
+  const { main } = editor.view.state.selection;
+  return main.empty
+    ? deriveInteractionAtPosition(editor.view.state, main.head)
+    : { from: main.from, kind: 'selection', to: main.to };
+}
+
 export function EditorPane({
   accessibleTitle,
   appearance,
   ariaLabel,
+  closeContextMenu,
   getContextMenuNodes,
   onDocumentChanged,
   onEditorReady,
@@ -119,6 +138,7 @@ export function EditorPane({
   onZoomRequested,
   onMediaPreviewRequest,
   onReadOnlyEditAttempt,
+  prepareContextMenu,
   imageAssetResolver,
   imageImportErrorHandler,
   imageImportHandler,
@@ -149,16 +169,22 @@ export function EditorPane({
                   return;
                 }
 
-                // Hit-test only; do not dispatch selection changes on right-click.
-                // Keep this in the Trigger's composed bubble handler: a capture-phase
-                // state update can replace the Radix trigger before it opens.
+                // Capture the outer Markdown target before preparing the command
+                // session, since pointer preparation may update the active view's
+                // selection. Keep this in the Trigger's composed bubble handler: a
+                // capture-phase state update can replace the Radix trigger.
                 const keyboardTarget = keyboardContextTargetRef.current;
                 keyboardContextTargetRef.current = null;
-                setContextMenuNodes(
-                  getContextMenuNodes(
-                    keyboardTarget ?? resolveContextTarget(editor, event),
-                  ),
-                );
+                const target =
+                  keyboardTarget ?? resolveContextTarget(editor, event);
+                if (!keyboardTarget) {
+                  prepareContextMenu(
+                    event.target,
+                    { x: event.clientX, y: event.clientY },
+                    'pointer',
+                  );
+                }
+                setContextMenuNodes(getContextMenuNodes(target));
               }}
               onKeyDownCapture={(event) => {
                 const editor = editorRef.current;
@@ -171,10 +197,9 @@ export function EditorPane({
                 const caretRect = editor.view.coordsAtPos(caret);
                 const contentRect =
                   editor.view.contentDOM.getBoundingClientRect();
-                keyboardContextTargetRef.current = deriveInteractionAtPosition(
-                  editor.view.state,
-                  caret,
-                );
+                keyboardContextTargetRef.current =
+                  resolveKeyboardContextTarget(editor, event.target);
+                prepareContextMenu(event.target, undefined, 'keyboard');
                 try {
                   event.currentTarget.dispatchEvent(
                     new MouseEvent('contextmenu', {
@@ -217,7 +242,7 @@ export function EditorPane({
       <ContextMenu.Portal>
         <ContextMenuSurface
           nodes={contextMenuNodes}
-          onActionFocusReturn={() => editorRef.current?.focus()}
+          onClose={closeContextMenu}
           onInvoke={onInvoke}
         />
       </ContextMenu.Portal>

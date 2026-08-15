@@ -8,6 +8,7 @@ export type CommandActionId =
   | 'copyTable'
   | 'cut'
   | 'deleteImageReference'
+  | 'deleteSelection'
   | 'deleteTable'
   | 'exitFocusMode'
   | 'toggleFocusMode'
@@ -123,6 +124,7 @@ export type CommandMenuInvocation =
   | CommandPayloadInvocation;
 
 type CommandMenuItemNode = {
+  danger?: boolean;
   disabled?: boolean;
   icon?: LucideIcon;
   id: string;

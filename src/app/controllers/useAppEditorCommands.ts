@@ -74,6 +74,10 @@ export function useAppEditorCommands() {
     return commandPortRef.current?.copy() ?? Promise.resolve(false);
   }, []);
 
+  const closeContextMenu = useCallback((restoreFocus: boolean) => {
+    commandPortRef.current?.closeContextMenu(restoreFocus);
+  }, []);
+
   const copyTable = useCallback((range?: EditorInteractionRange) => {
     return commandPortRef.current?.copyTable(range) ?? Promise.resolve(false);
   }, []);
@@ -84,6 +88,10 @@ export function useAppEditorCommands() {
 
   const deleteTable = useCallback((range?: EditorInteractionRange) => {
     return commandPortRef.current?.deleteTable(range) ?? false;
+  }, []);
+
+  const deleteSelection = useCallback(() => {
+    return commandPortRef.current?.deleteSelection() ?? false;
   }, []);
 
   const deleteImageReference = useCallback(
@@ -115,6 +123,13 @@ export function useAppEditorCommands() {
   const paste = useCallback(() => {
     return commandPortRef.current?.paste() ?? Promise.resolve(false);
   }, []);
+
+  const prepareContextMenu = useCallback(
+    (...args: Parameters<EditorCommandPort['prepareContextMenu']>) => {
+      commandPortRef.current?.prepareContextMenu(...args);
+    },
+    [],
+  );
 
   const selectAll = useCallback(() => {
     return commandPortRef.current?.selectAll() ?? false;
@@ -152,10 +167,12 @@ export function useAppEditorCommands() {
   }, []);
 
   return {
+    closeContextMenu,
     copy,
     copyTable,
     cut,
     deleteImageReference,
+    deleteSelection,
     deleteTable,
     documentPortRef,
     editorReady,
@@ -166,6 +183,7 @@ export function useAppEditorCommands() {
     onEditorReady,
     openSearch,
     paste,
+    prepareContextMenu,
     runFormat,
     redo,
     selectAll,
@@ -177,8 +195,16 @@ export function useAppEditorCommands() {
 }
 
 const unavailableEditorEditState: EditorEditState = {
+  canFormat: false,
+  canInsert: false,
+  canRedo: false,
+  canUndo: false,
   clipboardReadAvailable: false,
   clipboardWriteAvailable: false,
+  composing: false,
+  eligibleFindSelection: false,
   readOnly: true,
+  selectionCount: 1,
   selectionEmpty: true,
+  selectionLength: 0,
 };

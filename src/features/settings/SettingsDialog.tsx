@@ -236,9 +236,11 @@ export function SettingsDialog({
             <div className="lm-settings-page-container">
               <GeneralSettingsPage
                 autoCheckUpdates={autoCheckUpdates}
+                autosaveEnabled={autosaveEnabled}
                 clearRecentFilesOpen={clearConfirmOpen}
                 language={language}
                 onAutoCheckUpdatesChange={onAutoCheckUpdatesChange}
+                onAutosaveEnabledChange={onAutosaveEnabledChange}
                 onClearRecentFiles={onClearRecentFiles}
                 onClearRecentFilesEscape={closeClearRecentFilesDialog}
                 onClearRecentFilesOpenChange={(nextOpen) => {

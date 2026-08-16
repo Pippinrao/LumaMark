@@ -1,10 +1,10 @@
-import { history, undo, undoDepth } from '@codemirror/commands';
+import { history, insertNewlineAndIndent, undo, undoDepth } from '@codemirror/commands';
 import {
   Compartment,
   EditorSelection,
   EditorState,
 } from '@codemirror/state';
-import { type DecorationSet, EditorView } from '@codemirror/view';
+import { type DecorationSet, EditorView, runScopeHandlers } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '../../../shared/i18n';
 import { createEditorApi } from '../../core/editorApi';
@@ -13,6 +13,7 @@ import { readOnlyEditAttemptFacet } from '../../core/readOnlyEditAttempt';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
 import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
 import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
+import { createCodeBlockCapability } from '../code-block/createCodeBlockCapability';
 import type { AbsoluteMermaidBlock } from './mermaidBlockDetection';
 import {
   MermaidBlockWidget,
@@ -1860,6 +1861,66 @@ describe('mermaidPreviewExtension', () => {
     );
     expect(themedWidget).not.toBe(initialWidget);
     expect(themedWidget.estimatedHeight).toBe(300);
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('shows an empty placeholder instead of a render error for a blank mermaid fence', () => {
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockRejectedValue(new Error('should not render')),
+    });
+    const requestSpy = vi.spyOn(scheduler, 'request');
+    const { parent, view } = createView('```mermaid\n\n```', scheduler);
+
+    expect(requestSpy).not.toHaveBeenCalled();
+    expect(parent.querySelector('.lm-mermaid-preview-error')).toBeNull();
+    expect(parent.querySelector('[data-status="empty"]')?.textContent).toBe(
+      i18n.t('mermaid.emptyPreview'),
+    );
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('enters source editing when an empty mermaid fence is auto-closed', () => {
+    const scheduler = new MermaidRenderScheduler({
+      debounceMs: 0,
+      render: vi.fn().mockRejectedValue(new Error('should not render')),
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: '```mermaid',
+        extensions: [
+          markdownLanguage(),
+          history(),
+          createCodeBlockCapability().extensions,
+          mermaidPreviewExtension({ scheduler }),
+        ],
+        selection: EditorSelection.cursor('```mermaid'.length),
+      }),
+    });
+
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      code: 'Enter',
+      key: 'Enter',
+    });
+    expect(
+      runScopeHandlers(view, event, 'editor') || insertNewlineAndIndent(view),
+    ).toBe(true);
+
+    expect(view.state.doc.toString()).toBe('```mermaid\n\n```');
+    expect(activeMermaidBlock(view.state)).toEqual({
+      from: 0,
+      to: view.state.doc.length,
+    });
+    expect(parent.querySelector('.lm-mermaid-preview-editing')).not.toBeNull();
+    expect(parent.querySelector('.lm-mermaid-preview-error')).toBeNull();
 
     view.destroy();
     parent.remove();

@@ -713,6 +713,11 @@ button {
   outline: none;
 }
 
+.lm-recent-file-current {
+  background: color-mix(in srgb, var(--lm-color-accent) 16%, var(--lm-color-surface));
+  font-weight: 650;
+}
+
 .lm-recent-file svg {
   flex: 0 0 auto;
   color: var(--lm-color-text-muted);

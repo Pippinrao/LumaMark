@@ -305,6 +305,7 @@ export function useAppShellSlots(
                 recentFiles={model.recentFiles}
                 root={model.workspace.root}
                 selectedPath={model.currentFile?.path}
+                showStandaloneRecentFiles={model.showStandaloneRecentFiles}
                 tree={model.workspace.tree}
               />
             </FileTreeContextMenuHost>

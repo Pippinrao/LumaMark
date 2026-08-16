@@ -3,7 +3,7 @@ export type SettingsPageWidth = 'fluid' | 'narrow' | 'standard' | 'wide';
 export type SettingsLanguage = 'en' | 'zh-CN';
 export type SettingsOpenWindowMode = 'aggregateWindow' | 'multiWindow';
 export type SettingsStartupBehavior = 'home' | 'restoreLastSession';
-export type SettingsDisplayMode = 'livePreview' | 'source';
+export type SettingsDisplayMode = 'livePreview' | 'reading' | 'source';
 export type SettingsMathSyntaxMode = 'disabled' | 'legacy' | 'pandoc';
 export type SettingsEquationNumbering = 'all' | 'ams' | 'none';
 
@@ -108,6 +108,12 @@ const OPEN_WINDOW_MODES: readonly SettingsOpenWindowMode[] = [
   'aggregateWindow',
 ];
 
+const DISPLAY_MODES: readonly SettingsDisplayMode[] = [
+  'livePreview',
+  'reading',
+  'source',
+];
+
 const MATH_SYNTAX_MODES: readonly SettingsMathSyntaxMode[] = [
   'pandoc',
   'legacy',
@@ -208,7 +214,7 @@ export function normalizeLumaMarkSettings(
   );
   const defaultDisplayMode = normalizeEnum(
     editor.defaultDisplayMode,
-    ['livePreview', 'source'] as const,
+    DISPLAY_MODES,
     defaults.editor.defaultDisplayMode,
   );
   const fontZoom = normalizeFontZoom(appearance.fontZoomPercent);

@@ -99,7 +99,7 @@ export class PlantumlBlockWidget extends WidgetType {
     }
 
     this.geometry.mount(view, dom.wrapper);
-    this.requestPreviewRender(view, dom, this.block.content);
+    this.schedulePreviewRender(view, dom);
 
     return dom.wrapper;
   }
@@ -114,6 +114,44 @@ export class PlantumlBlockWidget extends WidgetType {
   // Pointer events stay on the widget so clicking the diagram cannot remap the caret onto the hidden fence.
   ignoreEvent(): boolean {
     return true;
+  }
+
+  private schedulePreviewRender(
+    view: EditorView,
+    dom: PlantumlWidgetDom,
+  ): void {
+    if (this.block.content.trim() === '') {
+      this.showEmptyPlaceholder(dom);
+      return;
+    }
+
+    const idleWindow = view.dom.ownerDocument.defaultView;
+    if (typeof idleWindow?.requestIdleCallback === 'function') {
+      this.cancelRender?.();
+      const idleId = idleWindow.requestIdleCallback(() => {
+        this.requestPreviewRender(view, dom, this.block.content);
+      }, { timeout: 200 });
+      this.cancelRender = () => {
+        idleWindow.cancelIdleCallback(idleId);
+      };
+      return;
+    }
+
+    this.requestPreviewRender(view, dom, this.block.content);
+  }
+
+  private showEmptyPlaceholder(dom: PlantumlWidgetDom): void {
+    this.cancelRender?.();
+    this.cancelRender = null;
+    this.renderedSvg = null;
+    dom.expand?.setAttribute('hidden', '');
+    dom.wrapper.classList.remove('lm-plantuml-preview-error');
+    dom.wrapper.dataset.status = 'empty';
+    dom.status.hidden = false;
+    dom.status.className = 'lm-plantuml-status';
+    dom.status.textContent = i18n.t('plantuml.emptyPreview');
+    dom.svgContainer.replaceChildren();
+    this.geometry.sync();
   }
 
   private requestPreviewRender(

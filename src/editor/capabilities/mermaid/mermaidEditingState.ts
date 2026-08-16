@@ -7,6 +7,9 @@ import {
   type Transaction,
 } from '@codemirror/state';
 import {
+  activeBlockFromEmptyFenceAutoClose,
+} from '../code-block/fenceAutoClose';
+import {
   collectMermaidBlocksInRanges,
   type AbsoluteMermaidBlock,
 } from './mermaidBlockDetection';
@@ -33,6 +36,13 @@ export const mermaidEditingStateField =
         if (effect.is(setActiveMermaidBlockEffect)) {
           next = effect.value;
         }
+      }
+
+      if (!next) {
+        next = activeBlockFromEmptyFenceAutoClose(
+          transaction,
+          findMermaidBlockAt,
+        );
       }
 
       if (!next || replacesWholeDocument(transaction)) {
@@ -125,6 +135,16 @@ function changesTouchBlock(
   });
 
   return touches;
+}
+
+function findMermaidBlockAt(
+  state: EditorState,
+  head: number,
+): AbsoluteMermaidBlock | null {
+  const from = Math.max(0, head - 1);
+  const to = Math.min(state.doc.length, head + 1);
+  return collectMermaidBlocksInRanges(state, [{ from, to }])
+    .find((block) => block.from <= head && head <= block.to) ?? null;
 }
 
 function findBlockOverlapping(

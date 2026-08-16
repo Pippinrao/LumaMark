@@ -310,6 +310,47 @@ async function inlinePoints(
   };
 }
 
+async function followingTextPoint(page: Page, text: string): Promise<Point> {
+  return page.evaluate((targetText) => {
+    const content = document.querySelector('.cm-content');
+    if (!content) {
+      throw new Error('Expected editor content.');
+    }
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!(node instanceof Text)) {
+        continue;
+      }
+      if (node.parentElement?.closest('.lm-md-inline-code')) {
+        continue;
+      }
+      const value = node.nodeValue ?? '';
+      const start = value.indexOf(targetText);
+      if (start < 0) {
+        continue;
+      }
+      const range = document.createRange();
+      const index = start + Math.floor(targetText.length / 2);
+      range.setStart(node, index);
+      range.setEnd(node, Math.min(node.length, index + 1));
+      const rect = range.getBoundingClientRect();
+      let x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const rightEdge = range.getBoundingClientRect().right
+        + (targetText.length - index) * Math.max(rect.width, 8);
+      while (x < rightEdge) {
+        const hit = document.elementFromPoint(x, y);
+        if (!hit?.closest('.lm-md-inline-code')) {
+          return { x, y };
+        }
+        x += 4;
+      }
+      return { x: rightEdge, y };
+    }
+    throw new Error(`Unable to locate following text: ${targetText}`);
+  }, text);
+}
+
 function inlineOwnerForSource(
   page: Page,
   source: string,
@@ -579,6 +620,37 @@ test('single clicks collapse repeatably across both inline-code owners and paddi
     }
   }
 });
+
+test('single click on text after inline code stays collapsed', async ({
+  page,
+}) => {
+  await expectCollapsedFollowingTextClick(page, '中间中文');
+});
+
+async function expectCollapsedFollowingTextClick(
+  page: Page,
+  following: '中间中文' | '后缀文字',
+): Promise<void> {
+  const editor = await openNewDocument(page);
+  await replaceSource(editor, page, inlineSource);
+  await expect(page.locator('.lm-md-inline-code')).toHaveCount(2);
+  await afterLayout(page);
+  await moveSelection(editor, 1);
+  await page.waitForTimeout(1000);
+
+  const followingFrom = inlineSource.indexOf(following);
+  const followingPoint = await followingTextPoint(page, following);
+  await page.mouse.click(followingPoint.x, followingPoint.y, { delay: 20 });
+  await afterLayout(page);
+
+  const state = await editorState(editor);
+  expect(state.selectedText, JSON.stringify({ following, state })).toBe('');
+  expect(state.anchor).toBe(state.head);
+  expect(state.head).toBeGreaterThanOrEqual(followingFrom);
+  expect(state.head).toBeLessThanOrEqual(followingFrom + following.length);
+  expect(state.source).toBe(inlineSource);
+  expect(await domSelection(page)).toEqual({ collapsed: true, text: '' });
+}
 
 test('system double clicks select only the intended inline-code word', async ({
   page,

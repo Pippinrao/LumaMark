@@ -225,13 +225,19 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
 
       private requestRender(inventory = this.inventory): void {
         const preferences = this.view.state.field(editorMathPreferencesField);
-        this.session.request({
-          documentId: options.documentId,
-          formulas: inventory.map(({ display, id, source }) => ({
+        const formulas = inventory
+          .filter((formula) => formula.source.trim() !== '')
+          .map(({ display, id, source }) => ({
             display,
             id,
             source,
-          })),
+          }));
+        if (formulas.length === 0) {
+          return;
+        }
+        this.session.request({
+          documentId: options.documentId,
+          formulas,
           layoutMetrics: currentLayoutMetrics(this.view),
           preferences: {
             numbering: preferences.equationNumbering,
@@ -336,6 +342,37 @@ function buildMathDecorations(
     const previous = snapshot.lastSuccessfulFormulas.get(formula.id);
     const chtml = current?.chtml ?? previous?.chtml;
     const error = current?.error ?? snapshot.error;
+
+    if (formula.source.trim() === '') {
+      if (!formula.display && active) {
+        continue;
+      }
+      const widgetOptions = {
+        activationOffset: formula.contentRanges[0]?.from !== undefined
+          ? formula.contentRanges[0].from - formula.from
+          : Math.min(2, Math.max(1, formula.to - formula.from - 1)),
+        chtml: '',
+        display: formula.display,
+        error: null,
+        formulaLength: formula.to - formula.from,
+        renderedAfterSource: formula.display && active,
+        source: formula.source,
+      };
+      if (formula.display) {
+        retainedGeometryKeys.push(mathFormulaGeometryKey(widgetOptions));
+      }
+      const widget = new MathFormulaWidget(widgetOptions, geometryCache);
+      ranges.push(
+        formula.display && active
+          ? Decoration.widget({ block: true, side: 1, widget }).range(formula.to)
+          : Decoration.replace({
+              block: formula.display,
+              inclusive: false,
+              widget,
+            }).range(formula.from, formula.to),
+      );
+      continue;
+    }
 
     if (!chtml) {
       if (error) {

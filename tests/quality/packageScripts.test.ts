@@ -189,7 +189,7 @@ describe('package quality scripts', () => {
     expect(acceptance).toContain('verify-installed-media-caret-os.mjs');
     expect(acceptance).toContain("'--write-win32-helper'");
     expect(acceptance).toContain('LUMAMARK_EXECUTABLE');
-    expect(acceptance).toContain('createPackagedWebviewEnvironment({');
+    expect(acceptance).toContain('createAcceptanceSettingsEnvironment({');
     expect(acceptance).toContain('app.pid');
     expect(acceptance).toContain("invokeWin32('Probe')");
     expect(acceptance).toContain("invokeWin32('Click'");

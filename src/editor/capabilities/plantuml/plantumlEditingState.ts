@@ -7,6 +7,9 @@ import {
   type Transaction,
 } from '@codemirror/state';
 import {
+  activeBlockFromEmptyFenceAutoClose,
+} from '../code-block/fenceAutoClose';
+import {
   collectPlantumlBlocksInRanges,
   type AbsolutePlantumlBlock,
 } from './plantumlBlockDetection';
@@ -33,6 +36,13 @@ export const plantumlEditingStateField =
         if (effect.is(setActivePlantumlBlockEffect)) {
           next = effect.value;
         }
+      }
+
+      if (!next) {
+        next = activeBlockFromEmptyFenceAutoClose(
+          transaction,
+          findPlantumlBlockAt,
+        );
       }
 
       if (!next || replacesWholeDocument(transaction)) {
@@ -125,6 +135,16 @@ function changesTouchBlock(
   });
 
   return touches;
+}
+
+function findPlantumlBlockAt(
+  state: EditorState,
+  head: number,
+): AbsolutePlantumlBlock | null {
+  const from = Math.max(0, head - 1);
+  const to = Math.min(state.doc.length, head + 1);
+  return collectPlantumlBlocksInRanges(state, [{ from, to }])
+    .find((block) => block.from <= head && head <= block.to) ?? null;
 }
 
 function findBlockOverlapping(

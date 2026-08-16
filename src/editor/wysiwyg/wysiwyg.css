@@ -94,7 +94,10 @@
   color: var(--lm-color-accent-strong);
   font-family: var(--lm-font-mono);
   font-size: 0.88em;
-  padding: 0.08em 0.34em;
+  /* Keep chrome inside the mark; margin separates adjacent glyphs so the
+     padding box cannot steal clicks on the following word. */
+  margin-inline: 0.2em;
+  padding: 0.08em 0.28em;
 }
 
 .cm-content .lm-md-link {

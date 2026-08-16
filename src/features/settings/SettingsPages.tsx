@@ -7,6 +7,7 @@ import {
   type SettingsEquationNumbering,
   type SettingsMathSyntaxMode,
   type SettingsOpenWindowMode,
+  type SettingsDisplayMode,
   type SettingsTheme,
 } from '../../services/settings/settingsTypes';
 import type { AppLanguage } from '../../shared/i18n';
@@ -22,13 +23,15 @@ import {
   ZoomStepper,
 } from './SettingsPrimitives';
 
-export type SettingsDisplayMode = 'livePreview' | 'source';
+export type { SettingsDisplayMode };
 
 type GeneralSettingsPageProps = {
   autoCheckUpdates: boolean;
+  autosaveEnabled: boolean;
   clearRecentFilesOpen: boolean;
   language: AppLanguage;
   onAutoCheckUpdatesChange: (autoCheckUpdates: boolean) => void;
+  onAutosaveEnabledChange: (autosaveEnabled: boolean) => void;
   onClearRecentFiles: () => void;
   onClearRecentFilesEscape: () => void;
   onClearRecentFilesOpenChange: (open: boolean) => void;
@@ -43,9 +46,11 @@ type GeneralSettingsPageProps = {
 
 export function GeneralSettingsPage({
   autoCheckUpdates,
+  autosaveEnabled,
   clearRecentFilesOpen,
   language,
   onAutoCheckUpdatesChange,
+  onAutosaveEnabledChange,
   onClearRecentFiles,
   onClearRecentFilesEscape,
   onClearRecentFilesOpenChange,
@@ -123,6 +128,12 @@ export function GeneralSettingsPage({
             value={openWindowMode}
           />
         </SettingRow>
+        <SettingsSwitch
+          checked={autosaveEnabled}
+          description={t('settings.autosaveEnabledDescription')}
+          label={t('settings.autosaveEnabled')}
+          onCheckedChange={onAutosaveEnabledChange}
+        />
         <SettingsSwitch
           checked={autoCheckUpdates}
           description={t('settings.autoCheckUpdatesDescription')}
@@ -320,6 +331,7 @@ export function EditorSettingsPage({
                 value: 'livePreview',
               },
               { label: t('settings.displaySource'), value: 'source' },
+              { label: t('settings.displayReading'), value: 'reading' },
             ]}
             value={defaultDisplayMode}
           />

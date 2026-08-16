@@ -1,5 +1,6 @@
 import { EditorSelection } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
+import { i18n } from '../../../shared/i18n';
 import {
   BlockWidgetGeometryCache,
   BlockWidgetGeometryTracker,
@@ -80,6 +81,14 @@ export class MathFormulaWidget extends WidgetType {
     const rendered = safeMathJaxContainer(this.options.chtml);
     if (rendered) {
       root.appendChild(rendered);
+    } else if (this.options.source.trim() === '' && !this.options.error) {
+      const placeholder = document.createElement(
+        this.options.display ? 'div' : 'span',
+      );
+      placeholder.className = 'lm-math-empty-placeholder';
+      placeholder.dataset.lmMathEmpty = '';
+      placeholder.textContent = i18n.t('math.emptyFormula');
+      root.appendChild(placeholder);
     }
 
     if (this.options.error) {

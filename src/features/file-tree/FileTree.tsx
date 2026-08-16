@@ -36,6 +36,7 @@ type FileTreeProps = {
   recentFiles?: readonly RecentFile[];
   root: WorkspaceDirectory | null;
   selectedPath?: string;
+  showStandaloneRecentFiles?: boolean;
   tree: WorkspaceTreeNode[];
 };
 
@@ -49,6 +50,7 @@ export function FileTree({
   recentFiles = [],
   root,
   selectedPath,
+  showStandaloneRecentFiles = false,
   tree,
 }: FileTreeProps) {
   const { t } = useTranslation();
@@ -179,7 +181,7 @@ export function FileTree({
         </button>
       </div>
 
-      {!root && singleFileName ? (
+      {!root && singleFileName && !showStandaloneRecentFiles ? (
         <div
           className="lm-single-file-sidebar"
           data-testid="single-file-sidebar"
@@ -189,7 +191,11 @@ export function FileTree({
           <span>{singleFileName}</span>
         </div>
       ) : (
-        <RecentFilesList files={recentFiles} onOpenFile={onOpenFile} />
+        <RecentFilesList
+          files={recentFiles}
+          onOpenFile={onOpenFile}
+          selectedPath={selectedPath}
+        />
       )}
 
       {root ? (

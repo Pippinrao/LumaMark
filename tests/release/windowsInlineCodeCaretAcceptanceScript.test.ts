@@ -46,6 +46,7 @@ describe.skipIf(process.platform !== 'win32')(
       expect(plan.source).toContain('`gamma_delta`');
       expect(plan.assertions).toEqual([
         'native single clicks place a collapsed caret at each inline-code midpoint',
+        'native single clicks on following text stay collapsed instead of selecting a word',
         'native system double clicks select only each inline-code word',
         'pointer gestures preserve Markdown source and clean document state',
       ]);
@@ -67,7 +68,7 @@ describe.skipIf(process.platform !== 'win32')(
         'node scripts/release/verify-installed-inline-code-caret-os.mjs',
       );
       expect(installerSmoke).toContain('verify-installed-inline-code-caret-os.mjs');
-      expect(script).toContain('createPackagedWebviewEnvironment');
+      expect(script).toContain('createAcceptanceSettingsEnvironment');
       expect(script).toContain('windows-window-chrome-probe.ps1');
       expect(script).toContain("runNativeProbe('Click'");
       expect(script).toContain("runNativeProbe('DoubleClick'");

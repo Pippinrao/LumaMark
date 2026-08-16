@@ -10,6 +10,7 @@ import type { EditorPageWidth } from '../../features/reading-appearance/readingA
 import type { StartupBehavior } from '../../features/startup/startupStore';
 import type { ThemeMode } from '../stores/appPreferencesStore';
 import type {
+  SettingsDisplayMode,
   SettingsEquationNumbering,
   SettingsMathSyntaxMode,
 } from '../../services/settings/settingsTypes';
@@ -114,7 +115,7 @@ export function useSettingsModel() {
   }, []);
 
   const setDefaultDisplayMode = useCallback(
-    (next: 'livePreview' | 'source') => {
+    (next: SettingsDisplayMode) => {
       patchSettings((current) => ({
         ...current,
         editor: { ...current.editor, defaultDisplayMode: next },
@@ -201,6 +202,8 @@ export function useSettingsModel() {
     settingsLoadState,
     settingsRecoveryState,
     settingsWriteState,
+    showStandaloneRecentFiles:
+      settings.general.openWindowMode === 'aggregateWindow',
     sidebarOpenOnStartup: settings.appearance.sidebarOpenOnStartup,
     startupBehavior,
     startupPersistenceError,

@@ -31,11 +31,10 @@ export function inlinePointerOwnerFromEvent(
   return { element, from, to };
 }
 
-export function inlinePointerPosition(
+export function unclampedInlinePointerPosition(
   view: EditorView,
-  owner: Pick<InlinePointerOwner, 'from' | 'to'>,
   coordinates: { x: number; y: number },
-): number {
+): number | null {
   const ownerDocument = view.dom.ownerDocument;
   const caretPosition = typeof ownerDocument.caretPositionFromPoint === 'function'
     ? ownerDocument.caretPositionFromPoint(coordinates.x, coordinates.y)
@@ -58,7 +57,35 @@ export function inlinePointerPosition(
   const domPosition = node && view.contentDOM.contains(node)
     ? view.posAtDOM(node, offset)
     : null;
-  const coordinatePosition = domPosition ?? view.posAtCoords(coordinates);
+  return domPosition ?? view.posAtCoords(coordinates);
+}
+
+export function resolveInlinePointerOwner(
+  event: MouseEvent,
+  view: EditorView,
+): InlinePointerOwner | null {
+  const owner = inlinePointerOwnerFromEvent(event);
+  if (!owner) {
+    return null;
+  }
+
+  const position = unclampedInlinePointerPosition(view, {
+    x: event.clientX,
+    y: event.clientY,
+  });
+  if (position !== null && (position < owner.from || position >= owner.to)) {
+    return null;
+  }
+
+  return owner;
+}
+
+export function inlinePointerPosition(
+  view: EditorView,
+  owner: Pick<InlinePointerOwner, 'from' | 'to'>,
+  coordinates: { x: number; y: number },
+): number {
+  const coordinatePosition = unclampedInlinePointerPosition(view, coordinates);
 
   return Math.max(
     owner.from + 1,

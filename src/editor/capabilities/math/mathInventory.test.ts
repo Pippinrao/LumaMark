@@ -103,4 +103,15 @@ describe('collectMathInventory', () => {
       collectMathInventory(state(doc)).map(({ id }) => id),
     );
   });
+
+  it('collects empty display formulas', () => {
+    const formulas = collectMathInventory(state('$$\n\n$$'));
+
+    expect(formulas).toEqual([
+      expect.objectContaining({
+        display: true,
+        source: expect.stringMatching(/^\s*$/),
+      }),
+    ]);
+  });
 });

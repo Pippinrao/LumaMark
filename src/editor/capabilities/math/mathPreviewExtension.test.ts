@@ -348,18 +348,12 @@ describe('mathPreviewExtension', () => {
     vi.useFakeTimers();
     const doc = ['$$', '$$', '', 'tail'].join('\n');
     const { parent, view, worker } = createView({ doc, selection: doc.length });
-    const request = await flushRender(worker);
-    worker.respond(result(request, [
-      {
-        chtml: '<mjx-container display="true"><mjx-math></mjx-math></mjx-container>',
-        id: 'math:block:0',
-        labels: [],
-      },
-    ]));
-    await vi.runAllTicks();
+    await vi.advanceTimersByTimeAsync(0);
 
+    expect(worker.messages).toEqual([]);
     const widget = parent.querySelector<HTMLElement>('[role="math"]');
     expect(widget).not.toBeNull();
+    expect(widget?.querySelector('[data-lm-math-empty]')).not.toBeNull();
     widget?.click();
 
     expect(view.state.selection.main.head).toBeGreaterThan(0);
@@ -634,6 +628,26 @@ describe('mathPreviewExtension', () => {
 
     expect(style?.textContent).toBe(rareStylesheet);
     expect(style?.textContent).toContain('mjx-ncm-b.woff2');
+
+    view.destroy();
+  });
+
+  it('renders a clickable placeholder for an empty formula without sending it to MathJax', async () => {
+    vi.useFakeTimers();
+    const { parent, view, worker } = createView({
+      doc: '$$\n\n$$',
+      selection: 0,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(worker.messages).toEqual([]);
+    const placeholder = parent.querySelector('[data-lm-math-empty]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.textContent).toBeTruthy();
+
+    placeholder?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(view.state.selection.main.head).toBeGreaterThan(0);
+    expect(view.state.selection.main.head).toBeLessThan(view.state.doc.length);
 
     view.destroy();
   });

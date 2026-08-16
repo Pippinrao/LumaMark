@@ -221,6 +221,36 @@ describe('FileTree', () => {
     expect(screen.queryByText('最近文件')).not.toBeInTheDocument();
   });
 
+  it('shows recent files with the current file selected in aggregate window mode', () => {
+    const onOpenFile = vi.fn();
+    render(
+      <I18nProvider>
+        <FileTree
+          loadingPaths={{}}
+          onLoadChildren={vi.fn()}
+          onOpenFile={onOpenFile}
+          onOpenWorkspace={vi.fn()}
+          recentFiles={[
+            { name: 'first.md', openedAt: 1, path: 'E:/notes/first.md' },
+            { name: 'standalone.md', openedAt: 2, path: 'E:/notes/standalone.md' },
+          ]}
+          root={null}
+          selectedPath="E:/notes/standalone.md"
+          showStandaloneRecentFiles
+          tree={[]}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.queryByTestId('single-file-sidebar')).not.toBeInTheDocument();
+    expect(screen.getByText('最近文件')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /standalone\.md/ }),
+    ).toHaveAttribute('aria-current', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /first\.md/ }));
+    expect(onOpenFile).toHaveBeenCalledWith('E:/notes/first.md');
+  });
+
   it('only resolves context targets for the workspace root and real tree rows', () => {
     const onContextMenuTarget = vi.fn();
 

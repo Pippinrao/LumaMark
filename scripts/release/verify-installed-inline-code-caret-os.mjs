@@ -26,8 +26,12 @@ const SOURCE = [
   '前缀文本 `alphaBeta` 中间中文 `gamma_delta` 后缀文字',
 ].join('\n');
 const WORDS = ['alphaBeta', 'gamma_delta'];
+const FOLLOWING_TEXT = [
+  { word: 'alphaBeta', text: '中间中文' },
+];
 const ASSERTIONS = [
   'native single clicks place a collapsed caret at each inline-code midpoint',
+  'native single clicks on following text stay collapsed instead of selecting a word',
   'native system double clicks select only each inline-code word',
   'pointer gestures preserve Markdown source and clean document state',
 ];
@@ -214,6 +218,55 @@ async function runAcceptance() {
         target,
         targetVerifiedBeforeInput: true,
         word,
+      });
+    }
+
+    for (const { word, text } of FOLLOWING_TEXT) {
+      const otherWord = WORDS.find((candidate) => candidate !== word);
+      await establishNativeCaret(page, runNativeProbe, otherWord, app.pid);
+      await delay(600);
+      const following = await readFollowingTextPoint(page, text);
+      await clearObservedEvents(page);
+      const followingPoint = await toNativePoint(
+        page,
+        runNativeProbe,
+        following.point,
+        app.pid,
+      );
+      const followingClick = runNativeProbe('Click', {
+        X: followingPoint.x,
+        Y: followingPoint.y,
+      });
+      assertExactChild(followingClick, app.pid);
+      await waitForCollapsedSelectionInside(
+        page,
+        following.from,
+        following.to,
+      );
+      const final = await readObservation(page);
+      if (!final.selection || final.selectedSource !== '' || final.domSelectedText !== '') {
+        throw new Error(
+          `${text} following-text click selected a word: ${JSON.stringify(final)}`,
+        );
+      }
+      if (
+        final.selection.head < following.from ||
+        final.selection.head > following.to
+      ) {
+        throw new Error(
+          `${text} following-text click jumped away: ${JSON.stringify(final)}`,
+        );
+      }
+      assertCleanSource(final, `${text} following-text click`);
+      evidence.gestures.push({
+        events: await readObservedEvents(page),
+        final,
+        kind: 'following-text-click',
+        nativePoint: followingPoint,
+        nativeResult: followingClick,
+        target: following,
+        targetVerifiedBeforeInput: true,
+        word: text,
       });
     }
 
@@ -454,6 +507,50 @@ async function readInlineCodeMidpoint(page, word) {
       word: targetWord,
     };
   }, word);
+}
+
+async function readFollowingTextPoint(page, targetText) {
+  return page.evaluate((text) => {
+    const content = document.querySelector(
+      '.lm-editor-live-preview-mode .cm-content',
+    );
+    const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
+    if (!view) throw new Error('Unable to resolve live-preview EditorView.');
+    const source = view.state.doc.toString();
+    const from = source.indexOf(text);
+    if (from < 0) throw new Error(`Missing following text: ${text}`);
+    const to = from + text.length;
+    const walker = document.createTreeWalker(view.contentDOM, NodeFilter.SHOW_TEXT);
+    let textNode = null;
+    let wordOffset = -1;
+    while (walker.nextNode()) {
+      const candidate = walker.currentNode;
+      const parent = candidate.parentElement;
+      if (parent?.closest('[data-lm-inline-owner-from]')) continue;
+      const offset = candidate.data.indexOf(text);
+      if (offset >= 0) {
+        textNode = candidate;
+        wordOffset = offset;
+        break;
+      }
+    }
+    if (!textNode) throw new Error(`Missing visible following text: ${text}`);
+    const characterIndex = Math.floor(text.length / 2);
+    const range = document.createRange();
+    range.setStart(textNode, wordOffset + characterIndex);
+    range.setEnd(textNode, wordOffset + characterIndex + 1);
+    const characterRect = range.getBoundingClientRect();
+    const point = {
+      x: characterRect.left + characterRect.width * 0.25,
+      y: characterRect.top + characterRect.height / 2,
+    };
+    return {
+      from,
+      point,
+      to,
+      word: text,
+    };
+  }, targetText);
 }
 
 async function toNativePoint(page, runNativeProbe, cssPoint, expectedPid) {

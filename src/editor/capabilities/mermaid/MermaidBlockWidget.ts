@@ -103,7 +103,7 @@ export class MermaidBlockWidget extends WidgetType {
     }
 
     this.geometry.mount(view, dom.wrapper);
-    this.requestPreviewRender(view, dom, this.block.content);
+    this.schedulePreviewRender(view, dom);
 
     return dom.wrapper;
   }
@@ -117,6 +117,44 @@ export class MermaidBlockWidget extends WidgetType {
 
   ignoreEvent(): boolean {
     return false;
+  }
+
+  private schedulePreviewRender(
+    view: EditorView,
+    dom: MermaidWidgetDom,
+  ): void {
+    if (this.block.content.trim() === '') {
+      this.showEmptyPlaceholder(dom);
+      return;
+    }
+
+    const idleWindow = view.dom.ownerDocument.defaultView;
+    if (typeof idleWindow?.requestIdleCallback === 'function') {
+      this.cancelRender?.();
+      const idleId = idleWindow.requestIdleCallback(() => {
+        this.requestPreviewRender(view, dom, this.block.content);
+      }, { timeout: 200 });
+      this.cancelRender = () => {
+        idleWindow.cancelIdleCallback(idleId);
+      };
+      return;
+    }
+
+    this.requestPreviewRender(view, dom, this.block.content);
+  }
+
+  private showEmptyPlaceholder(dom: MermaidWidgetDom): void {
+    this.cancelRender?.();
+    this.cancelRender = null;
+    this.renderedSvg = null;
+    dom.expand?.setAttribute('hidden', '');
+    dom.wrapper.classList.remove('lm-mermaid-preview-error');
+    dom.wrapper.dataset.status = 'empty';
+    dom.status.hidden = false;
+    dom.status.className = 'lm-mermaid-status';
+    dom.status.textContent = i18n.t('mermaid.emptyPreview');
+    dom.svgContainer.replaceChildren();
+    this.geometry.sync();
   }
 
   private requestPreviewRender(

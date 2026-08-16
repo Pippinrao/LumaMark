@@ -5,7 +5,32 @@
 
 .lm-math-inline-render {
   display: inline-block;
+  min-height: 1.25em;
+  min-width: 1.25em;
   vertical-align: baseline;
+}
+
+.lm-math-empty-placeholder {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5em;
+  min-height: 1.25em;
+  margin: 0;
+  padding: 0 0.4em;
+  border: 1px dashed var(--lm-color-border-subtle, #c8c8c8);
+  border-radius: 4px;
+  color: var(--lm-color-text-muted, #6b6b6b);
+  font-family: var(--lm-font-sans, sans-serif);
+  font-size: 0.85em;
+  line-height: 1.25;
+}
+
+.lm-math-block-render > .lm-math-empty-placeholder {
+  display: flex;
+  min-height: 2em;
+  width: 100%;
 }
 
 .lm-math-block-render {

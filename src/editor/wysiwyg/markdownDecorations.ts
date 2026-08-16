@@ -41,6 +41,8 @@ import {
   INLINE_OWNER_TO_ATTRIBUTE,
   inlinePointerOwnerFromEvent,
   inlinePointerPosition,
+  resolveInlinePointerOwner,
+  unclampedInlinePointerPosition,
 } from './inlinePointerSelection';
 import './wysiwyg.css';
 
@@ -1138,7 +1140,7 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
       this.wasComposing = compositionStarted;
     }
 
-    beginPointerSelection(event: MouseEvent, view: EditorView): void {
+    beginPointerSelection(event: MouseEvent, view: EditorView): boolean {
       this.beginGesture(view);
       this.inlinePointerCandidate = null;
 
@@ -1148,29 +1150,34 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
         event.ctrlKey ||
         event.metaKey ||
         event.shiftKey ||
-        (event.detail !== 1 && event.detail !== 2)
+        event.detail < 1
       ) {
         this.lastInlinePointerCandidate = null;
-        return;
+        return false;
       }
 
-      const owner = inlinePointerOwnerFromEvent(event);
-      if (!owner) {
-        this.lastInlinePointerCandidate = null;
-        return;
-      }
-      const { from, to } = owner;
+      const closest = inlinePointerOwnerFromEvent(event);
+      const unclamped = unclampedInlinePointerPosition(view, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      const owner = resolveInlinePointerOwner(event, view);
+      const from = owner?.from;
+      const to = owner?.to;
+      const overflowHit = !owner && closest !== null && unclamped !== null;
 
-      if (event.detail === 2) {
+      if (event.detail >= 2) {
         // The first settlement may reveal delimiters and move this fixed
         // screen point. Keep the first rendered hit as the double-click word
         // anchor when the browser classifies the next press as the same
-        // owner's double-click. The current press coordinates remain the drag
-        // guard for its matching mouseup.
+        // owner's double-click. A leaked OS double-click that lands in the
+        // following text must stay a collapsed caret, even when chip padding
+        // still owns the DOM hit target.
         const previous = this.lastInlinePointerCandidate;
         this.lastInlinePointerCandidate = null;
         if (
           previous &&
+          owner &&
           previous.from === from &&
           previous.to === to
         ) {
@@ -1180,23 +1187,54 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
             x: event.clientX,
             y: event.clientY,
           };
+          return true;
         }
-        return;
+        if (previous || overflowHit) {
+          this.inlinePointerCandidate = {
+            from: 0,
+            intent: 'caret',
+            position: unclamped ?? view.state.selection.main.head,
+            to: view.state.doc.length,
+            x: event.clientX,
+            y: event.clientY,
+          };
+          return true;
+        }
+        return false;
+      }
+
+      if (owner && from !== undefined && to !== undefined) {
+        this.lastInlinePointerCandidate = null;
+        this.inlinePointerCandidate = {
+          from,
+          intent: 'caret',
+          position: inlinePointerPosition(
+            view,
+            owner,
+            { x: event.clientX, y: event.clientY },
+          ),
+          to,
+          x: event.clientX,
+          y: event.clientY,
+        };
+        return true;
+      }
+
+      if (overflowHit) {
+        this.lastInlinePointerCandidate = null;
+        this.inlinePointerCandidate = {
+          from: 0,
+          intent: 'caret',
+          position: unclamped,
+          to: view.state.doc.length,
+          x: event.clientX,
+          y: event.clientY,
+        };
+        return true;
       }
 
       this.lastInlinePointerCandidate = null;
-      this.inlinePointerCandidate = {
-        from,
-        intent: 'caret',
-        position: inlinePointerPosition(
-          view,
-          owner,
-          { x: event.clientX, y: event.clientY },
-        ),
-        to,
-        x: event.clientX,
-        y: event.clientY,
-      };
+      return false;
     }
 
     beginTouchSelection(view: EditorView): void {
@@ -1312,10 +1350,16 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
   },
   {
     decorations: (plugin) => plugin.decorations,
-    eventObservers: {
+    eventHandlers: {
       mousedown(event, view) {
-        this.beginPointerSelection(event, view);
+        const handled = this.beginPointerSelection(event, view);
+        if (handled) {
+          event.preventDefault();
+        }
+        return handled;
       },
+    },
+    eventObservers: {
       touchstart(_event, view) {
         this.beginTouchSelection(view);
       },

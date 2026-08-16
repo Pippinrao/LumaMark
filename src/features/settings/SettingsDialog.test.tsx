@@ -111,7 +111,9 @@ describe('SettingsDialog', () => {
     ).toBeChecked();
 
     fireEvent.click(
-      screen.getByRole('radio', { name: 'Reuse one application window' }),
+      screen.getByRole('radio', {
+        name: 'Reuse one application window and show recent files in the sidebar',
+      }),
     );
 
     expect(
@@ -347,6 +349,10 @@ describe('SettingsDialog', () => {
     );
     expect(onDefaultDisplayModeChange).toHaveBeenCalledTimes(1);
     expect(onDefaultDisplayModeChange).toHaveBeenCalledWith('source');
+    fireEvent.click(
+      within(displayModeGroup).getByRole('radio', { name: 'Reading mode' }),
+    );
+    expect(onDefaultDisplayModeChange).toHaveBeenCalledWith('reading');
 
     const mathSyntaxGroup = screen.getByRole('radiogroup', {
       name: 'Inline math syntax',
@@ -807,13 +813,21 @@ describe('SettingsDialog', () => {
       onAutosaveEnabledChange,
     });
 
+    const generalAutosave = screen.getByRole('switch', {
+      name: 'Automatically save documents while editing',
+    });
+    expect(generalAutosave).not.toBeChecked();
+    fireEvent.click(generalAutosave);
+    expect(onAutosaveEnabledChange).toHaveBeenCalledWith(true);
+
     activateTab('Editor');
     const autosave = screen.getByRole('switch', {
       name: 'Automatically save documents while editing',
     });
     expect(autosave).not.toBeChecked();
     fireEvent.click(autosave);
-    expect(onAutosaveEnabledChange).toHaveBeenCalledWith(true);
+    expect(onAutosaveEnabledChange).toHaveBeenCalledTimes(2);
+    expect(onAutosaveEnabledChange).toHaveBeenLastCalledWith(true);
   });
 
   it('exposes a trash section for restore, preview, and permanent delete', () => {

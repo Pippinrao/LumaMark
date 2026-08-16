@@ -3,7 +3,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::errors::AppError;
-use crate::services::file_service::normalize_path;
+use crate::services::file_service::{normalize_path, read_text};
+use crate::services::trash_service::{TrashArchiveRequest, TrashReason, TrashService};
 use crate::services::workspace_service::{
     display_name_for_entry, is_markdown_file_path, path_to_string_for_entry, WorkspaceEntry,
     WorkspaceEntryKind,
@@ -96,6 +97,66 @@ pub fn delete_entry<T: TrashMover>(
     }
     entry_from_path(&target)?;
     trash.move_to_trash(&target)?;
+    Ok(())
+}
+
+pub fn delete_entry_with_app_archive<T: TrashMover>(
+    workspace_root: impl AsRef<Path>,
+    path: impl AsRef<Path>,
+    os_trash: &T,
+    app_trash: &TrashService,
+    created_at_ms: u64,
+) -> Result<(), AppError> {
+    let root = authorize_workspace_root(workspace_root.as_ref())?;
+    let target = authorize_existing_entry(&root, path.as_ref())?;
+    if existing_paths_are_same(&target, &root)? {
+        return Err(AppError::invalid_path());
+    }
+    entry_from_path(&target)?;
+    archive_markdown_targets(&target, app_trash, created_at_ms)?;
+    os_trash.move_to_trash(&target)?;
+    Ok(())
+}
+
+fn archive_markdown_targets(
+    target: &Path,
+    app_trash: &TrashService,
+    created_at_ms: u64,
+) -> Result<(), AppError> {
+    for file in collect_markdown_files(target)? {
+        let text = read_text(&file)?.text;
+        app_trash.archive(TrashArchiveRequest {
+            created_at_ms,
+            reason: TrashReason::Delete,
+            source_path: Some(path_to_string_for_entry(&file)?),
+            text,
+        })?;
+    }
+    Ok(())
+}
+
+fn collect_markdown_files(path: &Path) -> Result<Vec<PathBuf>, AppError> {
+    let mut files = Vec::new();
+    collect_markdown_files_into(path, &mut files)?;
+    Ok(files)
+}
+
+fn collect_markdown_files_into(
+    path: &Path,
+    files: &mut Vec<PathBuf>,
+) -> Result<(), AppError> {
+    let metadata = fs::metadata(path)?;
+    if metadata.is_file() {
+        if is_markdown_file_path(path) {
+            files.push(path.to_path_buf());
+        }
+        return Ok(());
+    }
+    if metadata.is_dir() {
+        for entry in fs::read_dir(path)? {
+            collect_markdown_files_into(&entry?.path(), files)?;
+        }
+    }
     Ok(())
 }
 
@@ -482,6 +543,73 @@ mod tests {
         );
         assert!(!file.exists());
         fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn delete_markdown_file_archives_into_app_trash_before_os_recycle_bin() {
+        let root = unique_test_dir("delete-archive");
+        let trash_root = unique_test_dir("delete-archive-trash");
+        let file = root.join("gone.md");
+        fs::write(&file, "\u{feff}# 标题\r\n").expect("write");
+        let app_trash = crate::services::trash_service::TrashService::open(
+            trash_root.join("trash"),
+            crate::services::trash_service::TrashLimits {
+                max_entries: 10,
+                max_total_bytes: 10_000,
+            },
+        )
+        .expect("open trash");
+        let os_trash = RecordingTrash {
+            calls: RefCell::new(Vec::new()),
+            fail: false,
+        };
+
+        delete_entry_with_app_archive(&root, &file, &os_trash, &app_trash, 1_700_000_000_000)
+            .expect("delete should succeed");
+
+        assert_eq!(
+            os_trash.calls.borrow().as_slice(),
+            [normalize_path(&file).unwrap()]
+        );
+        assert!(!file.exists());
+        let entries = app_trash.list().expect("list");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].reason,
+            crate::services::trash_service::TrashReason::Delete
+        );
+        let restored = app_trash.read(&entries[0].id).expect("read");
+        assert_eq!(restored.text, "\u{feff}# 标题\r\n");
+        fs::remove_dir_all(root).expect("cleanup");
+        fs::remove_dir_all(trash_root).expect("cleanup");
+    }
+
+    #[test]
+    fn delete_does_not_os_trash_when_archive_fails() {
+        let root = unique_test_dir("delete-archive-fail");
+        let trash_root = unique_test_dir("delete-archive-fail-trash");
+        let file = root.join("huge.md");
+        fs::write(&file, "too-big").expect("write");
+        let app_trash = crate::services::trash_service::TrashService::open(
+            trash_root.join("trash"),
+            crate::services::trash_service::TrashLimits {
+                max_entries: 1,
+                max_total_bytes: 3,
+            },
+        )
+        .expect("open trash");
+        let os_trash = RecordingTrash {
+            calls: RefCell::new(Vec::new()),
+            fail: false,
+        };
+
+        let error = delete_entry_with_app_archive(&root, &file, &os_trash, &app_trash, 1)
+            .expect_err("archive should fail");
+        assert_eq!(error.code, "trash.item_too_large");
+        assert!(file.exists());
+        assert!(os_trash.calls.borrow().is_empty());
+        fs::remove_dir_all(root).expect("cleanup");
+        fs::remove_dir_all(trash_root).expect("cleanup");
     }
 
     #[test]

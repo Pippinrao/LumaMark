@@ -17,6 +17,7 @@ import { markdownLanguage } from '../markdown/markdownLanguage';
 import {
   inlinePointerOwnerFromEvent,
   inlinePointerPosition,
+  resolveInlinePointerOwner,
 } from './inlinePointerSelection';
 import { markdownWysiwygExtension } from './markdownDecorations';
 
@@ -322,6 +323,188 @@ describe('inline pointer selection', () => {
       parent.remove();
     }
   });
+
+  it('does not claim a following-text caret that only grazes inline-code padding', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = 'before `alphaBeta` after';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: source,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      }),
+    });
+    const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'caretPositionFromPoint',
+    );
+
+    try {
+      const owner = parent.querySelector<HTMLElement>('.lm-md-inline-code');
+      const afterNode = [...parent.querySelectorAll('.cm-line')]
+        .flatMap((element) => [...element.childNodes])
+        .find((node) => node.nodeValue?.includes('after'));
+      expect(owner).toBeTruthy();
+      expect(afterNode).toBeTruthy();
+      Object.defineProperty(document, 'caretPositionFromPoint', {
+        configurable: true,
+        value: vi.fn(() => ({
+          getClientRect: () => new DOMRect(),
+          offset: 0,
+          offsetNode: afterNode!,
+        })),
+      });
+
+      let resolved: ReturnType<typeof resolveInlinePointerOwner> = null;
+      owner!.addEventListener('mousedown', (event) => {
+        resolved = resolveInlinePointerOwner(event, view);
+      });
+      owner!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+      expect(resolved).toBeNull();
+    } finally {
+      restoreProperty(
+        document,
+        'caretPositionFromPoint',
+        caretPositionDescriptor,
+      );
+      view.destroy();
+      parent.remove();
+    }
+  });
+
+  it('places a collapsed caret in following text when chip padding intercepts the hit', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = 'before `alphaBeta` after';
+    const to = source.lastIndexOf('`') + 1;
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: source,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      }),
+    });
+    const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'caretPositionFromPoint',
+    );
+
+    try {
+      const owner = parent.querySelector<HTMLElement>('.lm-md-inline-code');
+      const afterNode = [...parent.querySelectorAll('.cm-line')]
+        .flatMap((element) => [...element.childNodes])
+        .find((node) => node.nodeValue?.includes('after'));
+      expect(owner).toBeTruthy();
+      expect(afterNode).toBeTruthy();
+      Object.defineProperty(document, 'caretPositionFromPoint', {
+        configurable: true,
+        value: vi.fn(() => ({
+          getClientRect: () => new DOMRect(),
+          offset: 0,
+          offsetNode: afterNode!,
+        })),
+      });
+
+      dispatchMouseGestureOn(owner!, 140, 20, 1);
+      await Promise.resolve();
+
+      expect(view.state.selection.main.empty).toBe(true);
+      expect(view.state.selection.main.head).toBeGreaterThanOrEqual(to);
+      expect(view.state.sliceDoc(
+        view.state.selection.main.from,
+        view.state.selection.main.to,
+      )).toBe('');
+
+      dispatchMouseGestureOn(owner!, 140, 20, 3);
+      await Promise.resolve();
+      expect(view.state.selection.main.empty).toBe(true);
+      expect(view.state.sliceDoc(
+        view.state.selection.main.from,
+        view.state.selection.main.to,
+      )).toBe('');
+    } finally {
+      restoreProperty(
+        document,
+        'caretPositionFromPoint',
+        caretPositionDescriptor,
+      );
+      view.destroy();
+      parent.remove();
+    }
+  });
+
+  it('single-clicks the following word instead of selecting it after an inline-code press', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = 'before `alphaBeta` after';
+    const from = source.indexOf('`');
+    const to = source.lastIndexOf('`') + 1;
+    const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'caretPositionFromPoint',
+    );
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: source,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      }),
+    });
+
+    try {
+      const owner = parent.querySelector<HTMLElement>('.lm-md-inline-code');
+      const textNode = [...(owner?.childNodes ?? [])].find(
+        (node) => node.nodeValue === 'alphaBeta',
+      );
+      const afterNode = [...parent.querySelectorAll('.cm-line')]
+        .flatMap((element) => [...element.childNodes])
+        .find((node) => node.nodeValue?.includes('after'));
+      expect(textNode).toBeTruthy();
+      expect(afterNode).toBeTruthy();
+      Object.defineProperty(document, 'caretPositionFromPoint', {
+        configurable: true,
+        value: vi.fn(() => ({
+          getClientRect: () => new DOMRect(),
+          offset: 4,
+          offsetNode: textNode!,
+        })),
+      });
+
+      dispatchMouseGestureOn(owner!, 100, 20, 1);
+      await Promise.resolve();
+      expect(view.state.selection.main.empty).toBe(true);
+      expect(view.state.selection.main.head).toBeGreaterThan(from);
+      expect(view.state.selection.main.head).toBeLessThan(to);
+
+      Object.defineProperty(document, 'caretPositionFromPoint', {
+        configurable: true,
+        value: vi.fn(() => ({
+          getClientRect: () => new DOMRect(),
+          offset: 0,
+          offsetNode: afterNode!,
+        })),
+      });
+      dispatchMouseGestureOn(afterNode!.parentElement ?? parent, 140, 20, 2);
+      await Promise.resolve();
+
+      expect(view.state.selection.main.empty).toBe(true);
+      expect(view.state.sliceDoc(
+        view.state.selection.main.from,
+        view.state.selection.main.to,
+      )).toBe('');
+      expect(view.state.selection.main.head).toBeGreaterThanOrEqual(to);
+    } finally {
+      restoreProperty(
+        document,
+        'caretPositionFromPoint',
+        caretPositionDescriptor,
+      );
+      view.destroy();
+      parent.remove();
+    }
+  });
 });
 
 function dispatchMouseGesture(
@@ -336,7 +519,25 @@ function dispatchMouseGesture(
   if (!owner) {
     throw new Error('Expected inline-code owner.');
   }
-  owner.dispatchEvent(new MouseEvent('mousedown', {
+  dispatchMouseGestureOn(
+    owner,
+    clientX,
+    clientY,
+    detail,
+    mouseUpClientX,
+    mouseUpClientY,
+  );
+}
+
+function dispatchMouseGestureOn(
+  target: EventTarget,
+  clientX: number,
+  clientY: number,
+  detail: number,
+  mouseUpClientX = clientX,
+  mouseUpClientY = clientY,
+): void {
+  target.dispatchEvent(new MouseEvent('mousedown', {
     bubbles: true,
     button: 0,
     clientX,

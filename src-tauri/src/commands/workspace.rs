@@ -4,8 +4,9 @@ use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::errors::AppError;
+use crate::services::trash_service::TrashService;
 use crate::services::workspace_mutation_service::{
-    create_directory, create_file, delete_entry, rename_entry, OsTrashMover,
+    create_directory, create_file, delete_entry_with_app_archive, rename_entry, OsTrashMover,
 };
 use crate::services::workspace_service::{
     list_children, open_directory, WorkspaceDirectory, WorkspaceEntry,
@@ -80,9 +81,26 @@ pub fn workspace_delete_entry(
     workspace_root: String,
     path: String,
     workspace_session: State<'_, WorkspaceSession>,
+    trash_service: State<'_, TrashService>,
 ) -> Result<(), AppError> {
     let active_root = workspace_session.authorize_claimed_root(Path::new(&workspace_root))?;
-    delete_entry(active_root.path(), Path::new(&path), &OsTrashMover)
+    let created_at_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| {
+            AppError::new(
+                "trash.clock_unavailable",
+                "The system clock is unavailable.",
+                true,
+            )
+        })?
+        .as_millis() as u64;
+    delete_entry_with_app_archive(
+        active_root.path(),
+        Path::new(&path),
+        &OsTrashMover,
+        trash_service.inner(),
+        created_at_ms,
+    )
 }
 
 fn open_workspace_path_and_activate(

@@ -24,7 +24,6 @@ describe('PlantUML preview pointer ownership', () => {
       'default',
     );
 
-    expect(widget.ignoreEvent(new MouseEvent('mousedown'))).toBe(true);
-    expect(widget.ignoreEvent(new MouseEvent('click'))).toBe(true);
+    expect(widget.ignoreEvent()).toBe(true);
   });
 });

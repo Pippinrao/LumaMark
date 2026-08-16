@@ -191,6 +191,16 @@ describe('settings v3 contract', () => {
     expect(result.settings.general.openWindowMode).toBe('multiWindow');
   });
 
+  it('accepts reading as a default display mode', () => {
+    const raw = createRawSettings();
+    (raw.editor as Record<string, unknown>).defaultDisplayMode = 'reading';
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(false);
+    expect(result.settings.editor.defaultDisplayMode).toBe('reading');
+  });
+
   it.each([undefined, 0, 1, 2])(
     'supplies and marks a missing open-window mode for settings version %s',
     (version) => {

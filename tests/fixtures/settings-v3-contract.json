@@ -38,7 +38,7 @@
   "allowedEnums": {
     "appearance.pageWidth": ["narrow", "standard", "wide", "fluid"],
     "appearance.theme": ["light", "dark", "system"],
-    "editor.defaultDisplayMode": ["livePreview", "source"],
+    "editor.defaultDisplayMode": ["livePreview", "reading", "source"],
     "general.language": ["zh-CN", "en"],
     "general.openWindowMode": ["multiWindow", "aggregateWindow"],
     "general.startupBehavior": ["home", "restoreLastSession"]

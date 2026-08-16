@@ -5,6 +5,7 @@
   font-family: var(--lm-font-mono);
   font-feature-settings: "liga" 1, "calt" 1;
   font-weight: 450;
+  isolation: isolate;
   padding-inline: var(--lm-space-3);
   position: relative;
   tab-size: 4;
@@ -54,6 +55,16 @@
     inset 0 1px 0 var(--lm-code-block-current-border),
     inset 0 -1px 0 var(--lm-code-block-current-border);
   inset-block: 25%;
+}
+
+.cm-content .lm-md-code-block-start:not(:has(.lm-md-source-mark-block)),
+.cm-content .lm-md-code-block-end:not(:has(.lm-md-source-mark-block)) {
+  color: transparent;
+}
+
+.cm-content .lm-md-code-block-start:not(:has(.lm-md-source-mark-block))::before,
+.cm-content .lm-md-code-block-end:not(:has(.lm-md-source-mark-block))::before {
+  z-index: 1;
 }
 
 .cm-editor.cm-focused .cm-content .lm-md-code-block-active {

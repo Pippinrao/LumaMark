@@ -39,6 +39,14 @@ const requiredTags = [
   'mermaid:requirementDiagram',
   'mermaid:error',
   'mermaid:source-fidelity-only',
+  'math:inline',
+  'math:block',
+  'math:nested-container',
+  'math:ams-reference',
+  'math:macro',
+  'math:mhchem',
+  'math:physics',
+  'math:source-fidelity-only',
 ] as const;
 
 describe('markdown fixture coverage manifest', () => {

@@ -506,6 +506,7 @@ export function createEditorCommandPort(
 const INSERT_COMMANDS = new Set<MarkdownFormatCommand>([
   'horizontalRule',
   'image',
+  'math',
   'table',
 ]);
 

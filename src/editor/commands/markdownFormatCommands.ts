@@ -18,6 +18,7 @@ export type MarkdownFormatCommand =
   | 'inlineCode'
   | 'italic'
   | 'link'
+  | 'math'
   | 'orderedList'
   | 'paragraph'
   | 'quote'
@@ -80,6 +81,8 @@ export function applyMarkdownFormatCommand(
       return createEditorCapabilityCommands(view).wrapCodeBlock();
     case 'table':
       return createEditorCapabilityCommands(view).insertTable();
+    case 'math':
+      return createEditorCapabilityCommands(view).insertMathBlock();
   }
 }
 

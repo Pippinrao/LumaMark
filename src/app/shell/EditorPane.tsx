@@ -8,7 +8,6 @@ import {
 } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { EditorApi } from '../../editor/core/editorApi';
-import type { EditorCommandPort } from '../../editor/commands/editorCommandPort';
 import type {
   EditorAppearance,
   EditorZoomRequestedHandler,
@@ -29,8 +28,10 @@ import {
   type EditorContextTarget,
 } from '../../editor/interaction';
 import type { AppLanguage } from '../../shared/i18n';
+import type { EditorMathPreferences } from '../../editor/capabilities/math/mathPreferences';
 import { ContextMenuSurface } from './ContextMenuSurface';
 import type {
+  EditorPaneContextMenuHandlers,
   ShellMenuInvocation,
   ShellMenuNode,
 } from './shellTypes';
@@ -45,7 +46,7 @@ type EditorPaneProps = {
   accessibleTitle: string;
   appearance: EditorAppearance;
   ariaLabel: string;
-  closeContextMenu: EditorCommandPort['closeContextMenu'];
+  closeContextMenu: EditorPaneContextMenuHandlers['closeContextMenu'];
   getContextMenuNodes: (target: EditorContextTarget) => ShellMenuNode[];
   onDocumentChanged: EditorDocumentChangedHandler;
   onEditorReady: (editor: EditorApi) => void;
@@ -54,11 +55,12 @@ type EditorPaneProps = {
   onZoomRequested: EditorZoomRequestedHandler;
   onMediaPreviewRequest: EditorMediaPreviewRequestHandler;
   onReadOnlyEditAttempt?: () => void;
-  prepareContextMenu: EditorCommandPort['prepareContextMenu'];
+  prepareContextMenu: EditorPaneContextMenuHandlers['prepareContextMenu'];
   imageAssetResolver?: ImageAssetResolver;
   imageImportErrorHandler?: ImageImportErrorHandler;
   imageImportHandler?: ImageImportHandler;
   language: AppLanguage;
+  mathPreferences: EditorMathPreferences;
   visibleDocumentTitle: string;
 };
 
@@ -143,6 +145,7 @@ export function EditorPane({
   imageImportErrorHandler,
   imageImportHandler,
   language,
+  mathPreferences,
   visibleDocumentTitle,
 }: EditorPaneProps) {
   const [contextMenuNodes, setContextMenuNodes] = useState<ShellMenuNode[]>([]);
@@ -224,6 +227,7 @@ export function EditorPane({
                   imageImportErrorHandler={imageImportErrorHandler}
                   imageImportHandler={imageImportHandler}
                   language={language}
+                  mathPreferences={mathPreferences}
                   onDocumentChanged={onDocumentChanged}
                   onEditorReady={(editor) => {
                     editorRef.current = editor;

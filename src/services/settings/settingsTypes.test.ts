@@ -62,6 +62,13 @@ describe('settings v3 contract', () => {
         startupBehavior: 'home',
       },
       images: { copyImagesToAssets: false },
+      markdown: {
+        math: {
+          equationNumbering: 'none',
+          physicsEnabled: false,
+          syntaxMode: 'pandoc',
+        },
+      },
       updates: { autoCheckOnStartup: true },
       version: 3,
     });
@@ -202,9 +209,7 @@ describe('settings v3 contract', () => {
         delete raw.version;
       }
       delete raw.updates;
-      if (version !== 3) {
-        delete (raw.editor as Record<string, unknown>).autosaveEnabled;
-      }
+      delete (raw.editor as Record<string, unknown>).autosaveEnabled;
 
       const result = normalizeLumaMarkSettings(raw);
 
@@ -291,5 +296,71 @@ describe('settings v3 autosave preference', () => {
 
     expect(result.hadInvalidFields).toBe(true);
     expect(result.settings.editor.autosaveEnabled).toBe(false);
+  });
+});
+
+describe('settings markdown.math preferences', () => {
+  it('defaults math to pandoc, none numbering, and physics off', () => {
+    expect(createDefaultLumaMarkSettings().markdown.math).toEqual({
+      equationNumbering: 'none',
+      physicsEnabled: false,
+      syntaxMode: 'pandoc',
+    });
+  });
+
+  it('accepts a missing markdown.math object on existing v3 documents without marking them invalid', () => {
+    const raw = createRawSettings(3);
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(false);
+    expect(result.settings.markdown.math).toEqual({
+      equationNumbering: 'none',
+      physicsEnabled: false,
+      syntaxMode: 'pandoc',
+    });
+  });
+
+  it.each(['pandoc', 'legacy', 'disabled'] as const)(
+    'accepts syntaxMode %s',
+    (syntaxMode) => {
+      const raw = createRawSettings(3);
+      raw.markdown = {
+        math: {
+          equationNumbering: 'ams',
+          physicsEnabled: true,
+          syntaxMode,
+        },
+      };
+
+      const result = normalizeLumaMarkSettings(raw);
+
+      expect(result.hadInvalidFields).toBe(false);
+      expect(result.settings.markdown.math).toEqual({
+        equationNumbering: 'ams',
+        physicsEnabled: true,
+        syntaxMode,
+      });
+    },
+  );
+
+  it('recovers an invalid math syntax mode without dropping the rest of the document', () => {
+    const raw = createRawSettings(3);
+    raw.markdown = {
+      math: {
+        equationNumbering: 'all',
+        physicsEnabled: true,
+        syntaxMode: 'katex',
+      },
+    };
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(true);
+    expect(result.settings.markdown.math).toEqual({
+      equationNumbering: 'all',
+      physicsEnabled: true,
+      syntaxMode: 'pandoc',
+    });
   });
 });

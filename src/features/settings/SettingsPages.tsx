@@ -4,6 +4,8 @@ import {
   MAX_SETTINGS_FONT_ZOOM_PERCENT,
   MIN_SETTINGS_FONT_ZOOM_PERCENT,
   SETTINGS_FONT_ZOOM_STEP_PERCENT,
+  type SettingsEquationNumbering,
+  type SettingsMathSyntaxMode,
   type SettingsOpenWindowMode,
   type SettingsTheme,
 } from '../../services/settings/settingsTypes';
@@ -261,18 +263,32 @@ type EditorSettingsPageProps = {
   autosaveEnabled: boolean;
   defaultDisplayMode: SettingsDisplayMode;
   focusModeOnStartup: boolean;
+  mathEquationNumbering: SettingsEquationNumbering;
+  mathPhysicsEnabled: boolean;
+  mathSyntaxMode: SettingsMathSyntaxMode;
   onAutosaveEnabledChange: (autosaveEnabled: boolean) => void;
   onDefaultDisplayModeChange: (mode: SettingsDisplayMode) => void;
   onFocusModeOnStartupChange: (focusModeOnStartup: boolean) => void;
+  onMathEquationNumberingChange: (
+    equationNumbering: SettingsEquationNumbering,
+  ) => void;
+  onMathPhysicsEnabledChange: (physicsEnabled: boolean) => void;
+  onMathSyntaxModeChange: (syntaxMode: SettingsMathSyntaxMode) => void;
 };
 
 export function EditorSettingsPage({
   autosaveEnabled,
   defaultDisplayMode,
   focusModeOnStartup,
+  mathEquationNumbering,
+  mathPhysicsEnabled,
+  mathSyntaxMode,
   onAutosaveEnabledChange,
   onDefaultDisplayModeChange,
   onFocusModeOnStartupChange,
+  onMathEquationNumberingChange,
+  onMathPhysicsEnabledChange,
+  onMathSyntaxModeChange,
 }: EditorSettingsPageProps) {
   const { t } = useTranslation();
 
@@ -315,6 +331,44 @@ export function EditorSettingsPage({
           description={t('settings.autosaveEnabledDescription')}
           label={t('settings.autosaveEnabled')}
           onCheckedChange={onAutosaveEnabledChange}
+        />
+      </SettingsGroup>
+      <SettingsGroup title={t('settings.groupMath')}>
+        <SettingRow
+          description={t('settings.mathSyntaxModeDescription')}
+          label={t('settings.mathSyntaxMode')}
+        >
+          <SettingsRadioGroup
+            label={t('settings.mathSyntaxMode')}
+            onValueChange={onMathSyntaxModeChange}
+            options={[
+              { label: t('settings.mathSyntaxPandoc'), value: 'pandoc' },
+              { label: t('settings.mathSyntaxLegacy'), value: 'legacy' },
+              { label: t('settings.mathSyntaxDisabled'), value: 'disabled' },
+            ]}
+            value={mathSyntaxMode}
+          />
+        </SettingRow>
+        <SettingRow
+          description={t('settings.mathEquationNumberingDescription')}
+          label={t('settings.mathEquationNumbering')}
+        >
+          <SettingsRadioGroup
+            label={t('settings.mathEquationNumbering')}
+            onValueChange={onMathEquationNumberingChange}
+            options={[
+              { label: t('settings.mathNumberingNone'), value: 'none' },
+              { label: t('settings.mathNumberingAms'), value: 'ams' },
+              { label: t('settings.mathNumberingAll'), value: 'all' },
+            ]}
+            value={mathEquationNumbering}
+          />
+        </SettingRow>
+        <SettingsSwitch
+          checked={mathPhysicsEnabled}
+          description={t('settings.mathPhysicsEnabledDescription')}
+          label={t('settings.mathPhysicsEnabled')}
+          onCheckedChange={onMathPhysicsEnabledChange}
         />
       </SettingsGroup>
     </Tabs.Content>

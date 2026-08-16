@@ -240,6 +240,10 @@ describe('architecture boundaries', () => {
         entry: 'src/editor/capabilities/image/createImageCapability.ts',
         id: 'image',
       },
+      {
+        entry: 'src/editor/capabilities/math/createMathCapability.ts',
+        id: 'math',
+      },
     ];
 
     expect(existsSync(join(root, 'src/editor/capabilities/editorCapability.ts'))).toBe(true);

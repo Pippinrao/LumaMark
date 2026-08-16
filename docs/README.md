@@ -80,6 +80,7 @@ docs/
 | [ADR 0014：设置持久化下沉到 Rust 配置文件](decisions/0014-settings-persistence.md) | 决策 | 设置从 localStorage 迁到 `settings.json`、损坏备份、迁移与会话状态边界 | 设置持久化后端、迁移策略或配置文件布局变化 |
 | [ADR 0015：外部打开与工作区文件变更](decisions/0015-external-open-and-file-mutations.md) | 决策 | opener 依赖、协议白名单、工作区写操作、回收站删除与 capability 边界 | opener/shell 依赖、删除语义、工作区路径校验或文件树写操作变化 |
 | [ADR 0016：桌面纯文本剪贴板适配](decisions/0016-tauri-text-clipboard-adapter.md) | 决策 | 官方 Tauri clipboard-manager、浏览器 adapter、EditorCommandPort 注入与最小文本权限 | 剪贴板插件、权限、纯文本命令入口或桌面/浏览器适配边界变化 |
+| [ADR 0017：MathJax 文档级 Worker 与 CHTML 数学渲染](decisions/0017-mathjax-document-worker-chtml.md) | 决策 | 数学引擎、文档状态、Worker/CHTML、离线字体、安全和回滚边界 | MathJax 版本、输出格式、TeX 包、安全策略、chunk 或性能门禁变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果和已知限制 | 性能预算、基准命令或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |

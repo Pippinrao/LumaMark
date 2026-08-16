@@ -521,6 +521,42 @@ describe('editor interaction context', () => {
     ]);
   });
 
+  it('activates inline math from its click target and exposes both delimiters', () => {
+    const doc = 'before $x^2$ after';
+    const state = createState(
+      doc,
+      EditorSelection.cursor(doc.indexOf('$') + 1),
+    );
+    const selection = deriveEditorInteractionContext(state, false)
+      .selections[0];
+
+    expect(selection.inlineOwners.map((owner) => owner.kind)).toEqual([
+      'InlineMath',
+    ]);
+    expect(
+      selection.delimiterRanges.map((range) =>
+        state.doc.sliceString(range.from, range.to),
+      ),
+    ).toEqual(['$', '$']);
+  });
+
+  it('activates a math block and exposes its opening and closing delimiters', () => {
+    const doc = '$$\nx^2\n$$';
+    const state = createState(
+      doc,
+      EditorSelection.cursor(doc.indexOf('x')),
+    );
+    const selection = deriveEditorInteractionContext(state, false)
+      .selections[0];
+
+    expect(selection.block?.kind).toBe('MathBlock');
+    expect(
+      selection.delimiterRanges.map((range) =>
+        state.doc.sliceString(range.from, range.to),
+      ),
+    ).toEqual(['$$', '$$']);
+  });
+
   it('does not activate escaped emphasis syntax', () => {
     const doc = String.raw`\*escaped* and *active*`;
     const escapedState = createState(

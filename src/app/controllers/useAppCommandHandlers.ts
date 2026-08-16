@@ -124,6 +124,7 @@ export function useAppCommandHandlers({
       inlineCode: formatHandler('inlineCode'),
       italic: formatHandler('italic'),
       link: formatHandler('link'),
+      math: formatHandler('math'),
       orderedList: formatHandler('orderedList'),
       paragraph: formatHandler('paragraph'),
       quote: formatHandler('quote'),

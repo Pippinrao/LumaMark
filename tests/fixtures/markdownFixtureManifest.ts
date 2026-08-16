@@ -153,6 +153,22 @@ export const markdownFixtureManifest = [
     ],
   },
   {
+    fileName: 'math.md',
+    notes: 'Math source-fidelity matrix for inline, block, nested, stateful TeX, and draft/error cases.',
+    tags: [
+      'math:inline',
+      'math:block',
+      'math:nested-container',
+      'math:ams-reference',
+      'math:macro',
+      'math:mhchem',
+      'math:physics',
+      'math:source-fidelity-only',
+      'i18n:mixed-chinese-english',
+      'typora-like:live-preview',
+    ],
+  },
+  {
     fileName: 'large-1mb.md',
     tags: ['large:1mb'],
   },

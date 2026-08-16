@@ -1,0 +1,39 @@
+.lm-math-render {
+  color: inherit;
+  cursor: text;
+}
+
+.lm-math-inline-render {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+.lm-math-block-render {
+  box-sizing: border-box;
+  display: block;
+  margin: 0;
+  min-width: 0;
+  overflow: visible;
+  padding: 0;
+  width: 100%;
+}
+
+.lm-math-render mjx-container {
+  color: inherit;
+  margin: 0;
+  max-width: 100%;
+}
+
+.lm-math-render-error {
+  color: var(--lm-color-danger, #b42318);
+  font-family: var(--lm-font-sans, sans-serif);
+  font-size: 0.75em;
+  line-height: 1.25;
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+}
+
+.lm-math-inline-render > .lm-math-render-error {
+  margin-inline-start: 0.5em;
+}

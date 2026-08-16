@@ -51,6 +51,11 @@ export function useAppEditorCommands() {
         useSettingsStore.getState().settings.editor.defaultDisplayMode,
       );
     }
+    editor.setDocumentContext({
+      revealPosition: (position) => {
+        commandPortRef.current?.revealPosition(position);
+      },
+    });
     const displayMode = editor.getDisplayMode();
     editorDisplayModeRef.current = displayMode;
     setEditorReady(true);

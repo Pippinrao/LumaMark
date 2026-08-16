@@ -7,6 +7,8 @@ import {
   MAX_SETTINGS_FONT_ZOOM_PERCENT,
   MIN_SETTINGS_FONT_ZOOM_PERCENT,
   SETTINGS_FONT_ZOOM_STEP_PERCENT,
+  type SettingsEquationNumbering,
+  type SettingsMathSyntaxMode,
   type SettingsOpenWindowMode,
   type SettingsTheme,
 } from '../../services/settings/settingsTypes';
@@ -47,6 +49,9 @@ type SettingsDialogProps = {
   fontZoomPercent: number;
   language: AppLanguage;
   loadUnsavedDocument: (text: string) => void;
+  mathEquationNumbering: SettingsEquationNumbering;
+  mathPhysicsEnabled: boolean;
+  mathSyntaxMode: SettingsMathSyntaxMode;
   onAutoCheckUpdatesChange: (autoCheckUpdates: boolean) => void;
   onAutosaveEnabledChange: (autosaveEnabled: boolean) => void;
   onClearRecentFiles: () => void;
@@ -55,6 +60,11 @@ type SettingsDialogProps = {
   onFocusModeOnStartupChange: (focusModeOnStartup: boolean) => void;
   onFontZoomPercentChange: (fontZoomPercent: number) => void;
   onLanguageChange: (language: AppLanguage) => void;
+  onMathEquationNumberingChange: (
+    equationNumbering: SettingsEquationNumbering,
+  ) => void;
+  onMathPhysicsEnabledChange: (physicsEnabled: boolean) => void;
+  onMathSyntaxModeChange: (syntaxMode: SettingsMathSyntaxMode) => void;
   onOpenChange: (open: boolean) => void;
   onPageWidthChange: (pageWidth: EditorPageWidth) => void;
   onRetrySettingsWrite: () => void;
@@ -85,6 +95,9 @@ export function SettingsDialog({
   fontZoomPercent,
   language,
   loadUnsavedDocument,
+  mathEquationNumbering,
+  mathPhysicsEnabled,
+  mathSyntaxMode,
   onAutoCheckUpdatesChange,
   onAutosaveEnabledChange,
   onClearRecentFiles,
@@ -93,6 +106,9 @@ export function SettingsDialog({
   onFocusModeOnStartupChange,
   onFontZoomPercentChange,
   onLanguageChange,
+  onMathEquationNumberingChange,
+  onMathPhysicsEnabledChange,
+  onMathSyntaxModeChange,
   onOpenChange,
   onPageWidthChange,
   onRetrySettingsWrite,
@@ -255,9 +271,15 @@ export function SettingsDialog({
                 autosaveEnabled={autosaveEnabled}
                 defaultDisplayMode={defaultDisplayMode}
                 focusModeOnStartup={focusModeOnStartup}
+                mathEquationNumbering={mathEquationNumbering}
+                mathPhysicsEnabled={mathPhysicsEnabled}
+                mathSyntaxMode={mathSyntaxMode}
                 onAutosaveEnabledChange={onAutosaveEnabledChange}
                 onDefaultDisplayModeChange={onDefaultDisplayModeChange}
                 onFocusModeOnStartupChange={onFocusModeOnStartupChange}
+                onMathEquationNumberingChange={onMathEquationNumberingChange}
+                onMathPhysicsEnabledChange={onMathPhysicsEnabledChange}
+                onMathSyntaxModeChange={onMathSyntaxModeChange}
               />
               <ImagesSettingsPage
                 copyImagesToAssets={copyImagesToAssets}

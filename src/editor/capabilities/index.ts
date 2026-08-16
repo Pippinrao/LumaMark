@@ -8,6 +8,8 @@ import { createCodeBlockCommands } from './code-block/codeBlockCommands';
 import { createImageCapability } from './image/createImageCapability';
 import { createImageCommands } from './image/imageCommands';
 import { createMermaidCapability } from './mermaid/createMermaidCapability';
+import { createMathCapability } from './math/createMathCapability';
+import { createMathCommands } from './math/mathCommands';
 import { createTableCapability } from './table/createTableCapability';
 import { createTableCommands } from './table/tableCommands';
 
@@ -26,6 +28,7 @@ export function createLivePreviewCapabilities(
     createImageCapability(context),
     createTableCapability(renderLocked),
     createMermaidCapability(context),
+    createMathCapability(context, renderLocked ? 'reading' : 'livePreview'),
   ];
 }
 
@@ -51,5 +54,6 @@ export function createEditorCapabilityCommands(
     ...createImageCommands(view),
     ...createTableCommands(view, options.writeClipboardText),
     ...createCodeBlockCommands(view),
+    ...createMathCommands(view),
   };
 }

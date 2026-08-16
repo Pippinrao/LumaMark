@@ -3,12 +3,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
 import { useStartupStore } from '../../features/startup/startupStore';
 import { useReadingAppearanceStore } from '../../features/reading-appearance/readingAppearanceStore';
-import { patchSettings } from './applySettings';
+import { patchMarkdownMath, patchSettings } from './applySettings';
 import { useSettingsStore } from '../../features/settings/settingsStore';
 import type { AppLanguage } from '../../shared/i18n';
 import type { EditorPageWidth } from '../../features/reading-appearance/readingAppearanceStore';
 import type { StartupBehavior } from '../../features/startup/startupStore';
 import type { ThemeMode } from '../stores/appPreferencesStore';
+import type {
+  SettingsEquationNumbering,
+  SettingsMathSyntaxMode,
+} from '../../services/settings/settingsTypes';
 
 export function useSettingsModel() {
   const [settingsOpen, setSettingsOpenState] = useState(false);
@@ -133,6 +137,19 @@ export function useSettingsModel() {
     }));
   }, []);
 
+  const setMathSyntaxMode = useCallback((syntaxMode: SettingsMathSyntaxMode) => {
+    patchMarkdownMath({ syntaxMode });
+  }, []);
+  const setMathEquationNumbering = useCallback(
+    (equationNumbering: SettingsEquationNumbering) => {
+      patchMarkdownMath({ equationNumbering });
+    },
+    [],
+  );
+  const setMathPhysicsEnabled = useCallback((physicsEnabled: boolean) => {
+    patchMarkdownMath({ physicsEnabled });
+  }, []);
+
   const toggleLanguage = useCallback(() => {
     setLanguage(language === 'zh-CN' ? 'en' : 'zh-CN');
   }, [language, setLanguage]);
@@ -154,6 +171,9 @@ export function useSettingsModel() {
     fontZoomPercent,
     flushPendingWrites,
     language,
+    mathEquationNumbering: settings.markdown.math.equationNumbering,
+    mathPhysicsEnabled: settings.markdown.math.physicsEnabled,
+    mathSyntaxMode: settings.markdown.math.syntaxMode,
     pageWidth,
     pageWidthPersistenceError,
     recentFilesPersistenceError,
@@ -164,6 +184,9 @@ export function useSettingsModel() {
     setFocusModeOnStartup,
     setFontZoomPercent,
     setLanguage,
+    setMathEquationNumbering,
+    setMathPhysicsEnabled,
+    setMathSyntaxMode,
     setPageWidth,
     setSettingsOpen,
     setSidebarOpenOnStartup,

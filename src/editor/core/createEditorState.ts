@@ -21,6 +21,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 import type { AppLanguage } from '../../shared/i18n';
 import { markdownFormatKeymap } from '../commands/markdownFormatKeymap';
+import { editorMathPreferencesField } from '../capabilities/math/mathPreferences';
 import { tableCellRenderLockBaseExtension } from '../capabilities/table/tableCellRenderLock';
 import { recordEditorTransactionMetric } from '../metrics/editorMetrics';
 import {
@@ -75,6 +76,7 @@ export type CreateEditorStateOptions = {
 };
 
 export const editorHistoryCompartment = new Compartment();
+export const editorMarkdownLanguageCompartment = new Compartment();
 export type DocumentSavepoint = {
   readonly doc: Text;
   readonly sourceFormat: DocumentSourceFormat;
@@ -141,7 +143,7 @@ export function createEditorState(
   const {
     appearance = DEFAULT_EDITOR_APPEARANCE,
     doc = '',
-    documentContext = { path: null },
+    documentContext = { documentId: 'document:unsaved', path: null },
     displayMode = 'livePreview',
     extensions = [],
     isMacPlatform,
@@ -210,8 +212,9 @@ export function createEditorState(
     doc: parsedDocument.text,
     extensions: [
       EditorState.allowMultipleSelections.of(true),
-      markdownLanguage(),
+      editorMarkdownLanguageCompartment.of(markdownLanguage()),
       markdownSyntaxHighlighting(),
+      editorMathPreferencesField,
       documentSourceFormatExtension(parsedDocument.format),
       editorAppearanceCompartment.of(editorAppearanceExtension(appearance)),
       editorDisplayModeCompartment.of(

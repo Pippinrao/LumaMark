@@ -1,5 +1,19 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+
+const configDir = fileURLToPath(new URL('.', import.meta.url));
+const parentNodeModules = path.resolve(configDir, '../../node_modules');
+const serverFsAllow = [configDir];
+if (
+  configDir.includes(`${path.sep}.worktrees${path.sep}`) &&
+  existsSync(parentNodeModules)
+) {
+  // Shared worktree junctions resolve packages in the main checkout.
+  serverFsAllow.push(parentNodeModules);
+}
 
 const PNPM_NESTED_NODE_MODULE = String.raw`(?:\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/])?`;
 const NODE_MODULE = String.raw`node_modules[\\/]${PNPM_NESTED_NODE_MODULE}`;
@@ -89,11 +103,17 @@ export default defineConfig({
     },
   },
   server: {
+    fs: {
+      allow: serverFsAllow,
+    },
     host: '127.0.0.1',
     port: 1420,
     strictPort: true,
   },
   envPrefix: ['VITE_', 'TAURI_'],
+  worker: {
+    format: 'es',
+  },
   test: {
     environment: 'jsdom',
     exclude: [

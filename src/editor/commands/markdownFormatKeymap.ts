@@ -42,4 +42,8 @@ export const markdownFormatKeymap: readonly KeyBinding[] = [
     key: 'Mod-Shift-k',
     run: (view) => applyMarkdownFormatCommand(view, 'codeBlock'),
   },
+  {
+    key: 'Mod-Shift-m',
+    run: (view) => applyMarkdownFormatCommand(view, 'math'),
+  },
 ];

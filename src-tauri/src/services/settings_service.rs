@@ -27,6 +27,8 @@ pub struct LumaMarkSettings {
     pub editor: EditorSettings,
     pub general: GeneralSettings,
     pub images: ImageSettings,
+    #[serde(default = "default_markdown_settings")]
+    pub markdown: MarkdownSettings,
     pub updates: UpdateSettings,
     pub version: u32,
 }
@@ -71,6 +73,30 @@ pub struct ImageSettings {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MarkdownSettings {
+    pub math: MarkdownMathSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownMathSettings {
+    pub equation_numbering: String,
+    pub physics_enabled: bool,
+    pub syntax_mode: String,
+}
+
+fn default_markdown_settings() -> MarkdownSettings {
+    MarkdownSettings {
+        math: MarkdownMathSettings {
+            equation_numbering: "none".to_string(),
+            physics_enabled: false,
+            syntax_mode: "pandoc".to_string(),
+        },
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateSettings {
     pub auto_check_on_startup: bool,
 }
@@ -106,6 +132,7 @@ pub fn default_settings() -> LumaMarkSettings {
         images: ImageSettings {
             copy_images_to_assets: false,
         },
+        markdown: default_markdown_settings(),
         updates: UpdateSettings {
             auto_check_on_startup: true,
         },
@@ -453,6 +480,49 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         defaults.images.copy_images_to_assets,
         &mut had_invalid_fields,
     );
+    let markdown_math_missing = value
+        .get("markdown")
+        .and_then(Value::as_object)
+        .and_then(|markdown| markdown.get("math"))
+        .and_then(Value::as_object)
+        .is_none();
+    if matches!(value.get("markdown"), Some(markdown) if !markdown.is_object())
+        || value
+            .get("markdown")
+            .and_then(Value::as_object)
+            .and_then(|markdown| markdown.get("math"))
+            .is_some_and(|math| !math.is_object())
+    {
+        had_invalid_fields = true;
+    }
+    let math_section = value
+        .get("markdown")
+        .and_then(Value::as_object)
+        .and_then(|markdown| markdown.get("math"));
+    if markdown_math_missing {
+        settings.markdown = defaults.markdown.clone();
+    } else {
+        settings.markdown.math.syntax_mode = read_enum_field(
+            math_section,
+            "syntaxMode",
+            &["pandoc", "legacy", "disabled"],
+            &defaults.markdown.math.syntax_mode,
+            &mut had_invalid_fields,
+        );
+        settings.markdown.math.equation_numbering = read_enum_field(
+            math_section,
+            "equationNumbering",
+            &["none", "ams", "all"],
+            &defaults.markdown.math.equation_numbering,
+            &mut had_invalid_fields,
+        );
+        settings.markdown.math.physics_enabled = read_bool_field(
+            math_section,
+            "physicsEnabled",
+            defaults.markdown.math.physics_enabled,
+            &mut had_invalid_fields,
+        );
+    }
     settings.updates.auto_check_on_startup =
         if source_version < SETTINGS_VERSION && value.get("updates").is_none() {
             defaults.updates.auto_check_on_startup
@@ -469,7 +539,9 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
     Ok(ParsedSettings {
         settings,
         had_invalid_fields,
-        needs_writeback: source_version < SETTINGS_VERSION || had_invalid_fields,
+        needs_writeback: source_version < SETTINGS_VERSION
+            || had_invalid_fields
+            || markdown_math_missing,
     })
 }
 
@@ -1042,6 +1114,42 @@ mod tests {
         assert!(!parsed.had_invalid_fields);
         assert_eq!(parsed.settings.version, SETTINGS_VERSION);
         assert!(!parsed.settings.editor.autosave_enabled);
+        assert_eq!(parsed.settings.markdown.math.syntax_mode, "pandoc");
+        assert_eq!(parsed.settings.markdown.math.equation_numbering, "none");
+        assert!(!parsed.settings.markdown.math.physics_enabled);
+        assert!(parsed.needs_writeback);
+    }
+
+    #[test]
+    fn existing_v3_documents_accept_missing_markdown_math_defaults() {
+        let raw = serde_json::json!({
+            "appearance": {
+                "fontZoomPercent": 100,
+                "pageWidth": "standard",
+                "sidebarOpenOnStartup": true,
+                "theme": "light"
+            },
+            "editor": {
+                "autosaveEnabled": false,
+                "defaultDisplayMode": "livePreview",
+                "focusModeOnStartup": false
+            },
+            "general": {
+                "language": "zh-CN",
+                "openWindowMode": "multiWindow",
+                "startupBehavior": "home"
+            },
+            "images": { "copyImagesToAssets": false },
+            "updates": { "autoCheckOnStartup": true },
+            "version": 3
+        });
+        let parsed = parse_and_normalize_settings(&serde_json::to_vec(&raw).expect("serialize"))
+            .expect("v3 settings without markdown.math should migrate");
+
+        assert!(!parsed.had_invalid_fields);
+        assert_eq!(parsed.settings.markdown.math.syntax_mode, "pandoc");
+        assert_eq!(parsed.settings.markdown.math.equation_numbering, "none");
+        assert!(!parsed.settings.markdown.math.physics_enabled);
         assert!(parsed.needs_writeback);
     }
 

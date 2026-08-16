@@ -20,6 +20,13 @@
     "images": {
       "copyImagesToAssets": false
     },
+    "markdown": {
+      "math": {
+        "equationNumbering": "none",
+        "physicsEnabled": false,
+        "syntaxMode": "pandoc"
+      }
+    },
     "updates": {
       "autoCheckOnStartup": true
     },

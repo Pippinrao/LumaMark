@@ -116,6 +116,7 @@ export function createCommandPaletteModels({
     actionCommand('insert-horizontal-rule', 'horizontalRule'),
     actionCommand('insert-image', 'image'),
     actionCommand('insert-code-block', 'codeBlock'),
+    actionCommand('insert-math-block', 'math'),
     actionCommand('insert-table', 'table'),
     actionCommand('insert-ordered-list', 'orderedList'),
     actionCommand('toggle-strikethrough', 'strikethrough'),
@@ -266,6 +267,7 @@ export function createTopMenuModels({
           item('code-block', 'codeBlock'),
         ]),
         submenu('insert', FileText, t('menu.insert'), [
+          item('insert-math-block', 'math'),
           item('insert-table', 'table'),
           item('horizontal-rule', 'horizontalRule'),
         ]),

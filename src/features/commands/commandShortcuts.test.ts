@@ -26,6 +26,7 @@ describe('createCommandShortcutLabels', () => {
       heading6: 'Ctrl+6',
       image: 'Ctrl+Shift+I',
       italic: 'Ctrl+I',
+      math: 'Ctrl+Shift+M',
       newDocument: 'Ctrl+N',
       normalParagraph: 'Ctrl+0',
       openFile: 'Ctrl+O',

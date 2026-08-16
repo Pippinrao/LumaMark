@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { createCommandShortcutLabels } from '../../features/commands/commandShortcuts';
 import { useMediaViewer } from '../../features/media-viewer/useMediaViewer';
 import { useWorkspaceWorkflow } from '../../features/workspace/useWorkspaceWorkflow';
-import { createAppShellLabels } from './createAppShellLabels';
+import { toAppShellModel } from './toAppShellModel';
 import { useAppCommandModels } from './useAppCommandModels';
 import { useAppCommandPayloadHandlers } from './useAppCommandPayloadHandlers';
 import { useAppDocumentModel } from './useAppDocumentModel';
@@ -25,6 +25,7 @@ import { useAppEditorNavigation } from './useAppEditorNavigation';
 import { useDocumentCloseController } from '../../features/file-actions/useDocumentCloseController';
 import { useStartupStore } from '../../features/startup/startupStore';
 import { useAppStore } from '../stores/appStore';
+
 export function useAppShellModel() {
   const { t } = useTranslation();
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -108,14 +109,15 @@ export function useAppShellModel() {
     recoveryDraft: document.recoveryDraft,
     workspace,
   });
-  const documentTitle = document.currentFile?.name ?? t('app.emptyTitle');
-  const visibleDocumentTitle = document.dirty ? `${documentTitle} *` : documentTitle;
   const newDocumentConfirmation = useNewDocumentConfirmation({
     createNewDocument: document.fileWorkflow.createNewDocument,
     dirty: document.dirty,
     focusEditor: editor.focusEditor,
   });
-  const shortcuts = useMemo(() => createCommandShortcutLabels(globalThis.navigator.userAgent), []);
+  const shortcuts = useMemo(
+    () => createCommandShortcutLabels(globalThis.navigator.userAgent),
+    [],
+  );
   const { exitFocusMode, focusMode, toggleFocusMode } = useFocusMode({
     focusEditor: editor.focusEditor,
     initialFocusMode: settings.focusModeOnStartup,
@@ -128,7 +130,9 @@ export function useAppShellModel() {
     editorAvailable: !startup.visible,
     exitFocusMode,
     fileOpening: document.fileWorkflow.fileOpening,
-    newDocument: startup.visible ? startup.newDocument : newDocumentConfirmation.requestNewDocument,
+    newDocument: startup.visible
+      ? startup.newDocument
+      : newDocumentConfirmation.requestNewDocument,
     openAbout,
     openCommandPalette,
     openSettings,
@@ -150,7 +154,12 @@ export function useAppShellModel() {
     retargetOpenDocument: document.fileWorkflow.retargetOpenDocument,
     workspace,
   });
-  const payloadHandlers = useAppCommandPayloadHandlers(editorContextMenu.payloadHandlers, fileTreeContextMenu.payloadHandlers, startup.openRecentFile, document.fileWorkflow.fileOpening);
+  const payloadHandlers = useAppCommandPayloadHandlers(
+    editorContextMenu.payloadHandlers,
+    fileTreeContextMenu.payloadHandlers,
+    startup.openRecentFile,
+    document.fileWorkflow.fileOpening,
+  );
   const commandModels = useAppCommandModels({
     editorDisplayMode: editor.editorDisplayMode,
     editorAvailable: !startup.visible,
@@ -166,77 +175,38 @@ export function useAppShellModel() {
     t,
     theme: settings.theme,
   });
-  function runPaletteInvocation(invocation: Parameters<typeof commandModels.runMenuInvocation>[0]) { commandModels.runMenuInvocation(invocation); }
-  return {
-    ...settings,
+  function runPaletteInvocation(
+    invocation: Parameters<typeof commandModels.runMenuInvocation>[0],
+  ) {
+    commandModels.runMenuInvocation(invocation);
+  }
+
+  return toAppShellModel({
     aboutOpen,
-    commandPaletteOpen: commandPalette.open,
-    commands: commandModels.commands,
-    confirmNewDocument: newDocumentConfirmation.confirmNewDocument,
-    currentFile: document.currentFile,
+    commandModels,
+    commandPalette,
     desktopOpenRequests,
-    dismissFileError: document.dismissFileError,
-    dirty: document.dirty,
+    document,
     documentClose,
-    documentStatistics: document.documentStatistics,
-    documentTitle,
-    editor: {
-      appearance: readingAppearance.appearance,
-      closeContextMenu: editor.closeContextMenu,
-      editorDisplayMode: editor.editorDisplayMode,
-      focusEditor: editor.focusEditor,
-      getContextMenuNodes: editorContextMenu.getContextMenuNodes,
-      imageAssetResolver: editor.imageAssetResolver,
-      imageImportErrorHandler: editor.imageImportErrorHandler,
-      imageImportHandler: editor.imageImportHandler,
-      markDocumentDirty: document.fileWorkflow.markDocumentDirty,
-      onLinkNavigationRequest: navigation.onLinkNavigationRequest,
-      onReady: navigation.onEditorReady,
-      onZoomRequested: readingAppearance.onZoomRequested,
-      prepareContextMenu: editor.prepareContextMenu,
-      selectHeading: navigation.selectHeading,
-    },
-    externalFileConflict: {
-      conflict: document.fileWorkflow.externalConflict,
-      keepCurrentContent: document.fileWorkflow.keepCurrentContent,
-      reloadFromDisk: document.fileWorkflow.reloadFromDisk,
-    },
-    fileTree: {
-      getContextMenuNodes: fileTreeContextMenu.getContextMenuNodes,
-      mutationDialog: fileTreeContextMenu.mutationDialog,
-    },
+    editor,
+    editorContextMenu,
+    fileTreeContextMenu,
     focusMode,
-    headings: document.headings,
-    labels: createAppShellLabels({
-      documentStatistics: document.documentStatistics.statistics,
-      statusKey: document.statusKey,
-      t,
-    }),
-    lastFileError: document.lastFileError,
-    loadUnsavedSnapshot: document.loadUnsavedSnapshot,
     mediaViewer,
-    newDocumentConfirmOpen: newDocumentConfirmation.open,
-    pageWidth: settings.pageWidth ?? readingAppearance.pageWidth,
-    recentFiles: document.recentFiles,
-    recoveryDraft: document.recoveryDraft,
-    restoreDialogFocus,
-    restoreNewDocumentFocus: newDocumentConfirmation.restoreFocus,
+    navigation,
+    newDocumentConfirmation,
+    readingAppearance,
     refreshEditorEditState,
-    runAction: commandModels.runAction,
-    runCommandAfterPaletteClose: commandPalette.runAfterClose,
-    runMenuInvocation: commandModels.runMenuInvocation,
-    scheduleOutlineRefresh: document.scheduleOutlineRefresh,
+    restoreDialogFocus,
     setAboutOpen,
-    setCommandPaletteOpen: commandPalette.setOpen,
-    setNewDocumentConfirmOpen: newDocumentConfirmation.setOpen,
     setSidebarOpen,
+    settings,
     sidebarOpen,
-    updateDialog: updates,
     startup,
+    t,
     toggleFocusMode,
-    topMenuGroups: commandModels.topMenuGroups,
-    visibleDocumentTitle,
+    updates,
     windowControls,
     workspace,
-  };
+  });
 }

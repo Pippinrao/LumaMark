@@ -11,6 +11,7 @@ type GlobalShortcutHandlers = Pick<
   | 'deleteTable'
   | 'exitFocusMode'
   | 'image'
+  | 'math'
   | 'newDocument'
   | 'openCommandPalette'
   | 'openFile'
@@ -89,6 +90,15 @@ export function useGlobalCommandShortcuts(handlers: GlobalShortcutHandlers) {
       ) {
         event.preventDefault();
         currentHandlers.codeBlock();
+        return;
+      }
+
+      if (
+        editorCommandTarget &&
+        matchesShortcut(event, 'm', { shiftKey: true })
+      ) {
+        event.preventDefault();
+        currentHandlers.math();
         return;
       }
 

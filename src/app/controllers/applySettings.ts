@@ -1,7 +1,10 @@
 import { useReadingAppearanceStore } from '../../features/reading-appearance/readingAppearanceStore';
 import { useSettingsStore } from '../../features/settings/settingsStore';
 import { useStartupStore } from '../../features/startup/startupStore';
-import type { LumaMarkSettings } from '../../services/settings/settingsTypes';
+import type {
+  LumaMarkSettings,
+  SettingsMarkdownMath,
+} from '../../services/settings/settingsTypes';
 import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import { useAppStore } from '../stores/appStore';
 
@@ -30,6 +33,16 @@ export function patchSettings(
 ): void {
   const canonical = useSettingsStore.getState().updateSettings(updater);
   applySettingsToLegacyStores(canonical);
+}
+
+export function patchMarkdownMath(patch: Partial<SettingsMarkdownMath>): void {
+  patchSettings((current) => ({
+    ...current,
+    markdown: {
+      ...current.markdown,
+      math: { ...current.markdown.math, ...patch },
+    },
+  }));
 }
 
 export function syncFontZoomToSettings(fontZoomPercent: number): void {

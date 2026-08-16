@@ -303,6 +303,15 @@ describe('markdown format commands', () => {
     view.destroy();
   });
 
+  it('inserts a starter math block at the caret', () => {
+    const view = createView('before  after', 7, 7);
+
+    applyMarkdownFormatCommand(view, 'math');
+
+    expect(view.state.doc.toString()).toBe('before $$\n\n$$ after');
+    view.destroy();
+  });
+
   it('inserts a starter markdown table', () => {
     const view = createView('before\n', 7, 7);
 

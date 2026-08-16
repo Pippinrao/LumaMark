@@ -13,11 +13,24 @@ import { languages } from '@codemirror/language-data';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
 import { tags } from '@lezer/highlight';
+import {
+  mathMarkdownExtension,
+  type MathSyntaxMode,
+} from '../capabilities/math/mathSyntax';
 
-export function markdownLanguage(): Extension {
+export interface MarkdownLanguageOptions {
+  math?: {
+    inlineMode?: MathSyntaxMode;
+  };
+}
+
+export function markdownLanguage(options: MarkdownLanguageOptions = {}): Extension {
   return markdown({
     base: gfmMarkdownLanguage,
     codeLanguages: codeLanguageForInfo,
+    extensions: mathMarkdownExtension({
+      inlineMode: options.math?.inlineMode ?? 'pandoc',
+    }),
   });
 }
 

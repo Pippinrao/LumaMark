@@ -19,6 +19,7 @@ export const markdownFixtureNames = [
   'gfm-edge-cases.md',
   'mermaid-gallery.md',
   'mermaid-edge-cases.md',
+  'math.md',
   'mixed-chinese-english.md',
   'large-1mb.md',
   'large-5mb.md',

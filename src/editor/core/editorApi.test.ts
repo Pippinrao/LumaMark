@@ -7,10 +7,13 @@ import {
 } from '@codemirror/commands';
 import { startCompletion } from '@codemirror/autocomplete';
 import { openSearchPanel } from '@codemirror/search';
+import { syntaxTree } from '@codemirror/language';
 import { EditorSelection } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { createEditorApi } from './editorApi';
 import { importFiles } from '../capabilities/image/imageInputExtension';
+import { editorMathPreferencesField } from '../capabilities/math/mathPreferences';
 import { isDocumentDirty } from './createEditorState';
 import { parseDocumentSource } from './documentSourceFormat';
 import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
@@ -20,6 +23,116 @@ import {
 } from './editorDisplayMode';
 
 describe('editorApi', () => {
+  it('atomically applies math syntax and renderer preferences without changing document state', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const updates: { readonly docChanged: boolean; readonly transactionCount: number }[] = [];
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc: 'Inline $ x $9 tail',
+      extensions: [
+        EditorView.updateListener.of((update) => {
+          updates.push({
+            docChanged: update.docChanged,
+            transactionCount: update.transactions.length,
+          });
+        }),
+      ],
+      parent,
+    });
+    editor.view.dispatch({
+      changes: { from: editor.view.state.doc.length, insert: '\nDraft' },
+      selection: EditorSelection.cursor(3),
+    });
+    expect(syntaxTree(editor.view.state).toString()).not.toContain('InlineMath');
+    const documentBefore = editor.getSerializedDocumentText();
+    const selectionBefore = editor.view.state.selection;
+    const historyBefore = undoDepth(editor.view.state);
+    const dirtyBefore = isDocumentDirty(editor.view.state);
+    updates.length = 0;
+
+    editor.setMathPreferences({
+      equationNumbering: 'ams',
+      physicsEnabled: true,
+      syntaxMode: 'legacy',
+    });
+
+    expect(updates).toEqual([{ docChanged: false, transactionCount: 1 }]);
+    expect(syntaxTree(editor.view.state).toString()).toContain('InlineMath');
+    expect(editor.view.state.field(editorMathPreferencesField)).toEqual({
+      equationNumbering: 'ams',
+      physicsEnabled: true,
+      syntaxMode: 'legacy',
+    });
+    expect(editor.getSerializedDocumentText()).toBe(documentBefore);
+    expect(editor.view.state.selection.eq(selectionBefore)).toBe(true);
+    expect(undoDepth(editor.view.state)).toBe(historyBefore);
+    expect(isDocumentDirty(editor.view.state)).toBe(dirtyBefore);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('does not dispatch when math preferences are unchanged', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const updateListener = vi.fn();
+    const editor = createEditorApi({
+      displayMode: 'source',
+      extensions: [EditorView.updateListener.of(updateListener)],
+      parent,
+    });
+    const preferences = {
+      equationNumbering: 'all' as const,
+      physicsEnabled: true,
+      syntaxMode: 'legacy' as const,
+    };
+    editor.setMathPreferences(preferences);
+    updateListener.mockClear();
+
+    editor.setMathPreferences({ ...preferences });
+
+    expect(updateListener).not.toHaveBeenCalled();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('retains math preferences across document load, context, and display changes', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'source',
+      doc: 'Initial',
+      parent,
+    });
+    const preferences = {
+      equationNumbering: 'ams' as const,
+      physicsEnabled: true,
+      syntaxMode: 'legacy' as const,
+    };
+    editor.setMathPreferences(preferences);
+
+    editor.loadDocument('Loaded $ x $9');
+    editor.setDocumentContext({
+      documentId: 'document:next',
+      path: 'E:\\notes\\next.md',
+    });
+    editor.setDisplayMode('livePreview');
+
+    expect(editor.view.state.field(editorMathPreferencesField)).toEqual(preferences);
+    expect(syntaxTree(editor.view.state).toString()).toContain('InlineMath');
+
+    editor.setDisplayMode('reading');
+    expect(editor.view.state.field(editorMathPreferencesField)).toEqual(preferences);
+    editor.setDisplayMode('source');
+    expect(editor.view.state.field(editorMathPreferencesField)).toEqual(preferences);
+    expect(syntaxTree(editor.view.state).toString()).toContain('InlineMath');
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('keeps adjacent inserted logical line endings distinct after serialization', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

@@ -1,5 +1,6 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { syntaxTree } from '@codemirror/language';
 import { describe, expect, it } from 'vitest';
 import {
   codeLanguageDisplayName,
@@ -8,6 +9,20 @@ import {
 } from './markdownLanguage';
 
 describe('markdown language', () => {
+  it('parses block and inline math with Pandoc inline rules by default', () => {
+    const state = EditorState.create({
+      doc: ['$$', 'x^2', '$$', '', 'Inline $y$ math.'].join('\n'),
+      extensions: [markdownLanguage()],
+    });
+
+    expect(syntaxTree(state).toString()).toContain(
+      'MathBlock(MathMark,MathText,MathMark)',
+    );
+    expect(syntaxTree(state).toString()).toContain(
+      'InlineMath(MathMark,MathMark)',
+    );
+  });
+
   it.each([
     ['ts', 'TypeScript'],
     ['TypeScript linenos=true', 'TypeScript'],

@@ -198,6 +198,9 @@ export function useAppShellSlots(
                 fontZoomPercent={model.fontZoomPercent}
                 language={model.language}
                 loadUnsavedDocument={model.loadUnsavedSnapshot}
+                mathEquationNumbering={model.mathEquationNumbering}
+                mathPhysicsEnabled={model.mathPhysicsEnabled}
+                mathSyntaxMode={model.mathSyntaxMode}
                 onAutoCheckUpdatesChange={model.updateDialog.setAutoCheckOnStartup}
                 onAutosaveEnabledChange={model.setAutosaveEnabled}
                 onClearRecentFiles={model.clearRecentFiles}
@@ -206,6 +209,9 @@ export function useAppShellSlots(
                 onFocusModeOnStartupChange={model.setFocusModeOnStartup}
                 onFontZoomPercentChange={model.setFontZoomPercent}
                 onLanguageChange={model.setLanguage}
+                onMathEquationNumberingChange={model.setMathEquationNumbering}
+                onMathPhysicsEnabledChange={model.setMathPhysicsEnabled}
+                onMathSyntaxModeChange={model.setMathSyntaxMode}
                 onOpenChange={model.setSettingsOpen}
                 onPageWidthChange={model.setPageWidth}
                 onRetrySettingsWrite={model.retrySettingsWrite}
@@ -268,6 +274,11 @@ export function useAppShellSlots(
           imageImportErrorHandler={model.editor.imageImportErrorHandler}
           imageImportHandler={model.editor.imageImportHandler}
           language={model.language}
+          mathPreferences={{
+            equationNumbering: model.mathEquationNumbering,
+            physicsEnabled: model.mathPhysicsEnabled,
+            syntaxMode: model.mathSyntaxMode,
+          }}
           visibleDocumentTitle={model.visibleDocumentTitle}
         />
       ),

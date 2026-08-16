@@ -4,6 +4,14 @@ export type SettingsLanguage = 'en' | 'zh-CN';
 export type SettingsOpenWindowMode = 'aggregateWindow' | 'multiWindow';
 export type SettingsStartupBehavior = 'home' | 'restoreLastSession';
 export type SettingsDisplayMode = 'livePreview' | 'source';
+export type SettingsMathSyntaxMode = 'disabled' | 'legacy' | 'pandoc';
+export type SettingsEquationNumbering = 'all' | 'ams' | 'none';
+
+export type SettingsMarkdownMath = {
+  equationNumbering: SettingsEquationNumbering;
+  physicsEnabled: boolean;
+  syntaxMode: SettingsMathSyntaxMode;
+};
 
 export type LumaMarkSettings = {
   appearance: {
@@ -25,10 +33,13 @@ export type LumaMarkSettings = {
   images: {
     copyImagesToAssets: boolean;
   };
+  markdown: {
+    math: SettingsMarkdownMath;
+  };
   updates: {
     autoCheckOnStartup: boolean;
   };
-  version: 2;
+  version: 3;
 };
 
 export type SettingsLoadResult = {
@@ -64,6 +75,13 @@ export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
   images: {
     copyImagesToAssets: false,
   },
+  markdown: {
+    math: {
+      equationNumbering: 'none',
+      physicsEnabled: false,
+      syntaxMode: 'pandoc',
+    },
+  },
   updates: {
     autoCheckOnStartup: true,
   },
@@ -80,6 +98,18 @@ const PAGE_WIDTHS: readonly SettingsPageWidth[] = [
 const OPEN_WINDOW_MODES: readonly SettingsOpenWindowMode[] = [
   'multiWindow',
   'aggregateWindow',
+];
+
+const MATH_SYNTAX_MODES: readonly SettingsMathSyntaxMode[] = [
+  'pandoc',
+  'legacy',
+  'disabled',
+];
+
+const EQUATION_NUMBERINGS: readonly SettingsEquationNumbering[] = [
+  'none',
+  'ams',
+  'all',
 ];
 
 export function createDefaultLumaMarkSettings(): LumaMarkSettings {
@@ -117,14 +147,22 @@ export function normalizeLumaMarkSettings(
   const editor = isRecord(value.editor) ? value.editor : {};
   const general = isRecord(value.general) ? value.general : {};
   const images = isRecord(value.images) ? value.images : {};
+  const markdown = isRecord(value.markdown) ? value.markdown : {};
+  const math = isRecord(markdown.math) ? markdown.math : {};
   const updates = isRecord(value.updates) ? value.updates : {};
+  const markdownMathMissing =
+    !isRecord(value.markdown) || !isRecord(markdown.math);
 
   if (
     !isRecord(value.appearance) ||
     !isRecord(value.editor) ||
     !isRecord(value.general) ||
     !isRecord(value.images) ||
-    (sourceVersion.value >= SETTINGS_VERSION && !isRecord(value.updates))
+    (sourceVersion.value >= SETTINGS_VERSION && !isRecord(value.updates)) ||
+    (value.markdown !== undefined && !isRecord(value.markdown)) ||
+    (isRecord(value.markdown) &&
+      value.markdown.math !== undefined &&
+      !isRecord(value.markdown.math))
   ) {
     hadInvalidFields = true;
   }
@@ -186,6 +224,26 @@ export function normalizeLumaMarkSettings(
           updates.autoCheckOnStartup,
           defaults.updates.autoCheckOnStartup,
         );
+  const mathSyntaxMode = markdownMathMissing
+    ? { invalid: false, value: defaults.markdown.math.syntaxMode }
+    : normalizeEnum(
+        math.syntaxMode,
+        MATH_SYNTAX_MODES,
+        defaults.markdown.math.syntaxMode,
+      );
+  const mathEquationNumbering = markdownMathMissing
+    ? { invalid: false, value: defaults.markdown.math.equationNumbering }
+    : normalizeEnum(
+        math.equationNumbering,
+        EQUATION_NUMBERINGS,
+        defaults.markdown.math.equationNumbering,
+      );
+  const mathPhysicsEnabled = markdownMathMissing
+    ? { invalid: false, value: defaults.markdown.math.physicsEnabled }
+    : normalizeBoolean(
+        math.physicsEnabled,
+        defaults.markdown.math.physicsEnabled,
+      );
 
   if (
     theme.invalid ||
@@ -199,7 +257,10 @@ export function normalizeLumaMarkSettings(
     focusModeOnStartup.invalid ||
     copyImagesToAssets.invalid ||
     autosaveEnabled.invalid ||
-    autoCheckOnStartup.invalid
+    autoCheckOnStartup.invalid ||
+    mathSyntaxMode.invalid ||
+    mathEquationNumbering.invalid ||
+    mathPhysicsEnabled.invalid
   ) {
     hadInvalidFields = true;
   }
@@ -225,6 +286,13 @@ export function normalizeLumaMarkSettings(
       },
       images: {
         copyImagesToAssets: copyImagesToAssets.value,
+      },
+      markdown: {
+        math: {
+          equationNumbering: mathEquationNumbering.value,
+          physicsEnabled: mathPhysicsEnabled.value,
+          syntaxMode: mathSyntaxMode.value,
+        },
       },
       updates: {
         autoCheckOnStartup: autoCheckOnStartup.value,

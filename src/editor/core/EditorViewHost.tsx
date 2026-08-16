@@ -6,6 +6,7 @@ import type {
   ImageImportHandler,
 } from './editorDisplayMode';
 import type { AppLanguage } from '../../shared/i18n';
+import type { EditorMathPreferences } from '../capabilities/math/mathPreferences';
 import type {
   EditorDocumentChangedHandler,
   EditorFocusChangedHandler,
@@ -34,6 +35,7 @@ export type EditorViewHostProps = {
   imageImportErrorHandler?: ImageImportErrorHandler;
   imageImportHandler?: ImageImportHandler;
   language: AppLanguage;
+  mathPreferences?: EditorMathPreferences;
   onDocumentChanged?: EditorDocumentChangedHandler;
   onEditorReady?: (editor: EditorApi) => void;
   onFocusChanged?: EditorFocusChangedHandler;
@@ -53,6 +55,7 @@ export function EditorViewHost({
   imageImportErrorHandler,
   imageImportHandler,
   language,
+  mathPreferences,
   onDocumentChanged,
   onEditorReady,
   onFocusChanged,
@@ -68,6 +71,7 @@ export function EditorViewHost({
   const initialImageImportErrorHandlerRef = useRef(imageImportErrorHandler);
   const initialImageImportHandlerRef = useRef(imageImportHandler);
   const initialLanguageRef = useRef(language);
+  const initialMathPreferencesRef = useRef(mathPreferences);
   const initialMediaPreviewRequestHandlerRef = useRef(onMediaPreviewRequest);
   const editorRef = useRef<EditorApi | null>(null);
   const onDocumentChangedRef = useRef(onDocumentChanged);
@@ -111,6 +115,12 @@ export function EditorViewHost({
   }, [appearance]);
 
   useEffect(() => {
+    if (mathPreferences) {
+      editorRef.current?.setMathPreferences(mathPreferences);
+    }
+  }, [mathPreferences]);
+
+  useEffect(() => {
     const parent = editorParentRef.current;
 
     if (!parent) {
@@ -149,6 +159,9 @@ export function EditorViewHost({
     });
 
     editorRef.current = editor;
+    if (initialMathPreferencesRef.current) {
+      editor.setMathPreferences(initialMathPreferencesRef.current);
+    }
 
     onEditorReadyRef.current?.(editor);
 

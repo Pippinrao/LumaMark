@@ -40,11 +40,13 @@ export type ImageImportHandler = (
 ) => Promise<ImageImportResult>;
 export type ImageImportErrorHandler = (error: unknown) => void;
 export type EditorDocumentContext = {
+  documentId?: string;
   imageAssetResolver?: ImageAssetResolver;
   imageImportErrorHandler?: ImageImportErrorHandler;
   imageImportHandler?: ImageImportHandler;
   onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
   path: string | null;
+  revealPosition?: (position: number) => void;
 };
 
 export const editorDisplayModeCompartment = new Compartment();

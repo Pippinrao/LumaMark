@@ -12,6 +12,15 @@ export type ShellMenuGroup = CommandMenuGroup;
 export type ShellMenuInvocation = CommandMenuInvocation;
 export type ShellMenuNode = CommandMenuNode;
 
+export type EditorPaneContextMenuHandlers = {
+  closeContextMenu: (restoreFocus: boolean) => void;
+  prepareContextMenu: (
+    target: EventTarget | null,
+    coordinates: { x: number; y: number } | undefined,
+    source: 'keyboard' | 'pointer',
+  ) => void;
+};
+
 export type WindowControlsModel = {
   maximized: boolean;
   onControl: (action: 'close' | 'minimize' | 'toggleMaximize') => void;

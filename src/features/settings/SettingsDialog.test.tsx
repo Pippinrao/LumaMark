@@ -28,6 +28,9 @@ function renderSettings(
     fontZoomPercent: 100,
     language: 'zh-CN',
     loadUnsavedDocument: vi.fn(),
+    mathEquationNumbering: 'none',
+    mathPhysicsEnabled: false,
+    mathSyntaxMode: 'pandoc',
     onAutoCheckUpdatesChange: vi.fn(),
     onAutosaveEnabledChange: vi.fn(),
     onClearRecentFiles: vi.fn(),
@@ -36,6 +39,9 @@ function renderSettings(
     onFocusModeOnStartupChange: vi.fn(),
     onFontZoomPercentChange: vi.fn(),
     onLanguageChange: vi.fn(),
+    onMathEquationNumberingChange: vi.fn(),
+    onMathPhysicsEnabledChange: vi.fn(),
+    onMathSyntaxModeChange: vi.fn(),
     onOpenChange: vi.fn(),
     onPageWidthChange: vi.fn(),
     onReturnFocus: vi.fn(),
@@ -277,6 +283,7 @@ describe('SettingsDialog', () => {
     useAppPreferencesStore.setState({ language: 'en' });
     const onDefaultDisplayModeChange = vi.fn();
     const onLanguageChange = vi.fn();
+    const onMathSyntaxModeChange = vi.fn();
     const onPageWidthChange = vi.fn();
     const onStartupBehaviorChange = vi.fn();
     const onThemeChange = vi.fn();
@@ -284,6 +291,7 @@ describe('SettingsDialog', () => {
       language: 'en',
       onDefaultDisplayModeChange,
       onLanguageChange,
+      onMathSyntaxModeChange,
       onPageWidthChange,
       onStartupBehaviorChange,
       onThemeChange,
@@ -337,6 +345,14 @@ describe('SettingsDialog', () => {
     );
     expect(onDefaultDisplayModeChange).toHaveBeenCalledTimes(1);
     expect(onDefaultDisplayModeChange).toHaveBeenCalledWith('source');
+
+    const mathSyntaxGroup = screen.getByRole('radiogroup', {
+      name: 'Inline math syntax',
+    });
+    fireEvent.click(
+      within(mathSyntaxGroup).getByRole('radio', { name: 'Legacy' }),
+    );
+    expect(onMathSyntaxModeChange).toHaveBeenCalledWith('legacy');
   });
 
   it('renders semantic previews only for theme and page-width choices', () => {

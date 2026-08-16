@@ -37,6 +37,11 @@ function renderEditorPane(
       closeContextMenu={closeContextMenu}
       getContextMenuNodes={getContextMenuNodes}
       language="en"
+      mathPreferences={{
+        equationNumbering: 'none',
+        physicsEnabled: false,
+        syntaxMode: 'pandoc',
+      }}
       onDocumentChanged={vi.fn()}
       onEditorReady={(readyEditor) => {
         editor = readyEditor;

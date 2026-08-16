@@ -8,9 +8,17 @@ import {
   captureDocumentSavepoint,
   createEditorState,
   editorHistoryCompartment,
+  editorMarkdownLanguageCompartment,
   setDocumentSavepoint,
   type CreateEditorStateOptions,
 } from './createEditorState';
+import {
+  DEFAULT_EDITOR_MATH_PREFERENCES,
+  editorMathPreferencesEqual,
+  setEditorMathPreferencesEffect,
+  type EditorMathPreferences,
+} from '../capabilities/math/mathPreferences';
+import { markdownLanguage } from '../markdown/markdownLanguage';
 import type { AppLanguage } from '../../shared/i18n';
 import { getEditorSearchPhrases } from '../../shared/i18n/editorSearchPhrases';
 import {
@@ -21,6 +29,11 @@ import {
   type EditorDocumentContext,
   type EditorDisplayMode,
 } from './editorDisplayMode';
+import {
+  applyEditorDocumentContextPatch,
+  createInitialEditorDocumentContext,
+  type EditorDocumentContextPatch,
+} from './editorDocumentIdentity';
 import { allowReadOnlyDocumentChange } from './readOnlyEditAttempt';
 import { invalidatePendingImageImports } from '../capabilities/image/imageInputExtension';
 import { relabelMediaPreviewButtons } from '../capabilities/mediaPreviewButton';
@@ -79,8 +92,9 @@ export type EditorApi = {
   setDocumentTransitionLocked: (locked: boolean) => void;
   setLanguage: (language: AppLanguage) => void;
   setAppearance: (appearance: EditorAppearance) => void;
-  setDocumentContext: (context: EditorDocumentContext) => void;
+  setDocumentContext: (context: EditorDocumentContextPatch) => void;
   setDisplayMode: (mode: EditorDisplayMode) => void;
+  setMathPreferences: (preferences: EditorMathPreferences) => void;
 };
 
 export class CodeMirrorEditorApi implements EditorApi {
@@ -89,13 +103,17 @@ export class CodeMirrorEditorApi implements EditorApi {
   private documentContext: EditorDocumentContext;
   private displayMode: EditorDisplayMode;
   private language: AppLanguage;
+  private mathPreferences: EditorMathPreferences =
+    DEFAULT_EDITOR_MATH_PREFERENCES;
   private readonly searchPhrases: Record<string, string>;
   private transitionLocked = false;
 
   constructor(options: CreateEditorApiOptions) {
     this.appearance = options.appearance ?? DEFAULT_EDITOR_APPEARANCE;
     this.displayMode = options.displayMode ?? 'livePreview';
-    this.documentContext = options.documentContext ?? { path: null };
+    this.documentContext = createInitialEditorDocumentContext(
+      options.documentContext,
+    );
     this.language = options.language ?? 'zh-CN';
     this.searchPhrases = {
       ...(options.searchPhrases ?? getEditorSearchPhrases(this.language)),
@@ -272,6 +290,24 @@ export class CodeMirrorEditorApi implements EditorApi {
     relabelEditorSearchPanel(this.editorView.dom, this.searchPhrases);
   }
 
+  setMathPreferences(preferences: EditorMathPreferences): void {
+    if (editorMathPreferencesEqual(preferences, this.mathPreferences)) {
+      return;
+    }
+
+    this.mathPreferences = { ...preferences };
+    this.editorView.dispatch({
+      effects: [
+        editorMarkdownLanguageCompartment.reconfigure(
+          markdownLanguage({
+            math: { inlineMode: this.mathPreferences.syntaxMode },
+          }),
+        ),
+        setEditorMathPreferencesEffect.of(this.mathPreferences),
+      ],
+    });
+  }
+
   setAppearance(appearance: EditorAppearance): void {
     if (
       appearance.fontZoomPercent === this.appearance.fontZoomPercent &&
@@ -291,20 +327,22 @@ export class CodeMirrorEditorApi implements EditorApi {
     });
   }
 
-  setDocumentContext(context: EditorDocumentContext): void {
-    const nextContext = {
-      ...this.documentContext,
-      ...context,
-    };
+  setDocumentContext(context: EditorDocumentContextPatch): void {
+    const nextContext = applyEditorDocumentContextPatch(
+      this.documentContext,
+      context,
+    );
 
     if (
       nextContext.path === this.documentContext.path &&
+      nextContext.documentId === this.documentContext.documentId &&
       nextContext.imageAssetResolver === this.documentContext.imageAssetResolver &&
       nextContext.imageImportErrorHandler ===
         this.documentContext.imageImportErrorHandler &&
       nextContext.imageImportHandler === this.documentContext.imageImportHandler &&
       nextContext.onMediaPreviewRequest ===
-        this.documentContext.onMediaPreviewRequest
+        this.documentContext.onMediaPreviewRequest &&
+      nextContext.revealPosition === this.documentContext.revealPosition
     ) {
       return;
     }

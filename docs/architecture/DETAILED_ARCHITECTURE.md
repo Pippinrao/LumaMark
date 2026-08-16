@@ -8,7 +8,7 @@
 
 更新：2026-08-05（桌面文件关联、单实例转发与路径保真）
 
-更新：2026-08-12（统一命令/上下文菜单、v2 设置持久化、WorkspaceSession 与 opener 路径授权）
+更新：2026-08-16（Issue #11 MathJax 文档级 Worker 与 CHTML 数学渲染）
 
 当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)，设置持久化与工作区/外部打开安全边界分别见 [ADR 0014](../decisions/0014-settings-persistence.md) 和 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
 
@@ -31,7 +31,8 @@ Tauri v2
    ├─ lucide-react：图标
    ├─ Zustand：轻量应用状态
    ├─ i18next/react-i18next：多语言
-   ├─ Mermaid：当前复杂块渲染；数学引擎待迁移语料评估与 ADR
+   ├─ Mermaid：当前复杂块渲染
+   ├─ MathJax 4.1.3 CHTML：文档级公式 Worker 与 NewCM 离线字体
    └─ Vitest / Playwright：自动化验证
 ```
 
@@ -168,7 +169,7 @@ Rust 保存：
 | 单元测试 | Vitest | Jest | 选 Vitest。与 Vite 原生集成。 |
 | E2E | Playwright | Cypress | 选 Playwright。适合自动化桌面 WebView 体验验证。 |
 | Mermaid | mermaid 官方包 | 自研渲染/第三方包装 | 用官方 Mermaid，外层自建异步调度和缓存。 |
-| 数学公式 | 待评估 KaTeX / MathJax | 其他成熟数学渲染器 | 当前里程碑不实现数学；Next 使用固定迁移语料比较兼容性、性能与安全边界，形成 ADR 后先实现块级数学。 |
+| 数学公式 | MathJax 4.1.3 CHTML + NewCM | KaTeX、主线程渲染、SVG | 文档级 Worker、AMS 标签/引用、mhchem、可选 Physics。决策见 [ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md)。 |
 
 ## 前端模块划分
 
@@ -276,7 +277,7 @@ src/
 
 Editor capability 边界：
 
-- 每个复杂编辑器子功能进入 `editor/capabilities/<name>/`，例如 `mermaid`、`table`、`code-block`、`image`。
+- 每个复杂编辑器子功能进入 `editor/capabilities/<name>/`，例如 `mermaid`、`math`、`table`、`code-block`、`image`。
 - 每个 capability 通过一个薄 public entry 暴露 extension、command factory 和必要类型；主体实现拆到 detection、DOM、adapter、commands、decorations 等子模块。
 - `editor/core/**` 只能消费 capability 聚合入口，不能 import capability 内部文件或旧 `widgets/*` 内部文件。
 - `editor/commands/**` 只能通过 capability command factory 调用表格、代码块等能力，不能直接 import table widget、Mermaid widget 或 code-block decoration internals。
@@ -306,6 +307,17 @@ Mermaid capability 拆分要求：
 - `mermaidEditingState.ts` 负责正在编辑 block 的可映射状态；激活时围栏源码留在主文档中，预览 decoration 放在块下方。
 - 后续性能优化应优先在 `mermaidPreviewExtension` 的 block 收集和 decoration 构建路径上做增量化，不能把复杂逻辑重新堆回 public entry。
 
+Math capability 拆分要求：
+
+- 主体实现位于 `editor/capabilities/math/`，不复用 Mermaid 的业务类型、缓存条目或 Worker protocol。
+- `mathSyntax.ts` 只扩展 Lezer Markdown；TeX 内容保持 opaque。
+- `mathInventory.ts` 按源码顺序形成公式序列；`mathRenderSession.ts` 负责 Worker、debounce、generation 与上一次成功结果。
+- `mathDocumentRenderer.ts` 在 Worker 内按源码顺序整批排版并返回 CHTML。宏、编号和引用不得拆为无状态单公式任务。
+- `mathPreferences.ts` 定义 `disabled | pandoc | legacy`、`none | ams | all` 与 Physics 门控；默认 Pandoc / none / 关闭。唯一 editor-core 入口 `EditorApi.setMathPreferences` 不得改变正文、选区、dirty 或撤销历史。
+- 桌面文档 identity 由 Rust `DocumentPathIdentity` / claim 提供；前端 `editorDocumentIdentity.ts` 只铸造 untitled id 与路径字节哈希 fallback，不得猜测 Windows 盘符或 UNC。
+- `@mathjax/src` 与 `@mathjax/mathjax-newcm-font` 固定为 4.1.3。允许包、安全选项和回滚条件以 [ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md) 为准。
+- `\ref` / `\eqref` 点击必须复用 `EditorCommandPort.revealPosition()`，用当前 generation label 索引加 fresh inventory 解析位置，不长期缓存绝对 offset。
+
 Table/code-block/image capability 规则：
 
 - table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory，以及基于组件源码 token DOM 的样式适配；不创建 sibling preview DOM。复杂表格交互仍以成熟组件为准，纵向光标列保持暂由锁定版本的最小 pnpm patch 修正。
@@ -316,7 +328,7 @@ Table/code-block/image capability 规则：
 
 当前能力边界审计结论：
 
-- 已独立的能力：`mermaid`、`table`、`code-block`、`image` 都有独立 capability 目录和薄 public entry；`editor/core/**` 与 `editor/commands/**` 不直接 import capability 内部实现。
+- 已独立的能力：`mermaid`、`math`、`table`、`code-block`、`image` 都有独立 capability 目录和薄 public entry；`editor/core/**` 与 `editor/commands/**` 不直接 import capability 内部实现。
 - 已建立的共享合同：`editor/interaction` 统一派生编辑范围；`documentSourceFormatField` 与 savepoint 同步映射源码格式；Mermaid 编辑只使用主 `EditorView`。详见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 - 允许的共享层：`editor/capabilities/index.ts` 只做 capability 和通用 WYSIWYG extension 组装；不得出现 DOM 创建、语法树扫描、渲染调度、第三方 widget 配置等主体逻辑。
 - 允许的通用 WYSIWYG：`wysiwyg/markdownDecorations.ts` 只处理所有 Markdown 都会共享的视觉规则，以及 capability decoration builder 的组合。它不能拥有异步渲染、block widget lifecycle、文件路径解析、table 命令、Mermaid 编辑器或 image preview DOM。
@@ -879,7 +891,7 @@ capability 规则：
 
 以下选型尚未采用，进入对应里程碑前要做小样验证：
 
-- `KaTeX` / `MathJax`：使用固定迁移语料比较兼容性、渲染成本、包体积和安全边界；形成 ADR 前不设默认引擎。
+- `KaTeX`：已否决为 Issue #11 最终引擎；见 [ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md)。
 - 工作区搜索库：先用简单 Rust 扫描还是直接引入索引库，需要根据 V1 范围决定。
 
 验证失败不等于立刻自研。优先寻找同类成熟替代。

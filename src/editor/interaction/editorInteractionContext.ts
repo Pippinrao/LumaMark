@@ -21,6 +21,7 @@ export type EditorInteractionBlockKind =
   | 'Blockquote'
   | 'FencedCode'
   | 'ListItem'
+  | 'MathBlock'
   | 'Paragraph'
   | 'SetextHeading1'
   | 'SetextHeading2'
@@ -31,6 +32,7 @@ export type EditorInteractionInlineKind =
   | 'Emphasis'
   | 'Image'
   | 'InlineCode'
+  | 'InlineMath'
   | 'Link'
   | 'Strikethrough'
   | 'StrongEmphasis';
@@ -45,6 +47,7 @@ export type EditorInteractionDelimiterRange =
       | 'LinkMark'
       | 'LinkTitle'
       | 'ListMark'
+      | 'MathMark'
       | 'QuoteMark'
       | 'StrikethroughMark'
       | 'TableDelimiter'
@@ -93,6 +96,7 @@ const INLINE_OWNER_NAMES =
     'Emphasis',
     'Image',
     'InlineCode',
+    'InlineMath',
     'Link',
     'Strikethrough',
     'StrongEmphasis',
@@ -104,6 +108,7 @@ function isBlockKind(name: string): name is EditorInteractionBlockKind {
     name === 'ListItem' ||
     name === 'Blockquote' ||
     name === 'FencedCode' ||
+    name === 'MathBlock' ||
     name === 'TableCell' ||
     name === 'SetextHeading1' ||
     name === 'SetextHeading2' ||
@@ -128,6 +133,7 @@ function isDelimiterKind(
     name === 'LinkMark' ||
     name === 'LinkTitle' ||
     name === 'ListMark' ||
+    name === 'MathMark' ||
     name === 'QuoteMark' ||
     name === 'StrikethroughMark' ||
     name === 'TableDelimiter' ||
@@ -165,6 +171,8 @@ function delimiterRangesForInlineOwner(
   const allowedNames =
     owner.name === 'InlineCode'
       ? new Set(['CodeMark'])
+      : owner.name === 'InlineMath'
+        ? new Set(['MathMark'])
       : owner.name === 'Strikethrough'
         ? new Set(['StrikethroughMark'])
         : owner.name === 'Link' || owner.name === 'Image'
@@ -246,13 +254,15 @@ function delimiterRangesForBlock(
     const matchesFenceDelimiter =
       owner.name === 'FencedCode' &&
       (cursor.name === 'CodeMark' || cursor.name === 'CodeInfo');
+    const matchesMathDelimiter =
+      owner.name === 'MathBlock' && cursor.name === 'MathMark';
     const matchesOwnedDelimiter =
       delimiterName !== null &&
       cursor.name === delimiterName &&
       nearestAncestor(cursor.node, owner.name)?.from === owner.from;
 
     if (
-      (matchesFenceDelimiter || matchesOwnedDelimiter) &&
+      (matchesFenceDelimiter || matchesMathDelimiter || matchesOwnedDelimiter) &&
       isDelimiterKind(cursor.name)
     ) {
       delimiters.push({

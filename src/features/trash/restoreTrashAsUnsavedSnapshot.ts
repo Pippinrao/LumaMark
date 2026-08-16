@@ -1,4 +1,4 @@
-import type { CommandResult } from '../../services/tauri/invokeCommand';
+import type { CommandError, CommandResult } from '../../services/tauri/invokeCommand';
 import {
   restoreTrashDocument,
   type TrashDocument,
@@ -15,7 +15,7 @@ export async function restoreTrashAsUnsavedSnapshot(
   ports: RestoreTrashPorts,
 ): Promise<
   | { ok: true; status: 'restoredUnsaved' }
-  | { ok: false; error: CommandResult<never>['error'] }
+  | { ok: false; error: CommandError }
 > {
   const restore = ports.restore ?? restoreTrashDocument;
   const result = await restore(id);

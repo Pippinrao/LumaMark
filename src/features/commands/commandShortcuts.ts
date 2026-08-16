@@ -25,6 +25,7 @@ export function createCommandShortcutLabels(userAgent: string) {
     heading6: `${primary}+6`,
     image: `${primary}+Shift+I`,
     italic: `${primary}+I`,
+    math: `${primary}+Shift+M`,
     newDocument: `${primary}+N`,
     normalParagraph: `${primary}+0`,
     openFile: `${primary}+O`,

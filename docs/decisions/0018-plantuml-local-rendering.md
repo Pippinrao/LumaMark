@@ -31,7 +31,7 @@
 ## 影响
 
 - 新增直接依赖 `@plantuml/core@1.2026.6`、`dompurify@3.4.11`。
-- 安装包体积增加约 8 MB；运行时懒加载。`quality:web-build` 把 `plantuml-` / `viz-global-` chunk 排除在 700KiB JS budget 之外，并把 Vite `chunkSizeWarningLimit` 提到 7000。
+- 安装包体积增加约 8 MB；运行时懒加载。`quality:web-build` 把 `plantuml-` / `viz-global-` chunk 排除在 700KiB JS budget 之外，并把 Vite `chunkSizeWarningLimit` 提到 7000。复制该引擎与 MathJax NewCM 字体会触发 Rolldown `vite:asset` `PLUGIN_TIMINGS`；门禁只豁免这一插件名，见 [质量策略](../quality/QUALITY_STRATEGY.md)。
 - PlantUML 是独立 editor capability，默认开启，设置即时生效。
 - 实机完成证据必须包含 NSIS 安装包 + Win32 OS 指针路径：`scripts/release/verify-installed-plantuml-os.mjs`。
 

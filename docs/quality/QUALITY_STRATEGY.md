@@ -160,6 +160,8 @@ AI agent 必须遵守：
 - Web 构建 chunk 预算。
 - 单独执行的性能基准。
 
+已知外部限制：Vite 8 / Rolldown 复制 MathJax NewCM WOFF2（105 个）和懒加载 PlantUML TeaVM 引擎时，会在 `vite:asset` 上发出 `PLUGIN_TIMINGS`。这是打包已知大资源的拷贝成本，不是自定义插件变慢。`quality:web-build` 只豁免仅点名 `vite:asset` 的该诊断；其它插件计时警告仍失败。Vite `build.rolldownOptions.checks.pluginTimings` 关闭同一诊断，避免 `pnpm build:web` 日志被噪声淹没。后续治理：若 Rolldown 提高 asset 插件阈值或字体/引擎拷贝不再触发，收回该豁免并重新打开检查。
+
 仓库还必须维护 `.github/workflows/windows-release-build.yml`，作为手动发布构建门禁，用于在 GitHub Windows runner 上生成并上传 release exe、MSI 和 NSIS 产物。
 
 任何用于 V1 发布判断的手动发布构建，都必须先运行 `pnpm release:verify-artifacts`，生成包含大小和 SHA-256 的 `lumamark-windows-artifacts.json`，并将该 manifest 作为 GitHub artifact 保留。`docs/release/WINDOWS_V1_BUILD.md` 必须记录 workflow run 链接、提交哈希、结论和 artifact 清单。没有可追溯 run 证据和 artifact manifest 时，不得把 GitHub runner 发布构建视为已验证。

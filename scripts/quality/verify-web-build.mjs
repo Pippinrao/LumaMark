@@ -5,6 +5,7 @@ import process from 'node:process';
 
 const LARGE_CHUNK_WARNING = 'Some chunks are larger than 500 kB';
 const ROLLDOWN_PLUGIN_TIMINGS_WARNING = '[PLUGIN_TIMINGS]';
+const EXPECTED_ASSET_PLUGIN_TIMING = /^vite:asset$/u;
 const VITE_WARNING_MARKER = '(!)';
 const ENTRY_CHUNK_BUDGET_BYTES = 120 * 1024;
 const JS_CHUNK_BUDGET_BYTES = 700 * 1024;
@@ -32,7 +33,7 @@ if (output.includes(LARGE_CHUNK_WARNING)) {
   process.exit(1);
 }
 
-if (output.includes(ROLLDOWN_PLUGIN_TIMINGS_WARNING)) {
+if (hasDisallowedPluginTimingsWarning(output)) {
   process.stderr.write(
     '\n[quality:web-build] Rolldown emitted a PLUGIN_TIMINGS warning.\n',
   );
@@ -245,6 +246,34 @@ async function collectMatchingFiles(
 function isExemptLazyEngineChunk(name) {
   const base = name.split(/[\\/]/).pop() ?? name;
   return /^(plantuml-|viz-global-)/u.test(base);
+}
+
+function hasDisallowedPluginTimingsWarning(output) {
+  if (!output.includes(ROLLDOWN_PLUGIN_TIMINGS_WARNING)) {
+    return false;
+  }
+
+  const namedPlugins = extractPluginTimingNames(output);
+  if (namedPlugins.length === 0) {
+    return true;
+  }
+
+  return namedPlugins.some(
+    (plugin) => !EXPECTED_ASSET_PLUGIN_TIMING.test(plugin),
+  );
+}
+
+function extractPluginTimingNames(output) {
+  const fromBackticks = [...output.matchAll(/plugin `([^`]+)`/gu)].map(
+    (match) => match[1],
+  );
+  if (fromBackticks.length > 0) {
+    return fromBackticks;
+  }
+
+  return [...output.matchAll(/^\s*-\s+`?([A-Za-z][\w:.-]*)`?/gmu)].map(
+    (match) => match[1],
+  );
 }
 
 function formatKiB(bytes) {

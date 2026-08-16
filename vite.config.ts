@@ -28,6 +28,12 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 7000,
     rolldownOptions: {
+      // MathJax NewCM WOFF2 + lazy PlantUML TeaVM copy time trips Rolldown's
+      // vite:asset PLUGIN_TIMINGS diagnostic. quality:web-build still fails
+      // any PLUGIN_TIMINGS that names a different plugin.
+      checks: {
+        pluginTimings: false,
+      },
       output: {
         // Mermaid contains static import cycles across its diagram modules. Keep
         // their source execution order when the size-based vendor group splits.

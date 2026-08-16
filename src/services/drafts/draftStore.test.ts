@@ -127,4 +127,23 @@ describe('recovery draft store', () => {
       }
     }
   });
+
+  it('does not throw when incomplete Tauri internals are present', () => {
+    (
+      window as Window & {
+        __TAURI_INTERNALS__?: { convertFileSrc?: (path: string) => string };
+      }
+    ).__TAURI_INTERNALS__ = {
+      convertFileSrc: (path) => path,
+    };
+
+    expect(() =>
+      saveRecoveryDraft({ filePath: null, text: 'Incomplete internals' }),
+    ).not.toThrow();
+    expect(readRecoveryDraft()).toBeNull();
+    expect(() => clearRecoveryDraft()).not.toThrow();
+
+    delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+      .__TAURI_INTERNALS__;
+  });
 });

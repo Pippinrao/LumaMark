@@ -9,7 +9,10 @@ import {
   type PreferenceStorage,
 } from '../services/preferences/browserPreferenceStorage';
 import { BROWSER_SETTINGS_STORAGE_KEY } from '../services/settings/settingsClient';
-import { createDefaultLumaMarkSettings } from '../services/settings/settingsTypes';
+import {
+  createDefaultLumaMarkSettings,
+  SETTINGS_VERSION,
+} from '../services/settings/settingsTypes';
 import { i18n } from '../shared/i18n';
 import { bootstrapApp } from './bootstrapApp';
 import { useAppStore } from './stores/appStore';
@@ -111,7 +114,9 @@ describe('bootstrapApp', () => {
 
   it('projects safe in-memory settings before rendering when hydration rejects a future version', async () => {
     const safeSettings = createDefaultLumaMarkSettings();
-    const futureSettingsDocument = JSON.stringify({ version: 3 });
+    const futureSettingsDocument = JSON.stringify({
+      version: SETTINGS_VERSION + 1,
+    });
     browserPreferenceStorage.setItem(
       BROWSER_SETTINGS_STORAGE_KEY,
       futureSettingsDocument,

@@ -57,6 +57,14 @@ function messageKeyForError(code: string): string {
   }
 }
 
+function safetyCopyKeyForError(code: string): string {
+  if (code.startsWith('desktop.open_request_')) {
+    return 'fileError.documentStatus';
+  }
+
+  return 'fileError.documentSafe';
+}
+
 export function FileErrorNotice({
   error,
   onDismiss,
@@ -69,7 +77,7 @@ export function FileErrorNotice({
       <CircleAlert aria-hidden="true" size={18} strokeWidth={1.8} />
       <div className="lm-file-error-copy">
         <strong>{t(messageKeyForError(error.code))}</strong>
-        <span>{t('fileError.documentSafe')}</span>
+        <span>{t(safetyCopyKeyForError(error.code))}</span>
         {onRetry && error.recoverable ? (
           <button
             className="lm-file-error-retry"

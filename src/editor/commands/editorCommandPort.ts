@@ -622,10 +622,14 @@ function isAsyncEditTargetCurrent(
   }
 
   const current = view.state;
+  // Preview capabilities dispatch decoration-only transactions (MathJax
+  // snapshots, theme observers). Those must not abort cut/paste, but a
+  // user edit that happens to restore equal text still must.
   return (
     !current.readOnly &&
     !view.composing &&
-    current === startState
+    current.doc === startState.doc &&
+    current.selection.eq(startState.selection)
   );
 }
 

@@ -24,6 +24,7 @@ describe('markdownFormatKeymap', () => {
       'Mod-5',
       'Mod-6',
       'Mod-Shift-k',
+      'Mod-Shift-m',
     ]);
   });
 

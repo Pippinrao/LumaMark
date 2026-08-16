@@ -23,7 +23,7 @@ function renderEditorPane(
 ) {
   let editor: EditorApi | null = null;
   const closeContextMenu = vi.fn();
-  const getContextMenuNodes = vi.fn((): ShellMenuNode[] => []);
+  const getContextMenuNodes = vi.fn((_target?: unknown): ShellMenuNode[] => []);
   const prepareContextMenu = vi.fn();
 
   render(

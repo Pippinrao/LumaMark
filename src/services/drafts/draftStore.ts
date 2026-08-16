@@ -38,12 +38,13 @@ function getStorage(): Storage | null {
 
 export function saveRecoveryDraft(
   draft: RecoveryDraft,
-  sessionId = resolveWindowSessionId(),
+  sessionId?: string,
 ): void {
   try {
+    const resolvedSessionId = sessionId ?? resolveWindowSessionId();
     const storage = getStorage();
-    storage?.setItem(recoveryDraftKey(sessionId), JSON.stringify(draft));
-    if (sessionId === 'main') {
+    storage?.setItem(recoveryDraftKey(resolvedSessionId), JSON.stringify(draft));
+    if (resolvedSessionId === 'main') {
       storage?.removeItem(legacyRecoveryDraftKey);
     }
   } catch {
@@ -52,15 +53,17 @@ export function saveRecoveryDraft(
 }
 
 export function readRecoveryDraft(
-  sessionId = resolveWindowSessionId(),
+  sessionId?: string,
 ): RecoveryDraft | null {
   let serialized: string | null | undefined;
   let migratedLegacy = false;
+  let resolvedSessionId: string;
 
   try {
+    resolvedSessionId = sessionId ?? resolveWindowSessionId();
     const storage = getStorage();
-    serialized = storage?.getItem(recoveryDraftKey(sessionId));
-    if (!serialized && sessionId === 'main') {
+    serialized = storage?.getItem(recoveryDraftKey(resolvedSessionId));
+    if (!serialized && resolvedSessionId === 'main') {
       serialized = storage?.getItem(legacyRecoveryDraftKey);
       migratedLegacy = Boolean(serialized);
     }
@@ -88,7 +91,7 @@ export function readRecoveryDraft(
 
     const draft = { filePath: value.filePath, text: value.text };
     if (migratedLegacy) {
-      saveRecoveryDraft(draft, sessionId);
+      saveRecoveryDraft(draft, resolvedSessionId);
     }
     return draft;
   } catch {
@@ -96,13 +99,12 @@ export function readRecoveryDraft(
   }
 }
 
-export function clearRecoveryDraft(
-  sessionId = resolveWindowSessionId(),
-): void {
+export function clearRecoveryDraft(sessionId?: string): void {
   try {
+    const resolvedSessionId = sessionId ?? resolveWindowSessionId();
     const storage = getStorage();
-    storage?.removeItem(recoveryDraftKey(sessionId));
-    if (sessionId === 'main') {
+    storage?.removeItem(recoveryDraftKey(resolvedSessionId));
+    if (resolvedSessionId === 'main') {
       storage?.removeItem(legacyRecoveryDraftKey);
     }
   } catch {

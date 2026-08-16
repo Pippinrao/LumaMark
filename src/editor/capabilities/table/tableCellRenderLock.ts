@@ -78,6 +78,7 @@ class TableRenderLockRoot {
   private destroyed = false;
   private locked: boolean;
   private pendingRootFocus = false;
+  private nestedFocusRestore: EditorView | null = null;
   private previewSurfaceObserver: MutationObserver | null = null;
   private readonly nestedViews = new Set<EditorView>();
   private readonly lockedPreviews = new Map<
@@ -137,9 +138,12 @@ class TableRenderLockRoot {
       return;
     }
 
-    const moveFocusToRoot =
-      locked &&
-      Array.from(this.nestedViews).some((nestedView) => nestedView.hasFocus);
+    const focusedNested = Array.from(this.nestedViews).find(
+      (nestedView) => nestedView.hasFocus,
+    );
+    if (locked) {
+      this.nestedFocusRestore = focusedNested ?? null;
+    }
     this.locked = locked;
     if (locked) {
       this.startPreviewSurfaceObserver();
@@ -153,8 +157,16 @@ class TableRenderLockRoot {
     }
     this.syncPreviewSurfaces();
     this.syncStructureMenus();
-    if (moveFocusToRoot) {
+    if (locked && this.nestedFocusRestore) {
       this.handoffFocusToRoot();
+    } else if (!locked && this.nestedFocusRestore) {
+      const target = this.nestedFocusRestore;
+      this.nestedFocusRestore = null;
+      queueMicrotask(() => {
+        if (!this.destroyed && this.nestedViews.has(target)) {
+          target.focus();
+        }
+      });
     }
   }
 
@@ -163,11 +175,15 @@ class TableRenderLockRoot {
     this.syncNestedView(nestedView);
     this.syncPreviewSurfaces();
     if (this.locked && nestedView.hasFocus) {
+      this.nestedFocusRestore = nestedView;
       this.handoffFocusToRoot();
     }
   }
 
   unregister(nestedView: EditorView): void {
+    if (this.nestedFocusRestore === nestedView) {
+      this.nestedFocusRestore = null;
+    }
     this.nestedViews.delete(nestedView);
     this.syncPreviewSurfaces();
   }
@@ -183,6 +199,7 @@ class TableRenderLockRoot {
   destroy(): void {
     this.destroyed = true;
     this.pendingRootFocus = false;
+    this.nestedFocusRestore = null;
     this.stopPreviewSurfaceObserver();
     this.stopLockedChromeListeners();
     tableRenderLockRoots.delete(this);

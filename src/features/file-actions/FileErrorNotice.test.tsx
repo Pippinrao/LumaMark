@@ -31,6 +31,45 @@ describe('FileErrorNotice', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(message);
   });
 
+  it('keeps file-operation safety copy distinct from desktop open-request copy', () => {
+    const { rerender } = render(
+      <I18nProvider>
+        <FileErrorNotice
+          error={{
+            code: 'file.permission_denied',
+            message: 'backend detail',
+            recoverable: true,
+          }}
+          onDismiss={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '当前文档内容未被更改。',
+    );
+
+    rerender(
+      <I18nProvider>
+        <FileErrorNotice
+          error={{
+            code: 'desktop.open_request_ack_failed',
+            message: 'private backend detail',
+            recoverable: true,
+          }}
+          onDismiss={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '继续前请确认当前文档状态。',
+    );
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      '当前文档内容未被更改。',
+    );
+  });
+
   it('offers a localized retry action when recovery can be attempted again', () => {
     const onRetry = vi.fn();
     render(

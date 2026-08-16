@@ -17,6 +17,7 @@ import { useRecentFilesStore } from '../../features/recent-files/recentFilesStor
 import { useSettingsStore } from '../../features/settings/settingsStore';
 import { useStartupStore } from '../../features/startup/startupStore';
 import type { CommandError, CommandResult } from '../../services/tauri/invokeCommand';
+import type { DocumentClaimClient } from '../../services/window/documentClaimClient';
 import type {
   FileWatchChangeEvent,
   FileWatchClient,
@@ -52,9 +53,66 @@ vi.mock('../../services/window/windowControls', () => ({
   windowControls: windowControlMocks,
 }));
 
+function createTestDocumentClaimClient(): DocumentClaimClient {
+  const unavailableFileCommand = () => ({
+    error: {
+      code: 'file.test_client_unavailable',
+      message: 'The test file command client is unavailable.',
+      recoverable: false,
+    },
+    ok: false as const,
+  });
+
+  return {
+    beginSession: async () => ({
+      data: { sessionGeneration: 1, status: 'began' },
+      ok: true,
+    }),
+    commitReservation: async () => ({
+      data: { status: 'committed' },
+      ok: true,
+    }),
+    focusWindow: async () => ({
+      data: { status: 'focused' },
+      ok: true,
+    }),
+    releaseOwnedDocument: async () => ({
+      data: { status: 'released' },
+      ok: true,
+    }),
+    releaseReservation: async () => ({
+      data: { status: 'released' },
+      ok: true,
+    }),
+    releaseSession: async () => ({
+      data: { releasedReservations: 0, status: 'released' },
+      ok: true,
+    }),
+    readTextClaimed: async (_operationId, path) =>
+      (await window.__LUMAMARK_E2E_FILE_COMMANDS__?.readText(path)) ??
+      unavailableFileCommand(),
+    reserveDocument: async () => ({
+      data: { status: 'reserved' },
+      ok: true,
+    }),
+    takeoverSession: async () => ({
+      data: {
+        releasedReservations: 0,
+        sessionGeneration: 2,
+        status: 'takenOver',
+      },
+      ok: true,
+    }),
+    writeTextClaimed: async (_operationId, path, text) =>
+      (await window.__LUMAMARK_E2E_FILE_COMMANDS__?.writeText(path, text)) ??
+      unavailableFileCommand(),
+  };
+}
+
 describe('AppShell', () => {
   beforeEach(() => {
     delete window.__LUMAMARK_E2E_OPEN_REQUESTS__;
+    window.__LUMAMARK_E2E_DOCUMENT_CLAIMS__ = createTestDocumentClaimClient();
     installResizeObserverStub();
     workspaceCommandMocks.listWorkspaceChildren.mockReset();
     workspaceCommandMocks.openWorkspaceDirectory.mockReset();
@@ -198,6 +256,7 @@ describe('AppShell', () => {
   });
 
   afterEach(() => {
+    delete window.__LUMAMARK_E2E_DOCUMENT_CLAIMS__;
     cleanup();
   });
 
@@ -450,10 +509,18 @@ describe('AppShell', () => {
       window as Window & {
         __TAURI_INTERNALS__?: {
           convertFileSrc: (path: string) => string;
+          metadata?: {
+            currentWindow?: { label: string };
+            currentWebview?: { label: string };
+          };
         };
       }
     ).__TAURI_INTERNALS__ = {
       convertFileSrc: (path) => `asset://localhost/${path}?size=full#preview`,
+      metadata: {
+        currentWindow: { label: 'main' },
+        currentWebview: { label: 'main' },
+      },
     };
 
     try {
@@ -649,10 +716,18 @@ describe('AppShell', () => {
       window as Window & {
         __TAURI_INTERNALS__?: {
           convertFileSrc: (path: string) => string;
+          metadata?: {
+            currentWindow?: { label: string };
+            currentWebview?: { label: string };
+          };
         };
       }
     ).__TAURI_INTERNALS__ = {
       convertFileSrc: (path) => `asset://localhost/${path}`,
+      metadata: {
+        currentWindow: { label: 'main' },
+        currentWebview: { label: 'main' },
+      },
     };
 
     try {
@@ -1325,6 +1400,9 @@ describe('AppShell', () => {
     });
     fireEvent.contextMenu(editorPaper as HTMLElement);
 
+    const insertSubmenu = await screen.findByRole('menuitem', { name: '插入' });
+    insertSubmenu.focus();
+    fireEvent.keyDown(insertSubmenu, { key: 'ArrowRight' });
     expect(
       await screen.findByRole('menuitem', { name: /^表格\s*Ctrl\+T$/ }),
     ).toHaveTextContent('Ctrl+T');

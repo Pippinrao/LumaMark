@@ -72,6 +72,7 @@ const requiredCoreKeys = [
   'fileError.desktopOpenUnavailable',
   'fileError.desktopPathUnsupported',
   'fileError.documentSafe',
+  'fileError.documentStatus',
   'fileError.retry',
   'externalChange.title',
   'externalChange.description',
@@ -322,13 +323,25 @@ describe('i18n resources', () => {
   });
 
   it.each([
+    ['en', 'Your current document was not changed.'],
+    ['zh-CN', '当前文档内容未被更改。'],
+  ] as const)(
+    'keeps file-operation safety copy in %s',
+    (language, expected) => {
+      expect(
+        resources[language].translation['fileError.documentSafe'],
+      ).toBe(expected);
+    },
+  );
+
+  it.each([
     ['en', 'Check the current document state before continuing.'],
     ['zh-CN', '继续前请确认当前文档状态。'],
   ] as const)(
     'uses neutral document-state guidance for desktop errors in %s',
     (language, expected) => {
       expect(
-        resources[language].translation['fileError.documentSafe'],
+        resources[language].translation['fileError.documentStatus'],
       ).toBe(expected);
     },
   );

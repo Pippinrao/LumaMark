@@ -61,7 +61,13 @@ export function editorReadOnlyExtension(
   mode: EditorDisplayMode,
   transitionLocked = false,
 ): Extension {
-  return EditorState.readOnly.of(mode === 'reading' || transitionLocked);
+  // CodeMirror's readOnly facet keeps the first provided value. Emitting
+  // `of(false)` here would permanently mask a later `of(true)`.
+  if (mode === 'reading' || transitionLocked) {
+    return EditorState.readOnly.of(true);
+  }
+
+  return [] as Extension;
 }
 
 export function editorDisplayModeExtension(

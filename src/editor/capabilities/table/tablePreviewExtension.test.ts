@@ -1082,24 +1082,8 @@ describe('tablePreviewExtension', () => {
     ].join('\n');
     const parent = document.createElement('div');
     document.body.appendChild(parent);
-    let waitForRapidCycleFocus = false;
-    let resolveRapidCycleFocus: (() => void) | undefined;
-    const rapidCycleFocusSettled = new Promise<void>((resolve) => {
-      resolveRapidCycleFocus = resolve;
-    });
     const editor = createEditorApi({
       doc,
-      extensions: [
-        EditorView.updateListener.of((update) => {
-          if (
-            waitForRapidCycleFocus &&
-            update.focusChanged &&
-            !update.view.hasFocus
-          ) {
-            resolveRapidCycleFocus?.();
-          }
-        }),
-      ],
       parent,
     });
     editor.view.dispatch({
@@ -1134,7 +1118,6 @@ describe('tablePreviewExtension', () => {
     expect(activeEditor.hasFocus).toBe(true);
     expect(document.activeElement).toBe(activeEditor.contentDOM);
 
-    waitForRapidCycleFocus = true;
     editor.setDisplayMode('reading');
 
     expect(activeEditor.hasFocus).toBe(false);
@@ -1149,7 +1132,14 @@ describe('tablePreviewExtension', () => {
 
     editor.setDisplayMode('livePreview');
     await settleTablePreview();
-    await rapidCycleFocusSettled;
+    await expect
+      .poll(() => {
+        const restored = findNestedTableEditor(parent);
+        return Boolean(
+          restored?.hasFocus && document.activeElement === restored.contentDOM,
+        );
+      })
+      .toBe(true);
 
     const restoredEditor = findNestedTableEditor(parent);
     if (!restoredEditor) {

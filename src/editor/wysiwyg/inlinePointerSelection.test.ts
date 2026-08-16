@@ -505,6 +505,184 @@ describe('inline pointer selection', () => {
       parent.remove();
     }
   });
+
+  it('keeps a drag from inline code onto following text as a range selection', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = 'before `alphaBeta` after';
+    const from = source.indexOf('`');
+    const to = source.lastIndexOf('`') + 1;
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: source,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: { anchor: 1 },
+      }),
+    });
+    const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'caretPositionFromPoint',
+    );
+
+    try {
+      const owner = parent.querySelector<HTMLElement>('.lm-md-inline-code');
+      const codeText = [...(owner?.childNodes ?? [])].find(
+        (node) => node.nodeValue === 'alphaBeta',
+      );
+      const afterNode = [...parent.querySelectorAll('.cm-line')]
+        .flatMap((element) => [...element.childNodes])
+        .find((node) => node.nodeValue?.includes('after'));
+      expect(codeText).toBeTruthy();
+      expect(afterNode).toBeTruthy();
+      Object.defineProperty(document, 'caretPositionFromPoint', {
+        configurable: true,
+        value: vi.fn((x: number) => ({
+          getClientRect: () => new DOMRect(),
+          offset: x < 150 ? 4 : 0,
+          offsetNode: x < 150 ? codeText! : afterNode!,
+        })),
+      });
+
+      dispatchMouseGestureOn(owner!, 100, 20, 1, 180, 20);
+      await Promise.resolve();
+
+      expect(view.state.selection.main.empty).toBe(false);
+      expect(view.state.selection.main.from).toBeGreaterThan(from);
+      expect(view.state.selection.main.from).toBeLessThan(to);
+      expect(view.state.selection.main.to).toBeGreaterThanOrEqual(to);
+      expect(view.state.sliceDoc(
+        view.state.selection.main.from,
+        view.state.selection.main.to,
+      )).toContain('Beta`');
+    } finally {
+      restoreProperty(
+        document,
+        'caretPositionFromPoint',
+        caretPositionDescriptor,
+      );
+      view.destroy();
+      parent.remove();
+    }
+  });
+
+  it('keeps a drag from a link onto adjacent emphasis as a range selection', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = '[Link](https://example.com)*邻接*';
+    const emphasisFrom = source.indexOf('*');
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: source,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: { anchor: source.length },
+      }),
+    });
+    const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'caretPositionFromPoint',
+    );
+
+    try {
+      const link = parent.querySelector<HTMLElement>('.lm-md-link');
+      const emphasis = parent.querySelector<HTMLElement>('.lm-md-emphasis');
+      const linkText = [...(link?.childNodes ?? [])].find(
+        (node) => node.nodeValue === 'Link',
+      );
+      const emphasisText = [...(emphasis?.childNodes ?? [])].find(
+        (node) => node.nodeValue === '邻接',
+      );
+      expect(linkText).toBeTruthy();
+      expect(emphasisText).toBeTruthy();
+      Object.defineProperty(document, 'caretPositionFromPoint', {
+        configurable: true,
+        value: vi.fn((x: number) => ({
+          getClientRect: () => new DOMRect(),
+          offset: x < 150 ? 2 : 1,
+          offsetNode: x < 150 ? linkText! : emphasisText!,
+        })),
+      });
+
+      dispatchMouseGestureOn(link!, 100, 20, 1, 180, 20);
+      await Promise.resolve();
+
+      expect(view.state.selection.main.empty).toBe(false);
+      expect(view.state.selection.main.from).toBeLessThan(emphasisFrom);
+      expect(view.state.selection.main.to).toBeGreaterThan(emphasisFrom);
+      expect(view.state.sliceDoc(
+        view.state.selection.main.from,
+        view.state.selection.main.to,
+      )).toContain('](https://example.com)*');
+    } finally {
+      restoreProperty(
+        document,
+        'caretPositionFromPoint',
+        caretPositionDescriptor,
+      );
+      view.destroy();
+      parent.remove();
+    }
+  });
+
+  it('settles a cancelled inline-code press to the original caret so source can reveal', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const source = 'before `alphaBeta` after';
+    const from = source.indexOf('`');
+    const to = source.lastIndexOf('`') + 1;
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: source,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: { anchor: 1 },
+      }),
+    });
+    const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'caretPositionFromPoint',
+    );
+
+    try {
+      const owner = parent.querySelector<HTMLElement>('.lm-md-inline-code');
+      const codeText = [...(owner?.childNodes ?? [])].find(
+        (node) => node.nodeValue === 'alphaBeta',
+      );
+      expect(codeText).toBeTruthy();
+      Object.defineProperty(document, 'caretPositionFromPoint', {
+        configurable: true,
+        value: vi.fn(() => ({
+          getClientRect: () => new DOMRect(),
+          offset: 4,
+          offsetNode: codeText!,
+        })),
+      });
+
+      owner!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        button: 0,
+        clientX: 100,
+        clientY: 20,
+        detail: 1,
+      }));
+      document.dispatchEvent(new Event('pointercancel', { bubbles: true }));
+      await Promise.resolve();
+
+      expect(view.state.selection.main.empty).toBe(true);
+      expect(view.state.selection.main.head).toBeGreaterThan(from);
+      expect(view.state.selection.main.head).toBeLessThan(to);
+      expect(parent.textContent).toContain('`alphaBeta`');
+    } finally {
+      restoreProperty(
+        document,
+        'caretPositionFromPoint',
+        caretPositionDescriptor,
+      );
+      view.destroy();
+      parent.remove();
+    }
+  });
 });
 
 function dispatchMouseGesture(

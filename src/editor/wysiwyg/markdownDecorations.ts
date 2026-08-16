@@ -1164,7 +1164,11 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
       const owner = resolveInlinePointerOwner(event, view);
       const from = owner?.from;
       const to = owner?.to;
-      const overflowHit = !owner && closest !== null && unclamped !== null;
+      const overflowHit =
+        !owner &&
+        closest !== null &&
+        unclamped !== null &&
+        closest.element.classList.contains('lm-md-inline-code');
 
       if (event.detail >= 2) {
         // The first settlement may reveal delimiters and move this fixed
@@ -1217,7 +1221,10 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
           x: event.clientX,
           y: event.clientY,
         };
-        return true;
+        // Only the code chip needs preventDefault. Links and emphasis keep
+        // native caret, drag, and edge auto-scroll; settlement still applies
+        // the captured candidate so a drag cannot stay collapsed.
+        return owner.element.classList.contains('lm-md-inline-code');
       }
 
       if (overflowHit) {
@@ -1323,6 +1330,30 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
           selection = { anchor: word.anchor, head: word.head };
         }
         this.lastInlinePointerCandidate = null;
+      } else if (candidate !== null && candidate.intent === 'caret') {
+        // Chip presses preventDefault, so settlement must restore the caret.
+        // Link/emphasis drags keep native autoscroll but can stay collapsed;
+        // extend those to the release coordinates, or keep the original hit
+        // when the gesture is cancelled.
+        const head = event
+          ? unclampedInlinePointerPosition(view, {
+              x: event.clientX,
+              y: event.clientY,
+            })
+          : candidate.position;
+        selection = {
+          anchor: candidate.position,
+          ...(head !== null && head !== candidate.position ? { head } : {}),
+        };
+        this.lastInlinePointerCandidate = event
+          ? null
+          : {
+              from: candidate.from,
+              position: candidate.position,
+              to: candidate.to,
+              x: candidate.x,
+              y: candidate.y,
+            };
       } else {
         this.lastInlinePointerCandidate = null;
       }

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -47,13 +47,13 @@ try {
   const port = await reserveDebugPort(
     parseRequestedPort(process.env.LUMAMARK_WEBVIEW_DEBUG_PORT),
   );
-  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-packaged-argv-'));
+  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-packaged-argv-'));
   const documentPath = join(tempDirectory, fileName);
   await writeFile(documentPath, markdown, 'utf8');
 
   app = spawn(executablePath, [documentPath], {
     cwd: tempDirectory,
-    env: createPackagedWebviewEnvironment({
+    env: await createAcceptanceSettingsEnvironment({
       baseEnvironment: process.env,
       debugPort: port,
       tempDirectory,

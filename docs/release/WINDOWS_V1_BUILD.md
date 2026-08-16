@@ -45,7 +45,7 @@ exit $acceptanceExitCode
 
 - 脚本自己创建随机系统临时根，并用 `LUMAMARK_ACCEPTANCE_MODE=1` + `LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR` 启用仅发布验收可用的设置目录覆盖；仅该模式还可通过 `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR` 启用设置写入屏障。Rust 只接受临时根下预先创建、canonical 后仍位于同一随机根内的固定 `settings-config` / `settings-write-barrier` leaf，脚本再通过两个 IPC 分别回读最终路径。任一路径或 mode 环境非法时启动与写入都会 fail closed；这些入口不是便携配置功能。
 - 通过上述严格校验进入验收模式的进程不注册 single-instance plugin，因此验收进程与用户正常启动的 LumaMark 不会互相转发文件参数；脚本仍只按自己 `spawn` 获得的子进程句柄和已核验身份执行退出清理。
-- 设置持久化场景先用 Win32 指针修改“启动时检查更新”并关闭设置对话框，确认隔离目录已有 v2 light 基线；随后脚本创建一次性 `arm` marker，并从顶部主题菜单切到“跟随系统”。Rust 在真正保存前以 create-new 方式创建 `entered`，保持磁盘仍为 light 并等待有界的 `release`；脚本看到 `entered` 后用真实窗口 X 关闭。close coordinator 先启动 settings flush，再并行调用 acceptance-only command；Rust 只有在 `arm` 与 `entered` 均为普通文件且 `release` 尚未出现时才接受该命令并创建 `close-entered`，而写屏障也拒绝任何没有 `close-entered` 的 release。脚本必须在 X 后看到 `close-entered`，并通过同一进程身份下的 main HWND/client metrics 证明窗口仍存在、再次确认文件仍为 light，之后才创建 `release`。只有保存完成且 close coordinator 等待 settings flush 后，窗口才能正常退出。这条证据按 marker 协议归因，不依赖 400 ms debounce、单次进程存活快照或“点击得够快”的时间阈值。脚本再用同一显式 exe、同一隔离 config、不同且仍位于临时根内的全新 WebView2 profile 重启，同时检查设置 UI 与 `settings.json` 都恢复 `system`。每个 profile leaf 在启动前必须不存在，attach 后必须由 WebView2 实际创建且包含 `EBWebView` 运行时目录；两次启动不共享浏览器 profile，因此 localStorage fallback 不能满足这条证据。
+- 设置持久化场景先用 Win32 指针修改“启动时检查更新”并关闭设置对话框，确认隔离目录已有 v3 light 基线；随后脚本创建一次性 `arm` marker，并从顶部主题菜单切到“跟随系统”。Rust 在真正保存前以 create-new 方式创建 `entered`，保持磁盘仍为 light 并等待有界的 `release`；脚本看到 `entered` 后用真实窗口 X 关闭。close coordinator 先启动 settings flush，再并行调用 acceptance-only command；Rust 只有在 `arm` 与 `entered` 均为普通文件且 `release` 尚未出现时才接受该命令并创建 `close-entered`，而写屏障也拒绝任何没有 `close-entered` 的 release。脚本必须在 X 后看到 `close-entered`，并通过同一进程身份下的 main HWND/client metrics 证明窗口仍存在、再次确认文件仍为 light，之后才创建 `release`。只有保存完成且 close coordinator 等待 settings flush 后，窗口才能正常退出。这条证据按 marker 协议归因，不依赖 400 ms debounce、单次进程存活快照或“点击得够快”的时间阈值。脚本再用同一显式 exe、同一隔离 config、不同且仍位于临时根内的全新 WebView2 profile 重启，同时检查设置 UI 与 `settings.json` 都恢复 `system`。每个 profile leaf 在启动前必须不存在，attach 后必须由 WebView2 实际创建且包含 `EBWebView` 运行时目录；两次启动不共享浏览器 profile，因此 localStorage fallback 不能满足这条证据。
 - 每次启动的 WebView2 用户数据、工作区和 Markdown fixture 都位于同一随机临时根。文件树初始化使用既有 E2E workspace bridge 转发真实 Tauri workspace commands；所有验收交互仍由 Win32 指针完成。
 - 这条会执行 Copy/Cut/Paste 的验收只能在专用交互账号或虚拟机中运行；Windows 剪贴板历史记录必须关闭，云剪贴板和第三方 clipboard manager 也必须停用。默认门禁要求初始剪贴板为空，因此普通运行不会读取或恢复既有原文。只有在上述专用环境中、且初始内容为预置的非敏感纯文本时，才可显式设置 `LUMAMARK_ACCEPTANCE_ALLOW_PLAINTEXT_CLIPBOARD_RESTORE=1`；原文不写入参数、日志、哈希或证据，也不进入命令行，而是以 UTF-16LE→base64 的 ASCII stdin/stdout 通道在内存中往返。脚本只有在 sequence 改变、格式为纯文本且内容逐字匹配刚执行命令的预期输出时才声明写入归本次命令所有。WebView writer 还必须由 `GetClipboardOwner` 证明 owner 位于本次 LumaMark/WebView2 子进程树；官方 Tauri clipboard-manager 在 Windows 上通过 `arboard` 以空 HWND 写文本，因此只有显式 `tauri-native-text` writer 合同、`ownerHWnd=0`、`ownerProcessId=0`、`ownerBelongsToTarget=false` 且格式严格属于可恢复纯文本集合时才允许 ownerless 路径，两种 writer 合同互斥。中断清理会固化当前命令的预期输出；随后先同步停止新输入、断开并验证 CDP 已关闭、按可执行路径与启动时间验证并结束本次子进程，只有三项静止事实全部成立才会解析 pending 写入。脚本在读取前重新验证相同元数据、读取后再次精确比对，随后才允许 Clipboard Sequence Number compare-and-set 恢复；外部 owner、额外格式、错误内容、sequence 变化或无法证明 writer 静止都会拒绝覆盖。即使恢复成功，系统或第三方仍可能观察非敏感验收 fixture 的复制通知，因此该脚本不能声称对剪贴板历史/云同步“零污染”。
 - 指针桥以 Per-Monitor V2 运行，使用 `OpenInputDesktop`/`GetUserObjectInformation` 正向确认当前与线程桌面都是交互 `Default`，再用 `ClientToScreen`、`GetDpiForWindow`、`GetCursorPos` 与 `WindowFromPoint` 校验实际光标坐标和命中窗口；每次 metrics/pointer action 都在桥内按本次启动的可执行路径与启动时间复核 PID。桥不会调用 `AttachThreadInput`、`SetForegroundWindow`、`SetWindowPos` 或临时 topmost 来改变真实桌面条件：窗口必须本来就可见、非最小化且在请求点真实命中，随后只用 `SendInput` 让 Windows 的 `WM_MOUSEACTIVATE` 走自然激活路径，并在点击后复核记录到 metrics 的同一次响应性探针与前台进程。响应探针只输出 `responsive` / `timed-out` / `invalid-window` / `probe-failed` 安全枚举，PowerShell 进程超时也只按固定 preflight/inject/postflight 阶段分类，不记录窗口标题、路径或系统错误文本。桥和进程预检只调用 canonical System32 下的绝对 PowerShell/tasklist 路径，并把对应 SHA-256 记入证据。收到 `SIGINT`/`SIGTERM` 后脚本停止继续注入指针，并进入同一套 sequence-CAS、子进程和临时目录清理；指针 down 后的异常路径也会在 `finally` 中发送 up。任何中断都不能生成成功证据。清理前复核 PID 的可执行路径与启动时间，只终止本次子进程，并验证临时目录已经删除。
@@ -68,13 +68,15 @@ exit $acceptanceExitCode
 
 ## 自动更新发布（NSIS + GitHub Release）
 
+正式分发只接受 GitHub Actions 签名发布。本地 `pnpm build:nsis` 在没有 `TAURI_SIGNING_PRIVATE_KEY` 时失败是预期行为；未签名安装包只可用于本机安装验收，不得上传 GitHub Release，也不得作为 updater 产物。
+
 当前正式发布路径：
 
 1. 确认 `package.json` / `Cargo.toml` / `tauri.conf.json` 版本一致。
 2. 确认 GitHub Secrets 已配置：
    - `TAURI_SIGNING_PRIVATE_KEY`
    - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（无口令时可为空）
-3. 打 tag 并推送，例如 `git tag v0.2.17 && git push origin v0.2.17`。
+3. 在已合并到 `main` 的提交上打 tag 并推送，例如 `git tag v0.2.53 && git push origin v0.2.53`。不要从本机上传 NSIS。
 4. `.github/workflows/windows-release-publish.yml` 会：
    - 校验 tag 与 `package.json` 版本一致
    - 注入签名密钥后执行 `pnpm build:nsis`
@@ -124,7 +126,7 @@ pnpm release:generate-updater-manifest
 - 删除或取消标记有问题的 GitHub Release，使 `latest` 回退到上一版。
 - 如需紧急停用自动更新，可临时从 Release 移除 `latest.json`；已安装客户端会检查失败并显示错误，而不会强制安装。
 
-手动全量构建校验仍使用 `.github/workflows/windows-release-build.yml`（上传 exe/MSI/NSIS artifacts，不创建 Release）。
+手动全量构建校验仍使用 `.github/workflows/windows-release-build.yml`：它同样注入 GitHub Secrets 签名，上传 exe/MSI/NSIS/`*.sig` artifacts，但不创建 Release。正式分发只接受 GitHub Actions 签名发布。
 
 ## 0.2.3 NSIS-only 发布候选
 

@@ -373,6 +373,60 @@ function Stop-SmokeApp {
   }
 }
 
+function Stop-SmokeInstallProcesses {
+  param([Parameter(Mandatory = $true)][string]$InstallDir)
+
+  $comparison = [System.StringComparison]::OrdinalIgnoreCase
+  $normalizedRoot = (Get-FullPath $InstallDir).TrimEnd('\')
+  $rootPrefix = "$normalizedRoot\"
+  $deadline = [DateTime]::UtcNow.AddSeconds(8)
+
+  do {
+    $running = @(
+      Get-Process -Name lumamark -ErrorAction SilentlyContinue |
+        Where-Object {
+          $path = try { [string]$_.Path } catch { '' }
+          if (-not $path) {
+            return $false
+          }
+          $normalizedPath = (Get-FullPath $path)
+          return $normalizedPath.Equals($normalizedRoot, $comparison) -or
+            $normalizedPath.StartsWith($rootPrefix, $comparison)
+        }
+    )
+    if ($running.Count -eq 0) {
+      return
+    }
+
+    foreach ($process in $running) {
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Milliseconds 250
+  } while ([DateTime]::UtcNow -lt $deadline)
+
+  $stillRunning = @(
+    Get-Process -Name lumamark -ErrorAction SilentlyContinue |
+      Where-Object {
+        $path = try { [string]$_.Path } catch { '' }
+        if (-not $path) {
+          return $false
+        }
+        $normalizedPath = (Get-FullPath $path)
+        return $normalizedPath.Equals($normalizedRoot, $comparison) -or
+          $normalizedPath.StartsWith($rootPrefix, $comparison)
+      }
+  )
+  if ($stillRunning.Count -gt 0) {
+    $details = @(
+      $stillRunning | ForEach-Object {
+        $path = try { [string]$_.Path } catch { '<path unavailable>' }
+        "PID=$($_.Id), Path=$path"
+      }
+    ) -join '; '
+    throw "Smoke-installed LumaMark did not exit before uninstall: $details"
+  }
+}
+
 function Assert-MarkdownFileAssociation {
   param(
     [Parameter(Mandatory = $true)][string]$ExecutablePath,
@@ -652,6 +706,7 @@ try {
   Stop-SmokeApp -Process $launchedProcess
   $launchedProcess = $null
 
+  Stop-SmokeInstallProcesses -InstallDir $resolvedInstallDir
   Assert-NoRunningLumaMarkProcesses
   Invoke-SmokeProcess `
     -FilePath $uninstallCommand `
@@ -691,6 +746,7 @@ try {
 
     if ($installed -and -not $KeepInstallOnFailure) {
       if (Test-Path -LiteralPath $uninstallPath) {
+        Stop-SmokeInstallProcesses -InstallDir $resolvedInstallDir
         Assert-NoRunningLumaMarkProcesses
         Invoke-SmokeProcess `
           -FilePath $uninstallPath `

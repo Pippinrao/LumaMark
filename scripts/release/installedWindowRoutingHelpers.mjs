@@ -231,6 +231,77 @@ export async function readExactRoutingWindowSnapshots(
   return snapshots;
 }
 
+function isRoutingWindowObservationError(error) {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      error.windowObservation &&
+      typeof error.windowObservation === 'object' &&
+      Number.isSafeInteger(error.windowObservation.expectedCount) &&
+      Number.isSafeInteger(error.windowObservation.pageCount) &&
+      Number.isSafeInteger(error.windowObservation.unreadableCount),
+  );
+}
+
+export async function waitForExactRoutingWindowSnapshots({
+  acceptSnapshots,
+  expectedCount,
+  listPages,
+  now = Date.now,
+  pollIntervalMs = 100,
+  sleep,
+  snapshotPage,
+  timeoutMs,
+}) {
+  if (
+    typeof listPages !== 'function' ||
+    typeof snapshotPage !== 'function' ||
+    typeof acceptSnapshots !== 'function' ||
+    typeof now !== 'function' ||
+    typeof sleep !== 'function' ||
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs < 0 ||
+    !Number.isSafeInteger(pollIntervalMs) ||
+    pollIntervalMs < 0
+  ) {
+    throw new Error('The routing-window wait contract is invalid.');
+  }
+
+  const deadline = now() + timeoutMs;
+  let lastWindowObservation = null;
+  do {
+    const pages = await listPages();
+    if (Array.isArray(pages) && pages.length >= expectedCount) {
+      try {
+        const snapshots = await readExactRoutingWindowSnapshots(
+          pages,
+          expectedCount,
+          snapshotPage,
+        );
+        if (acceptSnapshots(snapshots)) {
+          return snapshots;
+        }
+        lastWindowObservation = null;
+      } catch (error) {
+        if (!isRoutingWindowObservationError(error)) throw error;
+        lastWindowObservation = error.windowObservation;
+      }
+    }
+    if (now() >= deadline) break;
+    await sleep(pollIntervalMs);
+  } while (now() < deadline);
+
+  if (lastWindowObservation) {
+    throw Object.assign(
+      new Error(
+        `Routing-window observation failed (expected=${lastWindowObservation.expectedCount}, pages=${lastWindowObservation.pageCount}, unreadable=${lastWindowObservation.unreadableCount}).`,
+      ),
+      { windowObservation: lastWindowObservation },
+    );
+  }
+  throw new Error('Window labels/content did not reach the expected routing state.');
+}
+
 export function createRoutingEnvironment(baseEnvironment, configDirectory) {
   if (
     !baseEnvironment ||

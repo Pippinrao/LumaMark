@@ -51,6 +51,7 @@ import {
   readExactRoutingWindowSnapshots,
   settleFailedPrimaryProcessEvidence,
   terminateDirectChild,
+  waitForExactRoutingWindowSnapshots,
 } from './installedWindowRoutingHelpers.mjs';
 import {
   createPackagedWebviewEnvironment,
@@ -777,26 +778,22 @@ async function readDurableState(statePath) {
 }
 
 async function waitForRoutingWindows(context, expectedCount, expectedMarkers) {
-  const deadline = Date.now() + APP_TIMEOUT;
-  let latest;
-  do {
-    if (context.pages().length < expectedCount) {
-      await delay(100);
-      continue;
-    }
-    latest = await readAllRoutingWindows(context, expectedCount);
-    const contents = latest.map((window) => window.content);
-    if (
-      latest.length === expectedCount &&
-      expectedMarkers.every((marker) =>
+  return waitForExactRoutingWindowSnapshots({
+    expectedCount,
+    timeoutMs: APP_TIMEOUT,
+    listPages: () => context.pages(),
+    snapshotPage: async (page) => {
+      const snapshot = await readRoutingWindow(page);
+      return snapshot ? { ...snapshot, page } : null;
+    },
+    acceptSnapshots: (windows) => {
+      const contents = windows.map((window) => window.content);
+      return expectedMarkers.every((marker) =>
         contents.some((content) => content.includes(marker)),
-      )
-    ) {
-      return latest;
-    }
-    await delay(100);
-  } while (Date.now() < deadline);
-  throw new Error('Window labels/content did not reach the expected routing state.');
+      );
+    },
+    sleep: delay,
+  });
 }
 
 async function readAllRoutingWindows(context, expectedCount) {
@@ -834,15 +831,20 @@ async function readRoutingWindow(page) {
 }
 
 async function waitForFocusedLabel(context, expectedLabel, expectedCount) {
-  const deadline = Date.now() + APP_TIMEOUT;
-  while (Date.now() < deadline) {
-    const windows = await readAllRoutingWindows(context, expectedCount);
-    if (windows.some(({ hasFocus, label }) => label === expectedLabel && hasFocus)) {
-      return;
-    }
-    await delay(100);
-  }
-  throw new Error(`Desktop focus did not move to the expected ${expectedLabel} window.`);
+  await waitForExactRoutingWindowSnapshots({
+    expectedCount,
+    timeoutMs: APP_TIMEOUT,
+    listPages: () => context.pages(),
+    snapshotPage: async (page) => {
+      const snapshot = await readRoutingWindow(page);
+      return snapshot ? { ...snapshot, page } : null;
+    },
+    acceptSnapshots: (windows) =>
+      windows.some(
+        ({ hasFocus, label }) => label === expectedLabel && hasFocus,
+      ),
+    sleep: delay,
+  });
 }
 
 function assertWindowLabels(windows, expected, label) {

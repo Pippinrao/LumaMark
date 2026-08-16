@@ -22,6 +22,7 @@ import {
   readExactRoutingWindowSnapshots,
   settleFailedPrimaryProcessEvidence,
   terminateDirectChild,
+  waitForExactRoutingWindowSnapshots,
 } from './installedWindowRoutingHelpers.mjs';
 
 type LifecycleKind =
@@ -288,6 +289,66 @@ describe('installed window-routing acceptance helpers', () => {
       windowObservation: {
         expectedCount: 2,
         pageCount: 2,
+        unreadableCount: 1,
+      },
+    });
+  });
+
+  it('retries unreadable CDP pages until the app shell is ready', async () => {
+    let calls = 0;
+    const snapshots = await waitForExactRoutingWindowSnapshots({
+      expectedCount: 1,
+      timeoutMs: 1_000,
+      pollIntervalMs: 1,
+      listPages: () => [{ id: 'main' }],
+      snapshotPage: async () => {
+        calls += 1;
+        if (calls < 3) return null;
+        return {
+          appShellReady: true,
+          content: 'multiWindow-primary-token',
+          label: 'main',
+        };
+      },
+      acceptSnapshots: (windows) =>
+        windows.some((window) =>
+          window.content.includes('multiWindow-primary-token'),
+        ),
+      sleep: async () => {},
+    });
+
+    expect(calls).toBe(3);
+    expect(snapshots).toEqual([
+      {
+        appShellReady: true,
+        content: 'multiWindow-primary-token',
+        label: 'main',
+      },
+    ]);
+  });
+
+  it('fails closed with the last observation after unreadable pages never become ready', async () => {
+    let now = 0;
+    await expect(
+      waitForExactRoutingWindowSnapshots({
+        expectedCount: 1,
+        timeoutMs: 5,
+        pollIntervalMs: 2,
+        now: () => now,
+        listPages: () => [{ id: 'blank' }],
+        snapshotPage: async () => null,
+        acceptSnapshots: () => true,
+        sleep: async (ms) => {
+          now += ms;
+        },
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /Routing-window observation failed \(expected=1, pages=1, unreadable=1\)/,
+      ),
+      windowObservation: {
+        expectedCount: 1,
+        pageCount: 1,
         unreadableCount: 1,
       },
     });
@@ -788,6 +849,7 @@ describe('installed window-routing acceptance helpers', () => {
     );
     expect(verifier).toContain('assertExactWindowMarkerMap');
     expect(verifier).not.toContain('DURABLE_SAMPLE_INTERVAL');
+    expect(verifier).toContain('waitForExactRoutingWindowSnapshots');
     expect(verifier).toContain('readExactRoutingWindowSnapshots');
     expect(verifier).not.toContain('readRoutingWindow(page).catch');
     expect(verifier).toContain('windowObservation: error?.windowObservation');

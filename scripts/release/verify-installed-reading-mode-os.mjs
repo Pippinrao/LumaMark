@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -368,7 +368,7 @@ async function runWithWatchdog() {
     const port = await reserveDebugPort(
       parseRequestedPort(process.env.LUMAMARK_WEBVIEW_DEBUG_PORT),
     );
-    tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-reading-mode-os-'));
+    tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-reading-mode-os-'));
     documentPath = join(tempDirectory, 'installed-reading-mode.md');
     win32HelperPath = join(tempDirectory, 'lumamark-win32-input.ps1');
     await writeFile(documentPath, initialMarkdown, 'utf8');
@@ -388,7 +388,7 @@ async function runWithWatchdog() {
 
     app = spawn(executablePath, [documentPath], {
       cwd: tempDirectory,
-      env: createPackagedWebviewEnvironment({
+      env: await createAcceptanceSettingsEnvironment({
         baseEnvironment: process.env,
         debugPort: port,
         tempDirectory,

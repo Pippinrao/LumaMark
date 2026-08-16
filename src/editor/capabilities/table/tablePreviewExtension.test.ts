@@ -1290,6 +1290,33 @@ describe('tablePreviewExtension', () => {
     parent.remove();
   });
 
+  it('mounts widgets when a canonical packaged-acceptance table is loaded programmatically', async () => {
+    const doc = [
+      '# Table Caret Probe',
+      '',
+      '| Left  | Right |',
+      '| ----- | ----- |',
+      '| alpha | beta  |',
+      '| gamma | delta |',
+      '',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '', parent });
+
+    editor.loadDocument(doc);
+    await settleTablePreview();
+
+    expect(editor.getDocumentText()).toBe(doc);
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain(
+      'alpha',
+    );
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('does not let passive table formatting intercept the first real input undo', async () => {
     const doc = [
       'before',

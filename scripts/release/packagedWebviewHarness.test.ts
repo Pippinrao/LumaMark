@@ -1,15 +1,39 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
-import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createAcceptanceSettingsEnvironment,
   createPackagedWebviewEnvironment,
+  isRemoteDesktopRequest,
   isRetryableCodeMirrorSnapshotError,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
 
 describe('packaged WebView release harness', () => {
+  it('treats Tauri IPC as local desktop traffic', () => {
+    expect(
+      isRemoteDesktopRequest(
+        'http://ipc.localhost/settings_get',
+        'http://tauri.localhost',
+      ),
+    ).toBe(false);
+    expect(
+      isRemoteDesktopRequest(
+        'http://tauri.localhost/assets/math.woff2',
+        'http://tauri.localhost',
+      ),
+    ).toBe(false);
+    expect(
+      isRemoteDesktopRequest(
+        'https://cdn.jsdelivr.net/npm/mathjax',
+        'http://tauri.localhost',
+      ),
+    ).toBe(true);
+  });
+
   it('retries only CodeMirror missing-tile snapshot races', () => {
     expect(
       isRetryableCodeMirrorSnapshotError(
@@ -76,6 +100,94 @@ describe('packaged WebView release harness', () => {
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9334',
       WEBVIEW2_USER_DATA_FOLDER: join(tempDirectory, 'webview2-user-data'),
     });
+  });
+
+  it('keeps NSIS installed-acceptance scripts on isolated settings', async () => {
+    const scripts = [
+      'verify-installed-window-chrome.mjs',
+      'verify-packaged-argv-open.mjs',
+      'verify-packaged-menu-cold-start.mjs',
+      'verify-packaged-table-caret.mjs',
+      'verify-installed-media-caret-os.mjs',
+      'verify-installed-reading-mode-os.mjs',
+      'verify-installed-math-caret-os.mjs',
+      'verify-installed-plantuml-os.mjs',
+      'verify-installed-inline-code-caret-os.mjs',
+    ];
+
+    for (const fileName of scripts) {
+      const source = await readFile(
+        join(process.cwd(), 'scripts', 'release', fileName),
+        'utf8',
+      );
+      expect(source).toContain('createAcceptanceSettingsEnvironment');
+      expect(source).toContain('lumamark-menu-context-os-');
+    }
+  });
+
+  it('opens a canonical table fixture in packaged table-caret acceptance', async () => {
+    const source = await readFile(
+      join(
+        process.cwd(),
+        'scripts',
+        'release',
+        'verify-packaged-table-caret.mjs',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('| Left  | Right |');
+    expect(source).toContain('| ----- | ----- |');
+    expect(source).not.toContain('| --- | --- |');
+  });
+
+  it('reveals off-screen math before waiting for the installed MathJax widget', async () => {
+    const source = await readFile(
+      join(
+        process.cwd(),
+        'scripts',
+        'release',
+        'verify-installed-math-caret-os.mjs',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('async function waitForMathRender(kind, source)');
+    expect(source).toContain('async function revealMathSource(wrappedSource)');
+    expect(source).toContain("view.constructor.scrollIntoView(from, { y: 'center' })");
+    expect(source).not.toContain('scrollIntoView: true');
+    expect(source).toContain('view.lineBlockAt(from)');
+    expect(source).toContain('view.scrollDOM.scrollTop');
+    expect(source).toContain('lm-math-${kind}-render');
+    expect(source).toContain('width: 800');
+    expect(source).not.toContain('width: 660');
+  });
+
+  it('scopes packaged settings away from the real app config directory', async () => {
+    const tempDirectory = await mkdtemp(
+      join(tmpdir(), 'lumamark-menu-context-os-harness-'),
+    );
+    try {
+      const environment = await createAcceptanceSettingsEnvironment({
+        baseEnvironment: { EXISTING_VALUE: 'preserved' },
+        debugPort: 9_335,
+        tempDirectory,
+      });
+      const settingsConfigDirectory = join(tempDirectory, 'settings-config');
+
+      expect(environment).toMatchObject({
+        EXISTING_VALUE: 'preserved',
+        LUMAMARK_ACCEPTANCE_MODE: '1',
+        LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR: settingsConfigDirectory,
+        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9335',
+        WEBVIEW2_USER_DATA_FOLDER: join(tempDirectory, 'webview2-user-data'),
+      });
+      expect(environment).not.toHaveProperty(
+        'LUMAMARK_ROUTING_ACCEPTANCE_MODE',
+      );
+    } finally {
+      await rm(tempDirectory, { force: true, recursive: true });
+    }
   });
 
   it('retries transient WebView2 locks while removing temporary data', async () => {

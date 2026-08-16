@@ -41,8 +41,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare updater signing key
+        uses: ./.github/actions/prepare-tauri-signing
+        with:
+          private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
       - name: Build Windows release artifacts
         run: pnpm build
+
+      - name: Require signed NSIS artifacts
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $nsisDir = 'src-tauri/target/release/bundle/nsis'
+          $sig = Join-Path $nsisDir "LumaMark_${version}_x64-setup.exe.sig"
+          if (-not (Test-Path -LiteralPath $sig)) {
+            throw "Signed NSIS *.sig is missing at $sig. Unsigned CI installers are not release artifacts."
+          }
+          if ((Get-Item -LiteralPath $sig).Length -lt 32) {
+            throw "Updater signature $sig is empty or truncated."
+          }
+          $sigs = @(Get-ChildItem -LiteralPath $nsisDir -Filter '*.sig' -ErrorAction Stop)
+          if ($sigs.Count -ne 1) {
+            throw "Expected exactly one signed NSIS *.sig in $nsisDir, found $($sigs.Count)."
+          }
 
       - name: Verify Windows release artifacts
         run: pnpm release:verify-artifacts > src-tauri/target/release/lumamark-windows-artifacts.json
@@ -73,4 +96,6 @@ jobs:
         with:
           name: lumamark-windows-nsis
           if-no-files-found: error
-          path: src-tauri/target/release/bundle/nsis/*setup.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*setup.exe
+            src-tauri/target/release/bundle/nsis/*setup.exe.sig

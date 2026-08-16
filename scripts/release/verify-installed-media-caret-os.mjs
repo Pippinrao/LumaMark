@@ -12,7 +12,7 @@ import { basename, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -149,7 +149,7 @@ async function runAcceptance() {
     parseRequestedPort(process.env.LUMAMARK_WEBVIEW_DEBUG_PORT),
   );
   acceptanceAbort.signal.throwIfAborted();
-  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-installed-media-os-'));
+  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-installed-media-os-'));
   acceptanceAbort.signal.throwIfAborted();
   documentPath = join(tempDirectory, 'installed-media-caret.md');
   win32HelperPath = join(tempDirectory, 'lumamark-win32-input.ps1');
@@ -162,7 +162,7 @@ async function runAcceptance() {
   acceptanceAbort.signal.throwIfAborted();
   app = spawn(executablePath, [documentPath], {
     cwd: tempDirectory,
-    env: createPackagedWebviewEnvironment({
+    env: await createAcceptanceSettingsEnvironment({
       baseEnvironment: process.env,
       debugPort: port,
       tempDirectory,

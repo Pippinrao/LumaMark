@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -101,13 +101,13 @@ async function runAcceptance() {
       size: executableStats.size,
     };
     const debugPort = await reserveDebugPort(options.debugPort);
-    tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-inline-code-os-'));
+    tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-inline-code-os-'));
     documentPath = join(tempDirectory, 'inline-code-caret-os.md');
     await writeFile(documentPath, SOURCE, 'utf8');
 
     app = spawn(absoluteExecutablePath, [documentPath], {
       cwd: dirname(absoluteExecutablePath),
-      env: createPackagedWebviewEnvironment({
+      env: await createAcceptanceSettingsEnvironment({
         baseEnvironment: process.env,
         debugPort,
         tempDirectory,

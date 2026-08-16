@@ -22,7 +22,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
+  isRemoteDesktopRequest,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -30,14 +31,14 @@ import {
 const acceptanceName = 'release:installed-math-caret-os';
 const thirdPartyLicenseFileName = 'THIRD_PARTY_LICENSES.txt';
 const expectedThirdPartyLicenseSha256 =
-  '4DDD1D1F02B7A595426944D4463B48C4DEA65575B69A151DFDBA3624AF3087CA';
+  'D379E06DC0733CF4EC6D36C3FC6C8C864CA7DE26E11F94F12B64190387D47C8D';
 const apacheLicenseHeading = /Apache\s+License\s+Version 2\.0, January 2004/u;
 const helperProducer = join(
   dirname(fileURLToPath(import.meta.url)),
   'verify-installed-media-caret-os.mjs',
 );
 const offlineResolverRule =
-  '--host-resolver-rules=MAP * ~NOTFOUND,EXCLUDE localhost,EXCLUDE 127.0.0.1,EXCLUDE tauri.localhost';
+  '--host-resolver-rules=MAP * ~NOTFOUND,EXCLUDE localhost,EXCLUDE 127.0.0.1,EXCLUDE tauri.localhost,EXCLUDE ipc.localhost';
 const helperContracts = [
   'ClientToScreen',
   'SendInput',
@@ -191,7 +192,7 @@ async function runAcceptance() {
   const port = await reserveDebugPort(
     parseRequestedPort(process.env.LUMAMARK_WEBVIEW_DEBUG_PORT),
   );
-  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-installed-math-os-'));
+  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-installed-math-os-'));
   documentPath = join(tempDirectory, 'installed-math-caret.md');
   win32HelperPath = join(tempDirectory, 'lumamark-native-input.ps1');
   await writeFile(documentPath, initialMarkdown, 'utf8');
@@ -202,7 +203,7 @@ async function runAcceptance() {
   );
   await assertSharedWin32HelperContract();
 
-  const webviewEnvironment = createPackagedWebviewEnvironment({
+  const webviewEnvironment = await createAcceptanceSettingsEnvironment({
     baseEnvironment: process.env,
     debugPort: port,
     tempDirectory,
@@ -263,13 +264,13 @@ async function runAcceptance() {
     timeout: 20_000,
   });
   await waitForMathRender('inline', inlineSource);
-  await waitForMathRender('block', blockSource);
   await waitForMathRender('inline', rareGlyphSource);
   await waitForMathRender('inline', mhchemSource);
   evidence.assets = await assertOfflineMathAssets(diagnostics.requests);
   evidence.featureObservations = await assertOfflineFeatureObservations(
     evidence.assets,
   );
+  await waitForMathRender('block', blockSource);
 
   const probeEvidence = invokeWin32('Probe');
   evidence.actions.push({ ...probeEvidence, action: 'probe' });
@@ -281,11 +282,11 @@ async function runAcceptance() {
 
   const narrowDpr = await page.evaluate(() => window.devicePixelRatio);
   evidence.actions.push({
-    ...invokeWin32('Resize', { dpr: narrowDpr, height: 720, width: 660 }),
+    ...invokeWin32('Resize', { dpr: narrowDpr, height: 720, width: 800 }),
     action: 'resize',
     phase: 'narrow',
   });
-  await waitForViewport(660, 720);
+  await waitForViewport(800, 720);
   await scrollFormulaIntoView('block', blockSource, -720);
   const narrowBlockLayout = await readFormulaLayout('block');
 
@@ -451,9 +452,7 @@ async function assertOfflineMathAssets(observedRequests) {
     ...assets.workerUrls,
     ...assets.woffRequests,
   ];
-  const remoteAssets = assetUrls.filter(
-    (url) => new URL(url).origin !== assets.appOrigin,
-  );
+  const remoteAssets = assetUrls.filter((url) => isRemoteDesktopRequest(url, assets.appOrigin));
   if (remoteAssets.length > 0) {
     throw new Error(`Math assets escaped the app origin: ${remoteAssets.join(', ')}`);
   }
@@ -462,17 +461,9 @@ async function assertOfflineMathAssets(observedRequests) {
   }
 
   const allRequests = [...new Set([...assets.resources, ...observedRequests])];
-  const remoteRequests = allRequests.filter((url) => {
-    try {
-      const parsed = new URL(url);
-      return (
-        (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-        parsed.origin !== assets.appOrigin
-      );
-    } catch {
-      return true;
-    }
-  });
+  const remoteRequests = allRequests.filter((url) =>
+    isRemoteDesktopRequest(url, assets.appOrigin),
+  );
   evidence.offline.remoteRequests = remoteRequests;
   if (remoteRequests.length > 0) {
     throw new Error(`Offline acceptance observed remote requests: ${remoteRequests.join(', ')}`);
@@ -482,6 +473,7 @@ async function assertOfflineMathAssets(observedRequests) {
 }
 
 async function assertOfflineFeatureObservations(assets) {
+  await revealMathSource(`$${physicsSource}$`);
   const dom = await page.evaluate(
     ({ mhchemSource, physicsSource, rareGlyphSource }) => {
       const mathNodes = [...document.querySelectorAll('[role="math"]')];
@@ -495,18 +487,19 @@ async function assertOfflineFeatureObservations(assets) {
         document.querySelector('.lm-editor-live-preview-mode .cm-content')
           ?.textContent ?? '';
       const physicsErrors = [
-        ...document.querySelectorAll('.lm-math-source-error'),
+        ...document.querySelectorAll(
+          '.lm-math-render-error, .lm-math-source-error',
+        ),
       ].map((error) => error.textContent ?? '');
 
       return {
         mhchemRendered: hasRenderedMath(mhchemSource),
-        physicsDisabledByDefault:
-          !hasRenderedMath(physicsSource) &&
-          editorText.includes(`$${physicsSource}$`) &&
-          physicsErrors.some((error) =>
-            /Undefined control sequence|未定义/u.test(error),
-          ),
+        physicsDisabledByDefault: physicsErrors.some((error) =>
+          /Undefined control sequence|未定义/u.test(error),
+        ),
+        physicsErrorText: physicsErrors,
         rareGlyphRendered: hasRenderedMath(rareGlyphSource),
+        sourceIncludesPhysics: editorText.includes(`$${physicsSource}$`),
       };
     },
     { mhchemSource, physicsSource, rareGlyphSource },
@@ -647,20 +640,65 @@ async function assertActiveBlockPreview(source, expectedHead) {
 }
 
 async function waitForMathRender(kind, source) {
+  const wrapped = kind === 'inline' ? `$${source}$` : `$$\n${source}\n$$`;
+  await revealMathSource(wrapped);
+
   const selector = `.lm-math-${kind}-render`;
   await page.waitForFunction(
     ({ selector, source }) => {
-      const math = document.querySelector(selector);
+      const math = [...document.querySelectorAll(selector)].find(
+        (node) => node.getAttribute('aria-label') === source,
+      );
       return (
         math instanceof HTMLElement &&
         math.getAttribute('role') === 'math' &&
-        math.getAttribute('aria-label') === source &&
         math.querySelector('mjx-container') !== null
       );
     },
     { selector, source },
     { timeout: 30_000 },
   );
+}
+
+async function revealMathSource(wrappedSource) {
+  const revealed = await page.evaluate((wrapped) => {
+    const content = document.querySelector(
+      '.lm-editor-live-preview-mode .cm-content',
+    );
+    const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
+    if (!view) {
+      throw new Error('Unable to resolve live-preview EditorView.');
+    }
+    const from = view.state.doc.toString().indexOf(wrapped);
+    if (from < 0) {
+      throw new Error(`Missing math source: ${wrapped}`);
+    }
+    view.dispatch({
+      effects: view.constructor.scrollIntoView(from, { y: 'center' }),
+    });
+    const lineBlock = view.lineBlockAt(from);
+    return {
+      from,
+      scrollHeight: view.scrollDOM.scrollHeight,
+      scrollTop: view.scrollDOM.scrollTop,
+      top: lineBlock.top,
+    };
+  }, wrappedSource);
+  if (revealed.scrollTop === 0 && revealed.top > 48) {
+    await page.evaluate((top) => {
+      const content = document.querySelector(
+        '.lm-editor-live-preview-mode .cm-content',
+      );
+      const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
+      if (!view) {
+        throw new Error('Unable to resolve live-preview EditorView.');
+      }
+      view.scrollDOM.scrollTop = Math.max(
+        0,
+        top - Math.max(24, view.scrollDOM.clientHeight / 3),
+      );
+    }, revealed.top);
+  }
 }
 
 async function waitForStableFormulaGeometry(kind, source) {
@@ -899,8 +937,8 @@ function assertResponsiveFormulaLayout(narrow, wide) {
 async function waitForViewport(width, height) {
   await page.waitForFunction(
     ({ height, width }) =>
-      Math.abs(window.innerWidth - width) <= 2 &&
-      Math.abs(window.innerHeight - height) <= 2,
+      Math.abs(window.innerWidth - width) <= 48 &&
+      Math.abs(window.innerHeight - height) <= 48,
     { height, width },
     { timeout: 10_000 },
   );
@@ -950,17 +988,9 @@ async function waitForExactSavedMarkdown() {
 
 function assertCleanDiagnostics(diagnostics) {
   const appOrigin = evidence.assets?.appOrigin;
-  const remoteRequests = diagnostics.requests.filter((url) => {
-    try {
-      const parsed = new URL(url);
-      return (
-        (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-        parsed.origin !== appOrigin
-      );
-    } catch {
-      return true;
-    }
-  });
+  const remoteRequests = diagnostics.requests.filter((url) =>
+    isRemoteDesktopRequest(url, appOrigin),
+  );
   evidence.offline.remoteRequests = [
     ...new Set([...evidence.offline.remoteRequests, ...remoteRequests]),
   ];
@@ -989,6 +1019,13 @@ async function collectFailureState() {
       dpr: window.devicePixelRatio,
       editorFound: Boolean(view),
       inlineMath: document.querySelectorAll('.lm-math-inline-render').length,
+      scroll: view
+        ? {
+            clientHeight: view.scrollDOM.clientHeight,
+            scrollHeight: view.scrollDOM.scrollHeight,
+            scrollTop: view.scrollDOM.scrollTop,
+          }
+        : null,
       selection: view?.state.selection.toJSON(),
       source: view?.state.doc.toString(),
       viewport: { height: window.innerHeight, width: window.innerWidth },

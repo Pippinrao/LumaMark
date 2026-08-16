@@ -50,6 +50,20 @@ describe('installed menu/context OS acceptance helpers', () => {
     expect(source).not.toContain("requireCheck('editor-cut-executed', true");
   });
 
+  it('waits for canonical settings version 3 instead of the retired v2 baseline', async () => {
+    const source = await readFile(
+      join(process.cwd(), 'scripts', 'release', 'verify-installed-menu-context-os.mjs'),
+      'utf8',
+    );
+
+    expect(source).toContain('settings.version === 3');
+    expect(source).toContain('persisted.version === 3');
+    expect(source).toContain('persistedAfterRestart.version === 3');
+    expect(source).not.toContain('settings.version === 2');
+    expect(source).not.toContain('persisted.version === 2');
+    expect(source).not.toContain('persistedAfterRestart.version === 2');
+  });
+
   it('converts WebView CSS coordinates from the client origin using DPR', () => {
     expect(
       cssPointToScreen({

@@ -78,7 +78,7 @@ Tauri v2
 - Rust 侧注册 `tauri-plugin-updater`；公钥与 endpoint 配置在 `src-tauri/tauri.conf.json`。
 - 更新清单为 GitHub Release 上的静态 `latest.json`，只覆盖 `windows-x86_64` NSIS。
 - 前端通过 `src/services/updater/updaterService.ts` 检查/下载/安装；UI 位于 `src/features/updates/`。
-- 发布由 `.github/workflows/windows-release-publish.yml` 在 tag 时签名构建并上传 NSIS、`.sig`、`latest.json`。
+- 正式分发只接受 GitHub Actions 签名发布：`.github/workflows/windows-release-publish.yml` 在 tag 或手动 `workflow_dispatch` 时签名构建并上传 NSIS、`.sig`、`latest.json`。`.github/workflows/windows-release-build.yml` 同样必须签名，只上传 artifacts，不创建 GitHub Release。
 
 决策记录：[ADR 0012](../decisions/0012-github-nsis-auto-update.md)。
 

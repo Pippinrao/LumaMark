@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -85,10 +85,10 @@ async function runAcceptance() {
   try {
     assertNoExistingLumaMarkProcesses();
     const debugPort = await reserveDebugPort(options.debugPort);
-    tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-window-chrome-'));
+    tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-window-chrome-'));
     app = spawn(absoluteExecutablePath, [], {
       cwd: dirname(absoluteExecutablePath),
-      env: createPackagedWebviewEnvironment({
+      env: await createAcceptanceSettingsEnvironment({
         baseEnvironment: process.env,
         debugPort,
         tempDirectory,

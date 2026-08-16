@@ -5,6 +5,7 @@ import type { EditorMediaPreviewRequestHandler } from '../../core/editorEvents';
 import { isEditorRenderLocked } from '../../core/editorRenderLock';
 import { announceReadOnlyEditAttempt } from '../../core/readOnlyEditAttempt';
 import type { AbsolutePlantumlBlock } from './plantumlBlockDetection';
+import { isPlantumlSyntaxErrorSvg } from './plantumlErrorSvg';
 import {
   setActivePlantumlBlockEffect,
 } from './plantumlEditingState';
@@ -110,8 +111,9 @@ export class PlantumlBlockWidget extends WidgetType {
     this.renderedSvg = null;
   }
 
+  // Pointer events stay on the widget so clicking the diagram cannot remap the caret onto the hidden fence.
   ignoreEvent(): boolean {
-    return false;
+    return true;
   }
 
   private requestPreviewRender(
@@ -146,11 +148,21 @@ export class PlantumlBlockWidget extends WidgetType {
       },
       onSuccess: ({ svg }) => {
         this.renderedSvg = svg;
-        dom.expand?.removeAttribute('hidden');
-        dom.wrapper.classList.remove('lm-plantuml-preview-error');
-        dom.wrapper.dataset.status = 'success';
-        dom.status.hidden = true;
-        dom.status.textContent = '';
+        const syntaxError = isPlantumlSyntaxErrorSvg(svg);
+        if (syntaxError) {
+          dom.expand?.setAttribute('hidden', '');
+          dom.wrapper.classList.add('lm-plantuml-preview-error');
+          dom.wrapper.dataset.status = 'error';
+          dom.status.hidden = false;
+          dom.status.className = 'lm-plantuml-error';
+          dom.status.textContent = i18n.t('plantuml.renderFailed');
+        } else {
+          dom.expand?.removeAttribute('hidden');
+          dom.wrapper.classList.remove('lm-plantuml-preview-error');
+          dom.wrapper.dataset.status = 'success';
+          dom.status.hidden = true;
+          dom.status.textContent = '';
+        }
         dom.svgContainer.innerHTML = svg;
         this.geometry.sync();
       },

@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
+  isRemoteDesktopRequest,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -23,7 +24,7 @@ const helperProducer = join(
   'verify-installed-media-caret-os.mjs',
 );
 const offlineResolverRule =
-  '--host-resolver-rules=MAP * ~NOTFOUND,EXCLUDE localhost,EXCLUDE 127.0.0.1,EXCLUDE tauri.localhost';
+  '--host-resolver-rules=MAP * ~NOTFOUND,EXCLUDE localhost,EXCLUDE 127.0.0.1,EXCLUDE tauri.localhost,EXCLUDE ipc.localhost';
 const beforeLine = 'plantuml acceptance before';
 const afterLine = 'plantuml acceptance after';
 const sequenceSource = [
@@ -97,6 +98,16 @@ try {
     `${JSON.stringify({ installedPlantumlOs: true, ...evidence }, null, 2)}\n`,
   );
 } catch (error) {
+  evidence.plantumlDom = await page
+    ?.evaluate(() =>
+      [...document.querySelectorAll('.lm-plantuml-preview')].map((node) => ({
+        className: node.className,
+        status: node.getAttribute('data-status'),
+        statusText: node.querySelector('.lm-plantuml-status, .lm-plantuml-error')
+          ?.textContent,
+      })),
+    )
+    .catch((evaluateError) => String(evaluateError));
   await captureScreenshot('failed');
   process.stderr.write(
     [
@@ -150,7 +161,7 @@ async function runAcceptance() {
   const port = await reserveDebugPort(
     parseRequestedPort(process.env.LUMAMARK_WEBVIEW_DEBUG_PORT),
   );
-  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-plantuml-os-'));
+  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-plantuml-os-'));
   documentPath = join(tempDirectory, 'installed-plantuml.md');
   win32HelperPath = join(tempDirectory, 'lumamark-win32-input.ps1');
   await writeFile(documentPath, initialMarkdown, 'utf8');
@@ -166,7 +177,7 @@ async function runAcceptance() {
   );
   await access(win32HelperPath);
 
-  const webviewEnvironment = createPackagedWebviewEnvironment({
+  const webviewEnvironment = await createAcceptanceSettingsEnvironment({
     baseEnvironment: process.env,
     debugPort: port,
     tempDirectory,
@@ -217,10 +228,26 @@ async function runAcceptance() {
 
   const successPreview = page.locator('.lm-plantuml-preview[data-status="success"]').first();
   await successPreview.waitFor({ state: 'visible', timeout: 60_000 });
-  await page
-    .locator('.lm-plantuml-preview[data-status="error"]')
-    .first()
-    .waitFor({ state: 'visible', timeout: 60_000 });
+  await revealPlantumlSource(invalidSource);
+  await page.waitForFunction(
+    () => document.querySelectorAll('.lm-plantuml-preview').length >= 2,
+    undefined,
+    { timeout: 20_000 },
+  );
+  await page.waitForFunction(
+    () =>
+      [...document.querySelectorAll('.lm-plantuml-preview')].some((node) => {
+        const status = node.getAttribute('data-status');
+        const text = node.textContent ?? '';
+        return (
+          status === 'error' ||
+          node.classList.contains('lm-plantuml-preview-error') ||
+          text.includes('Syntax Error?')
+        );
+      }),
+    undefined,
+    { timeout: 60_000 },
+  );
 
   const liveState = await readRootState();
   if (liveState.source !== initialMarkdown) {
@@ -229,7 +256,7 @@ async function runAcceptance() {
     );
   }
 
-  const remoteRequests = diagnostics.requests.filter((url) => isRemoteRequest(url));
+  const remoteRequests = diagnostics.requests.filter((url) => isRemoteDesktopRequest(url));
   evidence.offline.remoteRequests = remoteRequests;
   if (remoteRequests.length > 0) {
     throw new Error(`PlantUML acceptance observed remote requests: ${remoteRequests.join(', ')}`);
@@ -316,7 +343,7 @@ async function runAcceptance() {
   }).first();
   await expandButton.waitFor({ state: 'visible', timeout: 10_000 });
   await clickLocatorWithWin32(expandButton, 'expand-plantuml');
-  await page.locator('.lm-media-viewer-dialog svg').waitFor({
+  await page.locator('.lm-media-viewer-dialog .lm-media-viewer-mermaid svg').waitFor({
     state: 'visible',
     timeout: 10_000,
   });
@@ -336,7 +363,7 @@ async function runAcceptance() {
   });
   await clickLocatorWithWin32(themeMenu, 'open-theme-menu');
   const darkThemeItem = page.getByRole('menuitemradio', {
-    name: /^(?:深色|Dark)/,
+    name: /^(?:暗色|Dark)/,
   });
   await clickLocatorWithWin32(darkThemeItem, 'set-dark-theme');
   await page.waitForFunction(
@@ -351,6 +378,20 @@ async function runAcceptance() {
   });
   if (!darkSvg.includes('svg')) {
     throw new Error('Dark theme did not keep a rendered PlantUML SVG.');
+  }
+  const canvasBackground = await page.evaluate(() => {
+    const canvas = document.querySelector('.lm-plantuml-svg');
+    return canvas ? getComputedStyle(canvas).backgroundColor : '';
+  });
+  const channels = canvasBackground.match(/[\d.]+/g)?.map(Number) ?? [];
+  const luminance =
+    0.2126 * (channels[0] ?? 255) +
+    0.7152 * (channels[1] ?? 255) +
+    0.0722 * (channels[2] ?? 255);
+  if (/rgb\(\s*255\s*,\s*255\s*,\s*255\s*\)/.test(canvasBackground) || luminance >= 80) {
+    throw new Error(
+      `Dark-mode PlantUML kept a light paper canvas: ${canvasBackground}`,
+    );
   }
 
   const errorText = await page.locator('.lm-plantuml-error').first().textContent();
@@ -383,6 +424,25 @@ async function runAcceptance() {
     sourceUnchanged: true,
     undoRestoredSource: true,
   };
+}
+
+async function revealPlantumlSource(source) {
+  await page.evaluate((wrapped) => {
+    const content = document.querySelector(
+      '.lm-editor-live-preview-mode .cm-content',
+    );
+    const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
+    if (!view) {
+      throw new Error('Unable to resolve live-preview EditorView.');
+    }
+    const from = view.state.doc.toString().indexOf(wrapped);
+    if (from < 0) {
+      throw new Error(`Missing PlantUML source: ${wrapped}`);
+    }
+    view.dispatch({
+      effects: view.constructor.scrollIntoView(from, { y: 'center' }),
+    });
+  }, source);
 }
 
 async function clickLocatorWithWin32(locator, label, { xRatio = 0.5 } = {}) {
@@ -558,26 +618,17 @@ async function captureScreenshot(label) {
     return;
   }
   try {
-    evidence.screenshot = await page.screenshot({
-      path: join(tmpdir(), `installed-plantuml-os-${label}-${Date.now()}.png`),
+    const screenshotPath = join(
+      tmpdir(),
+      `installed-plantuml-os-${label}-${Date.now()}.png`,
+    );
+    await page.screenshot({
+      path: screenshotPath,
       type: 'png',
     });
+    evidence.screenshot = screenshotPath;
   } catch {
     evidence.screenshot = null;
-  }
-}
-
-function isRemoteRequest(url) {
-  try {
-    const parsed = new URL(url);
-    return (
-      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-      parsed.hostname !== 'localhost' &&
-      parsed.hostname !== '127.0.0.1' &&
-      parsed.hostname !== 'tauri.localhost'
-    );
-  } catch {
-    return true;
   }
 }
 

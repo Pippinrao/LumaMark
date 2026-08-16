@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, expect } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -41,7 +41,7 @@ try {
   port = await reserveDebugPort(
     parseRequestedPort(process.env.LUMAMARK_WEBVIEW_DEBUG_PORT),
   );
-  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-packaged-menu-'));
+  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-packaged-menu-'));
 
   ({ app, appExit, appStartError, browser, page } = await launchApp({
     port,
@@ -141,7 +141,7 @@ async function launchApp({ port, tempDirectory }) {
   let localStartError;
   const localOutput = processOutput;
   const child = spawn(executablePath, [], {
-    env: createPackagedWebviewEnvironment({
+    env: await createAcceptanceSettingsEnvironment({
       baseEnvironment: process.env,
       debugPort: port,
       tempDirectory,

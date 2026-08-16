@@ -22,7 +22,7 @@ LumaMark Windows 分发以 NSIS 安装器为主。用户需要在应用内检查
 2. 发布产物仅考虑 Windows NSIS：`LumaMark_{version}_x64-setup.exe` 与同名 `.sig`。
 3. 使用 minisign 签名校验；公钥写入 `src-tauri/tauri.conf.json`，私钥与口令保存在 GitHub Secrets（`TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`）。
 4. 应用层通过 `src/services/updater/` 封装插件；UI 落在 `src/features/updates/`，不在业务组件直接依赖插件对象。
-5. 新增 tag 触发的 `.github/workflows/windows-release-publish.yml`：校验 tag 与版本一致、签名构建 NSIS、生成 `latest.json` 并创建 GitHub Release。
+5. 新增 tag 触发的 `.github/workflows/windows-release-publish.yml`：校验 tag 与版本一致、签名构建 NSIS、生成 `latest.json` 并创建 GitHub Release。Windows CI 产出的 NSIS 必须经同一套 GitHub Secrets 签名；本地未签名安装包只可用于本机验收，不得作为正式分发或 updater 产物。
 6. Windows target 通过 Cargo feature union 为官方 updater 实际使用的 `reqwest 0.13.4` 启用 `system-proxy`；不修改 `updaterService.ts`、UI、IPC 或安装流程。
 
 ### Windows 代理支持边界

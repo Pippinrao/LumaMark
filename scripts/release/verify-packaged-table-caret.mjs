@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium, expect } from '@playwright/test';
 import {
-  createPackagedWebviewEnvironment,
+  createAcceptanceSettingsEnvironment,
   removePackagedWebviewTempDirectory,
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
@@ -24,9 +24,9 @@ const marker = `tbl-${Date.now()}`;
 const markdown = [
   '# Table Caret Probe',
   '',
-  '| Left | Right |',
-  '| --- | --- |',
-  '| alpha | beta |',
+  '| Left  | Right |',
+  '| ----- | ----- |',
+  '| alpha | beta  |',
   '| gamma | delta |',
   '',
 ].join('\n');
@@ -50,13 +50,13 @@ try {
   const port = await reserveDebugPort(
     parseRequestedPort(process.env.LUMAMARK_WEBVIEW_DEBUG_PORT),
   );
-  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-packaged-table-'));
+  tempDirectory = await mkdtemp(join(tmpdir(), 'lumamark-menu-context-os-packaged-table-'));
   const documentPath = join(tempDirectory, fileName);
   await writeFile(documentPath, markdown, 'utf8');
 
   app = spawn(executablePath, [documentPath], {
     cwd: tempDirectory,
-    env: createPackagedWebviewEnvironment({
+    env: await createAcceptanceSettingsEnvironment({
       baseEnvironment: process.env,
       debugPort: port,
       tempDirectory,
@@ -94,9 +94,15 @@ try {
     state: 'visible',
     timeout: 20_000,
   });
+  await expect(page.locator('.lm-editor-live-preview-mode')).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.locator('.cm-content', { hasText: 'alpha' })).toBeVisible({
+    timeout: 20_000,
+  });
 
   const table = page.locator('.tbl-table-widget').first();
-  await expect(table).toBeVisible({ timeout: 10_000 });
+  await expect(table).toBeVisible({ timeout: 30_000 });
 
   const targetCell = table.locator('.tbl-cell-view').filter({ hasText: 'beta' }).first();
   await targetCell.click({ position: { x: 8, y: 8 } });
@@ -151,10 +157,25 @@ try {
   );
   process.stdout.write('\n');
 } catch (error) {
+  const snapshot = page
+    ? await page
+        .evaluate(() => ({
+          contentPreview: document.querySelector('.cm-content')?.textContent?.slice(0, 800) ?? null,
+          editorClassName: document.querySelector('.cm-editor')?.className ?? null,
+          livePreview: Boolean(document.querySelector('.lm-editor-live-preview-mode')),
+          reading: Boolean(document.querySelector('.lm-editor-reading-mode')),
+          source: Boolean(document.querySelector('.lm-editor-source-mode')),
+          tableWidgets: document.querySelectorAll('.tbl-table-widget').length,
+          title: document.querySelector('.lm-editor-title')?.textContent ?? null,
+          url: location.href,
+        }))
+        .catch((evaluateError) => ({ evaluateError: String(evaluateError) }))
+    : { page: null };
   process.stderr.write(
     [
       '[release:packaged-table-caret] FAILED',
       error instanceof Error ? error.stack ?? error.message : String(error),
+      `snapshot: ${JSON.stringify(snapshot)}`,
       `stdout: ${processOutput.stdout.join('')}`,
       `stderr: ${processOutput.stderr.join('')}`,
     ].join('\n'),

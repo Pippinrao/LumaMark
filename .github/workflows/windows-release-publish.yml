@@ -26,12 +26,12 @@ jobs:
 
     env:
       npm_config_registry: https://registry.npmmirror.com/
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -50,6 +50,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Prepare updater signing key
+        uses: ./.github/actions/prepare-tauri-signing
+        with:
+          private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Resolve release version
         id: version
@@ -80,63 +86,6 @@ jobs:
       - name: Verify version consistency
         run: pnpm release:verify-versions -- --expected-version ${{ steps.version.outputs.version }}
 
-      - name: Require updater signing key
-        shell: pwsh
-        run: |
-          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
-            throw 'TAURI_SIGNING_PRIVATE_KEY secret is required to publish updater artifacts.'
-          }
-
-          # GitHub secret values are sometimes pasted from UTF-8 files with a BOM.
-          # Tauri's minisign base64 decoder then fails with "Invalid symbol 239".
-          $key = $env:TAURI_SIGNING_PRIVATE_KEY.Trim().TrimStart([char]0xFEFF)
-          $utf8 = [System.Text.Encoding]::UTF8
-          $bytes = $utf8.GetBytes($key)
-          if (
-            $bytes.Length -ge 3 -and
-            $bytes[0] -eq 0xEF -and
-            $bytes[1] -eq 0xBB -and
-            $bytes[2] -eq 0xBF
-          ) {
-            $key = $utf8.GetString($bytes, 3, $bytes.Length - 3).Trim()
-          }
-
-          if ([string]::IsNullOrWhiteSpace($key)) {
-            throw 'TAURI_SIGNING_PRIVATE_KEY is empty after BOM/whitespace sanitization.'
-          }
-
-          $keyPath = Join-Path $env:RUNNER_TEMP 'tauri-signing.key'
-          [System.IO.File]::WriteAllText($keyPath, $key, [System.Text.UTF8Encoding]::new($false))
-          # Overwrite the job-level secret env (may contain UTF-8 BOM) for later steps.
-          @(
-            "TAURI_SIGNING_PRIVATE_KEY_PATH=$keyPath"
-            'TAURI_SIGNING_PRIVATE_KEY<<__TAURI_KEY_EOF__'
-            $key
-            '__TAURI_KEY_EOF__'
-          ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
-          if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-            $password = $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD.Trim().TrimStart([char]0xFEFF)
-            $passwordBytes = $utf8.GetBytes($password)
-            if (
-              $passwordBytes.Length -ge 3 -and
-              $passwordBytes[0] -eq 0xEF -and
-              $passwordBytes[1] -eq 0xBB -and
-              $passwordBytes[2] -eq 0xBF
-            ) {
-              $password = $utf8.GetString(
-                $passwordBytes,
-                3,
-                $passwordBytes.Length - 3
-              ).Trim()
-            }
-            @(
-              'TAURI_SIGNING_PRIVATE_KEY_PASSWORD<<__TAURI_PASSWORD_EOF__'
-              $password
-              '__TAURI_PASSWORD_EOF__'
-            ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          }
-
       - name: Build NSIS installer with updater artifacts
         run: pnpm build:nsis
 
@@ -159,6 +108,15 @@ jobs:
             if (-not (Test-Path $path)) {
               throw "Missing release asset: $path"
             }
+          }
+
+          if ((Get-Item -LiteralPath $sig).Length -lt 32) {
+            throw "Updater signature $sig is empty or truncated."
+          }
+
+          $sigFiles = @(Get-ChildItem $nsisDir -Filter '*.sig')
+          if ($sigFiles.Count -ne 1 -or $sigFiles[0].FullName -ne (Resolve-Path $sig).Path) {
+            throw "Expected exactly one signed NSIS *.sig matching $sig, found $($sigFiles.Count)."
           }
 
           gh release create $env:TAG `

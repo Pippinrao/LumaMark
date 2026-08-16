@@ -14,7 +14,10 @@ use std::{
     sync::Mutex,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 
 const MAX_RECENT_COMPLETION_FENCES: usize = 128;
 
@@ -90,9 +93,52 @@ impl<'de> Deserialize<'de> for DeliveryOwner {
 ///
 /// Tokens intentionally expose no numeric or hash representation. Callers may
 /// only retain, clone, serialize, and return them to lifecycle operations.
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(transparent)]
+/// Durable JSON and IPC both use canonical unsigned-decimal strings so JavaScript
+/// observers cannot lose u64 identity; legacy numeric snapshots still restore.
+#[derive(Clone, Eq, PartialEq)]
 pub struct DeliveryAttemptToken(u64);
+
+impl Serialize for DeliveryAttemptToken {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_canonical_decimal())
+    }
+}
+
+impl<'de> Deserialize<'de> for DeliveryAttemptToken {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TokenVisitor;
+
+        impl Visitor<'_> for TokenVisitor {
+            type Value = DeliveryAttemptToken;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a canonical unsigned decimal attempt token")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                DeliveryAttemptToken::from_canonical_decimal(value).map_err(E::custom)
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(DeliveryAttemptToken(value))
+            }
+        }
+
+        deserializer.deserialize_any(TokenVisitor)
+    }
+}
 
 impl fmt::Debug for DeliveryAttemptToken {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -2436,6 +2482,26 @@ mod tests {
     }
 
     #[test]
+    fn attempt_token_json_should_persist_canonical_decimal_strings() {
+        let token = DeliveryAttemptToken(0);
+
+        assert_eq!(
+            serde_json::to_value(&token).expect("token should serialize"),
+            serde_json::json!("0")
+        );
+        let from_string: DeliveryAttemptToken = serde_json::from_value(serde_json::json!("0"))
+            .expect("canonical string should restore");
+        assert_eq!(from_string, token);
+        let from_number: DeliveryAttemptToken = serde_json::from_value(serde_json::json!(0))
+            .expect("legacy numeric tokens should restore");
+        assert_eq!(from_number, token);
+        assert!(
+            serde_json::from_value::<DeliveryAttemptToken>(serde_json::json!("00")).is_err(),
+            "non-canonical decimal strings must not restore"
+        );
+    }
+
+    #[test]
     fn attempt_token_should_round_trip_only_canonical_u64_decimal_strings() {
         let token = DeliveryAttemptToken::from_canonical_decimal("18446744073709551615")
             .expect("maximum u64 should be accepted");
@@ -2751,7 +2817,7 @@ mod tests {
                 "kind": "processing",
                 "owner": "window-1",
                 "leaseExpiresAt": 99,
-                "attemptToken": 7,
+                "attemptToken": "7",
             })
         );
         assert_eq!(
@@ -2763,7 +2829,7 @@ mod tests {
             serde_json::json!({
                 "kind": "appliedPendingAcknowledgement",
                 "owner": "window-1",
-                "attemptToken": 7,
+                "attemptToken": "7",
             })
         );
         assert_eq!(
@@ -2775,7 +2841,7 @@ mod tests {
             serde_json::json!({
                 "kind": "completed",
                 "owner": "window-1",
-                "attemptToken": 7,
+                "attemptToken": "7",
             })
         );
     }

@@ -1050,10 +1050,10 @@ async function verifySettingsPersistenceAcrossRestart() {
 
   const persisted = await readPersistedSettingsFile(
     (settings) =>
-      settings.version === 2 &&
+      settings.version === 3 &&
       settings.appearance?.theme === 'light' &&
       settings.updates?.autoCheckOnStartup === false,
-    'the v2 baseline to flush before the top-menu theme change',
+    'the canonical settings baseline to flush before the top-menu theme change',
   );
   evidence.settingsPersistence = {
     firstLaunch: {
@@ -1067,7 +1067,7 @@ async function verifySettingsPersistenceAcrossRestart() {
   requireCheck(
     'settings-v2-written-inside-isolated-config',
     evidence.settingsPersistence.settingsFileInsideTemporaryDirectory &&
-      persisted.version === 2 &&
+      persisted.version === 3 &&
       persisted.appearance.theme === 'light' &&
       persisted.updates.autoCheckOnStartup === false,
     evidence.settingsPersistence,
@@ -1150,7 +1150,7 @@ async function verifySettingsPersistenceAcrossRestart() {
   );
   const persistedAfterClose = await readPersistedSettingsFile(
     (settings) =>
-      settings.version === 2 &&
+      settings.version === 3 &&
       settings.appearance?.theme === 'system' &&
       settings.updates?.autoCheckOnStartup === false,
     'the released theme save to complete before restart',
@@ -1205,10 +1205,10 @@ async function verifySettingsPersistenceAcrossRestart() {
   const restoredThemeChecked = restoredThemeAriaChecked === 'true';
   const persistedAfterRestart = await readPersistedSettingsFile(
     (settings) =>
-      settings.version === 2 &&
+      settings.version === 3 &&
       settings.appearance?.theme === 'system' &&
       settings.updates?.autoCheckOnStartup === false,
-    'the same isolated v2 settings file after restart',
+    'the same isolated canonical settings file after restart',
   );
   evidence.settingsPersistence.restart = {
     autoCheckOnStartup: restoredAutoCheckValue,
@@ -1228,7 +1228,7 @@ async function verifySettingsPersistenceAcrossRestart() {
     'settings-persistence-restart-restored-ui',
     restoredAutoCheckValue === false &&
       restoredThemeChecked === true &&
-      persistedAfterRestart.version === 2,
+      persistedAfterRestart.version === 3,
     evidence.settingsPersistence,
   );
   await captureScreenshot('settings-persistence-restart-restored');

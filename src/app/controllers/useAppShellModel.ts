@@ -113,6 +113,11 @@ export function useAppShellModel() {
     createNewDocument: document.fileWorkflow.createNewDocument,
     dirty: document.dirty,
     focusEditor: editor.focusEditor,
+    openFile: startup.openFile,
+    openFileAfterDiscard: startup.openFileAfterDiscard,
+    openRecentFile: startup.openRecentFile,
+    openRecentFileAfterDiscard: startup.openRecentFileAfterDiscard,
+    startupVisible: startup.visible,
   });
   const shortcuts = useMemo(
     () => createCommandShortcutLabels(globalThis.navigator.userAgent),
@@ -135,6 +140,7 @@ export function useAppShellModel() {
       : newDocumentConfirmation.requestNewDocument,
     openAbout,
     openCommandPalette,
+    openFile: newDocumentConfirmation.requestOpenFile,
     openSettings,
     readingAppearance,
     settings,
@@ -157,7 +163,7 @@ export function useAppShellModel() {
   const payloadHandlers = useAppCommandPayloadHandlers(
     editorContextMenu.payloadHandlers,
     fileTreeContextMenu.payloadHandlers,
-    startup.openRecentFile,
+    newDocumentConfirmation.requestOpenRecentFile,
     document.fileWorkflow.fileOpening,
   );
   const commandModels = useAppCommandModels({

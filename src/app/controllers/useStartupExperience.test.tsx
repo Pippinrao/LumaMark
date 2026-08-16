@@ -12,7 +12,9 @@ function createOptions() {
     fileWorkflow: {
       createNewDocument: vi.fn(),
       openFromDialog: vi.fn(),
+      openFromDialogAfterDiscard: vi.fn(),
       openPath: vi.fn(),
+      openPathAfterDiscard: vi.fn(),
     },
     recoveryDraft: {
       pendingRecoveryDraft: null as RecoveryDraft | null,

@@ -23,7 +23,7 @@ function renderEditorPane(
 ) {
   let editor: EditorApi | null = null;
   const closeContextMenu = vi.fn();
-  const getContextMenuNodes = vi.fn((_target?: unknown): ShellMenuNode[] => []);
+  const getContextMenuNodes = vi.fn((): ShellMenuNode[] => []);
   const prepareContextMenu = vi.fn();
 
   render(
@@ -382,7 +382,10 @@ describe('EditorPane context menu targeting', () => {
     fireEvent.keyDown(cell, { key: 'F10', shiftKey: true });
 
     const tableRange = await waitFor(() => {
-      const call = getContextMenuNodes.mock.calls.at(-1)?.[0];
+      const lastCall = getContextMenuNodes.mock.calls.at(-1) as unknown as
+        | readonly [unknown]
+        | undefined;
+      const call = lastCall?.[0];
       expect(call).toMatchObject({ kind: 'table' });
       return call;
     });

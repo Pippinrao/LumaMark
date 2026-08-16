@@ -190,6 +190,9 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   await page.keyboard.press('Control+A');
   await page.keyboard.type('# temporary overwrite');
   await runFileMenuAction(page, 'openFile');
+  await page
+    .getByRole('button', { name: /^(?:Discard changes|放弃修改)$/ })
+    .click();
 
   await expect(editor).toContainText('Fixture Title');
   await expect(editor).toContainText('V1 E2E Title');
@@ -243,6 +246,9 @@ test('reopens a recent file from the files sidebar', async ({ page }) => {
   await page.keyboard.press('Control+A');
   await page.keyboard.insertText('# Temporary overwrite');
   await page.getByRole('button', { name: 'recent.md' }).click();
+  await page
+    .getByRole('button', { name: /^(?:Discard changes|放弃修改)$/ })
+    .click();
 
   await expect(editor).toContainText('Recent document');
   await expect(editor).not.toContainText('Temporary overwrite');
@@ -281,6 +287,9 @@ test('keeps the current draft and explains a failed file open', async ({ page })
   await page.keyboard.insertText('保留草稿');
 
   await runFileMenuAction(page, 'openFile');
+  await page
+    .getByRole('button', { name: /^(?:Discard changes|放弃修改)$/ })
+    .click();
 
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('找不到该文件');

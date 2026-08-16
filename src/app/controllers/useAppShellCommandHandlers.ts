@@ -34,6 +34,7 @@ type UseAppShellCommandHandlersOptions = {
   newDocument: () => void;
   openAbout: () => void;
   openCommandPalette: () => void;
+  openFile: () => void;
   openSettings: () => void;
   readingAppearance: Pick<
     ReturnType<typeof useReadingAppearanceModel>,
@@ -48,7 +49,7 @@ type UseAppShellCommandHandlersOptions = {
   >;
   startup: Pick<
     ReturnType<typeof useStartupExperience>,
-    'openFile' | 'openWorkspace'
+    'openWorkspace'
   >;
   toggleFocusMode: () => void;
   toggleSidebar: () => void;
@@ -64,6 +65,7 @@ export function useAppShellCommandHandlers({
   newDocument,
   openAbout,
   openCommandPalette,
+  openFile,
   openSettings,
   readingAppearance,
   settings,
@@ -91,9 +93,7 @@ export function useAppShellCommandHandlers({
     openAbout,
     checkForUpdates: updates.checkForUpdatesManually,
     openCommandPalette,
-    openFile: () => {
-      void startup.openFile();
-    },
+    openFile,
     openSearch: editor.openSearch,
     openSettings,
     openWorkspace: () => {

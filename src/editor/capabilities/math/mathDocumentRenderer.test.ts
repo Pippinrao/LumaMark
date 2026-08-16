@@ -299,10 +299,11 @@ describe('renderMathDocument', () => {
   });
 
   it('renders mhchem while gating Physics macros behind the preference', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const enabled = await renderMathDocument({
       documentId: 'extension-document',
       formulas: [
-        { display: false, id: 'chemistry', source: '\\ce{H2O}' },
+        { display: false, id: 'chemistry', source: '\\ce{H2O + CO2 -> H2CO3}' },
         { display: false, id: 'physics', source: '\\qty{x}' },
       ],
       generation: 1,
@@ -318,11 +319,38 @@ describe('renderMathDocument', () => {
     });
 
     expect(enabled.formulas[0]?.error).toBeUndefined();
-    expect(enabled.formulas[0]?.chtml).toContain('data-latex="\\ce{H2O}"');
+    expect(enabled.formulas[0]?.chtml).toContain('data-latex="\\ce{H2O + CO2 -> H2CO3}"');
     expect(enabled.formulas[1]?.error).toBeUndefined();
     expect(enabled.formulas[1]?.chtml).toContain('data-latex="\\qty{x}"');
     expect(disabled.formulas[0]?.chtml).toBeUndefined();
     expect(disabled.formulas[0]?.error).toContain('Undefined control sequence');
+    expect(warning).not.toHaveBeenCalled();
+    warning.mockRestore();
+  });
+
+  it('renders a tall aligned display formula without TeX errors', async () => {
+    const result = await renderMathDocument({
+      documentId: 'aligned-document',
+      formulas: [
+        {
+          display: true,
+          id: 'aligned',
+          source: [
+            '\\begin{aligned}',
+            '\\frac{1}{\\frac{2}{\\frac{3}{4}}} &= x \\\\',
+            '\\sum_{n=1}^{20} \\frac{n^2}{n+1} &= y \\\\',
+            '\\int_0^1 \\frac{1}{1+t^2}\\,dt &= z',
+            '\\end{aligned}',
+          ].join('\n'),
+        },
+      ],
+      generation: 1,
+      layoutMetrics: { containerWidth: 640, em: 16, ex: 8 },
+      preferences: { numbering: 'none', physics: false },
+    });
+
+    expect(result.formulas[0]?.error).toBeUndefined();
+    expect(result.formulas[0]?.chtml).toContain('data-latex');
   });
 
   it('loads rare NewCM glyph data from bundled modules', async () => {
@@ -338,6 +366,51 @@ describe('renderMathDocument', () => {
     expect(warning).not.toHaveBeenCalled();
     expect(result.formulas[0]?.error).toBeUndefined();
     expect(result.formulas[0]?.chtml).toContain('é');
+
+    const again = await renderMathDocument({
+      documentId: 'rare-glyph-document-again',
+      formulas: [{ display: false, id: 'accented', source: '\\text{éé}' }],
+      generation: 2,
+      layoutMetrics: { containerWidth: 960, em: 16, ex: 8 },
+      preferences: { numbering: 'none', physics: false },
+    });
+    expect(again.formulas[0]?.error).toBeUndefined();
+    expect(again.formulas[0]?.chtml).toContain('éé');
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  it('keeps rare glyphs available across sequential document renders', async () => {
+    const layoutMetrics = { containerWidth: 960, em: 16, ex: 8 };
+    const preferences = { numbering: 'none' as const, physics: false };
+    const first = await renderMathDocument({
+      documentId: 'rare-first',
+      formulas: [
+        { display: false, id: 'accent', source: '\\text{é}' },
+        { display: false, id: 'water', source: '\\ce{H2O}' },
+      ],
+      generation: 1,
+      layoutMetrics,
+      preferences,
+    });
+    expect(first.formulas.every((formula) => formula.error === undefined)).toBe(
+      true,
+    );
+
+    const second = await renderMathDocument({
+      documentId: 'rare-second',
+      formulas: [
+        { display: false, id: 'accent', source: '\\text{éé}' },
+        { display: false, id: 'carbon', source: '\\ce{CO2}' },
+      ],
+      generation: 2,
+      layoutMetrics,
+      preferences,
+    });
+    expect(second.formulas.map((formula) => formula.error)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(second.formulas[0]?.chtml).toContain('mjx-container');
   });
 
   it('rejects forbidden TeX loaders and strips every non-fragment URL', async () => {

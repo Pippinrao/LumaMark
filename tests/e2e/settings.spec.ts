@@ -88,7 +88,7 @@ test('keeps font zoom after reload through vertical settings navigation', async 
 
   const dialog = page.getByRole('dialog', { name: /^(?:Settings|设置)$/ });
   const tabs = dialog.getByRole('tab');
-  await expect(tabs).toHaveCount(4);
+  await expect(tabs).toHaveCount(5);
   await expect(dialog.getByRole('tablist')).toHaveAttribute(
     'aria-orientation',
     'vertical',
@@ -242,7 +242,7 @@ test('recovers corrupt browser settings visibly without hiding the preserved con
         return raw ? JSON.parse(raw).version : null;
       }),
     )
-    .toBe(2);
+    .toBe(3);
 });
 
 test('applies editor defaults to new documents without rebuilding the ready editor', async ({

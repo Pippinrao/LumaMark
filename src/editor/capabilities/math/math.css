@@ -10,7 +10,7 @@
 
 .lm-math-block-render {
   box-sizing: border-box;
-  display: block;
+  display: flow-root;
   margin: 0;
   min-width: 0;
   overflow: visible;
@@ -18,7 +18,9 @@
   width: 100%;
 }
 
-.lm-math-render mjx-container {
+.lm-math-render mjx-container,
+.lm-math-render mjx-container[jax="CHTML"],
+.lm-math-render mjx-container[jax="CHTML"][display="true"] {
   color: inherit;
   margin: 0;
   max-width: 100%;

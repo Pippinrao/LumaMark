@@ -2176,13 +2176,16 @@ test('shows table shortcuts in top and editor context menus', async ({ page }) =
 
   await page.locator('.tbl-table-widget').click({ button: 'right' });
   await expect(
-    page.getByRole('menuitem', { name: /^表格\s+Ctrl\+T$/ }),
+    page.getByRole('menuitem', { name: /^复制表格\s*Ctrl\+Alt\+C$/ }),
   ).toBeVisible();
   await expect(
-    page.getByRole('menuitem', { name: /^复制表格\s+Ctrl\+Alt\+C$/ }),
+    page.getByRole('menuitem', { name: /^删除表格\s*Ctrl\+Alt\+Backspace$/ }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('menuitem', { exact: true, name: '插入' }),
+  ).toBeDisabled();
   await page
-    .getByRole('menuitem', { name: /^删除表格\s+Ctrl\+Alt\+Backspace$/ })
+    .getByRole('menuitem', { name: /^删除表格\s*Ctrl\+Alt\+Backspace$/ })
     .click();
 
   await expect(page.locator('.tbl-table-widget')).toHaveCount(0);

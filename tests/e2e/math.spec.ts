@@ -46,9 +46,15 @@ async function openNewDocument(page: Page) {
 
 async function replaceEditorSource(page: Page, source: string): Promise<void> {
   const editor = page.locator('.cm-content').first();
-  await editor.click();
-  await page.keyboard.press(`${primaryModifier}+A`);
-  await page.keyboard.insertText(source);
+  await editor.evaluate((content, value) => {
+    const view = (content as RootEditorContentTestBridge)
+      .resolveRootEditorViewForTest();
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: value },
+      selection: { anchor: value.length },
+    });
+    view.focus();
+  }, source);
 }
 
 async function readEditorState(page: Page): Promise<{
@@ -221,6 +227,7 @@ test('keeps source mode raw, reading mode rendered and every mode switch byte-fa
   await page.keyboard.type('must-not-change');
   expect(await readEditorState(page)).toMatchObject({ source });
 
+  await moveCaret(page, source.length);
   await page.keyboard.press(`${primaryModifier}+/`);
   await expect(page.locator('.lm-editor-live-preview-mode')).toBeVisible();
   await expect(page.locator('[role="math"]')).toHaveCount(2);
@@ -487,7 +494,8 @@ test('refreshes the CodeMirror height map after a tall block formula and viewpor
   await replaceEditorSource(page, source);
 
   const blockMath = page.locator('.lm-math-block-render');
-  await expect(blockMath).toBeVisible();
+  await expect(blockMath).toBeVisible({ timeout: 20_000 });
+  await expect(blockMath.locator('mjx-container')).toBeVisible();
 
   const readHeightMapProbe = () =>
     editor.evaluate((content, text) => {
@@ -636,7 +644,11 @@ test('saves, reloads and reopens a math document with byte-exact source and fres
     name: /^(?:New Document|新建文档)$/,
   });
   const reloadedEditor = page.locator('.cm-content').first();
-  await expect(startButton.or(reloadedEditor)).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await startButton.isVisible()) || (await reloadedEditor.isVisible()),
+    )
+    .toBe(true);
   if (await startButton.isVisible()) {
     await startButton.click();
   } else {
@@ -737,10 +749,24 @@ test('keeps rare glyph and mhchem rendering available offline with same-origin a
   const failedRequests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
   page.on('requestfailed', (request) => failedRequests.push(request.url()));
+  let dynamicModulesChunkLoaded = false;
+  page.on('requestfinished', (request) => {
+    if (/newcmDynamicModules/u.test(request.url())) {
+      dynamicModulesChunkLoaded = true;
+    }
+  });
   await openNewDocument(page);
 
   await replaceEditorSource(page, 'rare $\\text{é}$ and chemistry $\\ce{H2O}$');
   await expect(page.locator('[role="math"]')).toHaveCount(2);
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-lm-math-fonts-preloaded',
+    'ready',
+    { timeout: 30_000 },
+  );
+  await expect
+    .poll(() => dynamicModulesChunkLoaded, { timeout: 30_000 })
+    .toBe(true);
   const workerAndFontRequests = requests.filter((url) =>
     /(?:mathDocumentWorker|\.woff2(?:$|\?))/.test(url),
   );

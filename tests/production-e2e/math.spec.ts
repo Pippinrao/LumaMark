@@ -3,6 +3,11 @@ import {
   installRootEditorViewTestBridge,
   type RootEditorContentTestBridge,
 } from '../e2e/support/rootEditorViewTestBridge';
+import {
+  confirmDiscardIfAsked,
+  installProductionDocumentMock,
+  readProductionDocumentWrites,
+} from './support/productionDocumentInvoke';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -26,31 +31,37 @@ test('loads MathJax through a production module Worker with CHTML and packaged W
   await expect(page.getByRole('math', { name: String.raw`\text{é}` })).toBeVisible();
   await expect(page.getByRole('math', { name: String.raw`\ce{H2O}` })).toBeVisible();
   await expect(page.locator('mjx-container')).toHaveCount(2);
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-lm-math-fonts-preloaded',
+    'ready',
+    { timeout: 30_000 },
+  );
   await page.evaluate(() => document.fonts.ready);
   await expect
     .poll(() => page.workers().map((worker) => worker.url()))
     .toEqual(expect.arrayContaining([expect.stringMatching(/mathDocumentWorker/u)]));
 
-  const assetEvidence = await page.waitForFunction(() => {
+  const assetEvidence = await page.evaluate(() => {
     const stylesheet =
       document.querySelector('[data-lm-math-style]')?.textContent ?? '';
     const fontUrls = [
-      ...stylesheet.matchAll(/url\(["']?([^"')]+\.woff2)["']?\)/gu),
+      ...stylesheet.matchAll(/url\(["']?([^"')]+)["']?\)/gu),
     ].map((match) => new URL(match[1] as string, location.href).href);
-    const requestedFonts = performance
-      .getEntriesByType('resource')
-      .map((entry) => entry.name)
-      .filter((url) => url.includes('.woff2'));
-    return fontUrls.length > 0 && requestedFonts.length > 0
-      ? { appOrigin: location.origin, fontUrls, requestedFonts }
-      : null;
-  }).then((handle) => handle.jsonValue());
+    return { appOrigin: location.origin, fontUrls, stylesheet };
+  });
+  const requestedFonts = requests.filter((url) => url.includes('.woff2'));
 
-  expect(assetEvidence).not.toBeNull();
+  expect(assetEvidence.fontUrls.length).toBeGreaterThan(0);
   expect(
-    [...assetEvidence!.fontUrls, ...assetEvidence!.requestedFonts].every(
-      (url) => new URL(url).origin === assetEvidence!.appOrigin,
+    assetEvidence.fontUrls.every(
+      (url) =>
+        url.startsWith('blob:') ||
+        new URL(url).origin === assetEvidence.appOrigin,
     ),
+  ).toBe(true);
+  expect(requestedFonts.length).toBeGreaterThan(0);
+  expect(
+    requestedFonts.every((url) => new URL(url).origin === assetEvidence.appOrigin),
   ).toBe(true);
   expect(
     requests.some((url) => /mathDocumentWorker/u.test(url)),
@@ -69,16 +80,20 @@ test('keeps the canonical production document identity when saving rendered math
   const source = String.raw`identity $x^2$`;
   const savedSource = `${source}\n`;
 
+  await installProductionDocumentMock(page, {
+    files: {
+      [canonicalPath]: source,
+      [requestedPath]: source,
+    },
+    openDialogPath: requestedPath,
+    resolvedPath: canonicalPath,
+  });
   await page.goto('/');
   await page
     .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
     .click();
-  await installProductionFileMock(page, {
-    canonicalPath,
-    requestedPath,
-    source,
-  });
   await page.keyboard.press(`${primaryModifier}+O`);
+  await confirmDiscardIfAsked(page);
 
   const editor = page.locator('.cm-content').first();
   await expect(page.locator('.lm-editor-title')).toHaveText('identity.md');
@@ -95,88 +110,13 @@ test('keeps the canonical production document identity when saving rendered math
   await expect(page.locator('.lm-editor-title')).toContainText('*');
 
   await page.keyboard.press(`${primaryModifier}+S`);
-  await expect.poll(() => readProductionWrites(page)).toEqual([
+  await expect.poll(() => readProductionDocumentWrites(page)).toEqual([
     { path: canonicalPath, text: savedSource },
   ]);
   expect(await readSource(editor)).toBe(savedSource);
 });
 
-async function installProductionFileMock(
-  page: Page,
-  fixture: {
-    canonicalPath: string;
-    requestedPath: string;
-    source: string;
-  },
-): Promise<void> {
-  await page.evaluate(({ canonicalPath, requestedPath, source }) => {
-    const writes: Array<{ path: string; text: string }> = [];
-    const existing = (
-      window as Window & { __TAURI_INTERNALS__?: Record<string, unknown> }
-    ).__TAURI_INTERNALS__ ?? {};
-    (
-      window as Window & {
-        __LUMAMARK_MATH_PRODUCTION_WRITES__?: typeof writes;
-        __TAURI_INTERNALS__?: Record<string, unknown> & {
-          invoke?: (
-            command: string,
-            args?: Record<string, unknown>,
-          ) => Promise<unknown>;
-        };
-      }
-    ).__LUMAMARK_MATH_PRODUCTION_WRITES__ = writes;
-    (
-      window as Window & {
-        __TAURI_INTERNALS__?: Record<string, unknown> & {
-          invoke?: (
-            command: string,
-            args?: Record<string, unknown>,
-          ) => Promise<unknown>;
-        };
-      }
-    ).__TAURI_INTERNALS__ = {
-      ...existing,
-      invoke: async (command, args = {}) => {
-        if (command === 'files_show_open_file_dialog') {
-          return requestedPath;
-        }
-        if (command === 'files_read_text') {
-          return {
-            byteLength: new TextEncoder().encode(source).length,
-            path: canonicalPath,
-            text: source,
-          };
-        }
-        if (command === 'files_write_text') {
-          if (typeof args.path !== 'string' || typeof args.text !== 'string') {
-            throw new Error('Invalid production write arguments.');
-          }
-          writes.push({ path: args.path, text: args.text });
-          return {
-            byteLength: new TextEncoder().encode(args.text).length,
-            path: args.path,
-          };
-        }
-        throw new Error(`Unexpected production command: ${command}`);
-      },
-    };
-  }, fixture);
-}
-
-function readProductionWrites(page: Page) {
-  return page.evaluate(() =>
-    (
-      window as Window & {
-        __LUMAMARK_MATH_PRODUCTION_WRITES__?: Array<{
-          path: string;
-          text: string;
-        }>;
-      }
-    ).__LUMAMARK_MATH_PRODUCTION_WRITES__ ?? [],
-  );
-}
-
-function readSource(editor: ReturnType<Page['locator']>) {
+async function readSource(editor: ReturnType<Page['locator']>) {
   return editor.evaluate((content) =>
     (content as RootEditorContentTestBridge)
       .resolveRootEditorViewForTest()

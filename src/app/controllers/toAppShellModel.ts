@@ -133,6 +133,7 @@ export function toAppShellModel({
     pageWidth: settings.pageWidth ?? readingAppearance.pageWidth,
     recentFiles: document.recentFiles,
     recoveryDraft: document.recoveryDraft,
+    requestUnsavedAction: newDocumentConfirmation.requestAction,
     restoreDialogFocus,
     restoreNewDocumentFocus: newDocumentConfirmation.restoreFocus,
     refreshEditorEditState,

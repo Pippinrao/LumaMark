@@ -11,6 +11,7 @@ import {
 describe('documentClaimClient', () => {
   afterEach(() => {
     delete window.__LUMAMARK_E2E_DOCUMENT_CLAIMS__;
+    delete window.__LUMAMARK_E2E_FILE_COMMANDS__;
     delete (window as Window & { __TAURI_INTERNALS__?: unknown })
       .__TAURI_INTERNALS__;
   });
@@ -326,6 +327,41 @@ describe('documentClaimClient', () => {
     });
   });
 
+  it('bridges claimed reads and writes through the browser file-command seam', async () => {
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: async (path) => ({
+        ok: true,
+        data: { byteLength: 12, path, text: '# from seam' },
+      }),
+      showOpenDialog: async () => ({ ok: true, data: null }),
+      showSaveDialog: async () => ({ ok: true, data: null }),
+      writeText: async (path, text) => ({
+        ok: true,
+        data: { byteLength: text.length, path },
+      }),
+    };
+
+    const client = resolveDocumentClaimClient({ allowBrowserClient: true });
+
+    await expect(client.beginSession()).resolves.toEqual({
+      ok: true,
+      data: { sessionGeneration: 1, status: 'began' },
+    });
+    await expect(
+      client.reserveDocument({ operationId: 1, path: '/notes/a.md' }),
+    ).resolves.toEqual({ ok: true, data: { status: 'reserved' } });
+    await expect(client.readTextClaimed(1, '/notes/a.md')).resolves.toEqual({
+      ok: true,
+      data: { byteLength: 12, path: '/notes/a.md', text: '# from seam' },
+    });
+    await expect(
+      client.writeTextClaimed(1, '/notes/a.md', '# saved'),
+    ).resolves.toEqual({
+      ok: true,
+      data: { byteLength: 7, path: '/notes/a.md' },
+    });
+  });
+
   it('fails closed for malformed mutation and focus outcomes', async () => {
     const invokeFn: InvokeCommandFunction = async <T>() =>
       ({ status: 'unexpected' }) as T;
@@ -383,6 +419,33 @@ describe('documentClaimClient', () => {
       ok: false,
     });
     expect(calls).toEqual([]);
+  });
+
+  it('prefers the browser file-command seam over a stubbed Tauri internals object', async () => {
+    window.__TAURI_INTERNALS__ = { convertFileSrc: () => '' };
+    window.__LUMAMARK_E2E_FILE_COMMANDS__ = {
+      readText: async (path) => ({
+        ok: true,
+        data: { byteLength: 4, path, text: '# hi' },
+      }),
+      showOpenDialog: async () => ({ ok: true, data: null }),
+      showSaveDialog: async () => ({ ok: true, data: null }),
+      writeText: async (path, text) => ({
+        ok: true,
+        data: { byteLength: text.length, path },
+      }),
+    };
+
+    const client = resolveDocumentClaimClient({ allowBrowserClient: true });
+
+    await expect(client.beginSession()).resolves.toEqual({
+      ok: true,
+      data: { sessionGeneration: 1, status: 'began' },
+    });
+    await expect(client.readTextClaimed(1, '/notes/a.md')).resolves.toEqual({
+      ok: true,
+      data: { byteLength: 4, path: '/notes/a.md', text: '# hi' },
+    });
   });
 
   it('fails closed outside Tauri when browser clients are not allowed', async () => {

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const recoveryDraftKey = 'lumamark-recovery-draft-v1';
+const recoveryDraftKey = 'lumamark-recovery-draft-v2:main';
 
 async function seedRecoveryDraft(page: Page) {
   await page.addInitScript((draft) => {

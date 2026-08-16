@@ -1,8 +1,12 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+﻿import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   installRootEditorViewTestBridge,
   type RootEditorContentTestBridge,
 } from '../e2e/support/rootEditorViewTestBridge';
+import {
+  confirmDiscardIfAsked,
+  installProductionDocumentMock,
+} from './support/productionDocumentInvoke';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -10,10 +14,12 @@ type Point = { x: number; y: number };
 
 type ProductionNavigationState = {
   files: Record<string, string>;
+  invokedCommands: string[];
   lastWrite: null | { path: string; text: string };
   openDialogPath: string;
   openedUrls: string[];
   readPaths: string[];
+  unexpectedCommands: string[];
 };
 
 type ProductionNavigationWindow = Window & {
@@ -31,80 +37,6 @@ type ProductionEditorSnapshot = {
   source: string;
 };
 
-async function installProductionTauriMock(
-  page: Page,
-  fixture: {
-    files: Record<string, string>;
-    openDialogPath: string;
-  },
-): Promise<void> {
-  await page.evaluate(({ files, openDialogPath }) => {
-    const testWindow = window as ProductionNavigationWindow;
-    const state: ProductionNavigationState = {
-      files,
-      lastWrite: null,
-      openDialogPath,
-      openedUrls: [],
-      readPaths: [],
-    };
-    const existingInternals = testWindow.__TAURI_INTERNALS__ ?? {};
-    testWindow.__LUMAMARK_LINK_NAVIGATION_PRODUCTION_STATE__ = state;
-    testWindow.__TAURI_INTERNALS__ = {
-      ...existingInternals,
-      invoke: async (command, args = {}) => {
-        switch (command) {
-          case 'files_show_open_file_dialog':
-            return state.openDialogPath;
-          case 'files_show_save_file_dialog':
-            return null;
-          case 'files_read_text': {
-            const path = args.path;
-            if (typeof path !== 'string') {
-              throw new Error('files_read_text did not receive a string path.');
-            }
-            state.readPaths.push(path);
-            const text = state.files[path];
-            if (text === undefined) {
-              throw {
-                code: 'file.not_found',
-                message: `Missing production E2E file: ${path}`,
-                recoverable: true,
-              };
-            }
-            return {
-              byteLength: new TextEncoder().encode(text).length,
-              path,
-              text,
-            };
-          }
-          case 'files_write_text': {
-            const path = args.path;
-            const text = args.text;
-            if (typeof path !== 'string' || typeof text !== 'string') {
-              throw new Error('files_write_text received invalid arguments.');
-            }
-            state.files[path] = text;
-            state.lastWrite = { path, text };
-            return {
-              byteLength: new TextEncoder().encode(text).length,
-              path,
-            };
-          }
-          case 'opener_open_url': {
-            const url = args.url;
-            if (typeof url !== 'string') {
-              throw new Error('opener_open_url did not receive a string URL.');
-            }
-            state.openedUrls.push(url);
-            return { opened: true };
-          }
-          default:
-            throw new Error(`Unexpected production invoke command: ${command}`);
-        }
-      },
-    };
-  }, fixture);
-}
 
 async function openProductionFixture(
   page: Page,
@@ -115,15 +47,13 @@ async function openProductionFixture(
   expectedTitle: string,
   visibleText: string,
 ): Promise<Locator> {
+  await installProductionDocumentMock(page, fixture);
   await page.goto('/');
   await page
     .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
     .click();
-
-  // Install the raw Tauri invoke boundary only after application startup so
-  // production code cannot fall back to the dev-only browser command clients.
-  await installProductionTauriMock(page, fixture);
   await page.keyboard.press(`${primaryModifier}+O`);
+  await confirmDiscardIfAsked(page);
 
   const editor = page.locator('.cm-content').first();
   await expect(page.locator('.lm-editor-title')).toHaveText(expectedTitle);

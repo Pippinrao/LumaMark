@@ -110,6 +110,7 @@ export type FileWorkflow = {
   markDocumentDirty: (dirty: boolean) => void;
   markOpenDocumentRemoved: (path: string) => void;
   openFromDialog: () => Promise<OpenDocumentOutcome>;
+  openFromDialogAfterDiscard: () => Promise<OpenDocumentOutcome>;
   openPath: (path: string) => Promise<OpenDocumentOutcome>;
   openPathAfterDiscard: (path: string) => Promise<OpenDocumentOutcome>;
   reloadFromDisk: () => Promise<void>;
@@ -1421,11 +1422,12 @@ export function useFileWorkflow({
     [openPath],
   );
 
-  const openFromDialog = useCallback(async () => {
+  const openFromDialog = useCallback(
+    async (allowDirty = false) => {
     if (
       hasIrreversibleDocumentClaimTransition(claimWorkflowRuntime) ||
       fileOpeningRef.current ||
-      state.getState().dirty
+      (state.getState().dirty && !allowDirty)
     ) {
       return { status: 'superseded' } as const;
     }
@@ -1463,7 +1465,7 @@ export function useFileWorkflow({
         return { status: 'cancelled' } as const;
       }
 
-      return openPath(selection.data);
+      return openPath(selection.data, allowDirty);
     } finally {
       if (ownsRequest()) {
         fileOpeningRef.current = false;
@@ -1479,6 +1481,11 @@ export function useFileWorkflow({
     status,
     waitForEditor,
   ]);
+
+  const openFromDialogAfterDiscard = useCallback(
+    () => openFromDialog(true),
+    [openFromDialog],
+  );
 
   const createNewDocument = useCallback(async () => {
     const ownershipBlock = getDocumentClaimOwnershipBlock(
@@ -2998,6 +3005,7 @@ export function useFileWorkflow({
     markDocumentDirty,
     markOpenDocumentRemoved,
     openFromDialog,
+    openFromDialogAfterDiscard,
     openPath,
     openPathAfterDiscard,
     reloadFromDisk,

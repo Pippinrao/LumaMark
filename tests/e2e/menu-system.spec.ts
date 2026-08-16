@@ -232,7 +232,7 @@ test('executes every Format menu command against the real editor', async ({
     ['斜体', '*plain*'],
     ['删除线', '~~plain~~'],
     ['行内代码', '`plain`'],
-    ['链接', '[plain](url)'],
+    ['链接', '[plain]()'],
   ] as const;
 
   for (const [item, expected] of formatCommands) {

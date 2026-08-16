@@ -258,6 +258,53 @@ const unavailableClient: DocumentClaimClient = {
   writeTextClaimed: unavailable,
 };
 
+function createBrowserFileCommandClaimClient(): DocumentClaimClient {
+  const missingFileCommand = <T,>(): Promise<CommandResult<T>> =>
+    unavailable();
+
+  return {
+    beginSession: async () => ({
+      ok: true,
+      data: { sessionGeneration: 1, status: 'began' },
+    }),
+    commitReservation: async () => ({
+      ok: true,
+      data: { status: 'committed' },
+    }),
+    focusWindow: async () => ({ ok: true, data: { status: 'focused' } }),
+    releaseOwnedDocument: async () => ({
+      ok: true,
+      data: { status: 'released' },
+    }),
+    releaseReservation: async () => ({
+      ok: true,
+      data: { status: 'released' },
+    }),
+    releaseSession: async () => ({
+      ok: true,
+      data: { releasedReservations: 0, status: 'released' },
+    }),
+    readTextClaimed: async (_operationId, path) =>
+      (await window.__LUMAMARK_E2E_FILE_COMMANDS__?.readText(path)) ??
+      missingFileCommand(),
+    reserveDocument: async () => ({
+      ok: true,
+      data: { status: 'reserved' },
+    }),
+    takeoverSession: async () => ({
+      ok: true,
+      data: {
+        releasedReservations: 0,
+        sessionGeneration: 2,
+        status: 'takenOver',
+      },
+    }),
+    writeTextClaimed: async (_operationId, path, text) =>
+      (await window.__LUMAMARK_E2E_FILE_COMMANDS__?.writeText(path, text)) ??
+      missingFileCommand(),
+  };
+}
+
 let cachedNativeClient: DocumentClaimClient | null = null;
 
 export function resolveDocumentClaimClient({
@@ -269,6 +316,14 @@ export function resolveDocumentClaimClient({
     window.__LUMAMARK_E2E_DOCUMENT_CLAIMS__
   ) {
     return window.__LUMAMARK_E2E_DOCUMENT_CLAIMS__;
+  }
+
+  if (
+    allowBrowserClient &&
+    typeof window !== 'undefined' &&
+    window.__LUMAMARK_E2E_FILE_COMMANDS__
+  ) {
+    return createBrowserFileCommandClaimClient();
   }
 
   if (

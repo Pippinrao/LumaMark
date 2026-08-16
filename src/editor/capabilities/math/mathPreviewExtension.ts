@@ -32,6 +32,7 @@ import type {
   MathFormulaRenderResult,
   MathLayoutMetrics,
 } from './mathWorkerProtocol';
+import { applyPreloadedNewcmFontUrls, preloadBundledNewcmFonts } from './mathjaxFontAssets';
 import './math.css';
 
 export type MathPreviewDisplayMode = 'livePreview' | 'reading';
@@ -135,7 +136,15 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
         this.styleElement.dataset.lmMathStyle = options.documentId;
         document.head.appendChild(this.styleElement);
         this.session = new MathRenderSession({
-          createWorker: options.createWorker ?? createMathDocumentWorker,
+          createWorker: options.createWorker ?? (() => {
+            void preloadBundledNewcmFonts().then(
+              () => this.onNewcmFontsPreloaded(),
+              () => {
+                document.documentElement.dataset.lmMathFontsPreloaded = 'error';
+              },
+            );
+            return createMathDocumentWorker();
+          }),
           debounceMs: options.debounceMs,
           onChange: (snapshot) => {
             queueMicrotask(() => {
@@ -151,9 +160,13 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
                 );
                 if (!hasFormulaError) {
                   this.lastSuccessfulStylesheet = snapshot.result.stylesheet;
-                  this.styleElement.textContent = snapshot.result.stylesheet;
+                  this.styleElement.textContent = applyPreloadedNewcmFontUrls(
+                    snapshot.result.stylesheet,
+                  );
                 } else if (this.lastSuccessfulStylesheet.length === 0) {
-                  this.styleElement.textContent = snapshot.result.stylesheet;
+                  this.styleElement.textContent = applyPreloadedNewcmFontUrls(
+                    snapshot.result.stylesheet,
+                  );
                 }
               }
               this.view.dispatch({ effects: mathRenderSnapshotEffect.of(snapshot) });
@@ -198,6 +211,16 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
         this.resizeObserver?.disconnect();
         this.session.destroy();
         this.styleElement.remove();
+      }
+
+      private onNewcmFontsPreloaded(): void {
+        document.documentElement.dataset.lmMathFontsPreloaded = 'ready';
+        if (this.destroyed || this.lastSuccessfulStylesheet.length === 0) {
+          return;
+        }
+        this.styleElement.textContent = applyPreloadedNewcmFontUrls(
+          this.lastSuccessfulStylesheet,
+        );
       }
 
       private requestRender(inventory = this.inventory): void {

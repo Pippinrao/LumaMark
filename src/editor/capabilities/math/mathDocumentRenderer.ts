@@ -1,4 +1,3 @@
-import { MathJaxNewcmFont } from '@mathjax/mathjax-newcm-font/js/chtml.js';
 import { liteAdaptor } from '@mathjax/src/js/adaptors/liteAdaptor.js';
 import type { LiteElement } from '@mathjax/src/js/adaptors/lite/Element.js';
 import type { LiteDocument } from '@mathjax/src/js/adaptors/lite/Document.js';
@@ -72,6 +71,7 @@ export async function renderMathDocument(
   request: MathDocumentRenderRequest,
 ): Promise<MathDocumentRenderResult> {
   validateRequest(request);
+  const { MathJaxNewcmFont } = await import('./newcmDynamicModules');
   const packages = MATHJAX_TEX_PACKAGE_WHITELIST.filter(
     (name) => name !== 'physics' || request.preferences.physics,
   );
@@ -88,6 +88,8 @@ export async function renderMathDocument(
     fontData: MathJaxNewcmFont,
     fontURL: '/mathjax/fonts',
   });
+  // mhchem arrows set mathvariant="-mhchem"; NewCM does not ship that variant.
+  output.font.createVariants([['-mhchem', 'normal']]);
   const document = mathjax.document('', {
     InputJax: input,
     OutputJax: output,

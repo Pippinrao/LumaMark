@@ -296,7 +296,11 @@ export function useAppShellSlots(
                 loadingPaths={model.workspace.loadingPaths}
                 onContentWidthChange={onSidebarContentWidthChange}
                 onLoadChildren={model.workspace.loadChildren}
-                onOpenFile={model.workspace.openFile}
+                onOpenFile={(path) => {
+                  model.requestUnsavedAction(() => {
+                    void model.startup.openRecentFileAfterDiscard(path);
+                  });
+                }}
                 onOpenWorkspace={model.workspace.openWorkspace}
                 recentFiles={model.recentFiles}
                 root={model.workspace.root}

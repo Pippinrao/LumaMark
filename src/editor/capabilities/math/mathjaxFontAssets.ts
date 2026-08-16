@@ -15,7 +15,53 @@ export const bundledNewcmFontUrls: Readonly<Record<string, string>> =
     ]),
   );
 
+const preloadedNewcmFontBlobUrls = new Map<string, string>();
+let bundledNewcmFontPreload: Promise<void> | undefined;
+
 export function rewriteNewcmFontUrls(stylesheet: string): string {
+  return rewriteStylesheetUrls(stylesheet, (fileName) =>
+    bundledNewcmFontUrls[fileName],
+  );
+}
+
+export function applyPreloadedNewcmFontUrls(stylesheet: string): string {
+  if (preloadedNewcmFontBlobUrls.size === 0) {
+    return stylesheet;
+  }
+
+  return rewriteStylesheetUrls(
+    stylesheet,
+    (fileName) => preloadedNewcmFontBlobUrls.get(fileName),
+  );
+}
+
+export function preloadBundledNewcmFonts(): Promise<void> {
+  bundledNewcmFontPreload ??= (async () => {
+    if (typeof fetch !== 'function' || typeof URL.createObjectURL !== 'function') {
+      return;
+    }
+
+    await Promise.all(
+      Object.entries(bundledNewcmFontUrls).map(async ([fileName, url]) => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to preload NewCM font: ${url}`);
+        }
+        const buffer = await response.arrayBuffer();
+        preloadedNewcmFontBlobUrls.set(
+          fileName,
+          URL.createObjectURL(new Blob([buffer], { type: 'font/woff2' })),
+        );
+      }),
+    );
+  })();
+  return bundledNewcmFontPreload;
+}
+
+function rewriteStylesheetUrls(
+  stylesheet: string,
+  resolveUrl: (fileName: string) => string | undefined,
+): string {
   let cursor = 0;
   let rewritten = '';
 
@@ -44,11 +90,13 @@ export function rewriteNewcmFontUrls(stylesheet: string): string {
       unquotedUrl.lastIndexOf('/'),
       unquotedUrl.lastIndexOf('\\'),
     );
-    const fileName = unquotedUrl.slice(separator + 1);
-    const bundledUrl = bundledNewcmFontUrls[fileName];
+    const fileName = unquotedUrl
+      .slice(separator + 1)
+      .replace(/[?#].*$/u, '');
+    const resolvedUrl = resolveUrl(fileName);
 
-    rewritten += bundledUrl
-      ? `url("${bundledUrl}")`
+    rewritten += resolvedUrl
+      ? `url("${resolvedUrl}")`
       : stylesheet.slice(start, end + 1);
     cursor = end + 1;
   }

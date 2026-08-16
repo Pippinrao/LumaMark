@@ -12,7 +12,10 @@ type UseStartupExperienceOptions = {
   };
   dirty: boolean;
   editorReady: boolean;
-  fileWorkflow: Pick<FileWorkflow, 'createNewDocument' | 'openFromDialog' | 'openPath'>;
+  fileWorkflow: Pick<
+    FileWorkflow,
+    'createNewDocument' | 'openFromDialog' | 'openFromDialogAfterDiscard' | 'openPath' | 'openPathAfterDiscard'
+  >;
   recoveryDraft: Pick<RecoveryDraftWorkflow, 'pendingRecoveryDraft' | 'recoveryChecked'>;
   workspace: Pick<WorkspaceWorkflow, 'openPath' | 'openWorkspace' | 'root'>;
 };
@@ -63,8 +66,26 @@ export function useStartupExperience({
     return outcome;
   }, [fileWorkflow, setLastSession, setVisible]);
 
+  const openFileAfterDiscard = useCallback(async () => {
+    const outcome = await fileWorkflow.openFromDialogAfterDiscard();
+    if (outcome.status === 'opened') {
+      setLastSession({ kind: 'file', path: outcome.file.path });
+      setVisible(false);
+    }
+    return outcome;
+  }, [fileWorkflow, setLastSession, setVisible]);
+
   const openRecentFile = useCallback(async (path: string) => {
     const outcome = await fileWorkflow.openPath(path);
+    if (outcome.status === 'opened') {
+      setLastSession({ kind: 'file', path: outcome.file.path });
+      setVisible(false);
+    }
+    return outcome;
+  }, [fileWorkflow, setLastSession, setVisible]);
+
+  const openRecentFileAfterDiscard = useCallback(async (path: string) => {
+    const outcome = await fileWorkflow.openPathAfterDiscard(path);
     if (outcome.status === 'opened') {
       setLastSession({ kind: 'file', path: outcome.file.path });
       setVisible(false);
@@ -174,7 +195,9 @@ export function useStartupExperience({
   return {
     newDocument,
     openFile,
+    openFileAfterDiscard,
     openRecentFile,
+    openRecentFileAfterDiscard,
     openRecentWorkspace,
     openWorkspace,
     recentWorkspaces,

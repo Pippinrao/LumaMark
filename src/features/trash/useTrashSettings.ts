@@ -41,10 +41,28 @@ export function useTrashSettings({
   }, []);
 
   useEffect(() => {
-    if (enabled) {
-      void refresh();
+    if (!enabled) {
+      return;
     }
-  }, [enabled, refresh]);
+
+    let cancelled = false;
+    void listTrashEntries().then((result) => {
+      if (cancelled) {
+        return;
+      }
+      if (!result.ok) {
+        setLoadError(result.error.code);
+        setEntries([]);
+        return;
+      }
+      setLoadError(null);
+      setEntries(result.data);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
 
   const handleCommandError = (result: CommandResult<unknown>) => {
     if (!result.ok) {

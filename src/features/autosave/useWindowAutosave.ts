@@ -32,19 +32,23 @@ export function useWindowAutosave({
     hasPersistedPath: currentFilePath !== null,
     revision: dirtyRevision,
   });
-  sessionRef.current = {
-    dirty,
-    externalConflict,
-    fileOpening,
-    hasPersistedPath: currentFilePath !== null,
-    revision: dirtyRevision,
-  };
-
   const saveRef = useRef(save);
-  saveRef.current = save;
+
+  useEffect(() => {
+    sessionRef.current = {
+      dirty,
+      externalConflict,
+      fileOpening,
+      hasPersistedPath: currentFilePath !== null,
+      revision: dirtyRevision,
+    };
+    saveRef.current = save;
+  });
 
   const binding = useMemo(
     () =>
+      // Binding construction only stores callbacks; they run after render.
+      // eslint-disable-next-line react-hooks/refs -- callbacks are invoked from timers, not during render
       createWindowAutosaveBinding({
         debounceMs: WINDOW_AUTOSAVE_DEBOUNCE_MS,
         readSession: () => sessionRef.current,

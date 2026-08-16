@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { archiveTrashDocument } from '../../services/trash/trashClient';
 import {
@@ -35,18 +35,23 @@ export function useDocumentCloseController({
     null,
   );
   const currentFilePathRef = useRef(currentFilePath);
-  currentFilePathRef.current = currentFilePath;
   const getSessionRef = useRef(getSession);
-  getSessionRef.current = getSession;
   const saveRef = useRef(save);
-  saveRef.current = save;
   const flushAutosaveRef = useRef(flushAutosave);
-  flushAutosaveRef.current = flushAutosave;
   const readDocumentTextRef = useRef(readDocumentText);
-  readDocumentTextRef.current = readDocumentText;
+
+  useEffect(() => {
+    currentFilePathRef.current = currentFilePath;
+    getSessionRef.current = getSession;
+    saveRef.current = save;
+    flushAutosaveRef.current = flushAutosave;
+    readDocumentTextRef.current = readDocumentText;
+  });
 
   const guard = useMemo(
     () =>
+      // Guard construction only stores callbacks; they run from close actions.
+      // eslint-disable-next-line react-hooks/refs -- callbacks are invoked from close actions, not during render
       createDocumentCloseGuard({
         archiveDiscard: async () => {
           const result = await archiveTrashDocument({

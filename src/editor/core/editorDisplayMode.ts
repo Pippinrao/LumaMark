@@ -67,8 +67,9 @@ export function editorReadOnlyExtension(
 export function editorDisplayModeExtension(
   mode: EditorDisplayMode,
   context: EditorDocumentContext = { path: null },
-  _transitionLocked = false,
+  transitionLocked = false,
 ): Extension {
+  void transitionLocked;
   if (mode === 'source') {
     return [
       editorRenderLockExtension(false),

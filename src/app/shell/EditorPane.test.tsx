@@ -13,7 +13,6 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_EDITOR_APPEARANCE } from '../../editor/core/editorAppearance';
 import type { EditorApi } from '../../editor/core/editorApi';
-import type { EditorContextTarget } from '../../editor/interaction';
 import { EditorPane } from './EditorPane';
 import type { ShellMenuNode } from './shellTypes';
 
@@ -24,9 +23,7 @@ function renderEditorPane(
 ) {
   let editor: EditorApi | null = null;
   const closeContextMenu = vi.fn();
-  const getContextMenuNodes = vi.fn(
-    (_target: EditorContextTarget): ShellMenuNode[] => [],
-  );
+  const getContextMenuNodes = vi.fn((): ShellMenuNode[] => []);
   const prepareContextMenu = vi.fn();
 
   render(

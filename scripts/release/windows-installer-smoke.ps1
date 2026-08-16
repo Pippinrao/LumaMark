@@ -429,6 +429,7 @@ function Get-InstalledAcceptanceScripts {
     'scripts\release\verify-installed-media-caret-os.mjs',
     'scripts\release\verify-installed-reading-mode-os.mjs',
     'scripts\release\verify-installed-math-caret-os.mjs',
+    'scripts\release\verify-installed-plantuml-os.mjs',
     'scripts\release\verify-installed-inline-code-caret-os.mjs'
   )
 }

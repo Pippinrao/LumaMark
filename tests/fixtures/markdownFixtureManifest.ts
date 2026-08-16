@@ -69,6 +69,15 @@ export const markdownFixtureManifest = [
     tags: ['mermaid:flowchart', 'mermaid:sequenceDiagram'],
   },
   {
+    fileName: 'plantuml.md',
+    notes: 'PlantUML sequence source-fidelity fixture for local TeaVM preview.',
+    tags: [
+      'plantuml:sequence',
+      'plantuml:source-fidelity-only',
+      'typora-like:live-preview',
+    ],
+  },
+  {
     fileName: 'mixed-chinese-english.md',
     tags: ['i18n:mixed-chinese-english'],
   },

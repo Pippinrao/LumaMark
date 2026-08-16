@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRecentFilesStore } from '../../features/recent-files/recentFilesStore';
 import { useStartupStore } from '../../features/startup/startupStore';
 import { useReadingAppearanceStore } from '../../features/reading-appearance/readingAppearanceStore';
-import { patchMarkdownMath, patchSettings } from './applySettings';
+import { patchMarkdownMath, patchMarkdownPlantuml, patchSettings } from './applySettings';
 import { useSettingsStore } from '../../features/settings/settingsStore';
 import type { AppLanguage } from '../../shared/i18n';
 import type { EditorPageWidth } from '../../features/reading-appearance/readingAppearanceStore';
@@ -149,6 +149,9 @@ export function useSettingsModel() {
   const setMathPhysicsEnabled = useCallback((physicsEnabled: boolean) => {
     patchMarkdownMath({ physicsEnabled });
   }, []);
+  const setPlantumlEnabled = useCallback((enabled: boolean) => {
+    patchMarkdownPlantuml({ enabled });
+  }, []);
 
   const toggleLanguage = useCallback(() => {
     setLanguage(language === 'zh-CN' ? 'en' : 'zh-CN');
@@ -174,6 +177,7 @@ export function useSettingsModel() {
     mathEquationNumbering: settings.markdown.math.equationNumbering,
     mathPhysicsEnabled: settings.markdown.math.physicsEnabled,
     mathSyntaxMode: settings.markdown.math.syntaxMode,
+    plantumlEnabled: settings.markdown.plantuml.enabled,
     pageWidth,
     pageWidthPersistenceError,
     recentFilesPersistenceError,
@@ -187,6 +191,7 @@ export function useSettingsModel() {
     setMathEquationNumbering,
     setMathPhysicsEnabled,
     setMathSyntaxMode,
+    setPlantumlEnabled,
     setPageWidth,
     setSettingsOpen,
     setSidebarOpenOnStartup,

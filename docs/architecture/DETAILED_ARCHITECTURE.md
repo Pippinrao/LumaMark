@@ -277,7 +277,7 @@ src/
 
 Editor capability 边界：
 
-- 每个复杂编辑器子功能进入 `editor/capabilities/<name>/`，例如 `mermaid`、`math`、`table`、`code-block`、`image`。
+- 每个复杂编辑器子功能进入 `editor/capabilities/<name>/`，例如 `mermaid`、`math`、`plantuml`、`table`、`code-block`、`image`。
 - 每个 capability 通过一个薄 public entry 暴露 extension、command factory 和必要类型；主体实现拆到 detection、DOM、adapter、commands、decorations 等子模块。
 - `editor/core/**` 只能消费 capability 聚合入口，不能 import capability 内部文件或旧 `widgets/*` 内部文件。
 - `editor/commands/**` 只能通过 capability command factory 调用表格、代码块等能力，不能直接 import table widget、Mermaid widget 或 code-block decoration internals。
@@ -318,6 +318,14 @@ Math capability 拆分要求：
 - `@mathjax/src` 与 `@mathjax/mathjax-newcm-font` 固定为 4.1.3。允许包、安全选项和回滚条件以 [ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md) 为准。
 - `\ref` / `\eqref` 点击必须复用 `EditorCommandPort.revealPosition()`，用当前 generation label 索引加 fresh inventory 解析位置，不长期缓存绝对 offset。
 
+PlantUML capability 拆分要求：
+
+- 主体实现位于 `editor/capabilities/plantuml/`，不复用 Mermaid 的业务类型或缓存条目，但调度/几何/阅读锁合同与 Mermaid 对齐。
+- `createPlantumlCapability.ts` 只组装 public capability；`plantumlPreviewExtension.ts` 只组装 extension、theme observer 与 decoration field。
+- `plantumlEngine.ts` 负责 TeaVM 引擎懒加载、失败 sticky 与串行队列；`plantumlRenderAdapter.ts` 负责 `dompurify` SVG 消毒。
+- 阅读模式不得创建 Edit/Delete；Expand 仍通过 `EditorMediaPreviewRequestHandler` 抛出已渲染 SVG。
+- 开关为 canonical `markdown.plantuml.enabled`，默认开启。版本、安全和回滚以 [ADR 0018](../decisions/0018-plantuml-local-rendering.md) 为准。
+
 Table/code-block/image capability 规则：
 
 - table capability 使用 `codemirror-markdown-tables`，LumaMark 只做 thin extension、theme、insert/copy/delete command factory，以及基于组件源码 token DOM 的样式适配；不创建 sibling preview DOM。复杂表格交互仍以成熟组件为准，纵向光标列保持暂由锁定版本的最小 pnpm patch 修正。
@@ -328,7 +336,7 @@ Table/code-block/image capability 规则：
 
 当前能力边界审计结论：
 
-- 已独立的能力：`mermaid`、`math`、`table`、`code-block`、`image` 都有独立 capability 目录和薄 public entry；`editor/core/**` 与 `editor/commands/**` 不直接 import capability 内部实现。
+- 已独立的能力：`mermaid`、`math`、`plantuml`、`table`、`code-block`、`image` 都有独立 capability 目录和薄 public entry；`editor/core/**` 与 `editor/commands/**` 不直接 import capability 内部实现。
 - 已建立的共享合同：`editor/interaction` 统一派生编辑范围；`documentSourceFormatField` 与 savepoint 同步映射源码格式；Mermaid 编辑只使用主 `EditorView`。详见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 - 允许的共享层：`editor/capabilities/index.ts` 只做 capability 和通用 WYSIWYG extension 组装；不得出现 DOM 创建、语法树扫描、渲染调度、第三方 widget 配置等主体逻辑。
 - 允许的通用 WYSIWYG：`wysiwyg/markdownDecorations.ts` 只处理所有 Markdown 都会共享的视觉规则，以及 capability decoration builder 的组合。它不能拥有异步渲染、block widget lifecycle、文件路径解析、table 命令、Mermaid 编辑器或 image preview DOM。

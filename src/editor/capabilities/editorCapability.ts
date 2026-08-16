@@ -6,6 +6,7 @@ export type EditorCapabilityId =
   | 'image'
   | 'math'
   | 'mermaid'
+  | 'plantuml'
   | 'table';
 
 export type EditorCapabilityCommands = {

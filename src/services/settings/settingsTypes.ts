@@ -13,6 +13,10 @@ export type SettingsMarkdownMath = {
   syntaxMode: SettingsMathSyntaxMode;
 };
 
+export type SettingsMarkdownPlantuml = {
+  enabled: boolean;
+};
+
 export type LumaMarkSettings = {
   appearance: {
     fontZoomPercent: number;
@@ -35,6 +39,7 @@ export type LumaMarkSettings = {
   };
   markdown: {
     math: SettingsMarkdownMath;
+    plantuml: SettingsMarkdownPlantuml;
   };
   updates: {
     autoCheckOnStartup: boolean;
@@ -80,6 +85,9 @@ export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
       equationNumbering: 'none',
       physicsEnabled: false,
       syntaxMode: 'pandoc',
+    },
+    plantuml: {
+      enabled: true,
     },
   },
   updates: {
@@ -149,9 +157,12 @@ export function normalizeLumaMarkSettings(
   const images = isRecord(value.images) ? value.images : {};
   const markdown = isRecord(value.markdown) ? value.markdown : {};
   const math = isRecord(markdown.math) ? markdown.math : {};
+  const plantuml = isRecord(markdown.plantuml) ? markdown.plantuml : {};
   const updates = isRecord(value.updates) ? value.updates : {};
   const markdownMathMissing =
     !isRecord(value.markdown) || !isRecord(markdown.math);
+  const markdownPlantumlMissing =
+    !isRecord(value.markdown) || !isRecord(markdown.plantuml);
 
   if (
     !isRecord(value.appearance) ||
@@ -162,7 +173,10 @@ export function normalizeLumaMarkSettings(
     (value.markdown !== undefined && !isRecord(value.markdown)) ||
     (isRecord(value.markdown) &&
       value.markdown.math !== undefined &&
-      !isRecord(value.markdown.math))
+      !isRecord(value.markdown.math)) ||
+    (isRecord(value.markdown) &&
+      value.markdown.plantuml !== undefined &&
+      !isRecord(value.markdown.plantuml))
   ) {
     hadInvalidFields = true;
   }
@@ -244,6 +258,13 @@ export function normalizeLumaMarkSettings(
         math.physicsEnabled,
         defaults.markdown.math.physicsEnabled,
       );
+  const plantumlEnabled =
+    markdownPlantumlMissing || plantuml.enabled === undefined
+      ? { invalid: false, value: defaults.markdown.plantuml.enabled }
+      : normalizeBoolean(
+          plantuml.enabled,
+          defaults.markdown.plantuml.enabled,
+        );
 
   if (
     theme.invalid ||
@@ -260,7 +281,8 @@ export function normalizeLumaMarkSettings(
     autoCheckOnStartup.invalid ||
     mathSyntaxMode.invalid ||
     mathEquationNumbering.invalid ||
-    mathPhysicsEnabled.invalid
+    mathPhysicsEnabled.invalid ||
+    plantumlEnabled.invalid
   ) {
     hadInvalidFields = true;
   }
@@ -292,6 +314,9 @@ export function normalizeLumaMarkSettings(
           equationNumbering: mathEquationNumbering.value,
           physicsEnabled: mathPhysicsEnabled.value,
           syntaxMode: mathSyntaxMode.value,
+        },
+        plantuml: {
+          enabled: plantumlEnabled.value,
         },
       },
       updates: {

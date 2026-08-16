@@ -342,6 +342,7 @@ export class CodeMirrorEditorApi implements EditorApi {
       nextContext.imageImportHandler === this.documentContext.imageImportHandler &&
       nextContext.onMediaPreviewRequest ===
         this.documentContext.onMediaPreviewRequest &&
+      nextContext.plantuml?.enabled === this.documentContext.plantuml?.enabled &&
       nextContext.revealPosition === this.documentContext.revealPosition
     ) {
       return;

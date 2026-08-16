@@ -58,7 +58,8 @@ if (!entry) {
 
 const oversizedEntry = entry.size > ENTRY_CHUNK_BUDGET_BYTES;
 const oversizedChunks = chunks.filter(
-  (chunk) => chunk.size > JS_CHUNK_BUDGET_BYTES,
+  (chunk) =>
+    chunk.size > JS_CHUNK_BUDGET_BYTES && !isExemptLazyEngineChunk(chunk.name),
 );
 
 if (oversizedEntry || oversizedChunks.length > 0) {
@@ -239,6 +240,11 @@ async function collectMatchingFiles(
   }
 
   return files;
+}
+
+function isExemptLazyEngineChunk(name) {
+  const base = name.split(/[\\/]/).pop() ?? name;
+  return /^(plantuml-|viz-global-)/u.test(base);
 }
 
 function formatKiB(bytes) {

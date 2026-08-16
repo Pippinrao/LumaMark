@@ -68,6 +68,9 @@ describe('settings v3 contract', () => {
           physicsEnabled: false,
           syntaxMode: 'pandoc',
         },
+        plantuml: {
+          enabled: true,
+        },
       },
       updates: { autoCheckOnStartup: true },
       version: 3,
@@ -319,6 +322,7 @@ describe('settings markdown.math preferences', () => {
       physicsEnabled: false,
       syntaxMode: 'pandoc',
     });
+    expect(result.settings.markdown.plantuml).toEqual({ enabled: true });
   });
 
   it.each(['pandoc', 'legacy', 'disabled'] as const)(
@@ -362,5 +366,69 @@ describe('settings markdown.math preferences', () => {
       physicsEnabled: true,
       syntaxMode: 'pandoc',
     });
+  });
+});
+
+describe('settings markdown.plantuml preferences', () => {
+  it('defaults PlantUML preview to enabled', () => {
+    expect(createDefaultLumaMarkSettings().markdown.plantuml).toEqual({
+      enabled: true,
+    });
+  });
+
+  it('accepts a missing markdown.plantuml object on existing v3 documents without marking them invalid', () => {
+    const raw = createRawSettings(3);
+    raw.markdown = {
+      math: {
+        equationNumbering: 'ams',
+        physicsEnabled: true,
+        syntaxMode: 'legacy',
+      },
+    };
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(false);
+    expect(result.settings.markdown.math.syntaxMode).toBe('legacy');
+    expect(result.settings.markdown.plantuml.enabled).toBe(true);
+  });
+
+  it('preserves an explicit PlantUML opt-out', () => {
+    const raw = createRawSettings(3);
+    raw.markdown = {
+      math: {
+        equationNumbering: 'none',
+        physicsEnabled: false,
+        syntaxMode: 'pandoc',
+      },
+      plantuml: { enabled: false },
+    };
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(false);
+    expect(result.settings.markdown.plantuml.enabled).toBe(false);
+  });
+
+  it('recovers a non-boolean PlantUML switch without dropping math preferences', () => {
+    const raw = createRawSettings(3);
+    raw.markdown = {
+      math: {
+        equationNumbering: 'all',
+        physicsEnabled: true,
+        syntaxMode: 'legacy',
+      },
+      plantuml: { enabled: 'off' },
+    };
+
+    const result = normalizeLumaMarkSettings(raw);
+
+    expect(result.hadInvalidFields).toBe(true);
+    expect(result.settings.markdown.math).toEqual({
+      equationNumbering: 'all',
+      physicsEnabled: true,
+      syntaxMode: 'legacy',
+    });
+    expect(result.settings.markdown.plantuml.enabled).toBe(true);
   });
 });

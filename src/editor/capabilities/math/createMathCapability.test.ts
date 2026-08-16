@@ -24,10 +24,10 @@ describe('createMathCapability', () => {
   it('registers math in the production capability sequence with document identity', () => {
     expect(
       createLivePreviewCapabilities(context, false).map(({ id }) => id),
-    ).toEqual(['codeBlock', 'image', 'table', 'mermaid', 'math']);
+    ).toEqual(['codeBlock', 'image', 'table', 'mermaid', 'math', 'plantuml']);
     expect(
       createLivePreviewCapabilities(context, true).map(({ id }) => id),
-    ).toEqual(['codeBlock', 'image', 'table', 'mermaid', 'math']);
+    ).toEqual(['codeBlock', 'image', 'table', 'mermaid', 'math', 'plantuml']);
   });
 
   it('does not install math capability in source mode', () => {

@@ -4,6 +4,7 @@ import type {
   ImageAssetResolver,
   ImageImportErrorHandler,
   ImageImportHandler,
+  PlantumlDocumentSettings,
 } from './editorDisplayMode';
 import type { AppLanguage } from '../../shared/i18n';
 import type { EditorMathPreferences } from '../capabilities/math/mathPreferences';
@@ -37,6 +38,7 @@ export type EditorViewHostProps = {
   language: AppLanguage;
   mathPreferences?: EditorMathPreferences;
   onDocumentChanged?: EditorDocumentChangedHandler;
+  plantuml?: PlantumlDocumentSettings;
   onEditorReady?: (editor: EditorApi) => void;
   onFocusChanged?: EditorFocusChangedHandler;
   onLinkNavigationRequest: EditorLinkNavigationRequestHandler;
@@ -56,6 +58,7 @@ export function EditorViewHost({
   imageImportHandler,
   language,
   mathPreferences,
+  plantuml,
   onDocumentChanged,
   onEditorReady,
   onFocusChanged,
@@ -72,6 +75,7 @@ export function EditorViewHost({
   const initialImageImportHandlerRef = useRef(imageImportHandler);
   const initialLanguageRef = useRef(language);
   const initialMathPreferencesRef = useRef(mathPreferences);
+  const initialPlantumlRef = useRef(plantuml);
   const initialMediaPreviewRequestHandlerRef = useRef(onMediaPreviewRequest);
   const editorRef = useRef<EditorApi | null>(null);
   const onDocumentChangedRef = useRef(onDocumentChanged);
@@ -121,6 +125,12 @@ export function EditorViewHost({
   }, [mathPreferences]);
 
   useEffect(() => {
+    if (plantuml) {
+      editorRef.current?.setDocumentContext({ plantuml });
+    }
+  }, [plantuml]);
+
+  useEffect(() => {
     const parent = editorParentRef.current;
 
     if (!parent) {
@@ -154,6 +164,7 @@ export function EditorViewHost({
         imageImportHandler: initialImageImportHandlerRef.current,
         onMediaPreviewRequest: initialMediaPreviewRequestHandlerRef.current,
         path: null,
+        plantuml: initialPlantumlRef.current,
       },
       language: initialLanguageRef.current,
     });

@@ -22,6 +22,10 @@ export type EditorMediaPreviewRequest =
   | {
       kind: 'mermaid';
       svg: string;
+    }
+  | {
+      kind: 'plantuml';
+      svg: string;
     };
 
 export type EditorMediaPreviewRequestHandler = (

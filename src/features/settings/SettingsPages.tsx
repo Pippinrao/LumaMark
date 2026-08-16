@@ -266,6 +266,7 @@ type EditorSettingsPageProps = {
   mathEquationNumbering: SettingsEquationNumbering;
   mathPhysicsEnabled: boolean;
   mathSyntaxMode: SettingsMathSyntaxMode;
+  plantumlEnabled: boolean;
   onAutosaveEnabledChange: (autosaveEnabled: boolean) => void;
   onDefaultDisplayModeChange: (mode: SettingsDisplayMode) => void;
   onFocusModeOnStartupChange: (focusModeOnStartup: boolean) => void;
@@ -274,6 +275,7 @@ type EditorSettingsPageProps = {
   ) => void;
   onMathPhysicsEnabledChange: (physicsEnabled: boolean) => void;
   onMathSyntaxModeChange: (syntaxMode: SettingsMathSyntaxMode) => void;
+  onPlantumlEnabledChange: (plantumlEnabled: boolean) => void;
 };
 
 export function EditorSettingsPage({
@@ -283,12 +285,14 @@ export function EditorSettingsPage({
   mathEquationNumbering,
   mathPhysicsEnabled,
   mathSyntaxMode,
+  plantumlEnabled,
   onAutosaveEnabledChange,
   onDefaultDisplayModeChange,
   onFocusModeOnStartupChange,
   onMathEquationNumberingChange,
   onMathPhysicsEnabledChange,
   onMathSyntaxModeChange,
+  onPlantumlEnabledChange,
 }: EditorSettingsPageProps) {
   const { t } = useTranslation();
 
@@ -369,6 +373,14 @@ export function EditorSettingsPage({
           description={t('settings.mathPhysicsEnabledDescription')}
           label={t('settings.mathPhysicsEnabled')}
           onCheckedChange={onMathPhysicsEnabledChange}
+        />
+      </SettingsGroup>
+      <SettingsGroup title={t('settings.groupDiagrams')}>
+        <SettingsSwitch
+          checked={plantumlEnabled}
+          description={t('settings.plantumlHint')}
+          label={t('settings.plantumlEnable')}
+          onCheckedChange={onPlantumlEnabledChange}
         />
       </SettingsGroup>
     </Tabs.Content>

@@ -39,6 +39,10 @@ export type ImageImportHandler = (
   request: ImageImportRequest,
 ) => Promise<ImageImportResult>;
 export type ImageImportErrorHandler = (error: unknown) => void;
+export type PlantumlDocumentSettings = {
+  enabled: boolean;
+};
+
 export type EditorDocumentContext = {
   documentId?: string;
   imageAssetResolver?: ImageAssetResolver;
@@ -46,6 +50,7 @@ export type EditorDocumentContext = {
   imageImportHandler?: ImageImportHandler;
   onMediaPreviewRequest?: EditorMediaPreviewRequestHandler;
   path: string | null;
+  plantuml?: PlantumlDocumentSettings;
   revealPosition?: (position: number) => void;
 };
 

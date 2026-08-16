@@ -1,0 +1,132 @@
+/*
+ * Block-widget chrome must not invent fake blank lines. Vertical margin on
+ * replace widgets is invisible to CodeMirror's height map and shifts every
+ * click → caret mapping below the diagram. Spacing comes from real markdown
+ * blank lines (clickable cm-lines) only.
+ */
+.cm-content .lm-plantuml-preview {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid var(--lm-color-border-subtle);
+  border-radius: var(--lm-radius-2);
+  background: color-mix(in srgb, var(--lm-color-surface) 88%, transparent);
+}
+
+.cm-content .lm-plantuml-preview:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--lm-color-accent) 44%, transparent);
+  outline-offset: 2px;
+}
+
+.cm-content .lm-plantuml-status,
+.cm-content .lm-plantuml-error {
+  min-height: 38px;
+  border-bottom: 1px solid var(--lm-color-border-subtle);
+  color: var(--lm-color-text-muted);
+  font-size: 0.875rem;
+  line-height: 38px;
+  padding: 0 var(--lm-space-4);
+}
+
+.cm-content .lm-plantuml-status[hidden],
+.cm-content .lm-plantuml-error[hidden] {
+  display: none;
+}
+
+.cm-content .lm-plantuml-error {
+  color: #b42318;
+}
+
+.cm-content .lm-plantuml-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    visibility 120ms ease;
+}
+
+.cm-content .lm-plantuml-preview:hover .lm-plantuml-actions,
+.cm-content .lm-plantuml-preview:focus-within .lm-plantuml-actions,
+.cm-content .lm-plantuml-preview-editing .lm-plantuml-actions,
+.cm-content .lm-plantuml-preview-error .lm-plantuml-actions {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.cm-content .lm-plantuml-edit-source,
+.cm-content .lm-plantuml-actions .lm-media-preview-expand,
+.cm-content .lm-plantuml-delete {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--lm-color-border-subtle);
+  border-radius: var(--lm-radius-1);
+  background: color-mix(in srgb, var(--lm-color-surface) 92%, transparent);
+  color: var(--lm-color-text);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--lm-color-text) 12%, transparent);
+  cursor: pointer;
+}
+
+.cm-content .lm-plantuml-actions .lm-media-preview-expand[hidden] {
+  display: none;
+}
+
+.cm-content .lm-plantuml-edit-source:hover,
+.cm-content .lm-plantuml-edit-source:focus-visible,
+.cm-content .lm-plantuml-actions .lm-media-preview-expand:hover,
+.cm-content .lm-plantuml-actions .lm-media-preview-expand:focus-visible,
+.cm-content .lm-plantuml-delete:hover,
+.cm-content .lm-plantuml-delete:focus-visible {
+  border-color: var(--lm-color-accent);
+  outline: none;
+  background: var(--lm-color-surface);
+}
+
+.cm-content .lm-plantuml-edit-source svg,
+.cm-content .lm-plantuml-actions .lm-media-preview-expand svg,
+.cm-content .lm-plantuml-delete svg {
+  pointer-events: none;
+}
+
+.cm-content .lm-plantuml-delete:hover {
+  color: #b42318;
+}
+
+.cm-content .lm-plantuml-preview-error {
+  border-color: color-mix(in srgb, #d92d20 38%, var(--lm-color-border-subtle));
+  background: color-mix(in srgb, var(--lm-color-surface) 90%, #fce8e6);
+}
+
+.cm-content .lm-plantuml-svg:empty {
+  display: none;
+}
+
+.cm-content .lm-plantuml-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.cm-content .lm-plantuml-svg {
+  padding: 0;
+  overflow: visible;
+  background: color-mix(in srgb, #ffffff 92%, transparent);
+}

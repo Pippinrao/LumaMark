@@ -10,6 +10,7 @@ import { createImageCommands } from './image/imageCommands';
 import { createMermaidCapability } from './mermaid/createMermaidCapability';
 import { createMathCapability } from './math/createMathCapability';
 import { createMathCommands } from './math/mathCommands';
+import { createPlantumlCapability } from './plantuml/createPlantumlCapability';
 import { createTableCapability } from './table/createTableCapability';
 import { createTableCommands } from './table/tableCommands';
 
@@ -23,13 +24,19 @@ export function createLivePreviewCapabilities(
   context: EditorDocumentContext,
   renderLocked: boolean,
 ): EditorCapability[] {
-  return [
+  const capabilities: EditorCapability[] = [
     createCodeBlockCapability(),
     createImageCapability(context),
     createTableCapability(renderLocked),
     createMermaidCapability(context),
     createMathCapability(context, renderLocked ? 'reading' : 'livePreview'),
   ];
+
+  if (context.plantuml?.enabled !== false) {
+    capabilities.push(createPlantumlCapability(context));
+  }
+
+  return capabilities;
 }
 
 export function createLivePreviewExtensions(

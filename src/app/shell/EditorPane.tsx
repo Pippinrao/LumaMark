@@ -20,6 +20,7 @@ import type {
   ImageAssetResolver,
   ImageImportErrorHandler,
   ImageImportHandler,
+  PlantumlDocumentSettings,
 } from '../../editor/core/editorDisplayMode';
 import type { EditorLinkNavigationRequestHandler } from '../../editor/core/editorLinkNavigationExtension';
 import {
@@ -61,6 +62,7 @@ type EditorPaneProps = {
   imageImportHandler?: ImageImportHandler;
   language: AppLanguage;
   mathPreferences: EditorMathPreferences;
+  plantuml?: PlantumlDocumentSettings;
   visibleDocumentTitle: string;
 };
 
@@ -146,6 +148,7 @@ export function EditorPane({
   imageImportHandler,
   language,
   mathPreferences,
+  plantuml,
   visibleDocumentTitle,
 }: EditorPaneProps) {
   const [contextMenuNodes, setContextMenuNodes] = useState<ShellMenuNode[]>([]);
@@ -228,6 +231,7 @@ export function EditorPane({
                   imageImportHandler={imageImportHandler}
                   language={language}
                   mathPreferences={mathPreferences}
+                  plantuml={plantuml}
                   onDocumentChanged={onDocumentChanged}
                   onEditorReady={(editor) => {
                     editorRef.current = editor;

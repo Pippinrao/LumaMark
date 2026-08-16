@@ -52,6 +52,7 @@ type SettingsDialogProps = {
   mathEquationNumbering: SettingsEquationNumbering;
   mathPhysicsEnabled: boolean;
   mathSyntaxMode: SettingsMathSyntaxMode;
+  plantumlEnabled: boolean;
   onAutoCheckUpdatesChange: (autoCheckUpdates: boolean) => void;
   onAutosaveEnabledChange: (autosaveEnabled: boolean) => void;
   onClearRecentFiles: () => void;
@@ -65,6 +66,7 @@ type SettingsDialogProps = {
   ) => void;
   onMathPhysicsEnabledChange: (physicsEnabled: boolean) => void;
   onMathSyntaxModeChange: (syntaxMode: SettingsMathSyntaxMode) => void;
+  onPlantumlEnabledChange: (plantumlEnabled: boolean) => void;
   onOpenChange: (open: boolean) => void;
   onPageWidthChange: (pageWidth: EditorPageWidth) => void;
   onRetrySettingsWrite: () => void;
@@ -98,6 +100,7 @@ export function SettingsDialog({
   mathEquationNumbering,
   mathPhysicsEnabled,
   mathSyntaxMode,
+  plantumlEnabled,
   onAutoCheckUpdatesChange,
   onAutosaveEnabledChange,
   onClearRecentFiles,
@@ -109,6 +112,7 @@ export function SettingsDialog({
   onMathEquationNumberingChange,
   onMathPhysicsEnabledChange,
   onMathSyntaxModeChange,
+  onPlantumlEnabledChange,
   onOpenChange,
   onPageWidthChange,
   onRetrySettingsWrite,
@@ -274,12 +278,14 @@ export function SettingsDialog({
                 mathEquationNumbering={mathEquationNumbering}
                 mathPhysicsEnabled={mathPhysicsEnabled}
                 mathSyntaxMode={mathSyntaxMode}
+                plantumlEnabled={plantumlEnabled}
                 onAutosaveEnabledChange={onAutosaveEnabledChange}
                 onDefaultDisplayModeChange={onDefaultDisplayModeChange}
                 onFocusModeOnStartupChange={onFocusModeOnStartupChange}
                 onMathEquationNumberingChange={onMathEquationNumberingChange}
                 onMathPhysicsEnabledChange={onMathPhysicsEnabledChange}
                 onMathSyntaxModeChange={onMathSyntaxModeChange}
+                onPlantumlEnabledChange={onPlantumlEnabledChange}
               />
               <ImagesSettingsPage
                 copyImagesToAssets={copyImagesToAssets}

@@ -56,6 +56,9 @@ importers:
       '@mathjax/src':
         specifier: 4.1.3
         version: 4.1.3
+      '@plantuml/core':
+        specifier: 1.2026.6
+        version: 1.2026.6
       '@radix-ui/react-alert-dialog':
         specifier: 1.1.18
         version: 1.1.18(@types/react-dom@19.2.4(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -98,6 +101,9 @@ importers:
       codemirror-markdown-tables:
         specifier: 1.0.0
         version: 1.0.0(patch_hash=719f3671bd96151dfe09c0eef941d53aa2d54699b7f3be14a577701096ef20b6)(@codemirror/autocomplete@6.20.3)(@codemirror/commands@6.10.4)(@codemirror/lang-markdown@6.5.2)(@codemirror/language@6.12.4)(@codemirror/state@6.7.0)(@codemirror/view@6.43.4)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)(@lezer/markdown@1.7.0)
+      dompurify:
+        specifier: 3.4.11
+        version: 3.4.11
       i18next:
         specifier: ^26.3.4
         version: 26.3.4(typescript@6.0.3)
@@ -626,6 +632,9 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@plantuml/core@1.2026.6':
+    resolution: {integrity: sha512-e+s8jtAKT6kb7yvOCXv0exXOp7FvyKYDcpv+aQrThwXUQgdTGP+fb9hPZQr7jbeEMuUHbxjH1HYLwNZZxw3hJg==}
 
   '@playwright/test@1.61.1':
     resolution: {integrity: sha512-8nKv6+0RJSL9FE4jYOEGXnPeM/Hg12qZpmqzZjRh3qM0Y7c3z1mrOTfFLids72RDQYVh9WpLEfR5WdpNX4fkig==}
@@ -3706,6 +3715,8 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@plantuml/core@1.2026.6': {}
 
   '@playwright/test@1.61.1':
     dependencies:

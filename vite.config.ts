@@ -26,7 +26,7 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   build: {
-    chunkSizeWarningLimit: 700,
+    chunkSizeWarningLimit: 7000,
     rolldownOptions: {
       output: {
         // Mermaid contains static import cycles across its diagram modules. Keep

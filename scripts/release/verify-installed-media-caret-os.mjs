@@ -994,7 +994,7 @@ function getWin32HelperSource() {
 param(
   [Parameter(Mandatory = $true)][int]$TargetProcessId,
   [Parameter(Mandatory = $true)]
-  [ValidateSet('Probe', 'Click', 'Wheel', 'Unicode', 'Save', 'Resize')]
+  [ValidateSet('Probe', 'Click', 'Wheel', 'Unicode', 'Save', 'Undo', 'Resize')]
   [string]$Action,
   [double]$CssX = 0,
   [double]$CssY = 0,
@@ -1368,6 +1368,32 @@ public static class LumaMarkWin32Input {
         inputs,
         new INPUT[] {
           Key(VK_S, (char)0, KEYEVENTF_KEYUP),
+          Key(0x11, (char)0, KEYEVENTF_KEYUP),
+        }
+      );
+    } finally {
+      RestoreZOrder(hwnd);
+    }
+    return inputs.Length;
+  }
+
+  public static int Undo(int processId) {
+    IntPtr hwnd = WaitForMainWindow(processId);
+    EnsureInputReady(processId, hwnd);
+    INPUT[] inputs = new INPUT[] {
+      Key(0x11, (char)0, 0),
+      Key(0x5A, (char)0, 0),
+      Key(0x5A, (char)0, KEYEVENTF_KEYUP),
+      Key(0x11, (char)0, KEYEVENTF_KEYUP),
+    };
+    try {
+      FocusTarget(processId, hwnd);
+      EnsureInputReady(processId, hwnd);
+      VerifyForegroundTarget(processId, hwnd);
+      SendExact(
+        inputs,
+        new INPUT[] {
+          Key(0x5A, (char)0, KEYEVENTF_KEYUP),
           Key(0x11, (char)0, KEYEVENTF_KEYUP),
         }
       );
@@ -1869,6 +1895,9 @@ switch ($Action) {
   }
   'Save' {
     $sent = [LumaMarkWin32Input]::Save($TargetProcessId)
+  }
+  'Undo' {
+    $sent = [LumaMarkWin32Input]::Undo($TargetProcessId)
   }
   'Resize' {
     [LumaMarkWin32Input]::Resize(

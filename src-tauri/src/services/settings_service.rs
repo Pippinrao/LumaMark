@@ -75,6 +75,7 @@ pub struct ImageSettings {
 #[serde(rename_all = "camelCase")]
 pub struct MarkdownSettings {
     pub math: MarkdownMathSettings,
+    pub plantuml: MarkdownPlantumlSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -85,6 +86,12 @@ pub struct MarkdownMathSettings {
     pub syntax_mode: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownPlantumlSettings {
+    pub enabled: bool,
+}
+
 fn default_markdown_settings() -> MarkdownSettings {
     MarkdownSettings {
         math: MarkdownMathSettings {
@@ -92,6 +99,7 @@ fn default_markdown_settings() -> MarkdownSettings {
             physics_enabled: false,
             syntax_mode: "pandoc".to_string(),
         },
+        plantuml: MarkdownPlantumlSettings { enabled: true },
     }
 }
 
@@ -486,12 +494,25 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         .and_then(|markdown| markdown.get("math"))
         .and_then(Value::as_object)
         .is_none();
+    let markdown_plantuml_object = value
+        .get("markdown")
+        .and_then(Value::as_object)
+        .and_then(|markdown| markdown.get("plantuml"));
+    let markdown_plantuml_missing = markdown_plantuml_object
+        .and_then(Value::as_object)
+        .is_none();
+    let plantuml_enabled_missing = markdown_plantuml_missing
+        || markdown_plantuml_object
+            .and_then(Value::as_object)
+            .and_then(|plantuml| plantuml.get("enabled"))
+            .is_none();
     if matches!(value.get("markdown"), Some(markdown) if !markdown.is_object())
         || value
             .get("markdown")
             .and_then(Value::as_object)
             .and_then(|markdown| markdown.get("math"))
             .is_some_and(|math| !math.is_object())
+        || markdown_plantuml_object.is_some_and(|plantuml| !plantuml.is_object())
     {
         had_invalid_fields = true;
     }
@@ -500,7 +521,7 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         .and_then(Value::as_object)
         .and_then(|markdown| markdown.get("math"));
     if markdown_math_missing {
-        settings.markdown = defaults.markdown.clone();
+        settings.markdown.math = defaults.markdown.math.clone();
     } else {
         settings.markdown.math.syntax_mode = read_enum_field(
             math_section,
@@ -523,6 +544,16 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
             &mut had_invalid_fields,
         );
     }
+    if plantuml_enabled_missing {
+        settings.markdown.plantuml = defaults.markdown.plantuml.clone();
+    } else {
+        settings.markdown.plantuml.enabled = read_bool_field(
+            markdown_plantuml_object,
+            "enabled",
+            defaults.markdown.plantuml.enabled,
+            &mut had_invalid_fields,
+        );
+    }
     settings.updates.auto_check_on_startup =
         if source_version < SETTINGS_VERSION && value.get("updates").is_none() {
             defaults.updates.auto_check_on_startup
@@ -541,7 +572,8 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         had_invalid_fields,
         needs_writeback: source_version < SETTINGS_VERSION
             || had_invalid_fields
-            || markdown_math_missing,
+            || markdown_math_missing
+            || plantuml_enabled_missing,
     })
 }
 
@@ -1150,6 +1182,82 @@ mod tests {
         assert_eq!(parsed.settings.markdown.math.syntax_mode, "pandoc");
         assert_eq!(parsed.settings.markdown.math.equation_numbering, "none");
         assert!(!parsed.settings.markdown.math.physics_enabled);
+        assert!(parsed.settings.markdown.plantuml.enabled);
+        assert!(parsed.needs_writeback);
+    }
+
+    #[test]
+    fn existing_v3_documents_accept_missing_markdown_plantuml_defaults() {
+        let raw = serde_json::json!({
+            "appearance": {
+                "fontZoomPercent": 100,
+                "pageWidth": "standard",
+                "sidebarOpenOnStartup": true,
+                "theme": "light"
+            },
+            "editor": {
+                "autosaveEnabled": false,
+                "defaultDisplayMode": "livePreview",
+                "focusModeOnStartup": false
+            },
+            "general": {
+                "language": "zh-CN",
+                "openWindowMode": "multiWindow",
+                "startupBehavior": "home"
+            },
+            "images": { "copyImagesToAssets": false },
+            "markdown": {
+                "math": {
+                    "equationNumbering": "ams",
+                    "physicsEnabled": true,
+                    "syntaxMode": "legacy"
+                }
+            },
+            "updates": { "autoCheckOnStartup": true },
+            "version": 3
+        });
+        let parsed = parse_and_normalize_settings(&serde_json::to_vec(&raw).expect("serialize"))
+            .expect("v3 settings without markdown.plantuml should migrate");
+
+        assert!(!parsed.had_invalid_fields);
+        assert_eq!(parsed.settings.markdown.math.syntax_mode, "legacy");
+        assert!(parsed.settings.markdown.math.physics_enabled);
+        assert!(parsed.settings.markdown.plantuml.enabled);
+        assert!(parsed.needs_writeback);
+    }
+
+    #[test]
+    fn missing_markdown_math_does_not_reset_explicit_plantuml_opt_out() {
+        let raw = serde_json::json!({
+            "appearance": {
+                "fontZoomPercent": 100,
+                "pageWidth": "standard",
+                "sidebarOpenOnStartup": true,
+                "theme": "light"
+            },
+            "editor": {
+                "autosaveEnabled": false,
+                "defaultDisplayMode": "livePreview",
+                "focusModeOnStartup": false
+            },
+            "general": {
+                "language": "zh-CN",
+                "openWindowMode": "multiWindow",
+                "startupBehavior": "home"
+            },
+            "images": { "copyImagesToAssets": false },
+            "markdown": {
+                "plantuml": { "enabled": false }
+            },
+            "updates": { "autoCheckOnStartup": true },
+            "version": 3
+        });
+        let parsed = parse_and_normalize_settings(&serde_json::to_vec(&raw).expect("serialize"))
+            .expect("v3 settings with plantuml only should keep the opt-out");
+
+        assert!(!parsed.had_invalid_fields);
+        assert_eq!(parsed.settings.markdown.math.syntax_mode, "pandoc");
+        assert!(!parsed.settings.markdown.plantuml.enabled);
         assert!(parsed.needs_writeback);
     }
 

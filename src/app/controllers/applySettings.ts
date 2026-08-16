@@ -4,6 +4,7 @@ import { useStartupStore } from '../../features/startup/startupStore';
 import type {
   LumaMarkSettings,
   SettingsMarkdownMath,
+  SettingsMarkdownPlantuml,
 } from '../../services/settings/settingsTypes';
 import { useAppPreferencesStore } from '../stores/appPreferencesStore';
 import { useAppStore } from '../stores/appStore';
@@ -41,6 +42,18 @@ export function patchMarkdownMath(patch: Partial<SettingsMarkdownMath>): void {
     markdown: {
       ...current.markdown,
       math: { ...current.markdown.math, ...patch },
+    },
+  }));
+}
+
+export function patchMarkdownPlantuml(
+  patch: Partial<SettingsMarkdownPlantuml>,
+): void {
+  patchSettings((current) => ({
+    ...current,
+    markdown: {
+      ...current.markdown,
+      plantuml: { ...current.markdown.plantuml, ...patch },
     },
   }));
 }

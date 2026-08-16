@@ -23,6 +23,7 @@ export function createInitialEditorDocumentContext(
     documentId:
       context?.documentId ?? createFallbackDocumentId(path),
     path,
+    plantuml: context?.plantuml ?? { enabled: true },
   };
 }
 

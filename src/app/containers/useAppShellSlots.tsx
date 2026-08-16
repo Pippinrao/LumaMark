@@ -201,6 +201,7 @@ export function useAppShellSlots(
                 mathEquationNumbering={model.mathEquationNumbering}
                 mathPhysicsEnabled={model.mathPhysicsEnabled}
                 mathSyntaxMode={model.mathSyntaxMode}
+                plantumlEnabled={model.plantumlEnabled}
                 onAutoCheckUpdatesChange={model.updateDialog.setAutoCheckOnStartup}
                 onAutosaveEnabledChange={model.setAutosaveEnabled}
                 onClearRecentFiles={model.clearRecentFiles}
@@ -212,6 +213,7 @@ export function useAppShellSlots(
                 onMathEquationNumberingChange={model.setMathEquationNumbering}
                 onMathPhysicsEnabledChange={model.setMathPhysicsEnabled}
                 onMathSyntaxModeChange={model.setMathSyntaxMode}
+                onPlantumlEnabledChange={model.setPlantumlEnabled}
                 onOpenChange={model.setSettingsOpen}
                 onPageWidthChange={model.setPageWidth}
                 onRetrySettingsWrite={model.retrySettingsWrite}
@@ -279,6 +281,7 @@ export function useAppShellSlots(
             physicsEnabled: model.mathPhysicsEnabled,
             syntaxMode: model.mathSyntaxMode,
           }}
+          plantuml={{ enabled: model.plantumlEnabled }}
           visibleDocumentTitle={model.visibleDocumentTitle}
         />
       ),

@@ -217,6 +217,7 @@ describe('architecture boundaries', () => {
       '../widgets/',
       '../capabilities/table/',
       '../capabilities/mermaid/',
+      '../capabilities/plantuml/',
       '../capabilities/code-block/',
       '../capabilities/image/',
     ]);
@@ -243,6 +244,10 @@ describe('architecture boundaries', () => {
       {
         entry: 'src/editor/capabilities/math/createMathCapability.ts',
         id: 'math',
+      },
+      {
+        entry: 'src/editor/capabilities/plantuml/createPlantumlCapability.ts',
+        id: 'plantuml',
       },
     ];
 

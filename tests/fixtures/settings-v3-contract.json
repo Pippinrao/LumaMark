@@ -25,6 +25,9 @@
         "equationNumbering": "none",
         "physicsEnabled": false,
         "syntaxMode": "pandoc"
+      },
+      "plantuml": {
+        "enabled": true
       }
     },
     "updates": {

@@ -15,6 +15,7 @@ export const markdownFixtureNames = [
   'remote-images.md',
   'live-preview-rich.md',
   'mermaid.md',
+  'plantuml.md',
   'comprehensive.md',
   'gfm-edge-cases.md',
   'mermaid-gallery.md',

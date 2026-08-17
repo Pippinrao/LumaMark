@@ -1,3 +1,4 @@
+import { EditorState } from '@codemirror/state';
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -6,13 +7,13 @@ import {
 } from './useDocumentStatistics';
 
 function StatisticsHarness({
-  getDocumentText,
+  getEditorState,
   onModel,
 }: {
-  getDocumentText: () => string;
+  getEditorState: () => EditorState | null;
   onModel: (model: DocumentStatisticsModel) => void;
 }) {
-  onModel(useDocumentStatistics({ getDocumentText }));
+  onModel(useDocumentStatistics({ getEditorState }));
 
   return null;
 }
@@ -28,14 +29,14 @@ describe('useDocumentStatistics', () => {
 
   it('debounces editor reads and exposes the latest document statistics', () => {
     let text = 'First';
-    const getDocumentText = vi.fn(() => text);
+    const getEditorState = vi.fn(() => EditorState.create({ doc: text }));
     const modelRef: { current: DocumentStatisticsModel | null } = {
       current: null,
     };
 
     render(
       <StatisticsHarness
-        getDocumentText={getDocumentText}
+        getEditorState={getEditorState}
         onModel={(nextModel) => {
           modelRef.current = nextModel;
         }}
@@ -47,6 +48,7 @@ describe('useDocumentStatistics', () => {
 
     act(() => {
       vi.advanceTimersByTime(200);
+      vi.runOnlyPendingTimers();
     });
 
     expect(modelRef.current?.statistics).toEqual({
@@ -54,6 +56,6 @@ describe('useDocumentStatistics', () => {
       lines: 1,
       words: 3,
     });
-    expect(getDocumentText).toHaveBeenCalledTimes(1);
+    expect(getEditorState).toHaveBeenCalledTimes(1);
   });
 });

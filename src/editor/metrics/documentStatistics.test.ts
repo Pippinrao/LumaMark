@@ -1,5 +1,9 @@
+import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { getDocumentStatistics } from './documentStatistics';
+import {
+  getDocumentStatistics,
+  getDocumentStatisticsFromText,
+} from './documentStatistics';
 
 describe('getDocumentStatistics', () => {
   it('counts lines, Chinese words, Latin words, and visible characters predictably', () => {
@@ -16,5 +20,27 @@ describe('getDocumentStatistics', () => {
       lines: 0,
       words: 0,
     });
+  });
+});
+
+describe('getDocumentStatisticsFromText', () => {
+  it('matches the string API without copying the full document string', () => {
+    const markdown = Array.from(
+      { length: 4_000 },
+      (_, index) => `Line ${index} 第一行 hello`,
+    ).join('\n');
+    const state = EditorState.create({ doc: markdown });
+    const toString = state.doc.toString.bind(state.doc);
+    let copiedFullDocument = false;
+    state.doc.toString = () => {
+      copiedFullDocument = true;
+      return toString();
+    };
+
+    expect(state.doc.children).not.toBeNull();
+    expect(getDocumentStatisticsFromText(state.doc)).toEqual(
+      getDocumentStatistics(markdown),
+    );
+    expect(copiedFullDocument).toBe(false);
   });
 });

@@ -22,7 +22,9 @@ jobs:
   windows-quality:
     name: Windows V1 quality
     runs-on: windows-latest
-    timeout-minutes: 30
+    # 0.3.3 needed ~14m before E2E, then 16m+ of serial Playwright. The 30m
+    # job budget cancelled in-progress E2E around test 202.
+    timeout-minutes: 60
 
     env:
       npm_config_registry: https://registry.npmmirror.com/

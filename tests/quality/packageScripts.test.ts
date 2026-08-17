@@ -476,6 +476,8 @@ describe('package quality scripts', () => {
 
     expect(workflow).toContain('name: V1 Quality Gate');
     expect(workflow).toContain('runs-on: windows-latest');
+    // Full Windows E2E plus production/perf no longer fits in 30 minutes.
+    expect(workflow).toContain('    timeout-minutes: 60');
     expect(workflow).toContain('actions/checkout@v7');
     expect(workflow).toContain('actions/setup-node@v6');
     expect(workflow).toContain('pnpm/action-setup@v6');

@@ -322,7 +322,20 @@ describe('installed menu/context OS acceptance helpers', () => {
     expect(source).not.toContain("$Action -eq 'clipboard-write'");
   });
 
-  it.runIf(process.platform === 'win32')(
+  it('keeps the live Win32 pointer-bridge load off the CI unit suite', async () => {
+    const source = await readFile(
+      join(process.cwd(), 'scripts', 'release', 'installedMenuContextOs.test.ts'),
+      'utf8',
+    );
+
+    expect(source).toMatch(
+      /it\.runIf\(process\.platform === 'win32' && !process\.env\.CI\)\s*\(\s*'loads the generated bridge in Windows PowerShell'/,
+    );
+  });
+
+  // GitHub Windows runners can hang on STA PowerShell + Win32 clipboard/desktop
+  // probe; the installed OS acceptance script remains the live evidence path.
+  it.runIf(process.platform === 'win32' && !process.env.CI)(
     'loads the generated bridge in Windows PowerShell',
     async () => {
       const { powershellPath } = await resolveTrustedWindowsToolPaths();

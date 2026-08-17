@@ -35,7 +35,7 @@ describe('Windows signed-release workflows', () => {
     expect(build).toContain('pnpm build');
     expect(build).toContain('Unsigned CI installers are not release artifacts.');
     expect(build).toContain('Expected exactly one signed NSIS *.sig');
-    expect(releaseGuide).toContain('正式分发只接受 GitHub Actions 签名发布');
+    expect(releaseGuide).toContain('Formal distribution accepts only GitHub Actions signed publish');
     expect(architecture).toContain('windows-release-publish.yml');
   });
 

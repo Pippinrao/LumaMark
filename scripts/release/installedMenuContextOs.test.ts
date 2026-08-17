@@ -1921,15 +1921,15 @@ process.exit(Number(process.env.LUMAMARK_FAKE_EXIT_CODE ?? '0'));
 
     expect(source).not.toContain("action: 'select-folder'");
     expect(source).toContain('__LUMAMARK_E2E_WORKSPACE__');
-    expect(documentation).toMatch(/原生文件夹.*(?:专用账号|虚拟机)/);
-    expect(documentation).toMatch(/剪贴板历史记录.*关闭/);
+    expect(documentation).toMatch(/native folder-picker.*(?:dedicated account|VM)/);
+    expect(documentation).toMatch(/clipboard history must be off/);
     expect(documentation).toContain(
       'LUMAMARK_ACCEPTANCE_ALLOW_PLAINTEXT_CLIPBOARD_RESTORE',
     );
     expect(documentation).toContain(
       'LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR',
     );
-    expect(documentation).toMatch(/marker.*时间阈值/);
+    expect(documentation).toMatch(/marker protocol.*time threshold|does not depend on 400 ms debounce/);
   });
 
   it('records executable identity, startup diagnostics, and verified cleanup', async () => {

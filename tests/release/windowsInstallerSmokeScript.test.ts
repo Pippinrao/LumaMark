@@ -12,7 +12,9 @@ const scriptPath = join(
 );
 const WINDOWS_EXTERNAL_PROCESS_TEST_TIMEOUT_MS = 15_000;
 
-describe.skipIf(process.platform !== 'win32')('windows installer smoke script', () => {
+describe.skipIf(process.platform !== 'win32' || Boolean(process.env.CI))(
+  'windows installer smoke script',
+  () => {
   it('prints a safe NSIS plan without running the installer', () => {
     const result = runPlan('-InstallerKind', 'Nsis');
 

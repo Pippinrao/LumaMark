@@ -70,7 +70,7 @@ jobs:
   rust-quality:
     name: Rust quality
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -84,10 +84,29 @@ jobs:
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-  ux-screenshots:
-    name: V1 UX screenshots
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmmirror.com/
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Live remote image assets
+        timeout-minutes: 2
+        run: pnpm test:live-assets
+
+  web-production:
+    name: Web build and production E2E
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -123,6 +142,12 @@ jobs:
           path: test-results/v1-ux-screenshots/*.png
           if-no-files-found: error
 
+      - name: Web build chunk gate
+        run: pnpm quality:web-build
+
+      - name: Production bundle startup
+        run: pnpm exec playwright test --config playwright.production.config.ts
+
   e2e:
     name: E2E tests (${{ matrix.shard }}/3)
     runs-on: windows-latest
@@ -156,76 +181,12 @@ jobs:
       - name: E2E tests
         run: pnpm test:e2e -- --shard=${{ matrix.shard }}/3
 
-  live-assets:
-    name: Live remote image assets
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.7.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmmirror.com/
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Live remote image assets
-        timeout-minutes: 2
-        run: pnpm test:live-assets
-
-  web-production:
-    name: Web build and production E2E
-    runs-on: windows-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.7.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmmirror.com/
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install chromium
-
-      - name: Web build chunk gate
-        run: pnpm quality:web-build
-
-      - name: Production bundle startup
-        run: pnpm exec playwright test --config playwright.production.config.ts
-
   perf:
     name: Performance benchmarks
     needs:
       - frontend-unit
       - rust-quality
-      - ux-screenshots
       - e2e
-      - live-assets
       - web-production
     runs-on: windows-latest
     timeout-minutes: 20

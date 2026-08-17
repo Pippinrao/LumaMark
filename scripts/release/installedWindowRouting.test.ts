@@ -843,7 +843,7 @@ describe('installed window-routing acceptance helpers', () => {
     expect(releaseGuide).toContain('LUMAMARK_ROUTING_ACCEPTANCE_MODE');
     expect(releaseGuide).toContain('completion fence/high-water');
     expect(releaseGuide).toContain('localhost administrative share');
-    expect(releaseGuide).toContain('联合矩阵');
+    expect(releaseGuide).toContain('joint matrix');
     expect(gitignore).toContain(
       'artifacts/installed-window-routing/**/result.json',
     );

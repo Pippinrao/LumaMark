@@ -91,6 +91,25 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
           }),
         ]);
         record('readiness.wait:complete');
+
+        record('start-screen.dismiss:start');
+        const newDocumentButton = page.getByRole('button', {
+          name: /^(?:New Document|新建文档)$/,
+        });
+        await newDocumentButton.click({ timeout: remainingWarmUpTime(deadline) });
+        await page.locator('.lm-start-screen-layer').waitFor({
+          state: 'detached',
+          timeout: remainingWarmUpTime(deadline),
+        });
+        record('start-screen.dismiss:complete');
+
+        record('mathjax.warm-up:start');
+        await page.locator('.cm-content').first().click();
+        await page.keyboard.insertText('$x$');
+        await page.getByRole('math').first().waitFor({
+          timeout: remainingWarmUpTime(deadline),
+        });
+        record('mathjax.warm-up:complete');
         console.log(
           diagnostics
             .map(

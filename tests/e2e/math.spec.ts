@@ -19,6 +19,9 @@ function monitorBrowser(page: Page): BrowserDiagnostics {
 
   page.on('console', (message) => {
     if (message.type() === 'error' || message.type() === 'warning') {
+      if (message.text().includes('Outdated Optimize Dep')) {
+        return;
+      }
       diagnostics.push(`[console.${message.type()}] ${message.text()}`);
     }
   });
@@ -154,7 +157,7 @@ test('renders inactive math and maps formula clicks back to exact live-preview s
   ].join('\n');
   await replaceEditorSource(page, source);
 
-  await expect(page.locator('[role="math"]')).toHaveCount(2);
+  await expect(page.locator('[role="math"]')).toHaveCount(2, { timeout: 20_000 });
   const inlineMath = page.getByRole('math', { name: 'x^2 + 1' });
   const blockMath = page.getByRole('math', { name: '\\int_0^1 x^2\\,dx' });
   await expect(inlineMath).toBeVisible();

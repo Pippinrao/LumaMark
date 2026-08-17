@@ -149,6 +149,8 @@ AI agent 必须遵守：
 
 仓库必须维护 `.github/workflows/v1-quality.yml`，在默认分支 `main`（以及遗留的 `v1-implementation`）的 push 和 pull request 上自动运行 V1 质量门禁，并支持 `workflow_dispatch` 手动触发。
 
+该门禁拆成并行 Windows job：前端单元/lint/typecheck、Rust check/test、UX 截图、按 shard 切分的 Playwright E2E、远程图片 live gate、Web 构建与生产启动。同一 runner 上的 Playwright 仍保持 1 个 worker，避免 MathJax/Mermaid 抢 CPU；并行来自不同虚拟机上的 shard。性能基准必须在上述 job 全部成功后单独执行，不得与 E2E、构建、typecheck 或 lint 并行。
+
 该门禁至少覆盖：
 
 - TypeScript typecheck。

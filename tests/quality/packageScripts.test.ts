@@ -487,13 +487,13 @@ describe('package quality scripts', () => {
 
     expect(workflow).toContain('name: V1 Quality Gate');
     expect(workflow).toContain('runs-on: windows-latest');
-    // Full Windows E2E plus production/perf no longer fits in 60 minutes when
-    // Playwright retries serial click timeouts.
-    expect(workflow).toContain('    timeout-minutes: 90');
+    expect(workflow).toContain('shard: [1, 2, 3]');
+    expect(workflow).toContain('--shard=${{ matrix.shard }}/3');
     const playwrightConfig = await readFile(
       join(process.cwd(), 'playwright.config.ts'),
       'utf8',
     );
+    // Same-machine workers stay at 1; shards run on separate Windows VMs.
     expect(playwrightConfig).toContain('workers: process.env.CI ? 1 : 4');
     expect(workflow).toContain('actions/checkout@v7');
     expect(workflow).toContain('actions/setup-node@v6');
@@ -516,7 +516,7 @@ describe('package quality scripts', () => {
     expect(workflow).toContain('pnpm test:e2e');
     expect(workflow).toContain('pnpm test:live-assets');
     expect(workflow).toContain('pnpm quality:web-build');
-    expect(workflow).toContain('pnpm test:e2e:production');
+    expect(workflow).toContain('playwright.production.config.ts');
     expect(workflow).toContain('cargo check --manifest-path src-tauri/Cargo.toml');
     expect(workflow).toContain('cargo test --manifest-path src-tauri/Cargo.toml');
     expect(workflow.indexOf('pnpm quality:v1-ux-prototype')).toBeLessThan(
@@ -528,14 +528,14 @@ describe('package quality scripts', () => {
     expect(workflow.indexOf('pnpm download:markdown-corpus')).toBeLessThan(
       workflow.indexOf('pnpm test:markdown-corpus'),
     );
-    expect(workflow.indexOf('pnpm test:markdown-corpus')).toBeLessThan(
-      workflow.indexOf('pnpm test:e2e'),
-    );
     expect(workflow).toContain('pnpm perf:bench');
+    expect(workflow).toMatch(
+      /perf:[\s\S]*needs:[\s\S]*frontend-unit[\s\S]*e2e[\s\S]*web-production/,
+    );
     expect(workflow.indexOf('pnpm perf:bench')).toBeGreaterThan(
       workflow.indexOf('pnpm quality:web-build'),
     );
-    expect(workflow.indexOf('pnpm test:e2e:production')).toBeGreaterThan(
+    expect(workflow.indexOf('playwright.production.config.ts')).toBeGreaterThan(
       workflow.indexOf('pnpm quality:web-build'),
     );
   });

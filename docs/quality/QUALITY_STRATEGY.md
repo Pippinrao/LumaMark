@@ -149,6 +149,8 @@ A task is done only when:
 
 The repository must maintain `.github/workflows/v1-quality.yml`, which automatically runs V1 quality gates on push and pull request to the default branch `main` (and the legacy `v1-implementation`), and supports manual trigger via `workflow_dispatch`.
 
+The gate uses parallel Windows jobs: frontend unit/lint/typecheck, Rust check/test, UX screenshots, Playwright E2E split across shards, the live remote-image gate, and web build plus production startup. Playwright keeps one worker per runner so MathJax and Mermaid do not contend for CPU; parallelism comes from separate VMs. Performance benchmarks must run only after those jobs succeed, and must not overlap E2E, build, typecheck, or lint.
+
 That gate must at least cover:
 
 - TypeScript typecheck.

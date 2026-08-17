@@ -5,6 +5,7 @@ import {
   getPageWidthPixels,
   useReadingAppearanceStore,
 } from '../../features/reading-appearance/readingAppearanceStore';
+import { useSettingsStore } from '../../features/settings/settingsStore';
 import { syncFontZoomToSettings } from './applySettings';
 
 export function useReadingAppearanceModel(focusEditor: () => void) {
@@ -40,6 +41,7 @@ export function useReadingAppearanceModel(focusEditor: () => void) {
     syncFontZoomToSettings(
       useReadingAppearanceStore.getState().fontZoomPercent,
     );
+    void useSettingsStore.getState().flushPendingWrites();
     focusEditor();
   }, [focusEditor, resetZoom]);
 

@@ -379,6 +379,10 @@ test('uses real primary-modifier wheel input and exposes an accessible 100% rese
   await page.getByRole('menuitem', { name: '视图' }).click();
   await page.getByRole('menuitem', { name: '重置缩放（100%）' }).click();
   await expect.poll(readFontScale).toBe('1');
+  await page.waitForFunction(() => {
+    const raw = window.localStorage.getItem('lumamark.settings.v1');
+    return Boolean(raw?.includes('"fontZoomPercent":100'));
+  });
 
   await page.reload();
   await expect.poll(readFontScale).toBe('1');

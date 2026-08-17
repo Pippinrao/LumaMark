@@ -122,6 +122,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Full AppShell + CodeMirror + Radix suites exceed the 5s default when the
+    // Windows quality gate runs every file in parallel.
+    testTimeout: process.env.CI ? 15_000 : 5_000,
     exclude: [
       ...configDefaults.exclude,
       '**/.claude/**',

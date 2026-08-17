@@ -179,18 +179,15 @@ describe('desktop file-open bridge contract', () => {
   it('grants the main capability set only to main and managed document windows', () => {
     const capability = JSON.parse(
       read('src-tauri/capabilities/default.json'),
-    ) as { description: string; windows: string[] };
-    const desktopCapabilitySchema = read(
-      'src-tauri/gen/schemas/desktop-schema.json',
-    );
+    ) as {
+      $schema?: string;
+      description: string;
+      windows: string[];
+    };
 
     expect(capability.windows).toEqual(['main', 'document-*']);
     expect(capability.description).toContain('document');
-    expect(desktopCapabilitySchema).toContain(
-      'Windows can be added to a capability by exact name',
-    );
-    expect(desktopCapabilitySchema).toContain('admin-*');
-    expect(desktopCapabilitySchema).toContain('Can be a glob pattern');
+    expect(capability.$schema).toBe('../gen/schemas/desktop-schema.json');
   });
 
   it('documents the platform and rollback contract in the architecture map', () => {

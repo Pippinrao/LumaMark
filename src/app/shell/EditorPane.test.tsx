@@ -64,7 +64,9 @@ describe('EditorPane link navigation wiring', () => {
   it('forwards one completed Ctrl primary link gesture without moving the selection', async () => {
     const onLinkNavigationRequest = vi.fn();
     const { readEditor } = renderEditorPane(onLinkNavigationRequest);
-    await waitFor(() => expect(readEditor()).not.toBeNull());
+    await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
     const editor = readEditor();
     if (!editor) {
       throw new Error('editor should be ready');
@@ -100,7 +102,9 @@ describe('EditorPane context menu targeting', () => {
   it('uses the stable outer EditorApi when the event target belongs to a nested CodeMirror', async () => {
     const { getContextMenuNodes, prepareContextMenu, readEditor } =
       renderEditorPane();
-    await waitFor(() => expect(readEditor()).not.toBeNull());
+    await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
     const editor = readEditor();
     if (!editor) {
       throw new Error('outer editor should be ready');
@@ -157,7 +161,9 @@ describe('EditorPane context menu targeting', () => {
   it('resolves the exact outer table range from a nested table cell without moving selection', async () => {
     const { getContextMenuNodes, prepareContextMenu, readEditor } =
       renderEditorPane();
-    await waitFor(() => expect(readEditor()).not.toBeNull());
+    await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
     const editor = readEditor();
     if (!editor) {
       throw new Error('outer editor should be ready');
@@ -217,7 +223,9 @@ describe('EditorPane context menu targeting', () => {
 
   it('does not open from the document title outside the real editor surface', async () => {
     const { getContextMenuNodes, readEditor } = renderEditorPane();
-    await waitFor(() => expect(readEditor()).not.toBeNull());
+    await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
 
     fireEvent.contextMenu(screen.getByText('note.md', { selector: '.lm-editor-title' }));
 
@@ -230,7 +238,9 @@ describe('EditorPane context menu targeting', () => {
   ])('opens from the keyboard path $key', async ({ key, shiftKey }) => {
     const { getContextMenuNodes, prepareContextMenu, readEditor } =
       renderEditorPane();
-    await waitFor(() => expect(readEditor()).not.toBeNull());
+    await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
     const editor = readEditor();
     if (!editor) {
       throw new Error('editor should be ready');
@@ -268,7 +278,9 @@ describe('EditorPane context menu targeting', () => {
     'targets the current caret instead of the editor top-left for $key',
     async ({ key, shiftKey }) => {
       const { getContextMenuNodes, readEditor } = renderEditorPane();
-      await waitFor(() => expect(readEditor()).not.toBeNull());
+      await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
       const editor = readEditor();
       if (!editor) {
         throw new Error('editor should be ready');
@@ -313,7 +325,9 @@ describe('EditorPane context menu targeting', () => {
     async ({ key, shiftKey }) => {
       const { getContextMenuNodes, prepareContextMenu, readEditor } =
         renderEditorPane();
-      await waitFor(() => expect(readEditor()).not.toBeNull());
+      await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
       const editor = readEditor();
       if (!editor) {
         throw new Error('editor should be ready');
@@ -346,7 +360,9 @@ describe('EditorPane context menu targeting', () => {
   it('uses the original keyboard target to resolve an outer table action', async () => {
     const { getContextMenuNodes, prepareContextMenu, readEditor } =
       renderEditorPane();
-    await waitFor(() => expect(readEditor()).not.toBeNull());
+    await waitFor(() => expect(readEditor()).not.toBeNull(), {
+      timeout: 10_000,
+    });
     const editor = readEditor();
     if (!editor) {
       throw new Error('editor should be ready');

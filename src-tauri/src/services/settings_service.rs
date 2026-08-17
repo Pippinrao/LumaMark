@@ -439,7 +439,7 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
     settings.editor.default_display_mode = read_enum_field(
         value.get("editor"),
         "defaultDisplayMode",
-        &["livePreview", "source"],
+        &["livePreview", "reading", "source"],
         &defaults.editor.default_display_mode,
         &mut had_invalid_fields,
     );
@@ -608,7 +608,7 @@ fn normalize_settings(mut settings: LumaMarkSettings) -> Result<LumaMarkSettings
     );
     settings.editor.default_display_mode = normalize_enum(
         &settings.editor.default_display_mode,
-        &["livePreview", "source"],
+        &["livePreview", "reading", "source"],
         "livePreview",
     );
     settings.version = SETTINGS_VERSION;

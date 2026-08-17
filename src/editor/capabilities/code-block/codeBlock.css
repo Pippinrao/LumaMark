@@ -25,6 +25,11 @@
   z-index: -1;
 }
 
+.cm-content .lm-md-code-block-line::selection,
+.cm-content .lm-md-code-block-line ::selection {
+  background: color-mix(in srgb, var(--lm-color-accent) 18%, transparent);
+}
+
 .cm-content .lm-md-code-block-start::before {
   border-start-start-radius: var(--lm-radius-1);
   border-start-end-radius: var(--lm-radius-1);

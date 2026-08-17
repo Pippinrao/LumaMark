@@ -41,6 +41,7 @@ import {
   INLINE_OWNER_TO_ATTRIBUTE,
   inlinePointerOwnerFromEvent,
   inlinePointerPosition,
+  isPrimaryPointerClick,
   resolveInlinePointerOwner,
   unclampedInlinePointerPosition,
 } from './inlinePointerSelection';
@@ -63,6 +64,7 @@ type DecorationItem = {
 
 type SettledInlinePointerCandidate = {
   from: number;
+  persist: boolean;
   position: number;
   to: number;
   x: number;
@@ -1188,15 +1190,17 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
           this.inlinePointerCandidate = {
             ...previous,
             intent: 'word',
+            persist: true,
             x: event.clientX,
             y: event.clientY,
           };
           return true;
         }
-        if (previous || overflowHit) {
+        if (previous?.persist || overflowHit) {
           this.inlinePointerCandidate = {
             from: 0,
             intent: 'caret',
+            persist: false,
             position: unclamped ?? view.state.selection.main.head,
             to: view.state.doc.length,
             x: event.clientX,
@@ -1212,6 +1216,7 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
         this.inlinePointerCandidate = {
           from,
           intent: 'caret',
+          persist: true,
           position: inlinePointerPosition(
             view,
             owner,
@@ -1232,12 +1237,27 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
         this.inlinePointerCandidate = {
           from: 0,
           intent: 'caret',
-          position: unclamped,
+          persist: true,
+          position: unclamped ?? view.state.selection.main.head,
           to: view.state.doc.length,
           x: event.clientX,
           y: event.clientY,
         };
         return true;
+      }
+
+      if (unclamped !== null) {
+        this.lastInlinePointerCandidate = null;
+        this.inlinePointerCandidate = {
+          from: 0,
+          intent: 'caret',
+          persist: false,
+          position: unclamped,
+          to: view.state.doc.length,
+          x: event.clientX,
+          y: event.clientY,
+        };
+        return false;
       }
 
       this.lastInlinePointerCandidate = null;
@@ -1308,18 +1328,24 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
       const isPrimaryClick =
         candidate !== null &&
         event !== null &&
-        Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y) <= 3;
+        isPrimaryPointerClick(
+          { x: candidate.x, y: candidate.y },
+          { x: event.clientX, y: event.clientY },
+        );
 
       let selection: { anchor: number; head?: number } | undefined;
       if (isPrimaryClick && candidate.intent === 'caret') {
         selection = { anchor: candidate.position };
-        this.lastInlinePointerCandidate = {
-          from: candidate.from,
-          position: candidate.position,
-          to: candidate.to,
-          x: candidate.x,
-          y: candidate.y,
-        };
+        this.lastInlinePointerCandidate = candidate.persist
+          ? {
+              from: candidate.from,
+              persist: true,
+              position: candidate.position,
+              to: candidate.to,
+              x: candidate.x,
+              y: candidate.y,
+            }
+          : null;
       } else if (isPrimaryClick) {
         const word = view.state.wordAt(candidate.position);
         if (
@@ -1345,10 +1371,11 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
           anchor: candidate.position,
           ...(head !== null && head !== candidate.position ? { head } : {}),
         };
-        this.lastInlinePointerCandidate = event
+        this.lastInlinePointerCandidate = event || !candidate.persist
           ? null
           : {
               from: candidate.from,
+              persist: true,
               position: candidate.position,
               to: candidate.to,
               x: candidate.x,

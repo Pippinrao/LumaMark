@@ -13,6 +13,7 @@ import {
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { historyEffectProbeExtension } from '../../../tests/e2e/support/rootEditorHistoryBrowserBridge';
+import { createEditorApi } from '../core/editorApi';
 import { markdownLanguage } from '../markdown/markdownLanguage';
 import {
   inlinePointerOwnerFromEvent,
@@ -158,6 +159,76 @@ describe('inline pointer selection', () => {
             view.state.selection.main.to,
           ),
         ).toBe('alphaBeta');
+      } finally {
+        restoreProperty(window, 'devicePixelRatio', devicePixelRatioDescriptor);
+        restoreProperty(
+          document,
+          'caretPositionFromPoint',
+          caretPositionDescriptor,
+        );
+        view.destroy();
+        parent.remove();
+      }
+    },
+  );
+
+  it.each([
+    { devicePixelRatio: 1, jitter: 1 },
+    { devicePixelRatio: 1.25, jitter: 2 },
+    { devicePixelRatio: 1.5, jitter: 3 },
+    { devicePixelRatio: 2, jitter: 4 },
+  ])(
+    'keeps a single click collapsed across $jitter CSS px at DPR $devicePixelRatio',
+    async ({ devicePixelRatio, jitter }) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const source = 'before `alphaBeta` after';
+      const from = source.indexOf('`');
+      const to = source.lastIndexOf('`') + 1;
+      const devicePixelRatioDescriptor = Object.getOwnPropertyDescriptor(
+        window,
+        'devicePixelRatio',
+      );
+      const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+        document,
+        'caretPositionFromPoint',
+      );
+      const view = new EditorView({
+        parent,
+        state: EditorState.create({
+          doc: source,
+          extensions: [markdownLanguage(), markdownWysiwygExtension()],
+          selection: { anchor: 1 },
+        }),
+      });
+
+      try {
+        Object.defineProperty(window, 'devicePixelRatio', {
+          configurable: true,
+          value: devicePixelRatio,
+        });
+        const textNode = [...parent.querySelector('.lm-md-inline-code')!.childNodes]
+          .find((node) => node.nodeValue === 'alphaBeta');
+        expect(textNode).toBeTruthy();
+        Object.defineProperty(document, 'caretPositionFromPoint', {
+          configurable: true,
+          value: vi.fn((x: number) => ({
+            getClientRect: () => new DOMRect(),
+            offset: Math.max(0, Math.min(9, 4 + Math.round(x - 100))),
+            offsetNode: textNode!,
+          })),
+        });
+
+        dispatchMouseGesture(parent, 100, 20, 1, 100 + jitter, 20);
+        await Promise.resolve();
+
+        expect(view.state.selection.main.empty).toBe(true);
+        expect(view.state.selection.main.head).toBeGreaterThan(from);
+        expect(view.state.selection.main.head).toBeLessThan(to);
+        expect(view.state.sliceDoc(
+          view.state.selection.main.from,
+          view.state.selection.main.to,
+        )).toBe('');
       } finally {
         restoreProperty(window, 'devicePixelRatio', devicePixelRatioDescriptor);
         restoreProperty(
@@ -683,7 +754,78 @@ describe('inline pointer selection', () => {
       parent.remove();
     }
   });
+
+  it.each(['livePreview', 'reading'] as const)(
+    'places a collapsed caret on heading text in %s instead of selecting nearby words',
+    async (displayMode) => {
+      const parent = document.createElement('div');
+      document.body.appendChild(parent);
+      const source = 'nearby before\n\n# TitleHere\n\nnearby after';
+      const titleFrom = source.indexOf('TitleHere');
+      const titleTo = titleFrom + 'TitleHere'.length;
+      const caretPositionDescriptor = Object.getOwnPropertyDescriptor(
+        document,
+        'caretPositionFromPoint',
+      );
+      const editor = createEditorApi({
+        displayMode,
+        doc: source,
+        parent,
+      });
+
+      try {
+        const heading = parent.querySelector<HTMLElement>('.lm-md-heading');
+        expect(heading).toBeTruthy();
+        const titleNode = findTextNode(heading!, 'TitleHere');
+        expect(titleNode).toBeTruthy();
+        vi.spyOn(editor.view, 'posAtCoords').mockReturnValue(0);
+        Object.defineProperty(document, 'caretPositionFromPoint', {
+          configurable: true,
+          value: vi.fn(() => ({
+            getClientRect: () => new DOMRect(),
+            offset: 5,
+            offsetNode: titleNode!,
+          })),
+        });
+
+        dispatchMouseGestureOn(heading!, 120, 24, 1);
+        await Promise.resolve();
+
+        expect(editor.view.state.selection.main.empty).toBe(true);
+        expect(editor.view.state.selection.main.head).toBeGreaterThanOrEqual(
+          titleFrom,
+        );
+        expect(editor.view.state.selection.main.head).toBeLessThanOrEqual(
+          titleTo,
+        );
+        expect(editor.view.state.sliceDoc(
+          editor.view.state.selection.main.from,
+          editor.view.state.selection.main.to,
+        )).toBe('');
+      } finally {
+        restoreProperty(
+          document,
+          'caretPositionFromPoint',
+          caretPositionDescriptor,
+        );
+        editor.destroy();
+        parent.remove();
+      }
+    },
+  );
 });
+
+function findTextNode(root: ParentNode, text: string): Text | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    if (node.nodeValue?.includes(text)) {
+      return node as Text;
+    }
+    node = walker.nextNode();
+  }
+  return null;
+}
 
 function dispatchMouseGesture(
   parent: HTMLElement,

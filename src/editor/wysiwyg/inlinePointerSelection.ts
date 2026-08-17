@@ -9,6 +9,21 @@ export type InlinePointerOwner = {
   to: number;
 };
 
+export function primaryPointerClickSlopPx(
+  devicePixelRatio = globalThis.devicePixelRatio || 1,
+): number {
+  return Math.max(3, Math.ceil(devicePixelRatio * 2));
+}
+
+export function isPrimaryPointerClick(
+  start: { readonly x: number; readonly y: number },
+  end: { readonly x: number; readonly y: number },
+  devicePixelRatio = globalThis.devicePixelRatio || 1,
+): boolean {
+  return Math.hypot(end.x - start.x, end.y - start.y)
+    <= primaryPointerClickSlopPx(devicePixelRatio);
+}
+
 export function inlinePointerOwnerFromEvent(
   event: MouseEvent,
 ): InlinePointerOwner | null {

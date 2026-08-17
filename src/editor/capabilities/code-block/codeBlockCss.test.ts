@@ -17,4 +17,10 @@ describe('code block fence chrome', () => {
       /\.lm-md-code-block-end:not\(:has\(\.lm-md-source-mark-block\)\)::before[\s\S]*z-index:\s*1/,
     );
   });
+
+  it('paints live-preview selection above the opaque code surface', () => {
+    expect(css).toMatch(
+      /\.cm-content \.lm-md-code-block-line ::selection[\s\S]*background:/,
+    );
+  });
 });

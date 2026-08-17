@@ -185,6 +185,9 @@ describe('useRecoveryDraft', () => {
     );
 
     workflowRef.current?.scheduleRecoveryDraft();
+    workflowRef.current?.scheduleRecoveryDraft();
+    workflowRef.current?.scheduleRecoveryDraft();
+    expect(getText).not.toHaveBeenCalled();
 
     act(() => {
       vi.advanceTimersByTime(500);

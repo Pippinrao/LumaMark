@@ -47,21 +47,25 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setDirty: (dirty) => {
     set((state) => {
-      const statusKey = dirty ? 'status.unsaved' : 'status.ready';
-
       if (dirty) {
+        if (state.dirty && state.statusKey === 'status.unsaved') {
+          return {
+            dirtyRevision: state.dirtyRevision + 1,
+          };
+        }
+
         return {
           dirty: true,
           dirtyRevision: state.dirtyRevision + 1,
-          statusKey,
+          statusKey: 'status.unsaved',
         };
       }
 
-      if (state.dirty === dirty && state.statusKey === statusKey) {
+      if (state.dirty === dirty && state.statusKey === 'status.ready') {
         return state;
       }
 
-      return { dirty, statusKey };
+      return { dirty, statusKey: 'status.ready' };
     });
   },
   setLastFileError: (lastFileError) => {

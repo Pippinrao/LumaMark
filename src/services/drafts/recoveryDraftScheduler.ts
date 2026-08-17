@@ -1,5 +1,7 @@
 import type { RecoveryDraft } from './draftStore';
 
+type RecoveryDraftSource = RecoveryDraft | (() => RecoveryDraft | null);
+
 export function createRecoveryDraftScheduler(
   save: (draft: RecoveryDraft) => void,
   delayMs: number,
@@ -13,14 +15,17 @@ export function createRecoveryDraftScheduler(
         timer = null;
       }
     },
-    schedule(draft: RecoveryDraft) {
+    schedule(draft: RecoveryDraftSource) {
       if (timer) {
         clearTimeout(timer);
       }
 
       timer = setTimeout(() => {
         timer = null;
-        save(draft);
+        const snapshot = typeof draft === 'function' ? draft() : draft;
+        if (snapshot) {
+          save(snapshot);
+        }
       }, delayMs);
     },
   };

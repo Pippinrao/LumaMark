@@ -10,27 +10,29 @@ type UseWindowAutosaveOptions = {
   autosaveEnabled: boolean;
   currentFilePath: string | null;
   dirty: boolean;
-  dirtyRevision: number;
   externalConflict: boolean;
   fileOpening: boolean;
+  readDirtyRevision: () => number;
   save: (revision: number) => Promise<AutosaveSaveOutcome>;
+  subscribeDirtyRevision: (onRevision: (revision: number) => void) => () => void;
 };
 
 export function useWindowAutosave({
   autosaveEnabled,
   currentFilePath,
   dirty,
-  dirtyRevision,
   externalConflict,
   fileOpening,
+  readDirtyRevision,
   save,
+  subscribeDirtyRevision,
 }: UseWindowAutosaveOptions): AutosaveScheduler {
   const sessionRef = useRef<AutosaveSessionState>({
     dirty,
     externalConflict,
     fileOpening,
     hasPersistedPath: currentFilePath !== null,
-    revision: dirtyRevision,
+    revision: readDirtyRevision(),
   });
   const saveRef = useRef(save);
 
@@ -40,7 +42,7 @@ export function useWindowAutosave({
       externalConflict,
       fileOpening,
       hasPersistedPath: currentFilePath !== null,
-      revision: dirtyRevision,
+      revision: readDirtyRevision(),
     };
     saveRef.current = save;
   });
@@ -63,9 +65,20 @@ export function useWindowAutosave({
 
   useEffect(() => {
     if (dirty) {
-      binding.notifyDirty(dirtyRevision);
+      binding.notifyDirty(readDirtyRevision());
     }
-  }, [binding, dirty, dirtyRevision]);
+  }, [binding, dirty, readDirtyRevision]);
+
+  useEffect(() => {
+    return subscribeDirtyRevision((revision) => {
+      sessionRef.current = {
+        ...sessionRef.current,
+        dirty: true,
+        revision,
+      };
+      binding.notifyDirty(revision);
+    });
+  }, [binding, subscribeDirtyRevision]);
 
   useEffect(() => {
     binding.notifyAvailabilityChanged();

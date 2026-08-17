@@ -62,18 +62,29 @@ export function useRecoveryDraft({
     setPendingRecoveryDraft(null);
   }, []);
 
-  const scheduleRecoveryDraft = useCallback(() => {
-    const editor = editorRef.current;
+  const currentFilePathRef = useRef(currentFilePath);
 
-    if (!editor) {
+  useEffect(() => {
+    currentFilePathRef.current = currentFilePath;
+  }, [currentFilePath]);
+
+  const scheduleRecoveryDraft = useCallback(() => {
+    if (!editorRef.current) {
       return;
     }
 
-    schedulerRef.current.schedule({
-      filePath: currentFilePath,
-      text: editor.serializeText(),
+    schedulerRef.current.schedule(() => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return null;
+      }
+
+      return {
+        filePath: currentFilePathRef.current,
+        text: editor.serializeText(),
+      };
     });
-  }, [currentFilePath, editorRef]);
+  }, [editorRef]);
 
   const restoreRecoveryDraft = useCallback(() => {
     const editor = editorRef.current;

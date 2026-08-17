@@ -21,7 +21,6 @@ export function useAppDocumentModel(
 ) {
   const currentFile = useAppStore((state) => state.currentFile);
   const dirty = useAppStore((state) => state.dirty);
-  const dirtyRevision = useAppStore((state) => state.dirtyRevision);
   const lastFileError = useAppStore((state) => state.lastFileError);
   const recentFileItems = useRecentFilesStore((state) => state.recentFiles);
   const statusKey = useAppStore((state) => state.statusKey);
@@ -113,14 +112,31 @@ export function useAppDocumentModel(
       }),
     [saveDocument],
   );
+  const readDirtyRevision = useCallback(
+    () => useAppStore.getState().dirtyRevision,
+    [],
+  );
+  const subscribeDirtyRevision = useCallback(
+    (onRevision: (revision: number) => void) =>
+      useAppStore.subscribe((state, previous) => {
+        if (
+          state.dirty &&
+          state.dirtyRevision !== previous.dirtyRevision
+        ) {
+          onRevision(state.dirtyRevision);
+        }
+      }),
+    [],
+  );
   const autosave = useWindowAutosave({
     autosaveEnabled,
     currentFilePath: currentFile?.path ?? null,
     dirty,
-    dirtyRevision,
     externalConflict: fileWorkflow.externalConflict !== null,
     fileOpening: fileWorkflow.fileOpening,
+    readDirtyRevision,
     save: saveAutosaveRevision,
+    subscribeDirtyRevision,
   });
   const loadUnsavedSnapshot = useCallback(
     (text: string) => {
@@ -156,7 +172,6 @@ export function useAppDocumentModel(
     autosave,
     awaitCurrentOutlineSnapshot,
     currentFile,
-    dirtyRevision,
     documentStatistics,
     dismissFileError,
     dirty,

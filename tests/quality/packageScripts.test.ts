@@ -377,7 +377,18 @@ describe('package quality scripts', () => {
     );
   });
 
-  it.runIf(process.platform === 'win32')(
+  it('keeps the live Win32 SendInput compile check off the CI unit suite', async () => {
+    const source = await readFile(
+      join(process.cwd(), 'tests', 'quality', 'packageScripts.test.ts'),
+      'utf8',
+    );
+
+    expect(source).toMatch(
+      /it\.runIf\(process\.platform === 'win32' && !process\.env\.CI\)\s*\(\s*'keeps the installed media Win32 SendInput helper compilable'/,
+    );
+  });
+
+  it.runIf(process.platform === 'win32' && !process.env.CI)(
     'keeps the installed media Win32 SendInput helper compilable',
     async () => {
       const acceptance = await readFile(

@@ -1,5 +1,7 @@
+import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { parseMarkdownOutline } from '../../src/features/outline/outlineParser';
+import { markdownLanguage } from '../../src/editor/markdown/markdownLanguage';
+import { parseMarkdownOutlineFromState } from '../../src/features/outline/outlineParser';
 import {
   formatLatencySamples,
   measureLatencySamples,
@@ -14,10 +16,18 @@ describe('large Markdown outline parser baseline', () => {
       { length: headingCount },
       () => '# Repeated heading',
     ).join('\n');
-    let headings = parseMarkdownOutline('# Warmup');
+    const warmupState = EditorState.create({
+      doc: '# Warmup',
+      extensions: [markdownLanguage()],
+    });
+    const state = EditorState.create({
+      doc: source,
+      extensions: [markdownLanguage()],
+    });
+    let headings = parseMarkdownOutlineFromState(warmupState);
 
     const samples = measureLatencySamples(() => {
-      headings = parseMarkdownOutline(source);
+      headings = parseMarkdownOutlineFromState(state);
     }, 3);
 
     process.stdout.write(

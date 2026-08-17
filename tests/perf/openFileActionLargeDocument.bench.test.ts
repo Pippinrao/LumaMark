@@ -3,7 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createEditorApi } from '../../src/editor/core/editorApi';
 import { createFileActions } from '../../src/features/file-actions/fileActions';
-import { parseMarkdownOutline } from '../../src/features/outline/outlineParser';
+import { parseMarkdownOutlineFromState } from '../../src/features/outline/outlineParser';
 import type { FileCommandClient } from '../../src/services/files/fileCommandClient';
 import type { FileMetadata } from '../../src/services/files/fileTypes';
 import type { CommandError } from '../../src/services/tauri/invokeCommand';
@@ -22,10 +22,6 @@ const outlineBudgetsMs: Record<string, number> = {
   'large-5mb.md': 150,
   'large-10mb.md': 300,
 };
-
-// Windows GitHub-hosted runners parse these fixtures ~4–5× slower than the
-// local budgets (2026-08-17: 187–234 / 598–810 / 1055–1481 ms).
-const outlineBudgetFactor = process.env.CI ? 6 : 1;
 
 let originalRangeGetBoundingClientRect:
   | Range['getBoundingClientRect']
@@ -95,7 +91,7 @@ describe('large Markdown file action open baseline', () => {
           outlineRefreshTimer = window.setTimeout(() => {
             outlineRefreshTimer = null;
             const outlineStartedAt = performance.now();
-            const headings = parseMarkdownOutline(editor.getDocumentText());
+            const headings = parseMarkdownOutlineFromState(editor.view.state);
             outlineDurationMs = performance.now() - outlineStartedAt;
             outlineHeadingCount = headings.length;
             outlineRefreshCount += 1;
@@ -135,9 +131,7 @@ describe('large Markdown file action open baseline', () => {
       expect(durationMs).toBeLessThan(openBudgetsMs[name]);
       expect(outlineRefreshCount).toBe(1);
       expect(outlineHeadingCount).toBeGreaterThan(0);
-      expect(outlineDurationMs).toBeLessThan(
-        outlineBudgetsMs[name] * outlineBudgetFactor,
-      );
+      expect(outlineDurationMs).toBeLessThan(outlineBudgetsMs[name]);
 
       editor.destroy();
       parent.remove();

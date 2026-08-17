@@ -1,5 +1,17 @@
+import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { parseMarkdownOutline } from './outlineParser';
+import { markdownLanguage } from '../../editor/markdown/markdownLanguage';
+import {
+  parseMarkdownOutline,
+  parseMarkdownOutlineFromState,
+} from './outlineParser';
+
+function createOutlineEditorState(markdown: string): EditorState {
+  return EditorState.create({
+    doc: markdown,
+    extensions: [markdownLanguage()],
+  });
+}
 
 describe('parseMarkdownOutline', () => {
   it('extracts ATX headings with levels, line numbers and document positions', () => {
@@ -141,5 +153,70 @@ describe('parseMarkdownOutline', () => {
         text: 'Setext Guide Logo sample # *',
       },
     ]);
+  });
+});
+
+describe('parseMarkdownOutlineFromState', () => {
+  it('matches the string parser for ATX and Setext headings', () => {
+    const markdown = [
+      '# LumaMark',
+      '',
+      'Intro text',
+      '',
+      '## Editor Core',
+      '',
+      '### Mermaid Preview ###',
+      '',
+      '   ## Indented ATX',
+      '    ### Four-space code, not a heading',
+      '',
+      'Setext Level One',
+      '================',
+      '',
+      'Setext Level Two',
+      '----------------',
+    ].join('\n');
+
+    expect(parseMarkdownOutlineFromState(createOutlineEditorState(markdown))).toEqual(
+      parseMarkdownOutline(markdown),
+    );
+  });
+
+  it('matches the string parser for fenced code, visible text and unique ids', () => {
+    const markdown = [
+      '# Visible',
+      '',
+      '```markdown',
+      '```still-code',
+      '# Still Hidden',
+      '```',
+      '',
+      '## [Editor *Core*](./editor.md) ![Diagram alt](diagram.png) `code span` &amp; \\#',
+      '',
+      '# Foo',
+      '## Foo',
+      '### Foo-2',
+      '#### Foo',
+    ].join('\n');
+
+    expect(parseMarkdownOutlineFromState(createOutlineEditorState(markdown))).toEqual(
+      parseMarkdownOutline(markdown),
+    );
+  });
+
+  it('does not copy the full document string to extract headings', () => {
+    const markdown = '# LumaMark\n\n## Editor Core';
+    const state = createOutlineEditorState(markdown);
+    const toString = state.doc.toString.bind(state.doc);
+    let copiedFullDocument = false;
+    state.doc.toString = () => {
+      copiedFullDocument = true;
+      return toString();
+    };
+
+    expect(parseMarkdownOutlineFromState(state).map((heading) => heading.text)).toEqual(
+      ['LumaMark', 'Editor Core'],
+    );
+    expect(copiedFullDocument).toBe(false);
   });
 });

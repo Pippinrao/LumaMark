@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { EditorState } from '@codemirror/state';
 import { useState } from 'react';
 import {
   act,
@@ -9,13 +10,25 @@ import {
   screen,
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { markdownLanguage } from '../../editor/markdown/markdownLanguage';
 import { useDebouncedOutline } from './useDebouncedOutline';
 
-function OutlineHarness({ getDocumentText }: { getDocumentText: () => string }) {
+function createOutlineEditorState(markdown: string): EditorState {
+  return EditorState.create({
+    doc: markdown,
+    extensions: [markdownLanguage()],
+  });
+}
+
+function OutlineHarness({
+  getEditorState,
+}: {
+  getEditorState: () => EditorState | null;
+}) {
   const [, forceRender] = useState(0);
   const { headings, isCurrent, scheduleRefresh } = useDebouncedOutline({
     delayMs: 120,
-    getDocumentText,
+    getEditorState,
   });
 
   return (
@@ -42,32 +55,34 @@ describe('useDebouncedOutline', () => {
     vi.useRealTimers();
   });
 
-  it('reads the full document once after bursty refresh requests settle', async () => {
+  it('reads the editor state once after bursty refresh requests settle', async () => {
     vi.useFakeTimers();
-    const getDocumentText = vi.fn(() => '# LumaMark\n\n## Outline');
+    const getEditorState = vi.fn(() =>
+      createOutlineEditorState('# LumaMark\n\n## Outline'),
+    );
 
-    render(<OutlineHarness getDocumentText={getDocumentText} />);
+    render(<OutlineHarness getEditorState={getEditorState} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
 
-    expect(getDocumentText).not.toHaveBeenCalled();
+    expect(getEditorState).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(120);
     });
 
-    expect(getDocumentText).toHaveBeenCalledTimes(1);
+    expect(getEditorState).toHaveBeenCalledTimes(1);
     expect(screen.getByText('LumaMark,Outline')).toBeInTheDocument();
   });
 
   it('marks the visible snapshot stale synchronously until the scheduled refresh completes', async () => {
     vi.useFakeTimers();
     let source = '# Before';
-    const getDocumentText = vi.fn(() => source);
+    const getEditorState = vi.fn(() => createOutlineEditorState(source));
 
-    render(<OutlineHarness getDocumentText={getDocumentText} />);
+    render(<OutlineHarness getEditorState={getEditorState} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(120);
     });
@@ -87,11 +102,11 @@ describe('useDebouncedOutline', () => {
   it('resolves a pending waiter with the exact refreshed snapshot instead of a stale render closure', async () => {
     vi.useFakeTimers();
     let source = '# Before';
-    const getDocumentText = vi.fn(() => source);
+    const getEditorState = vi.fn(() => createOutlineEditorState(source));
     const { result } = renderHook(() =>
       useDebouncedOutline({
         delayMs: 120,
-        getDocumentText,
+        getEditorState,
       }),
     );
 
@@ -120,7 +135,7 @@ describe('useDebouncedOutline', () => {
     const { result } = renderHook(() =>
       useDebouncedOutline({
         delayMs: 120,
-        getDocumentText: () => '# Current',
+        getEditorState: () => createOutlineEditorState('# Current'),
       }),
     );
 
@@ -140,7 +155,7 @@ describe('useDebouncedOutline', () => {
     const { result } = renderHook(() =>
       useDebouncedOutline({
         delayMs: 120,
-        getDocumentText: () => source,
+        getEditorState: () => createOutlineEditorState(source),
       }),
     );
 
@@ -177,7 +192,7 @@ describe('useDebouncedOutline', () => {
     const { result, unmount } = renderHook(() =>
       useDebouncedOutline({
         delayMs: 120,
-        getDocumentText: () => source,
+        getEditorState: () => createOutlineEditorState(source),
       }),
     );
 
@@ -201,7 +216,7 @@ describe('useDebouncedOutline', () => {
     const { result, unmount } = renderHook(() =>
       useDebouncedOutline({
         delayMs: 120,
-        getDocumentText: () => '# Complete',
+        getEditorState: () => createOutlineEditorState('# Complete'),
       }),
     );
 
@@ -222,7 +237,7 @@ describe('useDebouncedOutline', () => {
     const { result } = renderHook(() =>
       useDebouncedOutline({
         delayMs: 120,
-        getDocumentText: () => source,
+        getEditorState: () => createOutlineEditorState(source),
       }),
     );
 

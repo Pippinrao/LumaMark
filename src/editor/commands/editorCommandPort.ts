@@ -3,7 +3,7 @@ import {
   type MarkdownFormatCommand,
 } from './markdownFormatCommands';
 import { syntaxTree } from '@codemirror/language';
-import { Transaction } from '@codemirror/state';
+import { Transaction, type EditorState } from '@codemirror/state';
 import { redo, redoDepth, undo, undoDepth } from '@codemirror/commands';
 import {
   getSearchQuery,
@@ -64,6 +64,7 @@ type CreateEditorCommandPortOptions = {
 export type EditorDocumentPort = {
   captureSnapshot: () => EditorDocumentSnapshot;
   focus: () => void;
+  getEditorState?: () => EditorState;
   getText: () => string;
   isSnapshotCurrent: (snapshot: EditorDocumentSnapshot) => boolean;
   loadText: (text: string, options?: LoadDocumentOptions) => void;
@@ -109,6 +110,7 @@ export function createEditorDocumentPort(editor: EditorApi): EditorDocumentPort 
   return {
     captureSnapshot: () => editor.captureDocumentSnapshot(),
     focus: () => editor.focus(),
+    getEditorState: () => editor.view.state,
     getText: () => editor.getDocumentText(),
     isSnapshotCurrent: (snapshot) =>
       editor.isDocumentSnapshotCurrent(snapshot),

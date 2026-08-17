@@ -1,9 +1,13 @@
+import type { EditorState } from '@codemirror/state';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { parseMarkdownOutline, type OutlineHeading } from './outlineParser';
+import {
+  parseMarkdownOutlineFromState,
+  type OutlineHeading,
+} from './outlineParser';
 
 type UseDebouncedOutlineOptions = {
   delayMs?: number;
-  getDocumentText: () => string;
+  getEditorState: () => EditorState | null;
 };
 
 export type OutlineSnapshotOutcome =
@@ -25,9 +29,9 @@ const DEFAULT_OUTLINE_UPDATE_DELAY_MS = 120;
 
 export function useDebouncedOutline({
   delayMs = DEFAULT_OUTLINE_UPDATE_DELAY_MS,
-  getDocumentText,
+  getEditorState,
 }: UseDebouncedOutlineOptions) {
-  const getDocumentTextRef = useRef(getDocumentText);
+  const getEditorStateRef = useRef(getEditorState);
   const completedRevisionRef = useRef(0);
   const headingsRef = useRef<OutlineHeading[]>([]);
   const mountedRef = useRef(false);
@@ -37,8 +41,8 @@ export function useDebouncedOutline({
   const [headings, setHeadings] = useState<OutlineHeading[]>([]);
 
   useEffect(() => {
-    getDocumentTextRef.current = getDocumentText;
-  }, [getDocumentText]);
+    getEditorStateRef.current = getEditorState;
+  }, [getEditorState]);
 
   const supersedeWaiters = useCallback((beforeRevision?: number) => {
     for (const waiter of waitersRef.current) {
@@ -70,9 +74,10 @@ export function useDebouncedOutline({
         return;
       }
 
-      const parsedHeadings = parseMarkdownOutline(
-        getDocumentTextRef.current(),
-      );
+      const editorState = getEditorStateRef.current();
+      const parsedHeadings = editorState
+        ? parseMarkdownOutlineFromState(editorState)
+        : [];
       headingsRef.current = parsedHeadings;
       completedRevisionRef.current = revision;
       setHeadings(parsedHeadings);

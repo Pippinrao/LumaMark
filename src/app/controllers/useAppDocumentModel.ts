@@ -66,6 +66,9 @@ export function useAppDocumentModel(
   const getDocumentText = useCallback(() => {
     return documentPortRef.current?.getText() ?? '';
   }, [documentPortRef]);
+  const getEditorState = useCallback(() => {
+    return documentPortRef.current?.getEditorState?.() ?? null;
+  }, [documentPortRef]);
   const prepareTextForSave = useCallback(async (path: string, text: string) => {
     return finalizeAllDraftImages({ documentPath: path, text });
   }, []);
@@ -149,7 +152,7 @@ export function useAppDocumentModel(
     isCurrentHeading: isCurrentOutlineHeading,
     scheduleRefresh: scheduleOutlineRefresh,
   } = useDebouncedOutline({
-    getDocumentText,
+    getEditorState,
   });
 
   return {

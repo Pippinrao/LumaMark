@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 import {
   installRootEditorViewTestBridge,
   type RootEditorContentTestBridge,
@@ -9,9 +10,7 @@ const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
 async function openNewDocument(page: Page): Promise<Locator> {
   await page.goto('/');
-  await page
-    .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
-    .click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await installRootEditorViewTestBridge(editor);
@@ -89,9 +88,7 @@ test('opens an H1 with a quiet editable source marker at the real initial caret'
   );
 
   await page.goto('/');
-  await page
-    .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
-    .click();
+  await openBlankDocument(page);
   await page.getByRole('menuitem', { name: /^(?:File|文件)$/ }).click();
   await page
     .getByRole('menuitem', { name: /^(?:Open File|打开文件)/ })

@@ -321,7 +321,7 @@ export function useAppShellSlots(
       ),
       startScreen: model.startup.visible ? (
         <StartScreen
-          onNewDocument={model.startup.newDocument}
+          onNewDocument={() => { void model.startup.newDocument(); }}
           onOpenFile={() => { void model.startup.openFile(); }}
           onOpenRecentFile={(path) => { void model.startup.openRecentFile(path); }}
           onOpenRecentWorkspace={(path) => { void model.startup.openRecentWorkspace(path); }}

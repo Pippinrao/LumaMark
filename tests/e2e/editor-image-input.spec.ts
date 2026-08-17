@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 declare global {
   interface Window {
@@ -86,7 +87,7 @@ test.beforeEach(async ({ page }) => {
     };
   }, { documentPath, pixelSvg });
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await openTopMenu(page, /File|文件/);
   await page.getByRole('menuitem', { name: /Open File|打开文件/ }).click();
   await expect(page.locator('.lm-menu-content')).toHaveCount(0);

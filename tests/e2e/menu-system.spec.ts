@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { verifyPackagedMenuWorkflows } from '../../scripts/release/packagedMenuVerification.mjs';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const reportDirectory = resolve('artifacts/menu-system-report');
 const packageVersion = JSON.parse(
@@ -46,19 +47,14 @@ test.beforeEach(async ({ page }) => {
 
 async function openNewDocument(page: Page): Promise<void> {
   await page.goto('/');
-  const newDocumentButton = page.getByRole('button', {
-    name: /^(?:New Document|新建文档)$/,
-  });
-
-  await newDocumentButton.click();
-  await expect(newDocumentButton).toBeHidden();
+  await openBlankDocument(page);
 }
 
 test('executes menu state, recent-file, and About workflows end to end', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await expect(page.locator('.lm-top-chrome .lm-menu-trigger')).toHaveText([
     '文件',
@@ -132,7 +128,7 @@ test('opens the check-for-updates dialog from the Help menu', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await openTopMenu(page, '帮助');
   await page.getByRole('menuitem', { name: '检查更新' }).click();
@@ -156,7 +152,7 @@ test('returns editor focus after menu formatting and keeps one-step undo', async
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const editor = page.locator('.cm-content');
 
   await replaceEditorText(page, editor, 'focus contract');
@@ -298,7 +294,7 @@ test('returns to the File trigger when cancelling dirty new-document confirmatio
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const editor = page.locator('.cm-content');
 
   await replaceEditorText(page, editor, 'keep this draft');
@@ -314,7 +310,7 @@ test('keeps editor focus after confirming dirty new-document creation', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const editor = page.locator('.cm-content');
 
   await replaceEditorText(page, editor, 'discard this draft');
@@ -330,7 +326,7 @@ test('routes Typora-aligned and migration shortcuts to real editor commands', as
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const editor = page.locator('.cm-content');
 
   await replaceEditorText(page, editor, 'palette code');
@@ -369,7 +365,7 @@ test('captures the approved light, dark, nested, and English menu states', async
   await mkdir(reportDirectory, { recursive: true });
   await page.setViewportSize({ height: 900, width: 1440 });
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(() => document.fonts.ready);
 

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 import {
   installRootEditorViewTestBridge,
   type RootEditorContentTestBridge,
@@ -34,9 +35,7 @@ function monitorBrowser(page: Page): BrowserDiagnostics {
 
 async function openNewDocument(page: Page) {
   await page.goto('/');
-  await page
-    .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
-    .click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await expect(editor).toBeVisible();

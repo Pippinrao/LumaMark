@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { tinySvgDataUrl } from './fixtures/livePreviewData';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const REPORT_DIR = join(process.cwd(), 'artifacts', 'image-preview-report');
 const SCREENSHOT_PATH = join(REPORT_DIR, 'image-preview.png');
@@ -21,7 +22,7 @@ test('generates an HTML visual report for rendered image previews', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const markdown = [
     '# Image preview visual report',

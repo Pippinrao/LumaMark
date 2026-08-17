@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const documentPath = 'E:/lumamark-fixtures/external-document.md';
 
@@ -103,7 +104,7 @@ async function openExternalDocument(page: Page, markdown: string): Promise<void>
     { documentPath, markdown },
   );
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await page.getByRole('menuitem', { name: /File|文件/ }).click();
   await page.getByRole('menuitem', { name: /Open File|打开文件/ }).click();
   await expect(page.locator('.lm-editor-title')).toHaveText('external-document.md');

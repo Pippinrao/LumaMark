@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 import {
   installRootEditorViewTestBridge,
   type RootEditorContentTestBridge,
@@ -35,12 +36,7 @@ async function replaceEditorSource(
 
 async function openNewDocument(page: Page): Promise<void> {
   await page.goto('/');
-  const newDocumentButton = page.getByRole('button', {
-    name: /^(?:New Document|新建文档)$/,
-  });
-
-  await newDocumentButton.click();
-  await expect(newDocumentButton).toBeHidden();
+  await openBlankDocument(page);
 }
 
 async function clickAfterVisibleTableCellCharacter(
@@ -295,7 +291,7 @@ test('renders basic markdown visually and keeps task source editable', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -361,7 +357,7 @@ for (const { expected, key, name } of [
 ] as const) {
   test(`${name} in an ordinary paragraph`, async ({ page }) => {
     await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
     await replaceEditorSource(page, 'plain');
 
     await page.keyboard.press(key);
@@ -374,7 +370,7 @@ test('Enter adds only one line break when the caret is already on an empty line'
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await replaceEditorSource(page, 'before\n\nafter');
   await page.keyboard.press(`${primaryModifier}+Home`);
   await page.keyboard.press('ArrowDown');
@@ -388,7 +384,7 @@ test('reveals only the current adjacent or nested inline owner', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const source = '**outer *内层* tail** and **second**';
   await replaceEditorSource(page, source);
   const line = page.locator('.cm-line').first();
@@ -430,7 +426,7 @@ for (const {
     page,
   }) => {
     await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
     await replaceEditorSource(page, initial);
 
     await page.keyboard.press('Enter');
@@ -453,7 +449,7 @@ test('indents and unindents the current list item with Tab and Shift+Tab', async
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const flatList = '- parent\n- child';
   const nestedList = '- parent\n  - child';
   await replaceEditorSource(page, flatList);
@@ -484,7 +480,7 @@ for (const { key, name } of [
     page,
   }) => {
     await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
     await replaceEditorSource(page, '- [ ] task\n\nplain');
     const editor = page.locator('.cm-content').first();
     const checkbox = page.getByRole('checkbox', {
@@ -522,7 +518,7 @@ for (const { expected, initial, name } of [
 ] as const) {
   test(`toggles ${name} with Mod-Enter`, async ({ page }) => {
     await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
     await replaceEditorSource(page, initial);
 
     await page.keyboard.press(`${primaryModifier}+Enter`);
@@ -535,7 +531,7 @@ test('reveals the complete marker path for nested blockquote content', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await replaceEditorSource(
     page,
     '> > nested\n\n> - [ ] quoted task',
@@ -571,7 +567,7 @@ test('creates one multi-paragraph blockquote from the paragraph menu', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await replaceEditorSource(page, 'first\n\nsecond');
   await page.keyboard.press(`${primaryModifier}+A`);
 
@@ -585,7 +581,7 @@ test('keeps foundational markdown source available in source mode', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -636,7 +632,7 @@ test('keeps fenced code blocks editable with stable preview row layout', async (
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -902,7 +898,7 @@ test('leaves a final fenced code block when Enter is pressed on its closing fenc
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -921,7 +917,7 @@ test('creates a paragraph below a final fenced code block when the caret moves d
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -947,7 +943,7 @@ test('toggles tasks with keyboard and ignores fenced code task literals', async 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await replaceEditorSource(
     page,
@@ -978,7 +974,7 @@ test('toggles tasks with keyboard and ignores fenced code task literals', async 
 
 test('applies basic markdown formatting from the top menu', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -997,7 +993,7 @@ test('toggles a selected unordered list from the paragraph menu', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1019,7 +1015,7 @@ test('formats selected text with standard bold and italic keyboard shortcuts', a
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1047,7 +1043,7 @@ test('changes the current line heading level with standard keyboard shortcuts', 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1064,7 +1060,7 @@ test('changes the current line heading level with standard keyboard shortcuts', 
 
 test('undoes and redoes a Markdown command from the edit menu', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1088,7 +1084,7 @@ test('undoes and redoes a Markdown command from the edit menu', async ({ page })
 
 test('opens the built-in search panel from the edit menu', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await page.locator('.lm-menu-trigger', { hasText: '编辑' }).click();
   await page.getByRole('menuitem', { name: '查找' }).click();
@@ -1103,7 +1099,7 @@ test('opens the built-in search panel from the command palette', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await page.locator('.cm-content').first().click();
   await page.keyboard.press('Control+K');
@@ -1116,7 +1112,7 @@ test('opens the built-in search panel when the command palette confirms Find by 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await page.locator('.cm-content').first().click();
   await page.keyboard.press('Control+K');
@@ -1131,7 +1127,7 @@ test('returns focus to the editor when the command palette closes without a comm
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1146,7 +1142,7 @@ test('preserves the command palette opener when its shortcut is pressed again', 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1162,7 +1158,7 @@ test('creates strikethrough and ordered list Markdown from standard command entr
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1207,7 +1203,7 @@ test('creates local image Markdown from the format menu and command palette', as
     };
   });
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1238,7 +1234,7 @@ test('inserts a horizontal rule from the paragraph menu and command palette', as
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1273,7 +1269,7 @@ test('creates and undoes an ordered list from the command palette', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1294,7 +1290,7 @@ test('creates advanced heading levels through the menu and command palette', asy
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1320,7 +1316,7 @@ test('switches between live preview and source mode without changing markdown so
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -1356,7 +1352,7 @@ test('cycles display modes with Mod+/ without changing editor state', async ({
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   const scroller = page.locator('.cm-scroller').first();
@@ -1483,7 +1479,7 @@ test('keeps the reading anchor and caret geometry stable across zoom and page-wi
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   const scroller = page.locator('.cm-scroller').first();
@@ -1657,7 +1653,7 @@ test('opens the built-in search panel and navigates to a Markdown match', async 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1681,7 +1677,7 @@ test('localizes the built-in search panel after an application language change',
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1715,7 +1711,7 @@ test('renders markdown tables through the mature component and keeps table menu 
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -1759,7 +1755,7 @@ test('renders table markdown from the cell source DOM and preserves undo-redo', 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -2129,7 +2125,7 @@ test('clamps the logical table column to a shorter destination cell', async ({
 
 test('supports table insert and delete shortcuts', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -2149,7 +2145,7 @@ test('supports table insert and delete shortcuts', async ({ page }) => {
 
 test('shows table shortcuts in top and editor context menus', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await openParagraphSubmenu(page, '插入');
   await expect(

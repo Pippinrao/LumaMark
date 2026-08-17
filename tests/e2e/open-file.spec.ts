@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 const fixturePath = 'E:/lumamark-fixtures/long-open.md';
@@ -129,7 +130,7 @@ test('opens long markdown with feedback and keeps the viewport at the document s
   );
 
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await page.getByRole('menuitem', { name: '文件' }).click();
   await page.getByRole('menuitem', { name: '打开文件' }).click();
 

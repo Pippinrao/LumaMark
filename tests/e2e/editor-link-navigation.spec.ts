@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 import {
   installRootEditorHistoryTestBridge,
   installRootEditorViewTestBridge,
@@ -99,9 +100,7 @@ async function openFixtureDocument(
   visibleText: string,
 ): Promise<Locator> {
   await page.goto('/');
-  await page
-    .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
-    .click();
+  await openBlankDocument(page);
   await page.keyboard.press(`${primaryModifier}+O`);
 
   const editor = page.locator('.cm-content').first();

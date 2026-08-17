@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const reportDirectory = resolve('artifacts/settings-report');
 
@@ -27,12 +28,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function ensureEditorDocument(page: Page): Promise<void> {
-  const newDocumentButton = page.getByRole('button', {
-    name: /^(?:New Document|新建文档)$/,
-  });
-  if (await newDocumentButton.isVisible()) {
-    await newDocumentButton.click();
-  }
+  await openBlankDocument(page);
 }
 
 async function openSettings(page: Page): Promise<void> {

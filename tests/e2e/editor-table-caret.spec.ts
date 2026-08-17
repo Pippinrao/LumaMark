@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { canonicalizeTableFixtures } from './support/canonicalTableFixture';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -23,9 +24,7 @@ type SelectionSnapshot = {
 
 async function openNewDocument(page: Page): Promise<void> {
   await page.goto('/');
-  await page
-    .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
-    .click();
+  await openBlankDocument(page);
 }
 
 async function replaceEditorSource(page: Page, source: string): Promise<void> {

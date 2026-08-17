@@ -79,6 +79,40 @@ describe('useStartupExperience', () => {
     });
   });
 
+  it('hides the start screen before untitled-document creation finishes', async () => {
+    useStartupStore.setState({
+      lastSession: { kind: 'file', path: 'E:/notes/owned.md' },
+    });
+    const options = createOptions();
+    let resolveCreate: ((created: boolean) => void) | undefined;
+    options.fileWorkflow.createNewDocument.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+    const { result } = renderHook(() => useStartupExperience(options));
+
+    let pending: Promise<boolean> | undefined;
+    act(() => {
+      pending = result.current.newDocument();
+    });
+
+    expect(result.current.visible).toBe(false);
+    expect(useStartupStore.getState().lastSession).toEqual({
+      kind: 'file',
+      path: 'E:/notes/owned.md',
+    });
+
+    await act(async () => {
+      resolveCreate?.(true);
+      await pending;
+    });
+
+    expect(result.current.visible).toBe(false);
+    expect(useStartupStore.getState().lastSession).toBeNull();
+  });
+
   it('clears the previous session only after an untitled document is created', async () => {
     useStartupStore.setState({
       lastSession: { kind: 'file', path: 'E:/notes/owned.md' },

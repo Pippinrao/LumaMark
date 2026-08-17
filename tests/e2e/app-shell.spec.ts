@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 type SidebarTabAppearance = {
   backgroundColor: string;
@@ -121,7 +122,7 @@ test('uses Typora-like two-pane shell with file and outline tabs in the left sid
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await expect(page.locator('.lm-top-chrome .lm-menu-trigger')).toHaveText([
     '文件',
@@ -164,7 +165,7 @@ test('gives the active file or outline tab a distinct surface in both themes', a
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const fileTab = page.getByRole('tab', { name: '文件' });
   const outlineTab = page.getByRole('tab', { name: '大纲' });
@@ -189,7 +190,7 @@ test('matches the high fidelity editor gutter and sidebar sizing contract', asyn
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const sidebarBox = await page.locator('.lm-sidebar').boundingBox();
   const paperBox = await page.locator('.lm-editor-paper').boundingBox();
@@ -234,7 +235,7 @@ for (const viewport of [
   test(`clamps the adaptive sidebar at ${viewport.width}px viewport width`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/');
-    await page.getByRole('button', { name: '新建文档' }).click();
+    await openBlankDocument(page);
 
     const sidebarBox = await page.locator('.lm-sidebar-panel').boundingBox();
     expect(sidebarBox?.width ?? 0).toBeGreaterThanOrEqual(199);
@@ -246,7 +247,7 @@ test('lets dragging take the sidebar below the former 240 pixel floor', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const sidebar = page.locator('.lm-sidebar-panel');
   await expect
@@ -277,7 +278,7 @@ test('lets dragging take the sidebar below the former 240 pixel floor', async ({
 
 test('collapses, restores, and persists an accessible sidebar state from the view menu', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const sidebar = page.locator('.lm-sidebar-panel');
   await expect
@@ -363,7 +364,7 @@ test('moves focus into the editor when a sidebar shortcut collapses it', async (
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const sidebar = page.locator('.lm-sidebar-panel');
 
   await expect
@@ -385,7 +386,7 @@ test('enters and exits a distraction-free focus mode without changing the editor
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await page.locator('.cm-content').fill('# Focus document');
 
   await page.getByRole('menuitem', { name: '视图' }).click();
@@ -412,7 +413,7 @@ test('enters and exits a distraction-free focus mode without changing the editor
 
 test('toggles focus mode with the writing shortcut', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await page.locator('.cm-content').focus();
 
   await page.keyboard.press('Control+Shift+F');
@@ -426,7 +427,7 @@ test('updates low-distraction document statistics after editing Chinese and Engl
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const statusBar = page.locator('.lm-status-bar');
 
@@ -442,7 +443,7 @@ test('keeps the document title in the editor header without pushing the menu', a
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const title = page.locator('.lm-editor-title');
   const titleBox = await title.boundingBox();
@@ -485,7 +486,7 @@ test('keeps the document title in the editor header without pushing the menu', a
 
 test('places native window controls on the outer chrome', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const chromeBox = await page.locator('.lm-top-chrome').boundingBox();
   const controlsBox = await page.locator('.lm-window-controls').boundingBox();
@@ -506,7 +507,7 @@ test('opens top menu popovers below the chrome without clipping', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await page.getByRole('menuitem', { name: '文件' }).click();
   await page.locator('.lm-menu-content').evaluate((node) =>
@@ -538,7 +539,7 @@ test('keeps sidebar and editor on independent scroll boundaries', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const markdown = Array.from({ length: 160 }, (_, index) =>
     [`# Heading ${index + 1}`, '', `Paragraph ${index + 1}`].join('\n'),
@@ -599,7 +600,7 @@ test('keeps sidebar and editor on independent scroll boundaries', async ({
 
 test('opens the command palette and triggers save', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await expect(page.getByRole('menuitem', { name: '文件' })).toBeVisible();
   await page.keyboard.press('Control+K');

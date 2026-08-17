@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const recoveryDraftKey = 'lumamark-recovery-draft-v2:main';
 
@@ -103,7 +104,7 @@ test('does not recover a draft after redo returns to the saved snapshot', async 
   }, savedPath);
 
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const editor = page.locator('.cm-content');
   await editor.click();
   await page.keyboard.press('Control+A');

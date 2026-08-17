@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const fixturePath = 'E:/lumamark-fixtures/v1.md';
 const saveAsPath = 'E:/lumamark-fixtures/v1-copy.md';
@@ -88,7 +89,7 @@ test('covers the V1 open edit save save-as mermaid language and theme workflow',
   );
 
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await clickFirstVisibleMenuItem(page, ['文件', 'File']);
   await clickFirstVisibleMenuItem(page, ['设置', 'Settings']);
@@ -231,7 +232,7 @@ test('reopens a recent file from the files sidebar', async ({ page }) => {
     { path, text },
   );
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await runFileMenuAction(page, 'openFile');
   const editor = page.locator('.cm-content');
@@ -240,7 +241,7 @@ test('reopens a recent file from the files sidebar', async ({ page }) => {
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'recent.md' })).toBeVisible();
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   await editor.click();
   await page.keyboard.press('Control+A');
@@ -280,7 +281,7 @@ test('keeps the current draft and explains a failed file open', async ({ page })
     };
   }, missingPath);
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -305,7 +306,7 @@ test('creates a new document only after confirming discarded changes', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content');
   await editor.click();
@@ -330,7 +331,7 @@ test('creates a new document from the command palette through the same confirmat
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content');
   await editor.click();

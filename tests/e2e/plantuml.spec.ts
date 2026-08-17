@@ -1,8 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
-test.describe.configure({ mode: 'serial' });
-
-const newDocumentName = /^(?:New Document|新建文档)$/;
 const editSourceName = /^(?:Edit source|编辑源码)$/;
 const deleteName = /^(?:Delete|删除)$/;
 const expandName = /^(?:Expand preview|展开查看)$/;
@@ -11,7 +9,7 @@ test('renders a PlantUML sequence diagram locally in the preview', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: newDocumentName }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -47,7 +45,7 @@ test('keeps PlantUML source in the main undo history while editing', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: newDocumentName }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -83,7 +81,7 @@ test('keeps dark-mode PlantUML on the editor surface instead of a white paper', 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: newDocumentName }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -134,7 +132,7 @@ test('expands the rendered PlantUML diagram in the media viewer', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: newDocumentName }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();

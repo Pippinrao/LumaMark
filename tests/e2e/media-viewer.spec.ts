@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { tinySvgDataUrl } from './fixtures/livePreviewData';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 const imageMarkdown = [
@@ -15,7 +16,7 @@ const wideSvgDataUrl =
 
 async function openMarkdown(page: Page, markdown: string): Promise<Locator> {
   await page.goto('/');
-  await page.getByRole('button', { name: /^(?:New Document|新建文档)$/ }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();
@@ -321,7 +322,7 @@ test('removes a cancelled Mermaid preview without leaving an action or overlay',
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   const editor = page.locator('.cm-content').first();
   await editor.click();
   await page.keyboard.insertText(

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 const keyboardContextMenuKeys = [
@@ -8,11 +9,7 @@ const keyboardContextMenuKeys = [
 
 async function openNewDocument(page: Page): Promise<void> {
   await page.goto('/');
-  const newDocumentButton = page.getByRole('button', {
-    name: /^(?:New Document|新建文档)$/,
-  });
-  await newDocumentButton.click();
-  await expect(newDocumentButton).toBeHidden();
+  await openBlankDocument(page);
 }
 
 function contextItem(page: Page, label: RegExp) {

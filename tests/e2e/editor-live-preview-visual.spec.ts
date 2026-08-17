@@ -3,6 +3,7 @@ import { dirname, join, relative } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import { livePreviewRichMarkdown } from './fixtures/livePreviewData';
 import { canonicalizeTableFixtures } from './support/canonicalTableFixture';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const REPORT_DIR = join(process.cwd(), 'artifacts', 'live-preview-report');
 const REPORT_PATH = join(REPORT_DIR, 'index.html');
@@ -21,7 +22,7 @@ test('generates a visual report for live preview rendering and editing states', 
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
 
   const editor = page.locator('.cm-content').first();
   await editor.click();

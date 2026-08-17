@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 import {
   invalidDecodedImage,
   remoteImageDocumentPath,
@@ -216,7 +217,7 @@ async function openRemoteDocument(
   );
 
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await expect(page.getByTestId('app-shell')).toBeVisible();
   await expect(page.getByTestId('editor-host')).toBeVisible();
   await page.getByRole('menuitem', { name: /File|文件/ }).click();

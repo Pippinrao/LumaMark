@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
@@ -10,9 +11,7 @@ const brokenDataUrl = 'data:image/png;base64,AAAA';
 
 async function openNewDocument(page: Page): Promise<void> {
   await page.goto('/');
-  await page
-    .getByRole('button', { name: /^(?:New Document|新建文档)$/ })
-    .click();
+  await openBlankDocument(page);
 }
 
 async function replaceEditorSource(page: Page, source: string): Promise<void> {

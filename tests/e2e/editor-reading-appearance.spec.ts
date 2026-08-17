@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { openBlankDocument } from './support/openBlankDocument';
 
 type HorizontalBounds = {
   left: number;
@@ -23,7 +24,7 @@ const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
 async function startDocument(page: Page): Promise<void> {
   await page.goto('/');
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await expect(page.locator('.cm-content')).toBeVisible();
 }
 
@@ -188,7 +189,7 @@ test('enforces real page-width caps and safe gutters across viewport sizes', asy
   await choosePageWidth(page, '宽');
   await page.reload();
   await expectContentWidth(page, 1040);
-  await page.getByRole('button', { name: '新建文档' }).click();
+  await openBlankDocument(page);
   await expect(content).toBeVisible();
 
   await page.setViewportSize({ width: 1100, height: 760 });

@@ -48,12 +48,13 @@ export function useStartupExperience({
   }, [addRecentWorkspace, setLastSession]);
 
   const newDocument = useCallback(async () => {
+    setVisible(false);
     const created = await fileWorkflow.createNewDocument();
     if (!created) {
+      setVisible(true);
       return false;
     }
     setLastSession(null);
-    setVisible(false);
     return true;
   }, [fileWorkflow, setLastSession, setVisible]);
 

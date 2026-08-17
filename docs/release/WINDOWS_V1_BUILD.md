@@ -1,33 +1,35 @@
-# Windows V1 构建记录
+> Language: **English** · [中文](../zh/release/WINDOWS_V1_BUILD.md)
 
-本文件记录 LumaMark V1 alpha 在 Windows 上的构建方式、产物和发布缺口。
+# Windows V1 Build Record
 
-> **历史记录：** 下列分支、版本号、文件大小与 SHA-256 只描述对应 Alpha 构建，不能当作当前工作树的发布产物。Parity Reliability 只有在当前执行计划的自动化门禁、Windows 实测和真实自用退出条件全部满足后，才具备 Beta 候选资格；一次本地 `pnpm build` 成功不等于已发布。
+This document records how LumaMark V1 alpha is built on Windows, the artifacts produced, and remaining release gaps.
 
-## 多窗口与二次实例真实安装验收
+> **Historical record:** The branch names, version numbers, file sizes, and SHA-256 values below describe the corresponding Alpha builds only and must not be treated as release artifacts of the current worktree. Parity Reliability becomes a Beta candidate only after the automation gates, Windows measurements, and real self-use exit criteria in the current execution plan are all met; a successful local `pnpm build` alone does not mean a release has shipped.
 
-`pnpm release:installer-acceptance:nsis` 在隔离临时目录真实安装当前 NSIS 后，会把安装所得 EXE 与同一 NSIS 路径显式交给 `pnpm release:installed-window-routing`，分别验证默认 `multiWindow` 与 `aggregateWindow` 的首实例、二次实例和并发重复启动，最后再卸载。运行前必须确认处于 Windows Sandbox 或无既有 LumaMark 产品注册信息的干净用户配置；脚本发现既有安装、注册表状态或进程时会 fail closed，不会接管、覆盖或结束用户资产。
+## Multi-Window and Second-Instance Real Install Acceptance
+
+`pnpm release:installer-acceptance:nsis` really installs the current NSIS into an isolated temporary directory, then explicitly hands the installed EXE and the same NSIS path to `pnpm release:installed-window-routing`, which separately verifies first instance, second instance, and concurrent duplicate launches for default `multiWindow` and `aggregateWindow`, and finally uninstalls. Before running, confirm you are in Windows Sandbox or a clean user profile with no existing LumaMark product registration; if the script finds an existing install, registry state, or process, it fails closed and will not take over, overwrite, or terminate user assets.
 
 ```powershell
 pnpm release:installer-acceptance:nsis
 exit $LASTEXITCODE
 ```
 
-验收合同：
+Acceptance contract:
 
-- 每个模式创建独立的随机系统临时根和预创建的固定 `settings-config` 叶。primary、secondary 与所有并发重复 launch 必须收到完全相同的 `LUMAMARK_ACCEPTANCE_MODE=1`、`LUMAMARK_ROUTING_ACCEPTANCE_MODE=1` 和 `LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR`，并从所有子进程环境中移除 menu-only 的 `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR`。Rust 只有在 routing marker 恰好为 `1` 且 config 已通过 canonical containment 校验时才保留 single-instance；marker 非法或缺少严格 config 时启动失败。这个入口不是通用 portable config，绝不读取或写入真实用户配置。
-- 大小写与 UNC identity 用例依赖专用 Windows VM/验收账号已经启用且可访问 `\\localhost\<drive>$` localhost administrative share。脚本只读取自己创建在系统临时目录中的 fixture，绝不创建、启用或更改共享；共享不可用时属于环境前置门禁失败，禁止在普通用户机器上为通过验收而放宽共享策略。
-- `tauri-plugin-single-instance` 必须保持首个 Tauri plugin，secondary 在 durable state plugin 之前退出，因此不能读取、恢复或改写本轮隔离 state。state plugin 只 manage authority，不发布 ready。primary 的唯一启动 worker 必须先恢复 retained target、再路由初始 argv，全部成功后才发布 routing readiness；callback 只投递 worker，若它早于上述启动批次完成，worker 必须在访问 config 前等待 readiness，且超时以 `desktop.open_request_state_startup_timeout` 有界失败并留日志，禁止无限等待。
-- `multiWindow` 冷启动第一条新路径复用 Tauri 预建且无 authority 的 `main`；第二条不同路径创建 `document-1`，所以一个进程恰有两个 HWND。若 `main` 已有 retained request，路由不得覆盖它。`aggregateWindow` 的两个不同路径复用一个 `main`。无参数启动只聚焦既有 managed window，不创建请求。
-- 并发重复启动同一第二路径后，按窗口 label 与编辑器内容观察仍只能出现一次对应文档；验收记录 primary PID、规范化 executable path、进程 start time、窗口 label、路径/内容、durable request 状态和每个 secondary 退出结果。Exactly-once 由稳定最终 durable v2 completion fence/high-water 与精确 marker→label 映射共同证明，不依赖毫秒级抢拍瞬态 lifecycle。CDP 只用于读取 WebView 状态，不能替代桌面输入证据。
-- aggregate 场景复用 `installedMenuContextOsHelpers.mjs` 的硬化 Win32 bridge，并且只通过 canonical System32 PowerShell 执行。每次 metrics / pointer 操作都要重新核对本次 primary 的 PID、规范化可执行路径与 Windows `Process.StartTime`，确认线程和输入桌面均为交互 `Default`，再以 `ClientToScreen` 换算客户区坐标，通过 `WindowFromPoint` 证明目标 HWND 仍由该进程拥有，最后才允许 `SendInput` 点击真实编辑区；任何一步不确定都 fail closed。最终发布必须针对刚生成并安装到隔离路径的 NSIS 产物运行，浏览器 E2E 不能代替。
-- 临时根带一次性 ownership token/marker。清理前重新 canonicalize 系统 temp、随机父目录和固定 config leaf，验证 containment、marker 内容和本次进程已退出；任何所有权或占用事实不确定时保留证据并失败，禁止递归删除其他目录。
+- Each mode creates an independent random system temp root and a pre-created fixed `settings-config` leaf. Primary, secondary, and all concurrent duplicate launches must receive identical `LUMAMARK_ACCEPTANCE_MODE=1`, `LUMAMARK_ROUTING_ACCEPTANCE_MODE=1`, and `LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR`, and must remove the menu-only `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR` from every child-process environment. Rust keeps single-instance only when the routing marker is exactly `1` and config has passed canonical containment checks; illegal markers or missing strict config cause startup failure. This entry is not general portable config and never reads or writes real user configuration.
+- Case and UNC identity cases depend on a dedicated Windows VM/acceptance account that already has the `\\localhost\<drive>$` localhost administrative share enabled and accessible. The script only reads fixtures it created under the system temp directory; it never creates, enables, or changes shares. Unavailable shares are an environment-precondition gate failure; do not relax share policy on ordinary user machines just to pass acceptance.
+- `tauri-plugin-single-instance` must remain the first Tauri plugin so secondary exits before the durable state plugin and therefore cannot read, restore, or rewrite this round’s isolated state. The state plugin only manages authority and does not publish ready. Primary’s sole startup worker must restore the retained target, then route initial argv, and only publish routing readiness after all of that succeeds; the callback only enqueues the worker. If the callback completes before that startup batch, the worker must wait for readiness before accessing config, and timeouts fail bounded with logging via `desktop.open_request_state_startup_timeout`—never wait forever.
+- For `multiWindow`, the first new path on a cold start reuses the Tauri-prebuilt `main` with no authority; a second distinct path creates `document-1`, so one process has exactly two HWNDs. If `main` already has a retained request, routing must not overwrite it. For `aggregateWindow`, two distinct paths reuse one `main`. A no-argument launch only focuses an existing managed window and does not create a request.
+- After concurrent duplicate launches of the same second path, observation by window label and editor content must still show the corresponding document only once; acceptance records primary PID, canonical executable path, process start time, window labels, path/content, durable request state, and each secondary exit result. Exactly-once is proved by the stable final durable v2 completion fence/high-water together with precise marker→label mapping, not by millisecond-scale snapshots of transient lifecycle. CDP is only for reading WebView state and cannot replace desktop input evidence.
+- Aggregate scenarios reuse the hardened Win32 bridge from `installedMenuContextOsHelpers.mjs` and execute only through canonical System32 PowerShell. Every metrics / pointer operation must re-check this primary’s PID, canonical executable path, and Windows `Process.StartTime`, confirm the thread and input desktop are both interactive `Default`, convert client coordinates with `ClientToScreen`, prove via `WindowFromPoint` that the target HWND is still owned by that process, and only then allow `SendInput` to click the real editor area; any uncertain step fails closed. Final release must run against an NSIS artifact just built and installed to an isolated path; browser E2E cannot substitute.
+- The temp root carries a one-time ownership token/marker. Before cleanup, re-canonicalize system temp, the random parent directory, and the fixed config leaf; verify containment, marker contents, and that this process has exited. If any ownership or occupancy fact is uncertain, keep evidence and fail; never recursively delete other directories.
 
-这条命令只是 #16 窗口路由的真实安装薄门禁：它保存版本、EXE/NSIS SHA-256、命令与退出码摘要、窗口/请求 JSON 和逐阶段截图，但不能替代发布前的 #13/#16 联合矩阵。联合矩阵仍必须在同一隔离安装上覆盖 dirty、保存/丢弃/取消、undo、watcher、最近文件、窗口关闭保护和二次实例 exactly-once；薄门禁通过不得单独作为发布结论。
+This command is only the thin real-install gate for #16 window routing: it saves version, EXE/NSIS SHA-256, command and exit-code summary, window/request JSON, and per-stage screenshots, but it cannot replace the pre-release #13/#16 joint matrix. The joint matrix must still cover dirty, save/discard/cancel, undo, watcher, recent files, window-close protection, and second-instance exactly-once on the same isolated install; passing the thin gate alone is not a release conclusion.
 
-## 菜单与上下文菜单真实指针验收
+## Menu and Context-Menu Real Pointer Acceptance
 
-`pnpm release:installed-menu-context-os` 用当前工作树构建的 Release WebView 路径验证标题栏菜单、portal、窗口按钮与拖拽、编辑器上下文菜单和文件树上下文菜单。运行前必须显式指向当前工作树的固定产物；脚本会核对 package、Cargo、Cargo lock、Tauri 配置与 PE FileVersion/ProductVersion，并在证据中记录可执行文件 SHA-256：
+`pnpm release:installed-menu-context-os` verifies title-bar menus, portals, window buttons and dragging, editor context menus, and file-tree context menus on the Release WebView path built from the current worktree. Before running, explicitly point at the fixed artifact from the current worktree; the script checks package, Cargo, Cargo lock, Tauri config, and PE FileVersion/ProductVersion, and records the executable SHA-256 in evidence:
 
 ```powershell
 $env:LUMAMARK_EXECUTABLE = (Resolve-Path 'src-tauri\target\release\lumamark.exe').Path
@@ -41,58 +43,58 @@ try {
 exit $acceptanceExitCode
 ```
 
-安全边界：
+Safety boundaries:
 
-- 脚本自己创建随机系统临时根，并用 `LUMAMARK_ACCEPTANCE_MODE=1` + `LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR` 启用仅发布验收可用的设置目录覆盖；仅该模式还可通过 `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR` 启用设置写入屏障。Rust 只接受临时根下预先创建、canonical 后仍位于同一随机根内的固定 `settings-config` / `settings-write-barrier` leaf，脚本再通过两个 IPC 分别回读最终路径。任一路径或 mode 环境非法时启动与写入都会 fail closed；这些入口不是便携配置功能。
-- 通过上述严格校验进入验收模式的进程不注册 single-instance plugin，因此验收进程与用户正常启动的 LumaMark 不会互相转发文件参数；脚本仍只按自己 `spawn` 获得的子进程句柄和已核验身份执行退出清理。
-- 设置持久化场景先用 Win32 指针修改“启动时检查更新”并关闭设置对话框，确认隔离目录已有 v3 light 基线；随后脚本创建一次性 `arm` marker，并从顶部主题菜单切到“跟随系统”。Rust 在真正保存前以 create-new 方式创建 `entered`，保持磁盘仍为 light 并等待有界的 `release`；脚本看到 `entered` 后用真实窗口 X 关闭。close coordinator 先启动 settings flush，再并行调用 acceptance-only command；Rust 只有在 `arm` 与 `entered` 均为普通文件且 `release` 尚未出现时才接受该命令并创建 `close-entered`，而写屏障也拒绝任何没有 `close-entered` 的 release。脚本必须在 X 后看到 `close-entered`，并通过同一进程身份下的 main HWND/client metrics 证明窗口仍存在、再次确认文件仍为 light，之后才创建 `release`。只有保存完成且 close coordinator 等待 settings flush 后，窗口才能正常退出。这条证据按 marker 协议归因，不依赖 400 ms debounce、单次进程存活快照或“点击得够快”的时间阈值。脚本再用同一显式 exe、同一隔离 config、不同且仍位于临时根内的全新 WebView2 profile 重启，同时检查设置 UI 与 `settings.json` 都恢复 `system`。每个 profile leaf 在启动前必须不存在，attach 后必须由 WebView2 实际创建且包含 `EBWebView` 运行时目录；两次启动不共享浏览器 profile，因此 localStorage fallback 不能满足这条证据。
-- 每次启动的 WebView2 用户数据、工作区和 Markdown fixture 都位于同一随机临时根。文件树初始化使用既有 E2E workspace bridge 转发真实 Tauri workspace commands；所有验收交互仍由 Win32 指针完成。
-- 这条会执行 Copy/Cut/Paste 的验收只能在专用交互账号或虚拟机中运行；Windows 剪贴板历史记录必须关闭，云剪贴板和第三方 clipboard manager 也必须停用。默认门禁要求初始剪贴板为空，因此普通运行不会读取或恢复既有原文。只有在上述专用环境中、且初始内容为预置的非敏感纯文本时，才可显式设置 `LUMAMARK_ACCEPTANCE_ALLOW_PLAINTEXT_CLIPBOARD_RESTORE=1`；原文不写入参数、日志、哈希或证据，也不进入命令行，而是以 UTF-16LE→base64 的 ASCII stdin/stdout 通道在内存中往返。脚本只有在 sequence 改变、格式为纯文本且内容逐字匹配刚执行命令的预期输出时才声明写入归本次命令所有。WebView writer 还必须由 `GetClipboardOwner` 证明 owner 位于本次 LumaMark/WebView2 子进程树；官方 Tauri clipboard-manager 在 Windows 上通过 `arboard` 以空 HWND 写文本，因此只有显式 `tauri-native-text` writer 合同、`ownerHWnd=0`、`ownerProcessId=0`、`ownerBelongsToTarget=false` 且格式严格属于可恢复纯文本集合时才允许 ownerless 路径，两种 writer 合同互斥。中断清理会固化当前命令的预期输出；随后先同步停止新输入、断开并验证 CDP 已关闭、按可执行路径与启动时间验证并结束本次子进程，只有三项静止事实全部成立才会解析 pending 写入。脚本在读取前重新验证相同元数据、读取后再次精确比对，随后才允许 Clipboard Sequence Number compare-and-set 恢复；外部 owner、额外格式、错误内容、sequence 变化或无法证明 writer 静止都会拒绝覆盖。即使恢复成功，系统或第三方仍可能观察非敏感验收 fixture 的复制通知，因此该脚本不能声称对剪贴板历史/云同步“零污染”。
-- 指针桥以 Per-Monitor V2 运行，使用 `OpenInputDesktop`/`GetUserObjectInformation` 正向确认当前与线程桌面都是交互 `Default`，再用 `ClientToScreen`、`GetDpiForWindow`、`GetCursorPos` 与 `WindowFromPoint` 校验实际光标坐标和命中窗口；每次 metrics/pointer action 都在桥内按本次启动的可执行路径与启动时间复核 PID。桥不会调用 `AttachThreadInput`、`SetForegroundWindow`、`SetWindowPos` 或临时 topmost 来改变真实桌面条件：窗口必须本来就可见、非最小化且在请求点真实命中，随后只用 `SendInput` 让 Windows 的 `WM_MOUSEACTIVATE` 走自然激活路径，并在点击后复核记录到 metrics 的同一次响应性探针与前台进程。响应探针只输出 `responsive` / `timed-out` / `invalid-window` / `probe-failed` 安全枚举，PowerShell 进程超时也只按固定 preflight/inject/postflight 阶段分类，不记录窗口标题、路径或系统错误文本。桥和进程预检只调用 canonical System32 下的绝对 PowerShell/tasklist 路径，并把对应 SHA-256 记入证据。收到 `SIGINT`/`SIGTERM` 后脚本停止继续注入指针，并进入同一套 sequence-CAS、子进程和临时目录清理；指针 down 后的异常路径也会在 `finally` 中发送 up。任何中断都不能生成成功证据。清理前复核 PID 的可执行路径与启动时间，只终止本次子进程，并验证临时目录已经删除。
-- package script 先由父 runner 生成不可复用的 run id，再启动 verifier。`result.json` 只有在 run id、开始/结束时间和 helper/verifier 源码 SHA-256 都属于当前子进程时才会被接受；父进程直接记录 `spawnSync` 观察到的退出码或信号，并要求它与 verifier 的 `plannedExitCode` 一致。缺失、陈旧、源码漂移、signal、planned mismatch 或 verifier `summary.passed=false` 都会令父 runner 非零退出；最终 `summary.passed` 还必须与 `runnerOutcome.runnerPassed` 同时为真。原始 `result.json`、`runner-outcome.json` 与日志均为本机诊断材料，不提交到仓库；证据不保存错误栈、剪贴板内容、内容哈希或未知剪贴板格式名。
+- The script creates its own random system temp root and enables release-acceptance-only settings-directory override via `LUMAMARK_ACCEPTANCE_MODE=1` + `LUMAMARK_ACCEPTANCE_SETTINGS_CONFIG_DIR`; only that mode may also enable the settings write barrier via `LUMAMARK_ACCEPTANCE_SETTINGS_WRITE_BARRIER_DIR`. Rust accepts only fixed `settings-config` / `settings-write-barrier` leaves that were pre-created under the temp root and remain inside the same random root after canonicalization; the script then reads final paths back through two IPC calls. Illegal path or mode environment causes both startup and writes to fail closed; these entries are not a portable-config feature.
+- Processes that enter acceptance mode through the strict checks above do not register the single-instance plugin, so the acceptance process and a user’s normal LumaMark launch do not forward file arguments to each other; the script still exits and cleans up only via the child-process handle it `spawn`ed and the verified identity.
+- The settings-persistence scenario first uses Win32 pointer to change “Check for updates on startup” and close the settings dialog, confirming the isolated directory already has a v3 light baseline; the script then creates a one-time `arm` marker and switches to “Follow system” from the top Theme menu. Before truly saving, Rust create-new’s `entered`, keeps disk still light, and waits for a bounded `release`; after seeing `entered`, the script closes with the real window X. The close coordinator starts settings flush first, then in parallel calls the acceptance-only command; Rust accepts that command and creates `close-entered` only when `arm` and `entered` are both ordinary files and `release` has not yet appeared, and the write barrier also rejects any release without `close-entered`. After X, the script must see `close-entered`, prove via main HWND/client metrics under the same process identity that the window still exists, reconfirm the file is still light, and only then create `release`. Only after save completes and the close coordinator waits for settings flush may the window exit normally. This evidence is attributed by the marker protocol and does not depend on 400 ms debounce, a single process-liveness snapshot, or a “click fast enough” timing race. The script then restarts with the same explicit exe, the same isolated config, and a different brand-new WebView2 profile that is still under the temp root, and checks that both the settings UI and `settings.json` restore `system`. Each profile leaf must not exist before launch; after attach it must be actually created by WebView2 and contain the `EBWebView` runtime directory; the two launches do not share a browser profile, so localStorage fallback cannot satisfy this evidence.
+- WebView2 user data, workspace, and Markdown fixtures for every launch live under the same random temp root. File-tree initialization uses the existing E2E workspace bridge to forward real Tauri workspace commands; all acceptance interactions are still completed by Win32 pointer.
+- This acceptance, which exercises Copy/Cut/Paste, may run only on a dedicated interactive account or VM; Windows clipboard history must be off, and cloud clipboard and third-party clipboard managers must be disabled. The default gate requires an initially empty clipboard, so ordinary runs neither read nor restore existing text. Only in that dedicated environment, and only when the initial content is pre-seeded non-sensitive plain text, may you explicitly set `LUMAMARK_ACCEPTANCE_ALLOW_PLAINTEXT_CLIPBOARD_RESTORE=1`; original text is not written into arguments, logs, hashes, or evidence, and does not enter the command line—it is carried in memory over a UTF-16LE→base64 ASCII stdin/stdout channel. The script claims ownership of a write for the current command only when the sequence changes, the format is plain text, and the content matches the expected output of the command just executed character for character. The WebView writer must also be proved by `GetClipboardOwner` to have an owner inside this LumaMark/WebView2 child-process tree; official Tauri clipboard-manager on Windows writes text through `arboard` with an empty HWND, so the ownerless path is allowed only under the explicit `tauri-native-text` writer contract with `ownerHWnd=0`, `ownerProcessId=0`, `ownerBelongsToTarget=false`, and a format strictly in the recoverable plain-text set; the two writer contracts are mutually exclusive. Interrupt cleanup freezes the expected output of the current command; it then synchronously stops new input, disconnects and verifies CDP is closed, verifies and ends this child process by executable path and start time, and only then parses a pending write when all three stillness facts hold. Before reading, the script re-verifies the same metadata; after reading it exact-matches again; only then may Clipboard Sequence Number compare-and-set restore. External owner, extra formats, wrong content, sequence change, or inability to prove the writer is still all refuse overwrite. Even when restore succeeds, the system or third parties may still observe copy notifications for the non-sensitive acceptance fixture, so this script cannot claim “zero pollution” of clipboard history/cloud sync.
+- The pointer bridge runs Per-Monitor V2, positively confirms via `OpenInputDesktop`/`GetUserObjectInformation` that current and thread desktops are both interactive `Default`, then validates actual cursor coordinates and hit window with `ClientToScreen`, `GetDpiForWindow`, `GetCursorPos`, and `WindowFromPoint`; every metrics/pointer action rechecks PID inside the bridge against this launch’s executable path and start time. The bridge does not call `AttachThreadInput`, `SetForegroundWindow`, `SetWindowPos`, or temporary topmost to change real desktop conditions: the window must already be visible, non-minimized, and truly hit at the requested point; then only `SendInput` lets Windows take the natural `WM_MOUSEACTIVATE` activation path, and post-click it rechecks the same responsiveness probe recorded into metrics and the foreground process. The response probe only emits the safe enum `responsive` / `timed-out` / `invalid-window` / `probe-failed`; PowerShell process timeouts are also classified only by fixed preflight/inject/postflight stages and do not record window titles, paths, or system error text. Bridge and process preflight call only absolute PowerShell/tasklist paths under canonical System32 and record their SHA-256 in evidence. On `SIGINT`/`SIGTERM`, the script stops further pointer injection and enters the same sequence-CAS, child-process, and temp-directory cleanup; exception paths after pointer down also send up in `finally`. No interrupt may produce success evidence. Before cleanup, recheck the PID’s executable path and start time, terminate only this child process, and verify the temp directory has been deleted.
+- The package script has the parent runner generate a non-reusable run id first, then start the verifier. `result.json` is accepted only when run id, start/end times, and helper/verifier source SHA-256 all belong to the current child process; the parent directly records the exit code or signal observed by `spawnSync` and requires it to match the verifier’s `plannedExitCode`. Missing, stale, source drift, signal, planned mismatch, or verifier `summary.passed=false` all make the parent runner exit non-zero; final `summary.passed` must also be true together with `runnerOutcome.runnerPassed`. Raw `result.json`, `runner-outcome.json`, and logs are local diagnostic material and are not committed to the repository; evidence does not store error stacks, clipboard contents, content hashes, or unknown clipboard format names.
 
-### 0.2.36 实机记录（2026-08-15）
+### 0.2.36 Live Machine Record (2026-08-15)
 
-本轮在 `codex/settings-and-context-menu` 分支使用当前工作树的 0.2.36 Release 可执行文件，于 2026-08-15 03:44:13Z–03:45:41Z 完成一次完整 Windows 实机验收。受测 `src-tauri/target/release/lumamark.exe` 为 18,462,720 bytes，PE FileVersion / ProductVersion 均为 `0.2.36`，SHA-256 为 `26abf2a9285c47ea19f89826297653b7edee6572539b3d1f6d7c2794fa3783d4`。
+This round completed a full Windows live acceptance on branch `codex/settings-and-context-menu` using the current worktree’s 0.2.36 Release executable, from 2026-08-15 03:44:13Z–03:45:41Z. The tested `src-tauri/target/release/lumamark.exe` was 18,462,720 bytes, PE FileVersion / ProductVersion both `0.2.36`, SHA-256 `26abf2a9285c47ea19f89826297653b7edee6572539b3d1f6d7c2794fa3783d4`.
 
-- 父 runner 实际观察退出码 `0`、signal `null`，与 verifier 的 planned exit code `0` 一致；run id、时间窗口与源码身份均为本轮新鲜值。runner / verifier / helper SHA-256 分别为 `cc885213b34038b7b1aeb6a5ab55c7ba7ff9b002ac21bd139c8f7c7cfe06df72`、`aae8b9011f0d7b2bc505af8ae5e5098b9b87092d3aa92bba6910510165c1a589`、`0131700cffff3f4e4093c807c4c7427e2bcc72925840ce6a5c100fe0d06520b8`。
-- `summary.passed=true`：143 项检查全部通过，包含 45 次 Win32 `SendInput` 指针事件与 16 份菜单布局；page error、console error 和 page crash 均为 0。
-- 设置证据覆盖 v2 `light` 基线、顶部主题菜单切换 `system`、窗口 X 进入 close coordinator 后仍等待写屏障、保存完成后正常退出，以及同一隔离 config + 全新且由 WebView2 实际创建的 profile 重启；磁盘与设置 UI 均恢复为 `system`。
-- 编辑器与文件树证据覆盖标题栏 portal、链接、图片、普通编辑、表格复制/删除和文件/目录/root 上下文菜单；图片 secondary click 不再激活源码，表格删除仅移除精确目标范围并令 widget 从 2 个降为 1 个。
-- 8 次文本剪贴板变更均由互斥 writer 合同、sequence、格式与期望内容共同证明归属；最终以 sequence compare-and-set 恢复。CDP 已验证断开、本次子进程已按身份结束、临时目录已删除，全部 cleanup stage 通过。
-- 本轮保留 13 张无原始剪贴板内容的 PNG 证据；关键视图包括[设置首次启动](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-first-launch.png)、[全新 profile 重启恢复](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-restart-restored.png)、[图片上下文菜单](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-image-context.png)、[表格精确删除](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-after-table-delete.png)与[文件树 root 菜单](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/file-tree-root-context.png)。原始 `result.json`、runner outcome 与进程日志仍只保留在本机忽略目录；本轮 result SHA-256 为 `462a63fa1c43f96c24d80db45ee76d6d5c56404934e6aaffc05d7a3b5e84fba9`。
+- Parent runner actually observed exit code `0`, signal `null`, matching verifier planned exit code `0`; run id, time window, and source identity were all fresh for this round. Runner / verifier / helper SHA-256 were `cc885213b34038b7b1aeb6a5ab55c7ba7ff9b002ac21bd139c8f7c7cfe06df72`, `aae8b9011f0d7b2bc505af8ae5e5098b9b87092d3aa92bba6910510165c1a589`, and `0131700cffff3f4e4093c807c4c7427e2bcc72925840ce6a5c100fe0d06520b8` respectively.
+- `summary.passed=true`: all 143 checks passed, including 45 Win32 `SendInput` pointer events and 16 menu layouts; page error, console error, and page crash were all 0.
+- Settings evidence covered v2 `light` baseline, top Theme menu switch to `system`, window X entering the close coordinator while still waiting on the write barrier, normal exit after save completed, and restart with the same isolated config plus a brand-new profile actually created by WebView2; both disk and settings UI restored to `system`.
+- Editor and file-tree evidence covered title-bar portals, links, images, ordinary editing, table copy/delete, and file/directory/root context menus; image secondary click no longer activates source, and table delete removes only the exact target range and reduces widgets from 2 to 1.
+- All 8 text clipboard changes were attributed by mutually exclusive writer contracts, sequence, format, and expected content together; final restore used sequence compare-and-set. CDP disconnect verified, this child process ended by identity, temp directory deleted, and all cleanup stages passed.
+- This round keeps 13 PNGs with no raw clipboard content as evidence; key views include [settings first launch](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-first-launch.png), [fresh-profile restart restored](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-restart-restored.png), [image context menu](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-image-context.png), [exact table delete](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-after-table-delete.png), and [file-tree root menu](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/file-tree-root-context.png). Raw `result.json`, runner outcome, and process logs remain only in local ignored directories; this round’s result SHA-256 is `462a63fa1c43f96c24d80db45ee76d6d5c56404934e6aaffc05d7a3b5e84fba9`.
 
-构建说明：同一源码的 `pnpm build` 已成功生成上述 Release EXE、MSI 与 NSIS 包，但在最后的 updater 签名阶段因为本机只有公钥、未提供 `TAURI_SIGNING_PRIVATE_KEY` 而以退出码 `1` 结束。该缺口不影响本轮未签名 EXE 的实机行为证据，但仍是正式分发前必须由 CI / 离线签名环境关闭的发布门禁。
+Build note: `pnpm build` of the same source successfully produced the Release EXE, MSI, and NSIS packages above, but exited with code `1` at the final updater signing stage because this machine had only the public key and no `TAURI_SIGNING_PRIVATE_KEY`. That gap does not affect this round’s live behavior evidence for the unsigned EXE, but it remains a release gate that CI / an offline signing environment must close before formal distribution.
 
-原生文件夹选择对话框可能写入系统最近位置/MRU，无法在普通开发账号中证明无污染，因此不属于该自动化脚本。该场景只在专用账号或虚拟机中另行验收，不能用文件树 bridge 结果替代原生对话框结论。
+The native folder-picker dialog may write system recent locations/MRU and cannot prove zero pollution on an ordinary development account, so it is outside this automation script. That scenario is accepted separately on a dedicated account or VM and must not be replaced by file-tree bridge results as a native-dialog conclusion.
 
-## 自动更新发布（NSIS + GitHub Release）
+## Auto-Update Publish (NSIS + GitHub Release)
 
-正式分发只接受 GitHub Actions 签名发布。本地 `pnpm build:nsis` 在没有 `TAURI_SIGNING_PRIVATE_KEY` 时失败是预期行为；未签名安装包只可用于本机安装验收，不得上传 GitHub Release，也不得作为 updater 产物。
+Formal distribution accepts only GitHub Actions signed publish. Local `pnpm build:nsis` failing without `TAURI_SIGNING_PRIVATE_KEY` is expected; unsigned installers may be used only for local install acceptance and must not be uploaded to GitHub Release or used as updater artifacts.
 
-当前正式发布路径：
+Current formal publish path:
 
-1. 确认 `package.json` / `Cargo.toml` / `tauri.conf.json` 版本一致。
-2. 确认 GitHub Secrets 已配置：
+1. Confirm `package.json` / `Cargo.toml` / `tauri.conf.json` versions match.
+2. Confirm GitHub Secrets are configured:
    - `TAURI_SIGNING_PRIVATE_KEY`
-   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（无口令时可为空）
-3. 在已合并到 `main` 的提交上打 tag 并推送，例如 `git tag v0.2.53 && git push origin v0.2.53`。不要从本机上传 NSIS。
-4. `.github/workflows/windows-release-publish.yml` 会：
-   - 校验 tag 与 `package.json` 版本一致
-   - 注入签名密钥后执行 `pnpm build:nsis`
-   - 生成 `latest.json`
-   - 创建 GitHub Release，并上传：
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (may be empty when there is no passphrase)
+3. Tag and push a commit already merged to `main`, for example `git tag v0.2.53 && git push origin v0.2.53`. Do not upload NSIS from the local machine.
+4. `.github/workflows/windows-release-publish.yml` will:
+   - Verify the tag matches the `package.json` version
+   - Inject the signing key and run `pnpm build:nsis`
+   - Generate `latest.json`
+   - Create a GitHub Release and upload:
      - `LumaMark_{version}_x64-setup.exe`
      - `LumaMark_{version}_x64-setup.exe.sig`
      - `latest.json`
 
-应用内 updater endpoint：
+In-app updater endpoint:
 
 ```text
 https://github.com/Pippinrao/LumaMark/releases/latest/download/latest.json
 ```
 
-`latest.json` 契约（静态清单）：
+`latest.json` contract (static manifest):
 
 ```json
 {
@@ -108,179 +110,179 @@ https://github.com/Pippinrao/LumaMark/releases/latest/download/latest.json
 }
 ```
 
-本地生成清单：
+Generate the manifest locally:
 
 ```powershell
 pnpm release:generate-updater-manifest
 ```
 
-密钥管理：
+Key management:
 
-- 公钥写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
-- 私钥只存 GitHub Secrets / 离线保险位置；丢失后已安装用户无法继续接收签名更新。
-- 粘贴私钥到 GitHub Secrets 时避免带 UTF-8 BOM；发布 workflow 会清洗 BOM，但密钥本身仍须是 `tauri signer generate` 产出的合法内容。
-- 私钥文件不得提交仓库；`.gitignore` 已忽略 `*.key` / `*.key.pub`。
+- The public key is written to `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`.
+- The private key lives only in GitHub Secrets / an offline vault; if lost, already-installed users cannot continue receiving signed updates.
+- When pasting the private key into GitHub Secrets, avoid a UTF-8 BOM; the publish workflow strips BOM, but the key itself must still be valid output from `tauri signer generate`.
+- Private key files must not be committed; `.gitignore` already ignores `*.key` / `*.key.pub`.
 
-回滚：
+Rollback:
 
-- 删除或取消标记有问题的 GitHub Release，使 `latest` 回退到上一版。
-- 如需紧急停用自动更新，可临时从 Release 移除 `latest.json`；已安装客户端会检查失败并显示错误，而不会强制安装。
+- Delete or unmark the bad GitHub Release so `latest` falls back to the previous version.
+- To urgently disable auto-update, temporarily remove `latest.json` from the Release; installed clients will fail the check and show an error rather than force-install.
 
-手动全量构建校验仍使用 `.github/workflows/windows-release-build.yml`：它同样注入 GitHub Secrets 签名，上传 exe/MSI/NSIS/`*.sig` artifacts，但不创建 Release。正式分发只接受 GitHub Actions 签名发布。
+Manual full-build verification still uses `.github/workflows/windows-release-build.yml`: it likewise injects GitHub Secrets for signing and uploads exe/MSI/NSIS/`*.sig` artifacts, but does not create a Release. Formal distribution accepts only GitHub Actions signed publish.
 
-## 0.2.3 NSIS-only 发布候选
+## 0.2.3 NSIS-only Release Candidate
 
-- 日期：2026-08-05
-- 平台：Windows x64
-- 分支：`main`
-- 目标发布标签：`v0.2.3`
-- 发布策略：候选通过全部门禁后，GitHub Release 仅上传 NSIS 安装器；裸 exe、MSI 和本地产物清单用于一致性门禁。
+- Date: 2026-08-05
+- Platform: Windows x64
+- Branch: `main`
+- Target release tag: `v0.2.3`
+- Publish strategy: after the candidate passes all gates, GitHub Release uploads only the NSIS installer; bare exe, MSI, and local artifact manifests are used for consistency gates.
 
-候选产物：
+Candidate artifacts:
 
-| 产物 | 路径 | 大小 | SHA-256 |
+| Artifact | Path | Size | SHA-256 |
 |---|---|---:|---|
-| Windows 可执行文件 | `src-tauri/target/release/lumamark.exe` | 13,857,792 bytes | `2e7bc99ccddf3eabfd6b443dcc362b5fe99c51fe452a036eb84514ba29cebc42` |
-| MSI 安装包 | `src-tauri/target/release/bundle/msi/LumaMark_0.2.3_x64_en-US.msi` | 6,041,600 bytes | `26f8d2cbe9208dbf8bce402148ec237023bb97292e9749f63ed2374979b353da` |
-| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.2.3_x64-setup.exe` | 4,650,095 bytes | `5ac67fa71530271520480158af94b3bf45ba15cb24f9b3b7686db6da4f3a6c87` |
+| Windows executable | `src-tauri/target/release/lumamark.exe` | 13,857,792 bytes | `2e7bc99ccddf3eabfd6b443dcc362b5fe99c51fe452a036eb84514ba29cebc42` |
+| MSI installer | `src-tauri/target/release/bundle/msi/LumaMark_0.2.3_x64_en-US.msi` | 6,041,600 bytes | `26f8d2cbe9208dbf8bce402148ec237023bb97292e9749f63ed2374979b353da` |
+| NSIS installer | `src-tauri/target/release/bundle/nsis/LumaMark_0.2.3_x64-setup.exe` | 4,650,095 bytes | `5ac67fa71530271520480158af94b3bf45ba15cb24f9b3b7686db6da4f3a6c87` |
 
-本版本完成并验收 GitHub Issues #1–#6：媒体全屏查看与缩放、完整菜单与精确快捷键、阅读宽度和平台主修饰键缩放、启动页与单文件恢复体验、活动 Markdown 源码标记视觉，以及格式化、折行和不等宽表格中的稳定光标映射。验收补丁还覆盖语言切换时现有媒体、搜索面板和任务复选框的原地重标、启动偏好持久化错误的可见反馈，以及启动页后的真实 E2E 交互。
+This version completed and accepted GitHub Issues #1–#6: media fullscreen view and zoom, full menus with precise shortcuts, reading width and platform primary-modifier zoom, startup page and single-file restore experience, active Markdown source mark visuals, and stable caret mapping in formatting, soft wrap, and non-monospace tables. Acceptance patches also covered in-place relabeling of existing media, search panel, and task checkboxes on language switch, visible feedback for startup-preference persistence errors, and real E2E interaction after the startup page.
 
-新鲜自动化验证：
+Fresh automation verification:
 
 - `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
 - `pnpm typecheck`
 - `pnpm lint`
-- `pnpm test`：81 个测试文件、745 项测试通过。
-- `pnpm test:fixtures`：2 个测试文件、6 项 round-trip 测试通过。
-- `pnpm download:markdown-corpus` 和 `pnpm test:markdown-corpus`：解析 6 个语料文件、646,256 bytes。
+- `pnpm test`: 81 test files, 745 tests passed.
+- `pnpm test:fixtures`: 2 test files, 6 round-trip tests passed.
+- `pnpm download:markdown-corpus` and `pnpm test:markdown-corpus`: parsed 6 corpus files, 646,256 bytes.
 - `cargo check --manifest-path src-tauri/Cargo.toml`
-- `cargo test --manifest-path src-tauri/Cargo.toml`：81 项 Rust 测试通过；公网 Rust 测试由专用门禁单独执行。
-- `pnpm quality:v1-ux-prototype`：2 项通过。
-- `NODE_OPTIONS=--throw-deprecation pnpm quality:v1-ux-screenshots`：生成 6 张截图，无弃用 warning。
-- `pnpm test:e2e -- --workers=1`：156 项 Playwright 测试通过。
-- `pnpm test:live-assets:public`：公网 PNG 和 SVG 内容、MIME 与签名校验通过；首次组合命令遇到一次外部 Wikimedia TLS `ECONNRESET`，原子命令重跑即通过。
-- `pnpm test:live-assets:rust`：1 项真实下载和缓存测试通过。
+- `cargo test --manifest-path src-tauri/Cargo.toml`: 81 Rust tests passed; public-network Rust tests run under a dedicated gate.
+- `pnpm quality:v1-ux-prototype`: 2 passed.
+- `NODE_OPTIONS=--throw-deprecation pnpm quality:v1-ux-screenshots`: produced 6 screenshots with no deprecation warnings.
+- `pnpm test:e2e -- --workers=1`: 156 Playwright tests passed.
+- `pnpm test:live-assets:public`: public PNG and SVG content, MIME, and signature checks passed; the first combined command hit one external Wikimedia TLS `ECONNRESET`, and the atomic command rerun passed.
+- `pnpm test:live-assets:rust`: 1 real download-and-cache test passed.
 - `pnpm quality:web-build`
-- `pnpm test:e2e:production`：2 项生产 bundle 测试通过。
-- `pnpm perf:bench`：6 个测试文件、23 项独立性能基准通过；10MB 文档加载 77.49 ms、输入 p80 1.07 ms。
-- `pnpm release:packaged-webview`：0.2.3 Release 构建和真实打包 WebView 验证通过。
-- `pnpm release:verify-artifacts`：本地 0.2.3 exe、MSI、NSIS 均存在，大小和 SHA-256 与上表一致。
-- `pnpm release:installer-smoke:plan`：确认 NSIS 安装器存在、目标为隔离临时目录且无需管理员权限。
+- `pnpm test:e2e:production`: 2 production bundle tests passed.
+- `pnpm perf:bench`: 6 test files, 23 independent performance benchmarks passed; 10MB document load 77.49 ms, input p80 1.07 ms.
+- `pnpm release:packaged-webview`: 0.2.3 Release build and real packaged WebView verification passed.
+- `pnpm release:verify-artifacts`: local 0.2.3 exe, MSI, and NSIS all present; sizes and SHA-256 match the table above.
+- `pnpm release:installer-smoke:plan`: confirmed the NSIS installer exists, targets an isolated temp directory, and needs no admin rights.
 
-打包 WebView 验证覆盖应用启动、Mermaid 活跃编辑保存、编辑器输入、显示模式往返、页面宽度持久化、会话缩放重置、任务复选框可访问性和 Unicode 输入；外观布局恢复耗时 19.1 ms。
+Packaged WebView verification covered app startup, Mermaid active-edit save, editor input, display-mode round-trip, page-width persistence, session zoom reset, task-checkbox accessibility, and Unicode input; appearance layout restore took 19.1 ms.
 
-本机已有 `C:\Users\pippin\AppData\Local\LumaMark` 安装，安全脚本按设计拒绝运行可能影响现有安装注册信息的 NSIS 静默安装/卸载 smoke；本轮未绕过保护。MSI 管理员安装 smoke 同样未执行。
+This machine already has an install at `C:\Users\pippin\AppData\Local\LumaMark`; the safety script refused by design to run NSIS silent install/uninstall smoke that could affect existing install registration; this round did not bypass that protection. MSI admin install smoke was likewise not executed.
 
-本版本仍未代码签名，Windows SmartScreen 和发布者信任提示属于已知分发风险。
+This version is still not code-signed; Windows SmartScreen and publisher-trust prompts remain known distribution risks.
 
 ## 0.2.1 NSIS-only Release
 
-- 日期：2026-08-03
-- 平台：Windows x64
-- 分支：`v1-implementation`
-- 发布提交：`20accc2d9e0a97ab410126efc817c07dbb9ec816`
-- Windows runner：[Windows Release Build 30757679582](https://github.com/Pippinrao/LumaMark/actions/runs/30757679582)（`success`）
-- 发布范围：GitHub Release 只上传由上述 runner 生成的 NSIS 安装器；exe、MSI 和 manifest 作为 workflow artifacts 保留。
+- Date: 2026-08-03
+- Platform: Windows x64
+- Branch: `v1-implementation`
+- Release commit: `20accc2d9e0a97ab410126efc817c07dbb9ec816`
+- Windows runner: [Windows Release Build 30757679582](https://github.com/Pippinrao/LumaMark/actions/runs/30757679582) (`success`)
+- Release scope: GitHub Release uploads only the NSIS installer produced by the runner above; exe, MSI, and manifest are retained as workflow artifacts.
 
-最终发布产物：
+Final release artifacts:
 
-| 产物 | 路径 | 大小 | SHA-256 |
+| Artifact | Path | Size | SHA-256 |
 |---|---|---:|---|
-| NSIS 安装包 | `LumaMark_0.2.1_x64-setup.exe` | 4,656,736 bytes | `6a003c9e3c798e991a820a345c0a5d5cecab6992a75e5498aebdeae6c4337efb` |
+| NSIS installer | `LumaMark_0.2.1_x64-setup.exe` | 4,656,736 bytes | `6a003c9e3c798e991a820a345c0a5d5cecab6992a75e5498aebdeae6c4337efb` |
 
-本版本将应用菜单重构为 Typora-like 的 File、Edit、Paragraph、Format、View、Theme、Language、Help 八组菜单，补齐可执行命令、禁用态、嵌套菜单、键盘导航、菜单快捷键、About 对话框和中英文文案，并同步更新竞品分析与视觉验证截图。
+This version restructured application menus into Typora-like File, Edit, Paragraph, Format, View, Theme, Language, and Help groups, completed executable commands, disabled states, nested menus, keyboard navigation, menu shortcuts, the About dialog, and Chinese/English copy, and updated competitive analysis plus visual verification screenshots.
 
-新鲜自动化验证：
+Fresh automation verification:
 
 - `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
 - `pnpm typecheck`
 - `pnpm lint`
-- `pnpm test`：68 个测试文件、637 项测试通过。
-- `pnpm test:fixtures`：2 个测试文件、6 项 round-trip 测试通过。
-- `pnpm download:markdown-corpus` 和 `pnpm test:markdown-corpus`：解析 6 个语料文件、646,256 bytes。
+- `pnpm test`: 68 test files, 637 tests passed.
+- `pnpm test:fixtures`: 2 test files, 6 round-trip tests passed.
+- `pnpm download:markdown-corpus` and `pnpm test:markdown-corpus`: parsed 6 corpus files, 646,256 bytes.
 - `cargo check --manifest-path src-tauri/Cargo.toml`
-- `cargo test --manifest-path src-tauri/Cargo.toml`：81 项 Rust 测试通过，1 项显式忽略的公网测试由 `pnpm test:live-assets` 单独执行并通过。
-- `pnpm quality:v1-ux-prototype`：2 项通过。
-- `pnpm quality:v1-ux-screenshots`：生成 6 张审查截图，且在 `NODE_OPTIONS=--throw-deprecation` 下无 warning。
-- `pnpm test:e2e -- --workers=1`：137 项 Playwright 测试通过。
-- `pnpm test:live-assets`：公网 PNG/SVG 和 Rust 真实下载缓存测试通过。
+- `cargo test --manifest-path src-tauri/Cargo.toml`: 81 Rust tests passed; 1 explicitly ignored public-network test ran separately via `pnpm test:live-assets` and passed.
+- `pnpm quality:v1-ux-prototype`: 2 passed.
+- `pnpm quality:v1-ux-screenshots`: produced 6 review screenshots with no warnings under `NODE_OPTIONS=--throw-deprecation`.
+- `pnpm test:e2e -- --workers=1`: 137 Playwright tests passed.
+- `pnpm test:live-assets`: public PNG/SVG and Rust real download-cache tests passed.
 - `pnpm quality:web-build`
-- `pnpm test:e2e:production`：2 项生产 bundle 测试通过，覆盖菜单键盘操作与懒加载 Mermaid。
-- `pnpm perf:bench`：6 个测试文件、23 项独立性能基准通过。
-- `pnpm release:packaged-webview`：Release 构建和真实打包 WebView 验证通过，生成 exe、MSI 和 NSIS。
-- `pnpm release:verify-artifacts`：本地 0.2.1 exe、MSI、NSIS 均存在并生成 SHA-256；GitHub runner manifest 与下载后的最终 NSIS 哈希一致。
-- `pnpm release:installer-smoke:plan`：确认 NSIS 安装器存在、目标为隔离临时目录且无需管理员权限。
+- `pnpm test:e2e:production`: 2 production bundle tests passed, covering menu keyboard operations and lazy-loaded Mermaid.
+- `pnpm perf:bench`: 6 test files, 23 independent performance benchmarks passed.
+- `pnpm release:packaged-webview`: Release build and real packaged WebView verification passed, producing exe, MSI, and NSIS.
+- `pnpm release:verify-artifacts`: local 0.2.1 exe, MSI, and NSIS all present with SHA-256 generated; GitHub runner manifest matched the final NSIS hash after download.
+- `pnpm release:installer-smoke:plan`: confirmed the NSIS installer exists, targets an isolated temp directory, and needs no admin rights.
 
-本地 Release 候选也通过真实打包 WebView 启动与文件保存验证。本机已有 `C:\Users\pippin\AppData\Local\LumaMark` 安装，安全脚本按设计拒绝运行可能影响现有安装注册信息的静默安装/卸载 smoke，因此该项未执行；MSI 的管理员安装 smoke 同样未执行。
+The local Release candidate also passed real packaged WebView startup and file-save verification. This machine already has an install at `C:\Users\pippin\AppData\Local\LumaMark`; the safety script refused by design to run silent install/uninstall smoke that could affect existing install registration, so that item was not executed; MSI admin install smoke was likewise not executed.
 
-本版本仍未代码签名，Windows SmartScreen 和发布者信任提示属于已知分发风险。
+This version is still not code-signed; Windows SmartScreen and publisher-trust prompts remain known distribution risks.
 
 ## 0.2.0 NSIS-only Release
 
-- 日期：2026-08-01
-- 平台：Windows x64
-- 分支：`v1-implementation`
-- 发布范围：GitHub Release 只上传 NSIS 安装器；本地同时生成 exe 和 MSI，仅用于现有产物一致性门禁。
+- Date: 2026-08-01
+- Platform: Windows x64
+- Branch: `v1-implementation`
+- Release scope: GitHub Release uploads only the NSIS installer; local builds also produce exe and MSI solely for existing artifact consistency gates.
 
-最终发布产物：
+Final release artifacts:
 
-| 产物 | 路径 | 大小 | SHA-256 |
+| Artifact | Path | Size | SHA-256 |
 |---|---|---:|---|
-| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.2.0_x64-setup.exe` | 4,654,352 bytes | `cf990ae5c7f9b35ccaae8f8dba2d455079a6e54f408df2fee69115ec515ca1ae` |
+| NSIS installer | `src-tauri/target/release/bundle/nsis/LumaMark_0.2.0_x64-setup.exe` | 4,654,352 bytes | `cf990ae5c7f9b35ccaae8f8dba2d455079a6e54f408df2fee69115ec515ca1ae` |
 
-新鲜自动化验证：
+Fresh automation verification:
 
 - `pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com/`
 - `pnpm typecheck`
 - `pnpm lint`
-- `pnpm test`：65 个测试文件、605 项测试通过。
-- `pnpm test:fixtures`：2 个测试文件、6 项 round-trip 测试通过。
-- `pnpm download:markdown-corpus` 和 `pnpm test:markdown-corpus`：解析 6 个语料文件、646,256 bytes。
+- `pnpm test`: 65 test files, 605 tests passed.
+- `pnpm test:fixtures`: 2 test files, 6 round-trip tests passed.
+- `pnpm download:markdown-corpus` and `pnpm test:markdown-corpus`: parsed 6 corpus files, 646,256 bytes.
 - `cargo check --manifest-path src-tauri/Cargo.toml`
-- `cargo test --manifest-path src-tauri/Cargo.toml`：81 项 Rust 测试通过。
-- `pnpm quality:v1-ux-prototype`：2 项通过。
-- `pnpm quality:v1-ux-screenshots`：生成 6 张审查截图，且在 `NODE_OPTIONS=--throw-deprecation` 下无 warning。
-- `pnpm test:e2e`：131 项 Playwright 测试通过。
-- `pnpm test:live-assets`：公网 PNG/SVG 和 Rust 真实下载缓存测试通过。
+- `cargo test --manifest-path src-tauri/Cargo.toml`: 81 Rust tests passed.
+- `pnpm quality:v1-ux-prototype`: 2 passed.
+- `pnpm quality:v1-ux-screenshots`: produced 6 review screenshots with no warnings under `NODE_OPTIONS=--throw-deprecation`.
+- `pnpm test:e2e`: 131 Playwright tests passed.
+- `pnpm test:live-assets`: public PNG/SVG and Rust real download-cache tests passed.
 - `pnpm quality:web-build`
-- `pnpm test:e2e:production`：生产 bundle 启动和懒加载 Mermaid 回归通过。
-- `pnpm perf:bench`：6 个测试文件、23 项独立性能基准通过。
-- `pnpm release:packaged-webview`：Release 构建、真实文件保存、中文输入、任务复选框可访问性、Mermaid active-save 和显示模式往返全部通过。
-- `pnpm release:verify-artifacts`：0.2.0 exe、MSI、NSIS 均存在并生成 SHA-256 清单。
-- `pnpm release:installer-smoke:plan`：确认 NSIS 路径、临时安装目录、无需管理员权限及 3 秒启动计划。
+- `pnpm test:e2e:production`: production bundle startup and lazy-loaded Mermaid regression passed.
+- `pnpm perf:bench`: 6 test files, 23 independent performance benchmarks passed.
+- `pnpm release:packaged-webview`: Release build, real file save, Chinese input, task-checkbox accessibility, Mermaid active-save, and display-mode round-trip all passed.
+- `pnpm release:verify-artifacts`: 0.2.0 exe, MSI, and NSIS all present with SHA-256 manifest generated.
+- `pnpm release:installer-smoke:plan`: confirmed NSIS path, temp install directory, no admin required, and 3-second startup plan.
 
-Windows 桌面真人式抽检使用本轮新编译的 Release exe，并采用隔离的临时 WebView2 数据目录；验证了中英文 Markdown 输入、引用内和普通任务复选框、点击与空格复切、源码/所见即所得往返、Mermaid 渲染、系统另存为对话框和真实文件落盘。保存后的 13 行 Markdown 对标题、引用任务、普通任务、完成任务、Mermaid 与中文文本的断言全部通过；测试文件和临时 WebView2 数据随后已清理，现有正式安装窗口未被修改。
+Windows desktop human-style spot checks used this round’s newly compiled Release exe with an isolated temporary WebView2 data directory; they verified Chinese/English Markdown input, task checkboxes inside quotes and ordinary ones, click and Space toggle, source/WYSIWYG round-trip, Mermaid render, system Save As dialog, and real file write. The saved 13-line Markdown passed assertions for headings, quoted tasks, ordinary tasks, completed tasks, Mermaid, and Chinese text; the test file and temporary WebView2 data were cleaned afterward, and existing formal install windows were not modified.
 
-NSIS 包体使用 7-Zip 24.08 识别为 NSIS 3 Unicode/LZMA 并通过完整性测试；解出的 `lumamark.exe` 为 13,838,336 bytes，FileVersion 和 ProductVersion 均为 `0.2.0`，且可启动 WebView2 调试端点、无 stderr。由于本机已经存在并正在运行 `C:\Users\pippin\AppData\Local\LumaMark` 正式安装，安全脚本拒绝覆盖同一 HKCU 安装/卸载注册表；本轮没有执行宿主机上的静默安装→卸载 smoke，也不把包体解压与 payload 启动等同于该路径已通过。
+The NSIS package was identified by 7-Zip 24.08 as NSIS 3 Unicode/LZMA and passed integrity testing; the extracted `lumamark.exe` was 13,838,336 bytes, FileVersion and ProductVersion both `0.2.0`, and could start a WebView2 debug endpoint with no stderr. Because this machine already has and is running a formal install at `C:\Users\pippin\AppData\Local\LumaMark`, the safety script refused to overwrite the same HKCU install/uninstall registry; this round did not run host silent install→uninstall smoke, and package extraction plus payload launch is not treated as that path having passed.
 
-本版本仍未代码签名，Windows SmartScreen 和发布者信任提示属于已知分发风险。
+This version is still not code-signed; Windows SmartScreen and publisher-trust prompts remain known distribution risks.
 
-## 构建环境
+## Build Environment
 
-- 日期：2026-07-05
-- 平台：Windows
-- 分支：`v1-task9-v1-convergence`
-- 构建入口：`pnpm build`
-- 实际执行：`tauri build`，并在构建前执行 `pnpm build:web`
+- Date: 2026-07-05
+- Platform: Windows
+- Branch: `v1-task9-v1-convergence`
+- Build entry: `pnpm build`
+- Actual execution: `tauri build`, with `pnpm build:web` run before the build
 
 ## 0.1.2 NSIS-only Release
 
-本次发布只生成并上传 NSIS 安装器，不发布 MSI 或裸 exe 资产。
+This release generates and uploads only the NSIS installer; it does not publish MSI or bare exe assets.
 
-构建命令：
+Build command:
 
 ```powershell
 pnpm exec tauri build --bundles nsis
 ```
 
-发布产物：
+Release artifacts:
 
-| 产物 | 路径 | 大小 | SHA-256 |
+| Artifact | Path | Size | SHA-256 |
 |---|---|---:|---|
-| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.1.2_x64-setup.exe` | 3,275,232 bytes | `3bdabee7e1c66f5af1c47a2f01437e8f5fc7989e0d1a6491f6828e55ccf1d9f3` |
+| NSIS installer | `src-tauri/target/release/bundle/nsis/LumaMark_0.1.2_x64-setup.exe` | 3,275,232 bytes | `3bdabee7e1c66f5af1c47a2f01437e8f5fc7989e0d1a6491f6828e55ccf1d9f3` |
 
-本次发布前验证：
+Pre-release verification for this publish:
 
 - `pnpm typecheck`
 - `pnpm lint`
@@ -295,65 +297,65 @@ pnpm exec tauri build --bundles nsis
 - `pnpm release:installer-smoke:plan`
 - `pnpm release:installer-smoke:nsis`
 
-NSIS 安装器 smoke 结果：静默安装到临时目录、启动安装后的 `lumamark.exe` 并保持 3 秒、静默卸载，全部通过。
+NSIS installer smoke result: silent install to a temp directory, launch the installed `lumamark.exe` and keep it alive for 3 seconds, then silent uninstall—all passed.
 
-## 产物
+## Artifacts
 
-`pnpm build` 已成功生成 Windows release 可执行文件和安装器：
+`pnpm build` successfully produced the Windows release executable and installers:
 
-| 产物 | 路径 | 大小 |
+| Artifact | Path | Size |
 |---|---|---:|
-| Windows 可执行文件 | `src-tauri/target/release/lumamark.exe` | 10,396,672 bytes |
-| MSI 安装包 | `src-tauri/target/release/bundle/msi/LumaMark_0.1.0_x64_en-US.msi` | 4,161,536 bytes |
-| NSIS 安装包 | `src-tauri/target/release/bundle/nsis/LumaMark_0.1.0_x64-setup.exe` | 3,152,794 bytes |
+| Windows executable | `src-tauri/target/release/lumamark.exe` | 10,396,672 bytes |
+| MSI installer | `src-tauri/target/release/bundle/msi/LumaMark_0.1.0_x64_en-US.msi` | 4,161,536 bytes |
+| NSIS installer | `src-tauri/target/release/bundle/nsis/LumaMark_0.1.0_x64-setup.exe` | 3,152,794 bytes |
 
-## GitHub 手动构建
+## GitHub Manual Build
 
-已新增手动触发的 GitHub Actions workflow：
+A manually triggered GitHub Actions workflow has been added:
 
 ```powershell
 gh workflow run "Windows Release Build" --repo Pippinrao/LumaMark --ref v1-implementation
 ```
 
-workflow 文件：`.github/workflows/windows-release-build.yml`。
+Workflow file: `.github/workflows/windows-release-build.yml`.
 
-该 workflow 在 `windows-latest` runner 上执行 `pnpm build`，并上传以下构建产物：
+That workflow runs `pnpm build` on a `windows-latest` runner and uploads the following build artifacts:
 
 - `src-tauri/target/release/lumamark.exe`
 - `src-tauri/target/release/bundle/msi/*.msi`
 - `src-tauri/target/release/bundle/nsis/*setup.exe`
 - `src-tauri/target/release/lumamark-windows-artifacts.json`
 
-其中 `lumamark-windows-artifacts.json` 由以下命令生成：
+`lumamark-windows-artifacts.json` is produced by:
 
 ```powershell
 pnpm release:verify-artifacts
 ```
 
-该命令会检查 Windows release 可执行文件、MSI 安装包和 NSIS 安装包是否存在、是否非空，并记录每个产物的大小和 SHA-256。
+That command checks that the Windows release executable, MSI installer, and NSIS installer exist and are non-empty, and records each artifact’s size and SHA-256.
 
-已执行 GitHub 手动构建验证：
+GitHub manual build verification already executed:
 
-| 项目 | 结果 |
+| Item | Result |
 |---|---|
 | Workflow run | <https://github.com/Pippinrao/LumaMark/actions/runs/28725030218> |
-| 触发分支 | `v1-implementation` |
-| 提交 | `8dff55e8059327a8dcf72bbe56b53b644eb4df27` |
-| 状态 | `success` |
+| Trigger branch | `v1-implementation` |
+| Commit | `8dff55e8059327a8dcf72bbe56b53b644eb4df27` |
+| Status | `success` |
 
-GitHub artifact 记录如下，大小为 GitHub artifact 压缩包大小。该 run 执行于 artifact manifest 接入前，因此只包含三个二进制产物：
+GitHub artifact records follow; sizes are GitHub artifact zip sizes. That run executed before the artifact manifest was wired in, so it contains only the three binary artifacts:
 
-| Artifact | 大小 |
+| Artifact | Size |
 |---|---:|
 | `lumamark-windows-release-exe` | 3,929,225 bytes |
 | `lumamark-windows-msi` | 3,882,214 bytes |
 | `lumamark-windows-nsis` | 3,065,781 bytes |
 
-这条 workflow 只证明 Windows release 可执行文件和安装器可以在 GitHub runner 上构建并作为 artifact 保留，不执行安装、卸载或安装后启动 smoke。
+This workflow only proves that Windows release executables and installers can be built on a GitHub runner and retained as artifacts; it does not run install, uninstall, or post-install startup smoke.
 
-## 启动 Smoke
+## Startup Smoke
 
-已执行 release 可执行文件启动 smoke：
+Release executable startup smoke has been executed:
 
 ```powershell
 $exe = Resolve-Path 'src-tauri\target\release\lumamark.exe'
@@ -364,77 +366,77 @@ $started = -not $process.HasExited
 if ($started) { Stop-Process -Id $process.Id -Force }
 ```
 
-结果：`release exe started and stayed alive for 3 seconds`。
+Result: `release exe started and stayed alive for 3 seconds`.
 
-这个 smoke 证明 release exe 可以启动并保持运行；它不等同于 MSI/NSIS 安装后启动验证。
+This smoke proves the release exe can start and stay running; it is not equivalent to post-MSI/NSIS-install startup verification.
 
-## 安装器 Smoke
+## Installer Smoke
 
-已新增可重复执行的 Windows 安装器 smoke 脚本：
+A repeatable Windows installer smoke script has been added:
 
 ```powershell
 pnpm release:installer-smoke:plan
 pnpm release:installer-smoke:nsis
 ```
 
-脚本位置：`scripts/release/windows-installer-smoke.ps1`。
+Script location: `scripts/release/windows-installer-smoke.ps1`.
 
-默认策略：
+Default policy:
 
-- `release:installer-smoke:plan` 只输出 JSON 计划，不安装、不卸载、不启动应用。
-- `release:installer-smoke:nsis` 运行 NSIS 用户级静默安装 smoke。
-- NSIS smoke 会安装到系统临时目录下的 `lumamark-installer-smoke\nsis`，启动安装后的 `lumamark.exe` 并保持 3 秒，然后静默卸载。
-- 脚本会拒绝临时 smoke 目录之外的安装路径，避免清理或覆盖非测试安装。
-- 脚本会检测现有 LumaMark 安装；若发现安装路径不在 smoke 临时目录下，会拒绝执行真实安装器 smoke。
-- MSI smoke 只能通过 `-InstallerKind Msi` 显式选择；由于当前 MSI 是 `perMachine`，真实执行需要管理员 PowerShell。
+- `release:installer-smoke:plan` only prints a JSON plan; it does not install, uninstall, or launch the app.
+- `release:installer-smoke:nsis` runs NSIS user-level silent install smoke.
+- NSIS smoke installs under `lumamark-installer-smoke\nsis` in the system temp directory, launches the installed `lumamark.exe` and keeps it alive for 3 seconds, then silently uninstalls.
+- The script rejects install paths outside the temporary smoke directory to avoid cleaning or overwriting non-test installs.
+- The script detects existing LumaMark installs; if the install path is outside the smoke temp directory, it refuses to run real installer smoke.
+- MSI smoke can be selected only via explicit `-InstallerKind Msi`; because the current MSI is `perMachine`, real execution requires an elevated PowerShell.
 
-本轮已自动化安装器 smoke 入口，并用测试覆盖 plan 和路径安全校验；真实 NSIS 安装/卸载 smoke 需项目所有者明确授权后执行。
+This round automated the installer smoke entry points and covered plan and path-safety checks with tests; real NSIS install/uninstall smoke requires explicit project-owner authorization before execution.
 
-## 本轮修复
+## Fixes in This Round
 
-- `src-tauri/tauri.conf.json` 显式配置了 `bundle.icon`，使用现有 `src-tauri/icons/icon.ico` 等图标资源，修复 Windows bundling 阶段的 `Couldn't find a .ico icon` 错误。
-- `identifier` 从 `com.lumamark.app` 调整为 `com.lumamark.desktop`，避免 Tauri 对 `.app` 后缀的跨平台警告。
+- `src-tauri/tauri.conf.json` explicitly configures `bundle.icon` using existing resources such as `src-tauri/icons/icon.ico`, fixing the Windows bundling-stage `Couldn't find a .ico icon` error.
+- `identifier` changed from `com.lumamark.app` to `com.lumamark.desktop` to avoid Tauri’s cross-platform warning about the `.app` suffix.
 
-## 已知发布缺口
+## Known Release Gaps
 
-- 产物尚未签名。V1 alpha 可以本地安装测试，但公开分发前需要补代码签名、证书管理和发布校验。
-- NSIS 安装、卸载、安装后启动 smoke 已有自动化脚本入口，但本轮尚未执行真实安装器 smoke。
-- MSI 安装、卸载、安装后启动 smoke 需要管理员权限；本轮只提供显式可选入口，未执行真实 MSI smoke。
-- GitHub 手动构建 workflow 已在 run `28725030218` 证明可生成并上传 release exe、MSI 和 NSIS 产物；真实安装器 smoke 仍需授权后执行。
-- `identifier` 一旦进入公开分发应保持稳定；后续变更会影响安装身份、升级身份和应用数据路径。
-- Web 构建已新增 `pnpm quality:web-build` chunk 门禁，首屏入口和动态 chunk 预算均通过；Mermaid/KaTeX/Cytoscape 等重依赖已从首屏入口拆出。
-- 本轮只验证 Windows 构建。macOS 和 Linux 保持架构兼容，不作为 V1 alpha 发布门禁。
+- Artifacts are not yet signed. V1 alpha can be installed and tested locally, but public distribution still needs code signing, certificate management, and release verification.
+- NSIS install, uninstall, and post-install startup smoke already have automated script entry points, but this round has not yet executed real installer smoke.
+- MSI install, uninstall, and post-install startup smoke require admin rights; this round only provides an explicit optional entry and did not run real MSI smoke.
+- The GitHub manual build workflow has proved in run `28725030218` that it can produce and upload release exe, MSI, and NSIS artifacts; real installer smoke still requires authorization before execution.
+- Once `identifier` enters public distribution it should stay stable; later changes affect install identity, upgrade identity, and application data paths.
+- The Web build now has a `pnpm quality:web-build` chunk gate; first-screen entry and dynamic chunk budgets both pass; heavy Mermaid/KaTeX/Cytoscape dependencies have been split out of the first-screen entry.
+- This round only verified the Windows build. macOS and Linux remain architecturally compatible and are not V1 alpha release gates.
 
-## V1 完成定义检查
+## V1 Definition-of-Done Checklist
 
-| 检查项 | 当前证据 | 状态 |
+| Check | Current evidence | Status |
 |---|---|---|
-| P0 能力 | 打开、编辑、保存、基础 WYSIWYG、Mermaid、i18n、性能和 fixture 均有自动化覆盖 | 通过 |
-| P1 核心体验 | 工作区文件树、大纲、命令面板、设置页、状态栏、Windows 构建均已落地 | 通过 |
-| 应用可启动 | `pnpm test:e2e` 覆盖 Web shell；release exe smoke 证明 `lumamark.exe` 可启动并保持 3 秒 | 通过 |
-| Windows 安装产物生成 | `pnpm build` 生成 MSI 和 NSIS 安装器；GitHub run `28725030218` 在 `windows-latest` 上传 exe、MSI 和 NSIS artifacts | 通过 |
-| Windows 安装后启动 | `scripts/release/windows-installer-smoke.ps1` 已提供 NSIS 自动 smoke 和 MSI 可选 smoke；真实安装器 smoke 待授权执行 | 尚未覆盖 |
-| 中文和英文可切换 | `tests/e2e/v1-workflow.spec.ts` 覆盖设置页切换到 English | 通过 |
-| 亮色和暗色可切换 | `tests/e2e/v1-workflow.spec.ts` 断言 `html[data-theme="dark"]` | 通过 |
-| CodeMirror 6 是唯一主编辑核心 | `src/editor/core/*` 为唯一编辑器初始化入口；未引入其他编辑核心 | 通过 |
-| React store 不持有 Markdown 全文 | `src/features/file-actions/fileActions.test.ts` 断言打开后 state 不包含源码 | 通过 |
-| 打开 `.md` 文件 | Rust file service、file action 单测、V1 workflow E2E 覆盖打开路径 | 通过 |
-| 保存当前文件 | file action 单测、fixture round-trip、V1 workflow E2E 覆盖保存路径 | 通过 |
-| 另存为 | `src/features/file-actions/fileActions.test.ts` 覆盖 dialog path 和保存状态；`tests/e2e/v1-workflow.spec.ts` 覆盖 UI 另存为后当前文件切换到新路径，后续普通保存继续写入新文件 | 通过 |
-| 保存无无关 diff | `pnpm test:fixtures` | 通过 |
-| dirty 状态准确 | `src/features/file-actions/fileActions.test.ts` 覆盖成功、失败、保存中修改 | 通过 |
-| 基础 WYSIWYG | `tests/e2e/editor-markdown.spec.ts` 和 decoration 单测覆盖标题、强调、列表、任务、代码等 | 通过 |
-| 任务列表 checkbox 可修改源码 | `tests/e2e/editor-markdown.spec.ts` 覆盖点击和撤销 | 通过 |
-| Mermaid fenced block 可异步渲染 | `tests/e2e/mermaid.spec.ts` 和 scheduler 单测 | 通过 |
-| Mermaid 错误不影响编辑 | Mermaid scheduler/widget 单测覆盖错误恢复路径；E2E 覆盖正常渲染 | 通过 |
-| 文件树可用 | `src/features/file-tree/FileTree.test.tsx` 覆盖懒加载去重；Task 8 E2E 覆盖外壳入口 | 通过 |
-| 大纲可用 | `src/features/outline/outlineParser.test.ts` 和 `useDebouncedOutline.test.tsx` | 通过 |
-| 命令面板可用 | `tests/e2e/app-shell.spec.ts` 覆盖打开命令面板并触发保存命令 | 通过 |
-| 基础设置页可用 | `tests/e2e/v1-workflow.spec.ts` 覆盖语言和主题切换 | 通过 |
-| 1MB 和 5MB 文件编辑顺畅 | `pnpm perf:bench` 自动化门禁覆盖读取、文件动作打开、编辑器载入和尾部输入 | 通过 |
-| 10MB 文件不冻结 | `tests/perf/editorLargeDocument.bench.test.ts`、`openFileActionLargeDocument.bench.test.ts` 和 `outlinePanelLargeDocument.bench.test.tsx` 覆盖打开、debounce 后大纲刷新、虚拟化大纲渲染和尾部输入 | 通过 |
-| Web 构建 chunk 预算 | `pnpm quality:web-build` 覆盖 Vite warning-free 构建、首屏入口 JS 小于 120 KiB、任意 JS chunk 小于 700 KiB | 通过 |
-| E2E 覆盖 V1 关键路径 | `tests/e2e/v1-workflow.spec.ts` 覆盖打开、编辑、保存、另存为、reload 后重开、Mermaid、语言、主题 | 通过 |
-| fixture round-trip 无无关 diff | `pnpm test:fixtures` | 通过 |
-| 中文和英文核心文案覆盖 | `src/shared/i18n/i18n.test.ts` 覆盖核心 key；E2E 覆盖语言切换 | 通过 |
-| 已知数据损坏风险 | Rust atomic write 测试、fixture round-trip、file action dirty 测试覆盖基础保存风险 | 未发现阻塞风险 |
+| P0 capabilities | Open, edit, save, basic WYSIWYG, Mermaid, i18n, performance, and fixtures all have automation coverage | Pass |
+| P1 core experience | Workspace file tree, outline, command palette, settings page, status bar, and Windows build all landed | Pass |
+| App can start | `pnpm test:e2e` covers the Web shell; release exe smoke proves `lumamark.exe` can start and stay alive for 3 seconds | Pass |
+| Windows install artifacts produced | `pnpm build` produces MSI and NSIS installers; GitHub run `28725030218` uploads exe, MSI, and NSIS artifacts on `windows-latest` | Pass |
+| Windows post-install startup | `scripts/release/windows-installer-smoke.ps1` provides NSIS automatic smoke and optional MSI smoke; real installer smoke awaits authorized execution | Not yet covered |
+| Chinese and English switchable | `tests/e2e/v1-workflow.spec.ts` covers switching to English on the settings page | Pass |
+| Light and dark switchable | `tests/e2e/v1-workflow.spec.ts` asserts `html[data-theme="dark"]` | Pass |
+| CodeMirror 6 is the sole primary editor core | `src/editor/core/*` is the sole editor initialization entry; no other editor core was introduced | Pass |
+| React store does not hold full Markdown | `src/features/file-actions/fileActions.test.ts` asserts state after open does not contain source | Pass |
+| Open `.md` files | Rust file service, file-action unit tests, and V1 workflow E2E cover the open path | Pass |
+| Save current file | File-action unit tests, fixture round-trip, and V1 workflow E2E cover the save path | Pass |
+| Save As | `src/features/file-actions/fileActions.test.ts` covers dialog path and save state; `tests/e2e/v1-workflow.spec.ts` covers UI Save As switching the current file to the new path, with subsequent ordinary saves continuing to write the new file | Pass |
+| Save with no unrelated diff | `pnpm test:fixtures` | Pass |
+| Dirty state accurate | `src/features/file-actions/fileActions.test.ts` covers success, failure, and edits during save | Pass |
+| Basic WYSIWYG | `tests/e2e/editor-markdown.spec.ts` and decoration unit tests cover headings, emphasis, lists, tasks, code, and more | Pass |
+| Task-list checkbox can mutate source | `tests/e2e/editor-markdown.spec.ts` covers click and undo | Pass |
+| Mermaid fenced block can render asynchronously | `tests/e2e/mermaid.spec.ts` and scheduler unit tests | Pass |
+| Mermaid errors do not affect editing | Mermaid scheduler/widget unit tests cover error-recovery paths; E2E covers successful render | Pass |
+| File tree usable | `src/features/file-tree/FileTree.test.tsx` covers lazy-load dedupe; Task 8 E2E covers shell entry | Pass |
+| Outline usable | `src/features/outline/outlineParser.test.ts` and `useDebouncedOutline.test.tsx` | Pass |
+| Command palette usable | `tests/e2e/app-shell.spec.ts` covers opening the command palette and triggering a save command | Pass |
+| Basic settings page usable | `tests/e2e/v1-workflow.spec.ts` covers language and theme switching | Pass |
+| 1MB and 5MB files edit smoothly | `pnpm perf:bench` automation gates cover read, file-action open, editor load, and tail input | Pass |
+| 10MB files do not freeze | `tests/perf/editorLargeDocument.bench.test.ts`, `openFileActionLargeDocument.bench.test.ts`, and `outlinePanelLargeDocument.bench.test.tsx` cover open, post-debounce outline refresh, virtualized outline render, and tail input | Pass |
+| Web build chunk budgets | `pnpm quality:web-build` covers Vite warning-free build, first-screen entry JS under 120 KiB, and any JS chunk under 700 KiB | Pass |
+| E2E covers V1 critical paths | `tests/e2e/v1-workflow.spec.ts` covers open, edit, save, Save As, reopen after reload, Mermaid, language, and theme | Pass |
+| Fixture round-trip with no unrelated diff | `pnpm test:fixtures` | Pass |
+| Chinese and English core copy coverage | `src/shared/i18n/i18n.test.ts` covers core keys; E2E covers language switch | Pass |
+| Known data-corruption risks | Rust atomic write tests, fixture round-trip, and file-action dirty tests cover basic save risks | No blocking risk found |

@@ -1,525 +1,538 @@
+> Language: **English** · [中文](AGENTS.zh.md)
+
 # AGENTS.md
 
-本文件是 LumaMark 项目中所有 agent 和贡献者必须遵守的工作契约。
+This file is the working contract that every agent and contributor on LumaMark must follow.
 
-所有实现类任务还必须遵守根目录的 `DEVELOPMENT_PROCESS.md`。如果 `AGENTS.md` 与 `DEVELOPMENT_PROCESS.md` 都适用，必须同时满足；若出现冲突，以更严格、更可验证的规则为准。
+All implementation tasks must also follow root `DEVELOPMENT_PROCESS.md`. When both `AGENTS.md` and `DEVELOPMENT_PROCESS.md` apply, both must be satisfied; if they conflict, the stricter, more verifiable rule wins.
 
-## 项目身份
+## Project identity
 
-LumaMark 是一个高性能、现代化、跨平台的所见即所得 Markdown 编辑器。
+LumaMark is a high-performance, modern, cross-platform WYSIWYG Markdown editor.
 
-产品路线：
+Product path:
 
-- 先复刻成熟的 Typora-like 写作体验。
-- 再在性能、现代工作流、可扩展性和平台集成上创新。
-- 优先做好 Windows 体验，同时从架构上天然支持 macOS 和 Linux。
-- 从第一天开始把中文和英文作为一等 UI 语言。
+- First replicate a mature Typora-like writing experience.
+- Then innovate on performance, modern workflows, extensibility, and platform integration.
+- Prioritize Windows experience while architecturally supporting macOS and Linux natively.
+- Treat Chinese and English as first-class UI languages from day one.
 
-项目约定：
+Project conventions:
 
-- 应用名：`LumaMark`
-- 仓库和包名：`lumamark`
-- 产品定位：高性能 Typora-like Markdown 编辑器
+- App name: `LumaMark`
+- Repository and package name: `lumamark`
+- Product positioning: high-performance Typora-like Markdown editor
 
-Typora 只能作为公开体验基线参考。不要复制 Typora 的专有素材、品牌元素或私有实现细节。
+Typora may be used only as a public experience baseline. Do not copy Typora’s proprietary assets, branding, or private implementation details.
 
-## 版本号管理
+## Version number management
 
-LumaMark 的版本号固定使用 `a.b.c` 格式，三个部分均为非负整数。
+LumaMark versions use fixed `a.b.c` format; each part is a non-negative integer.
 
-- AI 创建每一个 Git commit 时，无论提交内容属于功能、修复、重构、测试、文档、配置还是其他类型，都必须在该提交中主动将 `c` 恰好增加 `1`。
-- 版本递增必须与对应改动放在同一个 commit 中，禁止额外创建只用于递增版本号的 commit。
-- 未经项目所有者明确要求，AI 不得增加或以其他方式修改 `a` 或 `b`，也不得根据改动规模自行推断需要升级它们。
-- 项目所有者明确要求增加 `a` 或 `b` 时，按其要求更新对应部分，并将 `c` 重置为 `0`；此后继续按每个 AI commit 递增 `c`。
-- 修改版本号时，必须同步更新 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 及受影响的 lockfile，确保所有应用版本来源一致。
-- AI 在提交前必须读取当前版本并检查暂存内容，确认该 commit 只发生一次正确的版本递增，且未越权修改 `a` 或 `b`。
+- Every time AI creates a Git commit—feature, fix, refactor, test, docs, config, or anything else—it must actively bump `c` by exactly `1` in that same commit.
+- The version bump must live in the same commit as the corresponding change. Do not create a separate commit that only bumps the version.
+- Without explicit instruction from the project owner, AI must not increase or otherwise change `a` or `b`, and must not infer major/minor bumps from change size.
+- When the owner explicitly requests increasing `a` or `b`, update that part as requested and reset `c` to `0`; afterward continue bumping `c` on each AI commit.
+- When changing the version, update `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and affected lockfiles together so all app version sources stay consistent.
+- Before committing, AI must read the current version and inspect the staged content to confirm the commit contains exactly one correct patch bump and does not unauthorizedly change `a` or `b`.
 
-## 产品原则
+## Product principles
 
-1. 性能是核心产品能力，不是后期优化项。
-2. Markdown 源文件是唯一真实数据。
-3. 所见即所得行为不能破坏用户的格式、空白、换行和源码意图。
-4. 第一版布局应尽量贴近成熟的 Typora-like 范式：安静的中央编辑区、可选侧边栏、尽量少的视觉噪音。
-5. 为长时间写作设计：界面克制、交互可预测、滚动稳定、输入快速。
-6. 优先选择成熟、可靠、朴素的基础设施，不追求聪明但脆弱的自研系统。
-7. 所有用户可见文案都必须可本地化。禁止在 i18n 层之外硬编码 UI 文案。
+1. Performance is a core product capability, not a later optimization.
+2. The Markdown source file is the single source of truth.
+3. WYSIWYG behavior must not destroy the user’s formatting, whitespace, line breaks, or source intent.
+4. First-version layout should stay close to mature Typora-like patterns: a quiet central editing area, optional sidebar, and minimal visual noise.
+5. Design for long writing sessions: restrained UI, predictable interaction, stable scrolling, fast typing.
+6. Prefer mature, reliable, plain infrastructure over clever but fragile custom systems.
+7. All user-visible copy must be localizable. Do not hard-code UI strings outside the i18n layer.
 
-## 默认架构
+## Default architecture
 
-当前默认技术方向：
+Current default technical direction:
 
-- 桌面框架：Tauri
-- 前端：React + TypeScript
-- 主编辑器核心：CodeMirror 6
-- 后端和系统能力：通过 Tauri commands 调用 Rust
-- UI 基础组件：优先使用成熟组件库，最好是 headless 或具备良好可访问性的组件
-- 图标：优先使用成熟图标库，例如 `lucide-react`
-- 虚拟化：需要时优先使用成熟虚拟化库，例如 TanStack Virtual
-- Mermaid：优先使用官方 Mermaid 渲染链路，再根据性能需要加入异步渲染和缓存
-- i18n：优先使用成熟 i18n 方案，例如 i18next 或同等级方案
+- Desktop framework: Tauri
+- Frontend: React + TypeScript
+- Primary editor core: CodeMirror 6
+- Backend and system capabilities: Rust via Tauri commands
+- UI primitives: prefer mature component libraries, ideally headless or strong on accessibility
+- Icons: prefer mature icon libraries such as `lucide-react`
+- Virtualization: when needed, prefer mature libraries such as TanStack Virtual
+- Mermaid: prefer the official Mermaid rendering path, then add async rendering and caching as performance requires
+- i18n: prefer mature i18n solutions such as i18next or equivalents
 
-Milkdown 和 ProseMirror 可以用于调研或原型验证，但除非有新的书面决策替代当前默认方案，否则不要把它们作为主编辑器核心。
+Milkdown and ProseMirror may be used for research or prototypes, but must not become the primary editor core unless a new written decision replaces the current default.
 
-Rust 应用于它明确有帮助的场景：
+Use Rust where it clearly helps:
 
-- 文件读写
-- 工作区索引
-- 搜索
-- 缓存管理
-- 大文档支持
-- 导出流程
-- 高成本解析或渲染任务调度
+- File I/O
+- Workspace indexing
+- Search
+- Cache management
+- Large-document support
+- Export pipelines
+- Scheduling expensive parse or render work
 
-不要为了新鲜感把功能迁移到 Rust。先测量，再决策。
+Do not move features to Rust for novelty. Measure first, then decide.
 
-## 依赖源铁律
+## Dependency mirror iron rule
 
-LumaMark 的依赖安装、构建下载和系统镜像优先使用阿里云或阿里云体系可用镜像，以提升国内开发环境的稳定性和速度。
+LumaMark dependency installs, build downloads, and system mirrors prefer Aliyun or Aliyun-ecosystem mirrors to improve stability and speed for China-based development.
 
-默认优先级：
+Default priority:
 
-1. 项目已配置的阿里云或阿里云体系镜像源。
-2. 明确可用、稳定、维护活跃的国内镜像源。
-3. 官方源。
+1. Aliyun or Aliyun-ecosystem mirrors already configured in the project.
+2. Explicitly available, stable, actively maintained domestic mirrors.
+3. Official upstream sources.
 
-具体约定：
+Concrete conventions:
 
-- npm、pnpm、yarn 依赖默认使用 `https://registry.npmmirror.com/`。
-- Rust crates 默认使用阿里云 crates.io sparse index：`sparse+https://mirrors.aliyun.com/crates.io-index/`。
-- Node、Rustup、系统依赖、二进制工具和 CI 镜像如需下载，应优先查找阿里云镜像站或阿里云体系镜像。
-- 如果镜像不可用、不同步或导致校验失败，可以临时回退官方源，但必须在任务报告中记录原因和影响。
-- 不要把个人全局源配置当作项目事实来源。能项目级配置的，优先写入项目级配置。
-- 不要为了使用镜像关闭 lockfile、校验、签名或安全检查。
+- npm, pnpm, and yarn default to `https://registry.npmmirror.com/`.
+- Rust crates default to Aliyun crates.io sparse index: `sparse+https://mirrors.aliyun.com/crates.io-index/`.
+- For Node, Rustup, system dependencies, binary tools, and CI images, prefer Aliyun mirror sites or Aliyun-ecosystem mirrors when downloads are needed.
+- If a mirror is unavailable, out of sync, or fails verification, temporarily fall back to the official source, but record the reason and impact in the task report.
+- Do not treat personal global registry settings as project truth. Prefer project-level config when possible.
+- Do not disable lockfiles, checksums, signatures, or security checks just to use a mirror.
 
-## 架构铁律
+## Architecture iron rules
 
-LumaMark 从第一天开始按长期可维护的软件架构建设。任何 agent 都不得把新需求直接堆进现有文件、UI 组件、全局 store、编辑器热路径或 Tauri command 里。
+LumaMark is built from day one for long-term maintainable architecture. No agent may dump new requirements directly into existing files, UI components, global stores, editor hot paths, or Tauri commands.
 
-新增或修改需求前，必须先判断它属于哪一层：
+Before adding or changing a requirement, decide which layer it belongs to:
 
-- `app`：应用启动、全局 provider、窗口级布局和跨功能编排。
-- `features`：面向用户的业务功能，例如文件动作、工作区、命令面板、设置、大纲。
-- `editor`：CodeMirror 状态、编辑器扩展、WYSIWYG、编辑器命令和编辑器性能观测。
-- `services`：文件系统、Tauri IPC、渲染任务、持久化、平台能力封装。
-- `shared`：i18n、主题 token、通用类型、纯工具函数和跨功能基础设施。
-- `src-tauri`：Rust 系统能力、文件读写、工作区索引、平台 API 和高成本任务。
+- `app`: app startup, global providers, window-level layout, and cross-feature orchestration.
+- `features`: user-facing product features such as file actions, workspace, command palette, settings, outline.
+- `editor`: CodeMirror state, editor extensions, WYSIWYG, editor commands, and editor performance observation.
+- `services`: filesystem, Tauri IPC, render tasks, persistence, platform capability facades.
+- `shared`: i18n, theme tokens, shared types, pure utilities, and cross-feature infrastructure.
+- `src-tauri`: Rust system capabilities, file I/O, workspace indexing, platform APIs, and expensive work.
 
-依赖方向必须清晰：
+Dependency direction must stay clear:
 
-- UI 可以调用 feature action 或 service facade，但不能直接散落调用底层平台细节。
-- feature 可以组合 editor API 和 services，但不能持有 Markdown 全文。
-- editor 可以暴露稳定 API 和事件，但不能依赖具体 UI shell。
-- services 不能依赖 React 组件。
-- Rust commands 必须保持薄入口，业务逻辑进入 Rust service 模块。
-- `shared` 只能放无业务方向的通用能力，不能成为杂物箱。
+- UI may call feature actions or service facades, but must not scatter low-level platform calls.
+- Features may compose editor APIs and services, but must not hold full Markdown text.
+- Editor may expose stable APIs and events, but must not depend on a concrete UI shell.
+- Services must not depend on React components.
+- Rust commands must stay thin entry points; business logic belongs in Rust service modules.
+- `shared` may hold only direction-free common capability; it must not become a junk drawer.
 
-每次新增功能前都必须做架构影响检查：
+Before every new feature, run an architecture impact check:
 
-1. 是否已经有合适的层和模块承载？
-2. 是否需要新增明确边界，而不是塞进现有大文件？
-3. 是否会让编辑器输入、滚动、撤销重做、IME 或源码保真进入更高风险？
-4. 是否让 React store、props 或 context 持有大对象、Markdown 全文或高频变化数据？
-5. 是否引入跨层依赖、循环依赖或平台细节泄漏？
-6. 是否需要同步架构文档或写决策记录？
+1. Is there already an appropriate layer and module?
+2. Is a new explicit boundary needed instead of stuffing an existing large file?
+3. Does it raise risk for typing, scrolling, undo/redo, IME, or source fidelity?
+4. Does it put large objects, full Markdown, or high-frequency data into React stores, props, or context?
+5. Does it introduce cross-layer dependencies, cycles, or platform leakage?
+6. Does architecture documentation or a decision record need updating?
 
-如果答案不清楚，必须先停下来说明架构影响和可选方案。不得以“先实现再说”为理由绕过分层、边界和可维护性要求。
+If the answer is unclear, stop and explain architecture impact and options. Do not bypass layering, boundaries, or maintainability with “implement first.”
 
-单个文件职责必须保持聚焦。新增需求导致文件持续膨胀时，应优先抽出有明确接口的小模块；但抽象必须服务真实复杂度，禁止为了显得高级而过度分层。
+Keep single-file responsibilities focused. When growth would bloat a file, prefer extracting small modules with clear interfaces—but abstraction must serve real complexity; do not over-layer for appearance.
 
-## 成熟组件优先原则
+## Mature components first
 
-agent 必须优先选择成熟、维护活跃、文档完善的组件。
+Agents must prefer mature, actively maintained, well-documented components.
 
-除非同时满足以下条件，否则禁止手搓基础组件：
+Do not hand-roll primitives unless all of the following are true:
 
-1. 已经评估过成熟组件。
-2. 成熟组件明确无法满足 LumaMark 的目标，例如性能、源码保真、可访问性、跨平台行为、国际化、可维护性或 UX 质量。
-3. 失败原因有证据支持，例如 benchmark、原型结果、issue、限制说明或集成失败记录。
-4. 用户已经明确批准自研实现。
+1. Mature options have already been evaluated.
+2. Mature options clearly cannot meet LumaMark goals such as performance, source fidelity, accessibility, cross-platform behavior, i18n, maintainability, or UX quality.
+3. Failure reasons are evidenced (benchmarks, prototype results, issues, limitation notes, or integration failures).
+4. The user has explicitly approved a custom implementation.
 
-这条规则适用于：
+This rule applies to:
 
-- UI 基础组件
-- 菜单
-- 对话框
-- tooltip
-- 树组件
-- tab
-- split pane
-- 虚拟列表
-- 命令面板
-- 编辑器集成
-- Markdown 解析和渲染
+- UI primitives
+- Menus
+- Dialogs
+- Tooltips
+- Tree components
+- Tabs
+- Split panes
+- Virtual lists
+- Command palettes
+- Editor integrations
+- Markdown parsing and rendering
 - i18n
-- 快捷键处理
-- 文件监听
-- 搜索和索引库
+- Shortcut handling
+- File watching
+- Search and indexing libraries
 
-自定义代码只应该用于 LumaMark 的差异化能力：
+Custom code should only cover LumaMark differentiators:
 
-- 基于编辑器核心实现 Typora-like Markdown 所见即所得体验
-- Markdown 源码保真
-- 大文档流畅性
-- 异步预览和渲染调度
-- 应用专属工作流集成
-- 性能观测和性能调优
+- Typora-like Markdown WYSIWYG on the editor core
+- Markdown source fidelity
+- Large-document fluidity
+- Async preview and render scheduling
+- App-specific workflow integration
+- Performance observation and tuning
 
-禁止为了“掌控感”手搓基础组件。
+Do not hand-roll primitives for a sense of control.
 
-## 工程标准
+## Engineering standards
 
-代码必须简单、可读、类型安全。
+Code must be simple, readable, and type-safe.
 
-- 优先启用 TypeScript 严格模式。
-- 避免使用 `any`。如果边界场景确实需要，必须说明原因。
-- 前端状态更新默认使用不可变更新。
-- 命名要清晰，不要炫技。
-- 文件职责要聚焦。
-- 避免投机式抽象。
-- 注释只解释意图、取舍或不明显的行为。
-- 失败模式必须显式处理。
-- 不要用静默 fallback 掩盖错误。
+- Prefer TypeScript strict mode.
+- Avoid `any`. If a boundary truly requires it, explain why.
+- Frontend state updates default to immutable updates.
+- Names must be clear, not clever.
+- File responsibilities must stay focused.
+- Avoid speculative abstraction.
+- Comments explain intent, trade-offs, or non-obvious behavior only.
+- Failure modes must be handled explicitly.
+- Do not hide errors behind silent fallbacks.
 
-项目形成既有模式后，应优先遵循既有模式。在项目早期，结构保持常规、朴素、可理解。
+Once project patterns exist, follow them. Early structure should stay conventional, plain, and understandable.
 
-## 前端和 UX 标准
+## Frontend and UX standards
 
-写自定义 UI 之前必须先寻找成熟组件。
+Search for mature components before writing custom UI.
 
-期望的 UX 方向：
+Expected UX direction:
 
-- 安静、现代、专业
-- 感知性能快
-- 无装饰性杂乱元素
-- 强键盘支持
-- 可访问性良好
-- 焦点行为可预测
-- 亮色和暗色主题都要打磨
-- 应用首屏不要做成营销落地页
+- Quiet, modern, professional
+- Perceived performance is fast
+- No decorative clutter
+- Strong keyboard support
+- Good accessibility
+- Predictable focus behavior
+- Polish for both light and dark themes
+- App first screen must not look like a marketing landing page
 
-UI 控件要求：
+UI control requirements:
 
-- 常见工具操作优先使用熟悉图标。
-- 不常见的纯图标控件必须提供 tooltip。
-- 根据成熟 UX 约定使用 segmented control、toggle、slider、menu、tab 和 dialog。
-- 不要在应用内显示多余说明文字来解释显而易见的控件。
+- Prefer familiar icons for common tool actions.
+- Uncommon icon-only controls must provide tooltips.
+- Use segmented controls, toggles, sliders, menus, tabs, and dialogs according to mature UX conventions.
+- Do not show extra in-app explanatory text for obviously understood controls.
 
-## 编辑器标准
+## Editor standards
 
-编辑器必须围绕流畅交互设计。
+The editor must be designed around fluid interaction.
 
-核心要求：
+Core requirements:
 
-- 大文档编辑时输入仍然要响应迅速。
-- 滚动必须保持流畅。
-- 高成本预览和渲染工作必须异步或延迟执行。
-- Mermaid 渲染不能阻塞输入。
-- Markdown 源码必须可恢复、可预测。
-- 编辑文档不能重排无关文本。
+- Typing remains responsive on large documents.
+- Scrolling stays smooth.
+- Expensive preview and render work must be async or deferred.
+- Mermaid rendering must not block typing.
+- Markdown source must be recoverable and predictable.
+- Editing must not rearrange unrelated text.
 
-接受编辑器核心变更前，必须检查它对以下行为的影响：
+Before accepting editor-core changes, check impact on:
 
-- IME 输入法组合态
-- 撤销和重做
-- 选区和光标稳定性
-- 复制和粘贴
-- Markdown 源码保真
-- 大文档行为
-- 可访问性
+- IME composition
+- Undo and redo
+- Selection and caret stability
+- Copy and paste
+- Markdown source fidelity
+- Large-document behavior
+- Accessibility
 
-## 国际化
+## Internationalization
 
-LumaMark 默认支持多语言。
+LumaMark supports multiple languages by default.
 
-- 默认开发语言：英文和简体中文。
-- 所有可见 UI 文案都必须进入 i18n 资源。
-- 不要把翻译字符串拆成片段后拼接，因为不同语言语序可能不同。
-- 命令名、菜单标签、设置项、错误信息、空状态和 tooltip 都必须可本地化。
-- 代码标识符使用英文。
-- agent 回复项目所有者时默认使用中文，除非用户主动切换语言。
+- Default development languages: English and Simplified Chinese.
+- All visible UI copy must live in i18n resources.
+- Do not split translated strings into fragments and concatenate them; word order differs across languages.
+- Command names, menu labels, settings items, errors, empty states, and tooltips must all be localizable.
+- Code identifiers use English.
+- Agent replies to the project owner default to Chinese unless the user switches language.
 
-## 性能纪律
+## Documentation language policy
 
-优先测量，不靠猜测。
+Project documentation defaults to **English** at the canonical paths (`README.md`, `AGENTS.md`, `DEVELOPMENT_PROCESS.md`, `docs/**`).
 
-添加可能影响响应速度的功能时，必须包含性能说明或测试计划，覆盖：
+- Full Chinese is retained as a mirror under `docs/zh/**` and root `*.zh.md`.
+- For living docs, update the English default first, then update the Chinese mirror in the same change set.
+- Language switchers link between paired files; internal links in English docs point to English default paths (except the language switcher itself).
+- Agent chat replies to the owner still default to Chinese; this policy applies to documentation files, not chat language.
 
-- 启动时间
-- 文件打开时间
-- 输入延迟
-- 滚动流畅度
-- 内存使用
-- 高成本渲染路径
+## Performance discipline
 
-在合适场景中使用异步、缓存、取消、debounce 和增量渲染。
+Prefer measurement over guessing.
 
-对于编辑器核心和大文档相关决策，禁止使用“以后再优化”的理由。
+When adding features that may affect responsiveness, include a performance note or test plan covering:
 
-性能基准必须单独运行，不得与 E2E、构建、typecheck、lint 等重 CPU 门禁并行执行后再据此判断退化。
+- Startup time
+- File open time
+- Input latency
+- Scroll smoothness
+- Memory use
+- Expensive render paths
 
-## 测试要求
+Use async, caching, cancellation, debounce, and incremental rendering where appropriate.
 
-测试力度应与风险匹配。
+For editor-core and large-document decisions, “optimize later” is not allowed.
 
-高风险区域必须有明确测试：
+Performance benchmarks must run alone. Do not judge regressions from runs interleaved with E2E, build, typecheck, lint, or other heavy CPU gates.
 
-- 编辑器转换
-- Markdown 源码保留
-- 文件读写
-- 自动保存和恢复
-- 搜索和索引
-- i18n 资源覆盖
-- Mermaid 渲染生命周期
-- 快捷键
-- 表格/widget 点击→光标几何（含 inactive/active 对齐）
-- 标题栏拖拽与 portal 菜单真实指针路径（安装包或等价桌面路径）
+## Testing requirements
 
-纯逻辑优先写聚焦的单元测试，编辑器行为优先写集成测试。涉及 Tauri 拖拽、嵌套编辑器激活或 OS 指针命中的缺陷，浏览器 E2E 之外还必须有安装包/OS 鼠标证据；详见「高成本缺陷复盘」。
+Test intensity must match risk.
 
-测试、构建和发布脚本的输出必须尽量保持 warning-free。新增 warning 必须定位根因；确认为既有外部限制时，必须记录风险和后续治理项，不能静默忽略。
+High-risk areas need explicit tests:
 
-## 文档要求
+- Editor transforms
+- Markdown source preservation
+- File I/O
+- Autosave and recovery
+- Search and indexing
+- i18n resource coverage
+- Mermaid render lifecycle
+- Shortcuts
+- Table/widget click→caret geometry (including inactive/active alignment)
+- Title-bar drag vs portal menu real pointer paths (installed package or equivalent desktop path)
 
-重要决策必须记录。
+Prefer focused unit tests for pure logic and integration tests for editor behavior. Bugs involving Tauri drag, nested editor activation, or OS pointer hit-testing need installed-package / OS mouse evidence beyond browser E2E; see “High-cost defect retrospectives.”
 
-以下情况需要写简短决策记录：
+Test, build, and release script output should stay as warning-free as possible. New warnings must be rooted out; if confirmed as an existing external limitation, record the risk and follow-up work—do not silently ignore them.
 
-- 用自定义代码替代成熟库
-- 更换编辑器核心
-- 引入主要依赖
-- 改变源码保真行为
-- 改变应用架构
+## Documentation requirements
 
-项目文档要直接、准确、及时更新。不要让文档变成愿景稿。
+Important decisions must be recorded.
 
-## 文档维护方案
+Write a short decision record when:
 
-LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通成本，不是为了制造维护负担。
+- Replacing a mature library with custom code
+- Changing the editor core
+- Introducing a major dependency
+- Changing source-fidelity behavior
+- Changing application architecture
 
-### 文档入口
+Project docs must be direct, accurate, and timely. Do not let docs become vision drafts.
 
-- 根目录 `README.md` 只放项目简介、核心原则和入口链接。
-- `docs/README.md` 是项目文档地图和分类索引，所有新增项目文档都必须从这里能找到。
-- `AGENTS.md` 是 agent 和贡献者工作契约。
-- `DEVELOPMENT_PROCESS.md` 是 AI 开发流程和完成门禁。
+## Documentation maintenance
 
-如果新增、删除、重命名 `docs/` 下的文档，必须同步更新 `docs/README.md`。
+LumaMark must control document count and responsibility boundaries. Docs reduce communication cost; they must not create maintenance burden.
 
-### 目录职责
+### Documentation entry points
 
-当前文档目录只允许承担以下职责：
+- Root `README.md` holds only project intro, core principles, and entry links.
+- `docs/README.md` is the documentation map and category index; every new project doc must be findable from there.
+- `AGENTS.md` is the agent and contributor working contract.
+- `DEVELOPMENT_PROCESS.md` is the AI development process and definition of done.
 
-- `docs/product/`：产品定位、版本目标、PRD、版本设计、竞品策略。
-- `docs/architecture/`：架构原则、详细架构、模块边界、技术选型。
-- `docs/roadmap/`：阶段计划、里程碑、近细远粗的演进路线。
-- `docs/quality/`：质量策略、测试策略、性能门禁、发布质量要求。
+When adding, deleting, or renaming docs under `docs/`, update `docs/README.md` in the same change.
 
-按需再创建以下目录，不要提前创建空目录：
+### Directory responsibilities
 
-- `docs/decisions/`：重大架构或依赖决策记录。
-- `docs/testing/`：测试夹具、测试策略细节、E2E 约定。
-- `docs/performance/`：性能基准方法和结果。
-- `docs/release/`：发布流程、版本说明、打包签名说明。
+Current docs directories may only cover:
 
-`.claude/`、`.cursor/` 等工具目录不是项目文档目录，不作为产品、架构或路线的事实来源。
+- `docs/product/`: product positioning, version goals, PRD, version design, competitor strategy.
+- `docs/architecture/`: architecture principles, detailed architecture, module boundaries, technology choices.
+- `docs/roadmap/`: phase plans, milestones, near-detail / far-outline evolution.
+- `docs/quality/`: quality strategy, test strategy, performance gates, release quality requirements.
 
-### 事实来源层级
+Create the following only when needed; do not pre-create empty directories:
 
-同一主题只能有一个主事实来源。
+- `docs/decisions/`: major architecture or dependency decisions.
+- `docs/testing/`: test fixtures, detailed test strategy, E2E conventions.
+- `docs/performance/`: performance benchmark methods and results.
+- `docs/release/`: release process, release notes, packaging/signing notes.
 
-优先级：
+`docs/superpowers/` is non-authoritative agent planning scratch (specs and plans). It is not a product, architecture, or roadmap source of truth.
 
-1. `AGENTS.md`：工作规则、工程纪律、文档治理。
-2. `DEVELOPMENT_PROCESS.md`：开发流程、测试、验证和完成定义。
-3. `docs/product/PROJECT_CHARTER.md`：项目愿景和长期定位。
-4. `docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md`：当前实施范围、顺序和退出门禁。
-5. `docs/architecture/DETAILED_ARCHITECTURE.md`：当前详细架构和技术选型。
-6. `docs/roadmap/EVOLUTION_PLAN.md`：阶段和演进计划。
+`.claude/`, `.cursor/`, and similar tool directories are not project documentation directories and are not sources of truth for product, architecture, or roadmap.
 
-`docs/product/V1_PRODUCT_REQUIREMENTS.md`、`docs/product/V1_UX_DESIGN.md`、`docs/product/V1_VERSION_DESIGN.md` 与 `docs/roadmap/V1_IMPLEMENTATION_PLAN.md` 是 Foundation / MarkText+ 的历史 Alpha 基线，不作为当前实现状态或执行顺序的事实来源。
+### Fact-source hierarchy
 
-其他文档只能补充主事实来源，不能复制一整段相同内容后各自演化。
+Each topic may have only one primary source of truth.
 
-### 新增文档规则
+Priority:
 
-新增文档前必须先判断是否能更新现有文档。
+1. `AGENTS.md`: working rules, engineering discipline, documentation governance.
+2. `DEVELOPMENT_PROCESS.md`: development process, testing, verification, and definition of done.
+3. `docs/product/PROJECT_CHARTER.md`: project vision and long-term positioning.
+4. `docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md`: current implementation scope, order, and exit gates.
+5. `docs/architecture/DETAILED_ARCHITECTURE.md`: current detailed architecture and technology choices.
+6. `docs/roadmap/EVOLUTION_PLAN.md`: phases and evolution plan.
 
-只有同时满足以下条件，才能新增文档：
+`docs/product/V1_PRODUCT_REQUIREMENTS.md`, `docs/product/V1_UX_DESIGN.md`, `docs/product/V1_VERSION_DESIGN.md`, and `docs/roadmap/V1_IMPLEMENTATION_PLAN.md` are historical Alpha baselines from Foundation / MarkText+. They are not sources of truth for current implementation status or execution order.
 
-1. 主题有独立生命周期。
-2. 现有文档放进去会明显变臃肿或职责混乱。
-3. 新文档有明确读者和使用场景。
-4. `docs/README.md` 能说明它的职责和更新时机。
+Other docs may only supplement the primary source; they must not copy whole sections that then diverge.
 
-禁止为了临时讨论、一次性想法、重复总结新增长期文档。临时内容应进入 issue、计划、草稿或当前相关文档。
+### Rules for adding documents
 
-### 文档拆分和合并
+Before adding a document, decide whether an existing doc can be updated instead.
 
-当文档超过可维护范围时，优先按职责拆分，不按日期或作者拆分。
+Add a new long-lived doc only when all of the following are true:
 
-拆分条件：
+1. The topic has an independent lifecycle.
+2. Putting it in an existing doc would clearly bloat or confuse responsibilities.
+3. The new doc has a clear audience and use case.
+4. `docs/README.md` can explain its responsibility and update timing.
 
-- 一个文档同时服务两个以上不同读者。
-- 一个文档既写产品目标又写底层实现细节。
-- 一个文档更新时经常需要无关人员理解整篇内容。
+Do not create long-lived docs for temporary discussion, one-off ideas, or repeated summaries. Put temporary content in issues, plans, drafts, or the current related doc.
 
-合并条件：
+### Splitting and merging
 
-- 两个文档长期一起更新。
-- 两个文档内容重复。
-- 一个文档只剩索引作用，但 `docs/README.md` 已能承担。
+When a doc exceeds maintainable scope, prefer splitting by responsibility, not by date or author.
 
-### 文档更新规则
+Split when:
 
-修改代码或计划时，必须同步检查相关文档。
+- One doc serves two or more distinct audiences.
+- One doc mixes product goals with low-level implementation detail.
+- Updates often force unrelated readers to understand the whole document.
 
-必须更新文档的场景：
+Merge when:
 
-- 产品目标或 V1 范围变化。
-- 默认架构或核心选型变化。
-- 新增或替换主要依赖。
-- 改变 Markdown 源码保真策略。
-- 改变测试、性能或完成门禁。
-- 新增发布流程或平台支持。
-- 用户明确更改项目原则。
+- Two docs are always updated together.
+- Two docs duplicate content.
+- A doc is only an index that `docs/README.md` already covers.
 
-纯实现细节不要写进高层产品文档。短期实现步骤应放入实现计划，而不是污染长期文档。
+### Documentation update rules
 
-### 文档格式规则
+When changing code or plans, check related docs.
 
-每个长期文档必须包含：
+Must update docs when:
 
-- 清晰标题。
-- 简短用途说明。
-- 明确范围。
-- 可执行的规则或结论。
-- 必要时写“非目标”。
+- Product goals or V1 scope change.
+- Default architecture or core technology choices change.
+- Major dependencies are added or replaced.
+- Markdown source-fidelity strategy changes.
+- Test, performance, or completion gates change.
+- Release process or platform support is added.
+- The user explicitly changes project principles.
 
-长期文档禁止：
+Do not put pure implementation detail into high-level product docs. Short-term implementation steps belong in implementation plans, not long-lived docs.
 
-- 大量重复其他文档内容。
-- 未标注来源的过期结论。
-- 未完成占位标记。
-- 只表达愿景、不提供边界或决策。
-- 记录流水账式讨论过程。
+### Documentation format rules
 
-### 决策记录规则
+Every long-lived doc must include:
 
-以下情况必须写入 `docs/decisions/`，并从相关主文档链接：
+- A clear title.
+- A short purpose statement.
+- Explicit scope.
+- Actionable rules or conclusions.
+- “Non-goals” when needed.
 
-- 更换编辑器核心。
-- 从成熟组件改为自研基础组件。
-- 引入会影响架构的大依赖。
-- 改变保存或源码保真策略。
-- 改变性能门禁。
-- 改变跨平台策略。
+Long-lived docs must not:
 
-决策记录应短小，包含：
+- Heavily duplicate other docs.
+- Contain outdated conclusions without source notes.
+- Leave unfinished placeholder markers.
+- Express vision only, without boundaries or decisions.
+- Record diary-style discussion process.
 
-- 背景。
-- 决策。
-- 被否决方案。
-- 影响。
-- 回滚或复审条件。
+### Decision record rules
 
-### 文档维护检查清单
+Write to `docs/decisions/` and link from related primary docs when:
 
-完成文档类任务前必须检查：
+- Changing the editor core.
+- Replacing a mature component with a custom primitive.
+- Introducing a large dependency that affects architecture.
+- Changing save or source-fidelity strategy.
+- Changing performance gates.
+- Changing cross-platform strategy.
 
-- `docs/README.md` 是否需要更新。
-- 是否新增了重复事实来源。
-- 是否有过期链接。
-- 是否有未完成占位标记。
-- 是否把短期实现细节写进长期文档。
-- 是否违反“近细远粗”的路线规划原则。
-- 是否需要同步 `README.md`、`AGENTS.md` 或 `DEVELOPMENT_PROCESS.md`。
+Decision records should be short and include:
 
-文档任务的最终回复必须说明读取或检索过哪些文件来验证落盘结果。
+- Background.
+- Decision.
+- Rejected alternatives.
+- Impact.
+- Rollback or review conditions.
 
-## 高成本缺陷复盘（强制遵守）
+### Documentation maintenance checklist
 
-以下两条缺陷曾长期误判、反复“修好又坏”，最终才在安装包真实路径上闭环。后续 agent 遇到同类症状时，必须先按本节排查，禁止从“功能没接线”“随便改 CSS”起步。
+Before finishing a documentation task, check:
 
-### 1. 菜单打开后点击没反应
+- Does `docs/README.md` need updating?
+- Were duplicate fact sources introduced?
+- Are there stale links?
+- Are there unfinished placeholders?
+- Were short-term implementation details written into long-lived docs?
+- Does the change violate near-detail / far-outline roadmap principles?
+- Do `README.md`, `AGENTS.md`, or `DEVELOPMENT_PROCESS.md` need syncing?
 
-**真实根因（不是“handler 没写”）：**
+Final replies for documentation tasks must state which files were read or searched to verify the written result.
 
-1. 标题栏把 `data-tauri-drag-region` 或等价拖拽逻辑盖到了菜单宿主上。
-2. Radix 等菜单内容 portal 到 `document.body`；DOM 上目标已不在 header 子树内，但 React 合成事件仍会冒泡回 header 的 `onMouseDown`。
-3. header 误启动窗口拖拽并捕获指针，随后的 `pointerup` / `click` 被吃掉。
-4. 体感是“关于 / 主题 / 语言点了没反应”；Playwright/CDP 合成点击经常复现不出，只有真实 OS 鼠标 + 安装包路径稳定复现。
+## High-cost defect retrospectives (mandatory)
 
-**强制规则：**
+The following two defects were long misdiagnosed, repeatedly “fixed then broken again,” and only closed on the real installed-package path. When agents see similar symptoms, they must investigate using this section first—not start from “handler not wired” or “tweak CSS.”
 
-- 原生拖拽区域只能落在空白标题条，绝不能覆盖菜单、按钮、输入框等可交互控件。
-- 当前标题栏采用单一原生 owner：仅空白 `.lm-titlebar-drag` 可带 `data-tauri-drag-region`；header 或其祖先禁止再绑定手动 `startDragging`，避免单击双调用、双击时拖拽与最大化竞争。
-- 若未来确需切换为全手动拖拽，必须先移除原生 drag-region，并在启动拖拽前拒绝 portal / 非子孙目标、`[data-lm-window-interactive]`、`[role="menu"]` / `menuitem*` 与 `.lm-menu-content`；原生和手动方案不得叠加。
-- 诊断“点了没反应”时，优先查窗口拖拽、指针捕获、portal 事件路径，再查 action 是否接线。
-- 此类 bug 的完成证据必须包含安装包或等价 WebView 路径下的真实指针操作；仅浏览器 E2E 通过不得宣称已修。
+### 1. Menu opens but clicks do nothing
 
-参考实现：`src/app/shell/TopChrome.tsx`、`src/app/controllers/useWindowControlsModel.ts`。
+**Real root cause (not “handler missing”):**
 
-### 2. 表格与所见即所得光标异常
+1. The title bar put `data-tauri-drag-region` or equivalent drag logic over the menu host.
+2. Radix (and similar) menu content portals to `document.body`; the DOM target is no longer under the header subtree, but React synthetic events still bubble back to the header `onMouseDown`.
+3. The header incorrectly starts window dragging and captures the pointer; subsequent `pointerup` / `click` are swallowed.
+4. The feel is “About / Theme / Language clicks do nothing.” Playwright/CDP synthetic clicks often cannot reproduce it; only real OS mouse + installed package path reproduces reliably.
 
-**真实根因（常叠加，不是单一 CSS）：**
+**Mandatory rules:**
 
-1. 非编辑态单元格与嵌套 CodeMirror 编辑态 padding / line padding / 隐藏 mark 几何不一致，激活瞬间命中盒漂移。
-2. 点击激活会卸载/挂载嵌套编辑器，原始指针坐标丢失；若不在 root 捕获并用 `posAtCoords` 回放，光标会落到默认首位或错误偏移。
-3. 表格 block widget 的装饰性 `margin` / `padding` 会造出“看起来像空行、实际不可选”的假空隙；点上下空隙会进首行/末行。
-4. 用 `max-width` + `overflow-x: auto`“压窄宽列”会引入内层滚动条，点击坐标系跟着漂，表现为光标乱跳、表格显示不全。
-5. “假空格 / 假光标”掩盖几何问题，会把缺陷拖得更久。
+- Native drag regions may only cover blank title-bar space; they must never cover menus, buttons, inputs, or other interactive controls.
+- Current title bar uses a single native owner: only blank `.lm-titlebar-drag` may carry `data-tauri-drag-region`; the header or its ancestors must not also bind manual `startDragging`, to avoid double-invocation on click and drag-vs-maximize races on double-click.
+- If a future switch to fully manual drag is required, remove the native drag-region first, and before starting drag reject portal / non-descendant targets, `[data-lm-window-interactive]`, `[role="menu"]` / `menuitem*`, and `.lm-menu-content`; native and manual schemes must not stack.
+- When diagnosing “click does nothing,” check window drag, pointer capture, and portal event paths before checking whether actions are wired.
+- Completion evidence for this class of bug must include real pointer operations on an installed package or equivalent WebView path; browser E2E alone must not claim a fix.
 
-**强制规则：**
+Reference implementations: `src/app/shell/TopChrome.tsx`, `src/app/controllers/useWindowControlsModel.ts`.
 
-- 表格（及同类 WYSIWYG widget）的 inactive view 与 active nested editor 必须共享同一 padding box；隐藏 mark 在两态行为一致。禁止靠假空格或装饰性光标冒充对齐。
-- 单元格激活必须保留激活前的指针坐标，并在嵌套编辑器就绪后用 CodeMirror `posAtCoords` 落到真实文档位置；空 padding 点击应落到可见文本端，而不是发明占位字符。
-- 禁止给 block widget 增加会变成不可选命中区的装饰性上下 `margin`/`padding`。表格与正文的间距只能来自真实 Markdown 空行（可点的 `cm-line`）。图片、Mermaid 等同理；垂直 margin 不会进入 CodeMirror height map，会导致下方所有点击→光标映射漂移。
-- 异步变高的 block widget（图片 load、Mermaid render）必须在尺寸变化后刷新 height map；仅 `requestMeasure()` 对视口外 widget 不够时，需要强制完整高度刷新。
-- 禁止用内层横向滚动或表头 `max-width` 裁切表格来“美化列宽”。宽表应完整可见；滚动条与裁切会破坏点击→光标映射。
-- 修光标时若改动 overflow、transform、缩放、滚动容器或 widget 几何，必须重新跑表格光标矩阵，并至少用安装包 + OS 级鼠标验证一轮。
-- 做 OS 级点击复现时，屏幕坐标必须从 WebView 客户区原点换算（例如 Win32 `ClientToScreen`）。`GetWindowRect` 含窗口边框，会系统性偏数像素并制造假失败/假通过。
+### 2. Table and WYSIWYG caret anomalies
 
-参考实现：`src/editor/capabilities/table/tableCellClickSync.ts`、`src/editor/capabilities/table/table.css`；回归：`tests/e2e/editor-table-caret*.spec.ts`、`scripts/release/repro-installed-table-caret*.mjs`。
+**Real root causes (often stacked, not a single CSS issue):**
 
-### 3. 从这两次修复提炼的通用经验
+1. Inactive cell vs nested CodeMirror active-edit padding / line padding / hidden-mark geometry diverge; the hit box drifts at activation.
+2. Click-to-activate unmounts/mounts a nested editor and loses original pointer coordinates; without root capture and `posAtCoords` replay, the caret lands at the default start or a wrong offset.
+3. Decorative `margin` / `padding` on table block widgets create “looks like empty lines, actually unselectable” fake gaps; clicking above/below lands in first/last row.
+4. Using `max-width` + `overflow-x: auto` to “narrow wide columns” introduces an inner scrollbar; the click coordinate system drifts, producing caret jumps and incomplete table display.
+5. “Fake spaces / fake carets” mask geometry bugs and prolong the defect.
 
-1. **症状分类先于改代码。** “没反应”可能是事件被吞；“光标飘”可能是几何/坐标系，不是选区 API 写错。
-2. **桌面壳层 bug 与浏览器 bug 分层验证。** Tauri 拖拽、安装路径、OS 鼠标量化与 CDP 点击不是同一条证据链。
-3. **先固定几何契约，再谈交互增强。** 任何让 hit-test 区域与可见文本脱节的 CSS，都会在表格/widget 上放大成光标灾难。
-4. **禁止用新的视觉约束掩盖命中问题。** 滚动条、裁切、假空白、假光标都是高风险捷径。
-5. **回归要防“修好又坏”。** 光标类修复合并后，后续 UI 美化若动到表格 overflow/padding，必须当作高风险变更，而不是纯样式。
+**Mandatory rules:**
 
-## Agent 工作流程
+- Table (and similar WYSIWYG widget) inactive views and active nested editors must share the same padding box; hidden marks must behave consistently in both states. Do not fake alignment with spaces or decorative carets.
+- Cell activation must retain pre-activation pointer coordinates and, once the nested editor is ready, map them with CodeMirror `posAtCoords` to a real document position; clicks in empty padding should land at visible text ends, not invent placeholder characters.
+- Do not add decorative top/bottom `margin`/`padding` on block widgets that becomes an unselectable hit region. Spacing between tables and body text must come from real Markdown blank lines (clickable `cm-line`). Same for images, Mermaid, and similar; vertical margin does not enter the CodeMirror height map and drifts all click→caret mapping below.
+- Async-growing block widgets (image load, Mermaid render) must refresh the height map after size changes; when `requestMeasure()` alone is insufficient for off-viewport widgets, force a full height refresh.
+- Do not use inner horizontal scroll or header `max-width` clipping to “beautify” column width. Wide tables should remain fully visible; scrollbars and clipping break click→caret mapping.
+- If a caret fix changes overflow, transform, scale, scroll containers, or widget geometry, re-run the table caret matrix and verify at least one installed-package + OS-level mouse round.
+- For OS-level click reproduction, convert screen coordinates from the WebView client origin (for example Win32 `ClientToScreen`). `GetWindowRect` includes the window frame and systematically biases by several pixels, creating false fails/passes.
 
-修改前：
+Reference implementations: `src/editor/capabilities/table/tableCellClickSync.ts`, `src/editor/capabilities/table/table.css`; regressions: `tests/e2e/editor-table-caret*.spec.ts`, `scripts/release/repro-installed-table-caret*.mjs`.
 
-1. 先检查当前仓库状态。
-2. 查找已有约定。
-3. 阅读并遵守 `DEVELOPMENT_PROCESS.md` 中的 AI 开发流程和完成门禁。
-4. 优先使用成熟库和项目既有模式。
-5. 如果存在高风险假设，先说明再行动。
+### 3. General lessons from these two fixes
 
-修改文件时：
+1. **Classify the symptom before changing code.** “No response” may mean the event was swallowed; “caret drifts” may be geometry/coordinates, not a wrong selection API.
+2. **Verify desktop-shell bugs and browser bugs on separate evidence chains.** Tauri drag, installed path, OS mouse quantification, and CDP clicks are not the same chain.
+3. **Fix geometry contracts first, then interaction enhancements.** Any CSS that disconnects hit-test area from visible text amplifies into caret disasters on tables/widgets.
+4. **Do not mask hit issues with new visual constraints.** Scrollbars, clipping, fake blank space, and fake carets are high-risk shortcuts.
+5. **Guard against “fixed then broken again.”** After caret fixes merge, later UI polish that touches table overflow/padding is a high-risk change, not pure styling.
 
-1. 保持改动范围聚焦。
-2. 不重写无关文件。
-3. 不回滚用户改动。
-4. 不做与当前任务无关的大规模重构。
-5. 用最相关的可用命令验证结果。
+## Agent workflow
 
-完成任务前：
+Before changing:
 
-1. 必须重新运行与本次改动相关的验证命令。
-2. 必须阅读验证输出和退出码。
-3. 未经新鲜验证，不得声称“完成”“修复”“通过”或表达等价含义。
-4. 如果验证命令尚未建立，必须明确说明当前只能完成文档或静态检查，不能声称功能已通过自动化验证。
+1. Check current repository state.
+2. Find existing conventions.
+3. Read and follow the AI development process and definition of done in `DEVELOPMENT_PROCESS.md`.
+4. Prefer mature libraries and existing project patterns.
+5. If high-risk assumptions exist, state them before acting.
 
-如果发现成熟组件可能不满足需求，必须先停下来并记录：
+When changing files:
 
-- 已评估的组件
-- 它无法满足的需求
-- 证据
-- 拟议替代方案
-- 是否需要用户批准
+1. Keep the change scope focused.
+2. Do not rewrite unrelated files.
+3. Do not roll back user changes.
+4. Do not do large refactors unrelated to the current task.
+5. Verify with the most relevant available commands.
 
-在用户明确确认前，不要开始自研基础组件。
+Before finishing a task:
+
+1. Re-run verification commands related to this change.
+2. Read verification output and exit codes.
+3. Without fresh verification, do not claim “done,” “fixed,” “passing,” or equivalents.
+4. If verification commands are not yet established, state clearly that only docs or static checks are possible, and do not claim automated functional verification.
+
+If a mature component may not meet requirements, stop and record:
+
+- Components evaluated
+- Requirements they cannot meet
+- Evidence
+- Proposed alternatives
+- Whether user approval is needed
+
+Do not start hand-rolling primitives before explicit user confirmation.

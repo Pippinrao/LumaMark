@@ -1,265 +1,268 @@
-﻿# Typora Parity 核心体验改进计划
+> Language: **English** · [中文](../zh/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
 
-> **状态：当前执行计划**
+# Typora Parity Core Experience Improvement Plan
+
+> **Status: current execution plan**
 >
-> 本文是 LumaMark 当前唯一的实施路线事实来源。Foundation 与 MarkText+ 已形成技术基线；当前里程碑进入 **Parity Reliability Foundation**，目标是让已有能力达到可长期日用的 Typora-like 可靠性，而不是继续按专题堆叠功能。
+> This document is LumaMark’s sole current implementation-route source of truth. Foundation and MarkText+ have formed a technical baseline; the current milestone is **Parity Reliability Foundation**. The goal is to bring existing capabilities to Typora-like reliability suitable for long-term daily use—not to keep stacking features by topic.
 
-## 用途与范围
+## Purpose and scope
 
-本文把已批准的产品方向转成可验证的执行顺序、质量门禁和退出条件。它约束当前里程碑的编辑器交互、源码序列化、代表性 Markdown 行为和验证工作。
+This document turns approved product direction into a verifiable execution order, quality gates, and exit criteria. It constrains editor interaction, source serialization, representative Markdown behaviors, and verification work for the current milestone.
 
-实施状态必须以当前代码、测试输出和变更记录为证据。本文不是完成情况台账，不追溯补填历史 TDD 步骤，也不以勾选框代替验证结果。历史 Alpha 设计和任务拆分见 [V1 版本设计](../product/V1_VERSION_DESIGN.md) 与 [V1 落地实施计划](V1_IMPLEMENTATION_PLAN.md)。
+Implementation status must be evidenced by current code, test output, and change records. This document is not a completion ledger, does not backfill historical TDD steps, and does not treat checkboxes as a substitute for verification results. Historical Alpha design and task breakdown live in [V1 Version Design](../product/V1_VERSION_DESIGN.md) and [V1 Implementation Plan](V1_IMPLEMENTATION_PLAN.md); those are historical Alpha baseline only and are not the current execution source.
 
-## 本里程碑结果
+## Milestone outcomes
 
-完成本里程碑时，现有编辑能力应同时满足：
+When this milestone is complete, existing editing capabilities must simultaneously satisfy:
 
-- Markdown 源文件仍是唯一真实数据，保存不会无意改写 BOM、换行、尾随空格或无关文本。
-- 焦点、选区、首个可见文档位置和像素偏移在显示模式切换与受控文本转换中保持稳定。
-- 中文 IME 组合输入、撤销重做和跨文件历史互不破坏。
-- 行内标记只在对应 span 被编辑时展开，块级结构只展开当前最小结构。
-- Mermaid 编辑直接修改主 CodeMirror 文档，并进入同一撤销栈；保存、另存为、恢复和关闭读取的始终是最新正文。
-- 数据损坏、IME、撤销和 active-save 阻断问题为零，才可进入 Beta 候选评估。
+- The Markdown source file remains the only source of truth; saves must not unintentionally rewrite BOM, newlines, trailing whitespace, or unrelated text.
+- Focus, selection, first visible document position, and pixel offset remain stable across display-mode switches and controlled text transforms.
+- Chinese IME composition, undo/redo, and cross-file history must not break one another.
+- Inline marks expand only when the corresponding span is being edited; block structure expands only the current minimal structure.
+- Mermaid editing modifies the primary CodeMirror document directly and shares the same undo stack; save, save-as, recovery, and close always read the latest body text.
+- Data-corruption, IME, undo, and active-save blocking issues must be at zero before Beta-candidate evaluation.
 
-体验对标以 Typora 1.13.7 Windows 为公开行为基线；源码保真、安全与性能采用更严格的 LumaMark 合同。相关架构决策见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
+Experience parity uses Typora 1.13.7 Windows as the public behavior baseline; source fidelity, security, and performance follow stricter LumaMark contracts. Related architecture decisions are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md).
 
-## 非目标
+## Non-goals
 
-本里程碑不包含：
+This milestone does not include:
 
-- 数学公式、脚注、TOC、Callout 等完整新能力。
-- 任意 HTML、iframe、全局 CSP 放宽或不受控嵌入。
-- 插件、AI、云同步或生态系统建设。
-- macOS/Linux 深度打磨。
-- 绑定发布日期、版本号或以削弱质量预算换取退出。
+- Complete new capabilities such as math formulas, footnotes, TOC, or Callout as full product features.
+- Arbitrary HTML, iframes, global CSP relaxation, or uncontrolled embeds.
+- Plugins, AI, cloud sync, or ecosystem building.
+- Deep macOS/Linux polish.
+- Binding a ship date or version number, or exiting by weakening the quality budget.
 
-YAML Front Matter、脚注、`[toc]` 和 Callout 在完整能力实现前只要求安全降级：源码保持可见，不得误呈现为其他语义。
+Until full capability implementation, YAML Front Matter, footnotes, `[toc]`, and Callout require only safe degradation: source remains visible and must not be mis-rendered as other semantics.
 
-## 必须先守住的编辑器合同
+## Editor contracts that must hold first
 
-### 共享交互上下文
+### Shared interaction context
 
-- `editor/interaction` 从 CodeMirror `EditorState` 与语法树派生 `EditorInteractionContext`。
-- 上下文包含 composition 状态、每个选区所在的最小 block、inline span、delimiter 和受保护源码范围。
-- 上下文随 transaction 映射和增量重算，不进入 React store，不让 feature 或 shell 持有 Markdown 全文。
-- 标题、列表、引用、代码围栏和行内标记都消费同一上下文；不得新增彼此冲突的“活动行”特例。
+- `editor/interaction` derives `EditorInteractionContext` from CodeMirror `EditorState` and the syntax tree.
+- Context includes composition state, the minimal block for each selection, inline span, delimiter, and protected source ranges.
+- Context remaps and incrementally recomputes with transactions; it does not enter React store, and features or shell must not hold full Markdown text.
+- Headings, lists, quotes, code fences, and inline marks all consume the same context; do not add conflicting “active line” special cases.
 
-### 精确源码格式
+### Precise source format
 
-- CodeMirror 内部持有规范化 `Text`；`DocumentSourceFormat` 独立保存 UTF-8 BOM、末尾换行、主换行格式和逐行换行覆盖。
-- 未修改行保留原 LF、CRLF 或 CR。新插入换行沿用邻近格式，无法推断时回退到文档主格式。
-- 保存点直接捕获当前 `Text` 与格式状态；保存边界执行精确序列化，禁止静默全文件归一化。
-- 受控保存转换只允许产生必要的最小 CodeMirror changes，并与 selection/scroll 映射处于同一 transaction。
+- CodeMirror holds normalized `Text` internally; `DocumentSourceFormat` independently stores UTF-8 BOM, trailing newline, primary newline format, and per-line newline overrides.
+- Unmodified lines retain original LF, CRLF, or CR. Newly inserted newlines inherit nearby format and fall back to the document primary format when inference is impossible.
+- Save points capture current `Text` and format state directly; save boundaries perform precise serialization and forbid silent whole-file normalization.
+- Controlled save transforms may only produce the minimal necessary CodeMirror changes, in the same transaction as selection/scroll mapping.
 
-### 单一主编辑器
+### Single primary editor
 
-- 主 CodeMirror `EditorView` 是正文、输入、选区和撤销历史的唯一所有者。
-- Mermaid 激活时，主编辑器显示围栏源码，预览位于块下方；不得创建持有待提交正文的嵌套 `EditorView`。
-- 任何编辑态保存路径必须直接读取主文档，不依赖 blur、关闭弹层或额外 flush。
+- The primary CodeMirror `EditorView` is the sole owner of body text, input, selection, and undo history.
+- When Mermaid is active, the primary editor shows fence source with preview below the block; do not create a nested `EditorView` that holds pending body text.
+- Any edit-mode save path must read the primary document directly and must not depend on blur, closing a panel, or an extra flush.
 
-## Now：Parity Reliability Foundation
+## Now: Parity Reliability Foundation
 
-以下阶段按顺序推进。前一阶段的阻断门禁未通过前，不在其上叠加新的编辑模型改造。
+The following stages advance in order. Do not stack new editing-model changes on a stage before its blocking gates pass.
 
-### 阶段 0：收敛当前可靠性改动
+### Stage 0: Converge current reliability changes
 
-**预期结果：** 现有未提交可靠性工作形成一个可独立验证的稳定基线。
+**Expected outcome:** Existing uncommitted reliability work forms a stable baseline that can be verified independently.
 
-实施范围：
+Implementation scope:
 
-- 收敛保存串行化、保存点、恢复草稿、跨文件撤销隔离与外部文件变化处理。
-- 收敛代码块、图片和 Mermaid 的增量更新路径。
-- 将本地图片 watcher 接到编辑器图片刷新入口。
-- 保留当前工作树中的既有变更，避免与下一阶段交互模型改造交叉重写。
+- Converge save serialization, save points, recovery drafts, cross-file undo isolation, and external file-change handling.
+- Converge incremental update paths for code blocks, images, and Mermaid.
+- Wire the local image watcher to the editor image refresh entry point.
+- Preserve existing changes in the current worktree; avoid cross-rewriting with the next stage’s interaction-model changes.
 
-图片与 draft finalize 边界见 [ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)，恢复草稿见 [ADR 0004](../decisions/0004-local-recovery-drafts.md)，外部文件和图片 watcher 见 [ADR 0005](../decisions/0005-external-file-and-image-watch.md)。
+Image and draft-finalize boundaries are in [ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md); recovery drafts are in [ADR 0004](../decisions/0004-local-recovery-drafts.md); external file and image watchers are in [ADR 0005](../decisions/0005-external-file-and-image-watch.md).
 
-退出证据：
+Exit evidence:
 
-- typecheck、lint、常规测试、E2E、Rust 测试和生产构建均以新鲜输出通过。
-- 性能门禁单独串行运行，结果不与构建或 E2E 的资源竞争混用。
-- 独立代码审查未发现数据损坏、跨文件历史污染或 watcher 生命周期阻断问题。
+- typecheck, lint, regular tests, E2E, Rust tests, and production builds all pass with fresh output.
+- Performance gates run separately and serially; results are not mixed with build or E2E resource contention.
+- Independent code review finds no data corruption, cross-file history pollution, or watcher lifecycle blocking issues.
 
-### 阶段 1：统一交互与显示模式合同
+### Stage 1: Unify interaction and display-mode contracts
 
-**预期结果：** 所有 Markdown 可视化行为基于同一最小编辑范围，输入法和视图状态可预测。
+**Expected outcome:** All Markdown visualization behaviors share the same minimal edit range; IME and view state remain predictable.
 
-实施范围：
+Implementation scope:
 
-- 建立并测试 `EditorInteractionContext` 的 block、inline span、delimiter、selection 与 composition 派生。
-- 行内标记仅在光标或选区进入相应 span 时展开；块级标记仅展开当前最小结构。
-- IME composition 期间映射已有 decoration，不重建候选文本附近的 replacement；composition 结束后增量重算。
-- `Mod-/` 切换源码/实时预览模式，并保持选区、撤销历史、首个可见文档位置和像素偏移。
-- 明确 keymap 优先级，使结构块命令、composition 和跨块选区不被普通段落命令吞掉。
+- Build and test `EditorInteractionContext` derivation for block, inline span, delimiter, selection, and composition.
+- Inline marks expand only when the caret or selection enters the corresponding span; block marks expand only the current minimal structure.
+- During IME composition, map existing decorations; do not rebuild replacements near candidate text; recompute incrementally after composition ends.
+- `Mod-/` toggles source / live-preview modes while preserving selection, undo history, first visible document position, and pixel offset.
+- Clarify keymap priority so structural-block commands, composition, and cross-block selections are not swallowed by ordinary paragraph commands.
 
-退出证据：
+Exit evidence:
 
-- 单元测试覆盖多选区、嵌套/相邻 span、转义、多反引号和 composition 生命周期。
-- 集成与 Playwright 测试证明模式切换前后 selection、undo 和 scroll anchor 不漂移。
-- Windows Tauri 真实中文 IME 路径无候选文本闪烁、丢字或错误展开。
+- Unit tests cover multi-selection, nested/adjacent spans, escapes, multiple backticks, and composition lifecycle.
+- Integration and Playwright tests prove selection, undo, and scroll anchor do not drift across mode switches.
+- Windows Tauri real Chinese IME paths show no candidate flicker, dropped characters, or incorrect expansion.
 
-### 阶段 2：完成精确源码序列化
+### Stage 2: Complete precise source serialization
 
-**预期结果：** 编辑器可在规范化内部文本模型上工作，同时按原始字节意图保存。
+**Expected outcome:** The editor can work on a normalized internal text model while saving to original byte intent.
 
-实施范围：
+Implementation scope:
 
-- 加载时解析 BOM、末尾换行与每行 LF/CRLF/CR，并建立可随 transaction 映射的 `DocumentSourceFormat`。
-- 为插入、删除、拆行和合行定义换行格式继承规则。
-- 将 `EditorDocumentPort` 的快照、保存点与序列化语义绑定到当前 CodeMirror `Text` 和格式状态。
-- 建立真实 `EditorView → production prepareTextForSave → write → reopen → byte diff` 验证链路。
-- 仅在稀疏、受控的保存转换路径使用 `@codemirror/merge` 生成最小 changes；超出精确映射保证时显式降级并暴露证据。
+- On load, parse BOM, trailing newline, and per-line LF/CRLF/CR, and establish a `DocumentSourceFormat` that remaps with transactions.
+- Define newline-format inheritance rules for insert, delete, split, and join.
+- Bind `EditorDocumentPort` snapshot, save-point, and serialization semantics to the current CodeMirror `Text` and format state.
+- Establish a real `EditorView → production prepareTextForSave → write → reopen → byte diff` verification chain.
+- Use `@codemirror/merge` only on sparse, controlled save-transform paths to generate minimal changes; when precise mapping cannot be guaranteed, degrade explicitly and expose evidence.
 
-退出证据：
+Exit evidence:
 
-- Fixture 覆盖 LF、CRLF、CR、混合换行、BOM、尾随空格、无末尾换行及结构嵌套。
-- 未修改文档 round-trip 字节完全一致；修改后的所有无关字节 diff 为 0。
-- 保存点不再重新解析调用方字符串，也不依赖 mock 返回原 fixture 作为核心保真证据。
+- Fixtures cover LF, CRLF, CR, mixed newlines, BOM, trailing whitespace, no trailing newline, and structural nesting.
+- Unmodified documents round-trip with exact byte identity; after edits, unrelated byte diffs are zero.
+- Save points no longer re-parse caller strings or rely on mocks returning the original fixture as core fidelity evidence.
 
-### 阶段 3：交付代表性行为切片
+### Stage 3: Deliver representative behavior slices
 
-**预期结果：** 共享合同在高频和高风险语法上得到端到端验证，后续能力可按同一模式推广。
+**Expected outcome:** Shared contracts are end-to-end verified on high-frequency and high-risk syntax so later capabilities can extend the same pattern.
 
-#### 段落
+#### Paragraphs
 
-- 普通段落 Enter 以单个 transaction 创建 `\n\n` 新段落。
-- Shift+Enter 创建单换行；已经位于空行时只增加一个换行。
-- 结构块、composition 和跨块选区由更高优先级合同处理。
+- Ordinary paragraph Enter creates a `\n\n` new paragraph in a single transaction.
+- Shift+Enter creates a single newline; when already on an empty line, only one newline is added.
+- Structural blocks, composition, and cross-block selections are handled by higher-priority contracts.
 
-#### 行内 span
+#### Inline spans
 
-- 粗体、斜体、删除线、行内代码与链接只展开当前 span。
-- 覆盖嵌套、相邻、多反引号、转义、多选区和中文输入。
+- Bold, italic, strikethrough, inline code, and links expand only the current span.
+- Cover nested, adjacent, multiple backticks, escapes, multi-selection, and Chinese input.
 
-#### 列表与引用
+#### Lists and quotes
 
-- 先用 characterization tests 固定 CodeMirror 的续写、退出与 Backspace 现状，再添加最小差异行为。
-- 补齐列表 Tab/Shift+Tab、多段引用空行、混合选区和键盘可操作的任务 checkbox。
+- First lock CodeMirror continue/exit/Backspace behavior with characterization tests, then add minimal delta behavior.
+- Complete list Tab/Shift+Tab, multi-paragraph quote blank lines, mixed selection, and keyboard-operable task checkboxes.
 
-#### 代码块、标题与水平线
+#### Code blocks, headings, and horizontal rules
 
-- 迁移到共享 interaction context。
-- 覆盖逐键创建、退出、未闭合围栏和 YAML/Setext 歧义。
-- 禁止新增仅服务单一装饰器的活动行判断。
+- Migrate to the shared interaction context.
+- Cover key-by-key creation, exit, unclosed fences, and YAML/Setext ambiguity.
+- Do not add active-line judgments that serve only a single decorator.
 
 #### Mermaid
 
-- 编辑态只使用主 `EditorView`，源码可见且预览置于块下方。
-- 每次输入立即进入主文档与统一 undo 栈。
-- 保存、另存为、恢复草稿和关闭路径在编辑态读取最新正文。
+- Edit mode uses only the primary `EditorView`; source is visible and preview sits below the block.
+- Every keystroke immediately enters the primary document and the unified undo stack.
+- Save, save-as, recovery-draft, and close paths read the latest body text while editing.
 
-#### 安全降级
+#### Safe degradation
 
-- YAML Front Matter、脚注、`[toc]` 与 Callout 保持可见源码。
-- 通用装饰器不得把它们误判为水平线、标题、普通链接或引用。
+- YAML Front Matter, footnotes, `[toc]`, and Callout keep visible source.
+- Generic decorators must not misclassify them as horizontal rules, headings, ordinary links, or quotes.
 
-退出证据：
+Exit evidence:
 
-- 每个 transaction 都有精确 before/after 单元测试。
-- 集成测试覆盖结构命令优先级、Mermaid active-save、恢复草稿与外部文件冲突。
-- Playwright 覆盖 Enter/Shift+Enter、span 展开、列表/引用续写、`Mod-/`、任务键盘操作和保存重开。
+- Every transaction has precise before/after unit tests.
+- Integration tests cover structural-command priority, Mermaid active-save, recovery drafts, and external file conflicts.
+- Playwright covers Enter/Shift+Enter, span expansion, list/quote continuation, `Mod-/`, task keyboard operation, and save-and-reopen.
 
-### 阶段 4：系统验证与真实自用
+### Stage 4: System verification and real self-use
 
-**预期结果：** 可靠性合同在真实 Windows 桌面环境与长期文档负载下成立。
+**Expected outcome:** Reliability contracts hold on real Windows desktop environments and long-document workloads.
 
-验证范围：
+Verification scope:
 
-- Windows Tauri 实测真实中文 IME、剪贴板、Mermaid active-save 与 Narrator/NVDA 最小路径。
-- 1 MB、5 MB、10 MB 文档继续满足现有打开与输入预算。
-- 新增 selection-only、模式切换、代码块密集和真实复杂 Mermaid 长任务数据。
-- 性能基准独立串行执行；既有主预算不提高，5 样本 P80 与最大值门禁按 [ADR 0007](../decisions/0007-stable-performance-sampling.md) 执行；后续改变预算或统计口径仍须新的决策记录。
-- 完成一次真实自用反馈整理，并将阻断问题关联到可复现证据。
+- Windows Tauri real-path verification for Chinese IME, clipboard, Mermaid active-save, and minimal Narrator/NVDA paths.
+- 1 MB, 5 MB, and 10 MB documents continue to meet existing open and input budgets.
+- Add selection-only, mode-switch, code-block-dense, and real complex Mermaid long-task data.
+- Performance baselines run independently and serially; existing primary budgets are not raised; 5-sample P80 and max gates follow [ADR 0007](../decisions/0007-stable-performance-sampling.md); later budget or statistics-policy changes still require a new decision record.
+- Complete one real self-use feedback pass and link blocking issues to reproducible evidence.
 
-里程碑只有在数据损坏、IME、撤销、active-save 阻断问题归零，且所有适用质量门禁均有新鲜通过输出后退出。
+The milestone exits only when data-corruption, IME, undo, and active-save blocking issues are at zero, and every applicable quality gate has fresh passing output.
 
-## 并行范围：阅读模式与侧栏宽度
+## Parallel scope: reading mode and sidebar width
 
-本节与 Parity Reliability Foundation 并行推进，不改变上述阶段顺序，也不参与本里程碑的退出门禁。它只约束两项已批准的外壳与显示模式改动。
+This section advances in parallel with Parity Reliability Foundation. It does not change the stage order above and does not participate in this milestone’s exit gates. It only constrains two approved shell and display-mode changes.
 
-**侧栏宽度先行**，因为它只触及应用外壳，与编辑器合同无关：
+**Sidebar width first**, because it touches only the app shell and is independent of editor contracts:
 
-- 拖拽下限降到 120px 并在更窄处吸附折叠；上限由编辑器面板 360px 最小宽度反推。
-- 自适应依据改为文件树已展开节点的最长项，clamp 到 200–480px，仅在结构变化时重算。
-- 移除侧栏宽度持久化，保留开关持久化；本会话内手动拖动后自适应让位。
+- Drag lower bound drops to 120px with snap-collapse when narrower; upper bound is derived from the editor panel’s 360px minimum width.
+- Adaptive basis becomes the longest expanded file-tree item, clamped to 200–480px, recomputed only on structure changes.
+- Remove sidebar-width persistence; keep open/closed persistence; after a manual drag in the session, adaptive sizing yields.
 
-**阅读模式随后**，因为它触及显示模式合同与表格点击路径：
+**Reading mode next**, because it touches display-mode contracts and the table click path:
 
-- 视图菜单 `display-mode` radio 增加第三项，`Ctrl+/` 改为三态循环。
-- 只读经独立 Compartment 重配置 `EditorState.readOnly`，锁定渲染态且不展开源码标记。
-- 表格在阅读模式下不激活嵌套编辑器；该路径属于高成本缺陷区，必须补端到端断言。
+- View-menu `display-mode` radio gains a third item; `Ctrl+/` becomes a three-state cycle.
+- Read-only is reconfigured via an independent Compartment on `EditorState.readOnly`, locking rendered state without expanding source marks.
+- Tables must not activate nested editors in reading mode; that path is a high-cost defect area and must gain end-to-end assertions.
 
-边界与被否决方案见 [ADR 0010](../decisions/0010-reading-mode-readonly-contract.md) 和 [ADR 0011](../decisions/0011-sidebar-adaptive-width.md)。
+Boundaries and rejected options are in [ADR 0010](../decisions/0010-reading-mode-readonly-contract.md) and [ADR 0011](../decisions/0011-sidebar-adaptive-width.md).
 
-退出证据：
+Exit evidence:
 
-- 依赖 240/360 宽度边界的既有单元、集成与 Playwright 断言全部重写并通过。
-- 阅读模式覆盖只读拒绝变更、渲染态不展开、表格不激活、保存仍可用和状态栏反馈。
-- typecheck、lint、常规测试与相关 E2E 以新鲜输出通过。
+- Existing unit, integration, and Playwright assertions that depend on 240/360 width boundaries are all rewritten and passing.
+- Reading mode covers read-only rejecting edits, rendered state not expanding, tables not activating, save still available, and status-bar feedback.
+- typecheck, lint, regular tests, and related E2E pass with fresh output.
 
-## 质量与证据矩阵
+## Quality and evidence matrix
 
-| 层级 | 必须证明的行为 |
+| Layer | Behaviors that must be proven |
 | --- | --- |
-| 单元测试 | interaction context、composition、keymap 优先级、换行格式映射、每个 Markdown transaction 的精确 before/after |
-| 集成测试 | 模式切换、selection/scroll 保持、Mermaid active-save、恢复草稿、外部文件冲突 |
-| 保真 fixture | LF/CRLF/CR、混合换行、BOM、尾随空格、无末尾换行、同行多 span、未闭合语法、结构嵌套 |
-| Playwright | Enter/Shift+Enter、span 展开、列表/引用、`Mod-/`、任务键盘操作、保存重开 |
-| Windows Tauri | 中文 IME、剪贴板、Mermaid 编辑态保存、Narrator/NVDA 最小路径 |
-| 独立性能门禁 | 1/5/10 MB 打开与输入、selection-only、模式切换、代码块密集、复杂 Mermaid 长任务 |
+| Unit tests | interaction context, composition, keymap priority, newline-format mapping, precise before/after for every Markdown transaction |
+| Integration tests | mode switch, selection/scroll retention, Mermaid active-save, recovery drafts, external file conflicts |
+| Fidelity fixtures | LF/CRLF/CR, mixed newlines, BOM, trailing whitespace, no trailing newline, multiple spans on one line, unclosed syntax, structural nesting |
+| Playwright | Enter/Shift+Enter, span expansion, lists/quotes, `Mod-/`, task keyboard operation, save-and-reopen |
+| Windows Tauri | Chinese IME, clipboard, Mermaid edit-mode save, Narrator/NVDA minimal path |
+| Independent performance gates | 1/5/10 MB open and input, selection-only, mode switch, code-block dense, complex Mermaid long tasks |
 
-完整命令与完成定义遵循 [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.md) 和 [质量策略](../quality/QUALITY_STRATEGY.md)。性能事实与预算以 `docs/performance/` 下对应基准文档为准。
+Full commands and Definition of Done follow [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.md) and [Quality Strategy](../quality/QUALITY_STRATEGY.md). Performance facts and budgets are governed by the corresponding baseline docs under `docs/performance/`.
 
-## Next：Typora Migration Completeness
+## Next: Typora Migration Completeness
 
-当前里程碑（Parity Reliability Foundation）退出后，按下列梯队推进。梯队内仍按依赖顺序；未完成前置门禁前不跳级堆叠新 capability。
+After the current milestone (Parity Reliability Foundation) exits, advance by the following tiers. Within a tier, keep dependency order; do not skip ahead and stack new capabilities before prerequisite gates pass.
 
-代码块命令入口与逐键围栏补齐已于 2026-08-12 落地，不再属于 Next；后续只按独立证据推进语言选择器、复制操作或更广的 Markdown 自动配对，不把它们隐含进该能力。
+Code-block command entry and key-by-key fence completion landed on 2026-08-12 and are no longer Next. Later work may advance language pickers, copy actions, or broader Markdown auto-pairing only with independent evidence—do not fold those into this capability by implication.
 
-进入 Next 前，统一普通剪切/复制/粘贴/全选、编辑器与文件树上下文菜单、链接/图片首批右键动作，以及 v2 设置持久化和垂直设置页构成前置基线；下列梯队不重复列这些基础设施。其实施状态只以当前代码、构建记录和新鲜验收证据为准，本文不记录某次分支的完成进度。
+Before entering Next, unified ordinary cut/copy/paste/select-all, editor and file-tree context menus, first-batch link/image right-click actions, plus v2 settings persistence and the vertical settings page form a prerequisite baseline; the tiers below do not re-list that infrastructure. Their implementation status is evidenced only by current code, build records, and fresh acceptance evidence; this document does not record completion progress for any particular branch.
 
-### 第一梯队（阻断日常迁移）
+### Tier 1 (blocks day-to-day migration)
 
-1. **完整链接工作流**
-   - 剩余：Ctrl/Cmd+Click、内部标题锚点跳转；右键打开/复制、统一命中模型与 opener 白名单已经落地。
-   - 依赖：[菜单系统设计](../product/MENU_SYSTEM_DESIGN.md) 右键合同、[ADR 0015](../decisions/0015-external-open-and-file-mutations.md) opener 与协议白名单。
-2. **剪贴板合同**
-   - 复制为纯文本（Typora 1.13 上下文菜单已核实项）、Copy as Markdown、`Ctrl+Shift+V` 粘贴为纯文本；随后再接到右键与顶栏。
-   - 前置：明确 HTML/Markdown/纯文本序列化保真与失败可见性；不静默改写源码。
-### 第二梯队（高频编辑与资源）
+1. **Complete link workflows**
+   - Remaining: Ctrl/Cmd+Click and internal heading-anchor jumps; right-click open/copy, unified hit model, and opener allowlist have already landed.
+   - Dependencies: [Menu System Design](../product/MENU_SYSTEM_DESIGN.md) right-click contracts; [ADR 0015](../decisions/0015-external-open-and-file-mutations.md) opener and protocol allowlist.
+2. **Clipboard contracts**
+   - Copy as plain text (verified item in Typora 1.13 context menu), Copy as Markdown, and `Ctrl+Shift+V` paste as plain text; then wire into right-click and top chrome.
+   - Prerequisite: clear HTML/Markdown/plain-text serialization fidelity and visible failure behavior; do not silently rewrite source.
 
-3. **图片选择器事务回滚与 `typora-root-url` 预览解析**
-   - 图片策略持久化以及复制路径、reveal、删除引用右键动作已经落地；删磁盘文件仍不在本轮范围。
-4. **表格行列、对齐、粘贴合同与组件内菜单双语化**
-   - `Ctrl+L` / `Ctrl+E` / 删行等与 Typora 语义对齐；`codemirror-markdown-tables` 内文案进 i18n（发布阻断项）。
-5. **代码块创建与退出路径补强**（在菜单入口已存在的基础上补齐键入/IME/保真证据）。
-6. **查找替换深度定级**
-   - 先实测现有 `editor.search.*` UI 完整度，再决定是缺口修复还是能力增强；不在未核实前写入虚假完成声明。
+### Tier 2 (high-frequency editing and assets)
 
-### 第三梯队（新 capability，需架构前置）
+3. **Image picker transactional rollback and `typora-root-url` preview resolution**
+   - Image strategy persistence and copy-path / reveal / delete-reference right-click actions have already landed; deleting on-disk files remains out of this round.
+4. **Table row/column, alignment, paste contracts, and in-component menu bilingualization**
+   - Align `Ctrl+L` / `Ctrl+E` / delete-row and related semantics with Typora; move `codemirror-markdown-tables` copy into i18n (release blocker).
+5. **Code-block create and exit path hardening** (complete typing/IME/fidelity evidence on top of the already-present menu entry).
+6. **Find/replace depth triage**
+   - First measure completeness of the existing `editor.search.*` UI, then decide gap-fix vs capability enhancement; do not write false completion claims before verification.
 
-7. **块级数学**：用固定迁移语料评估 KaTeX 与 MathJax，形成 ADR 后先实现块级数学；行内数学与 Inline Math 设置门控同批或紧随。
-8. **共享增量 heading identity**：供 Outline、内部锚点与 TOC 复用；稳定前不做大纲锚点右键。
-9. **heading identity 稳定后**：YAML Front Matter、脚注、`[toc]`、导出与相关设置/快捷键闭环。
-10. **Callout / GitHub Style Alerts**：由未来 settings `markdown` 门控承载；关闭时源码可见降级。
-11. **受限 HTML / 嵌入**：独立安全评审与 ADR 后方可进入。
+### Tier 3 (new capabilities that need architecture prerequisites)
 
-以上 capability 在完整实现前只要求 protected-source 安全降级，不得把「源码可见」写成产品能力已交付。
+7. **Block math:** MathJax has landed via [ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md). Remaining work continues block/inline math coverage and Inline Math settings gating in the same batch or immediately after—do not reopen KaTeX vs MathJax engine selection as if it were still undecided. Landing MathJax does not claim the full Typora Parity milestone complete.
+8. **Shared incremental heading identity:** reused by Outline, internal anchors, and TOC; no outline-anchor right-click until it is stable.
+9. **After heading identity is stable:** YAML Front Matter, footnotes, `[toc]`, export, and related settings/shortcut loops.
+10. **Callout / GitHub Style Alerts:** carried by a future settings `markdown` gate; when off, degrade to visible source.
+11. **Constrained HTML / embeds:** enter only after independent security review and an ADR.
 
-这些项目在进入对应实现批次前只保持能力边界、依赖顺序、验收方向与文档合同；逐任务实现细节在开工时按 `DEVELOPMENT_PROCESS.md` 拆分。
+Until full implementation, the capabilities above require only protected-source safe degradation; do not treat “source visible” as product delivery of the capability.
 
-## Later：平台与生态
+Before their corresponding implementation batches start, these items keep only capability boundaries, dependency order, acceptance direction, and documentation contracts; per-task implementation detail is split at kickoff per `DEVELOPMENT_PROCESS.md`.
 
-- Callout、受限 HTML/嵌入与高级图表。
-- 更新器和 macOS/Linux 深度打磨。
-- 插件、AI 与生态能力。
+## Later: platform and ecosystem
 
-Later 只表达战略方向，不构成近期承诺。任意 HTML、iframe 或全局 CSP 放宽若未来进入范围，必须另行完成安全评审和决策记录。
+- Callout, constrained HTML/embeds, and advanced diagrams.
+- macOS/Linux deep polish.
+- Plugins, AI, and ecosystem capability.
 
-## 维护规则
+Later expresses strategic direction only and is not a near-term commitment. The GitHub NSIS updater has already landed via [ADR 0012](../decisions/0012-github-nsis-auto-update.md) and is not listed as future work here. If arbitrary HTML, iframes, or global CSP relaxation ever enter scope, they must complete separate security review and a decision record first.
 
-- 本文是当前唯一执行计划；当前里程碑范围或顺序改变时直接更新本文。
-- [演进计划](EVOLUTION_PLAN.md) 只维护阶段定位和 Now/Next/Later 摘要，不复制这里的任务细节。
-- 产品目标变化更新产品主文档；架构合同变化更新 [详细架构](../architecture/DETAILED_ARCHITECTURE.md) 和对应 ADR。
-- 不把测试运行结果、临时调查记录或逐日进度写入本文。
-- 若提高性能预算、改变保存/源码保真策略、恢复嵌套编辑器或替换编辑器核心，必须先新增或修订 ADR。
+## Maintenance rules
+
+- This document is the sole current execution plan; update it directly when current milestone scope or order changes.
+- [Evolution Plan](EVOLUTION_PLAN.md) maintains only stage positioning and Now/Next/Later summaries; it does not copy task detail from here.
+- Product-goal changes update product source docs; architecture-contract changes update [Detailed Architecture](../architecture/DETAILED_ARCHITECTURE.md) and the corresponding ADRs.
+- Do not write test-run results, temporary investigation notes, or day-by-day progress into this document.
+- Raising performance budgets, changing save/source-fidelity strategy, restoring nested editors, or replacing the editor core requires adding or revising an ADR first.

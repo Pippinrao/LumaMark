@@ -1,41 +1,43 @@
-# ADR 0018：PlantUML 采用官方 TeaVM 本地渲染
+> Language: **English** · [中文](../zh/decisions/0018-plantuml-local-rendering.md)
 
-- 状态：已采纳
-- 日期：2026-08（对应 issue #12「plantuml 语法支持」）
-- 编号说明：issue-12 原稿曾使用 0014，但仓库已占用 [ADR 0014](0014-settings-persistence.md)；MathJax 为 [ADR 0017](0017-mathjax-document-worker-chtml.md)。本决策因此落为 0018。
+# ADR 0018: PlantUML Uses Official TeaVM Local Rendering
 
-## 背景
+- Status: Accepted
+- Date: 2026-08 (corresponds to issue #12 “plantuml syntax support”)
+- Numbering note: the issue-12 draft previously used 0014, but the repository already occupies [ADR 0014](0014-settings-persistence.md); MathJax is [ADR 0017](0017-mathjax-document-worker-chtml.md). This decision therefore lands as 0018.
 
-需要为 LumaMark 增加 PlantUML 图表预览。PlantUML 官方渲染器由 Java 实现，传统上依赖 JVM 或远程 PlantUML 服务器。项目原则要求本地、离线、隐私友好、无 JVM、高性能，且优先采用成熟组件。设置必须进入 canonical `settings.json`，不能再使用独立 localStorage store。
+## Context
 
-## 决策
+LumaMark needs PlantUML diagram preview. The official PlantUML renderer is Java-based and traditionally depends on a JVM or a remote PlantUML server. Project principles require local, offline, privacy-friendly, no JVM, high performance, and mature components first. Settings must enter canonical `settings.json` and must not use a separate localStorage store.
 
-采用官方 `@plantuml/core`（TeaVM 编译引擎，MIT，固定 1.2026.6）在 **WebView 内本地渲染**：
+## Decision
 
-- `plantuml.js` 与 `viz-global.js` 懒加载：首个 ` ```plantuml ` 块出现时才注入 Graphviz 脚本并动态 `import('@plantuml/core')`。
-- `renderToString(lines, onSuccess, onError, { dark: true })` 跟随 `document.documentElement` 的 `data-theme`。
-- 引擎失败 promise 保持 sticky，避免重复注入损坏的 Graphviz 脚本。
-- TeaVM 运行时有进程级可变状态，因此渲染调用串行排队。
-- SVG 注入前用显式依赖的 `dompurify`（SVG profile）消毒。
-- 调度、缓存、`jobOwner` 隔离和 `BlockWidgetGeometryTracker` 镜像 Mermaid 合同，不阻塞输入。
-- 阅读模式走现有 render-lock：不创建 Edit/Delete，Expand 仍可用。
-- 开关为 canonical v3 字段 `markdown.plantuml.enabled`，默认开启。现有 v3 文档缺少该字段不算 invalid，但需要 writeback。不升 SETTINGS_VERSION。
+Adopt official `@plantuml/core` (TeaVM-compiled engine, MIT, pinned 1.2026.6) for **local rendering inside the WebView**:
 
-## 被否决方案
+- Lazy-load `plantuml.js` and `viz-global.js`: inject the Graphviz script and dynamically `import('@plantuml/core')` only when the first ` ```plantuml ` block appears.
+- `renderToString(lines, onSuccess, onError, { dark: true })` follows `document.documentElement`’s `data-theme`.
+- Engine failure promises stay sticky to avoid re-injecting a broken Graphviz script.
+- The TeaVM runtime has process-level mutable state, so render calls are queued serially.
+- Sanitize SVG with an explicit `dompurify` dependency (SVG profile) before injection.
+- Scheduling, caching, `jobOwner` isolation, and `BlockWidgetGeometryTracker` mirror the Mermaid contract and do not block typing.
+- Reading mode follows the existing render-lock: no Edit/Delete creation; Expand remains available.
+- The switch is canonical v3 field `markdown.plantuml.enabled`, default on. Existing v3 documents missing the field are not invalid but need writeback. Do not bump `SETTINGS_VERSION`.
 
-- **打包 `plantuml.jar` + JVM**：安装体积大、冷启动慢、跨平台 JVM 管理复杂。
-- **远程服务器（PlantUML 官方 / Kroki）**：需网络、有隐私泄露、离线不可用，且与 CSP `connect-src` 冲突。
-- **独立 `plantumlSettingsStore` / localStorage**：与 canonical settings 和损坏恢复合同冲突。
-- **第三方 Rust 实现**：语法覆盖不完整，不是 drop-in。
+## Alternatives considered
 
-## 影响
+- **Bundle `plantuml.jar` + JVM:** large install size, slow cold start, complex cross-platform JVM management.
+- **Remote servers (official PlantUML / Kroki):** need network, leak privacy, unavailable offline, and conflict with CSP `connect-src`.
+- **Independent `plantumlSettingsStore` / localStorage:** conflicts with canonical settings and corruption-recovery contracts.
+- **Third-party Rust implementations:** incomplete syntax coverage; not drop-in.
 
-- 新增直接依赖 `@plantuml/core@1.2026.6`、`dompurify@3.4.11`。
-- 安装包体积增加约 8 MB；运行时懒加载。`quality:web-build` 把 `plantuml-` / `viz-global-` chunk 排除在 700KiB JS budget 之外，并把 Vite `chunkSizeWarningLimit` 提到 7000。复制该引擎与 MathJax NewCM 字体会触发 Rolldown `vite:asset` `PLUGIN_TIMINGS`；门禁只豁免这一插件名，见 [质量策略](../quality/QUALITY_STRATEGY.md)。
-- PlantUML 是独立 editor capability，默认开启，设置即时生效。
-- 实机完成证据必须包含 NSIS 安装包 + Win32 OS 指针路径：`scripts/release/verify-installed-plantuml-os.mjs`。
+## Consequences
 
-## 回滚 / 复审条件
+- Adds direct dependencies `@plantuml/core@1.2026.6` and `dompurify@3.4.11`.
+- Installer size grows by about 8 MB; runtime is lazy-loaded. `quality:web-build` excludes `plantuml-` / `viz-global-` chunks from the 700KiB JS budget and raises Vite `chunkSizeWarningLimit` to 7000. Copying this engine and MathJax NewCM fonts triggers Rolldown `vite:asset` `PLUGIN_TIMINGS`; the gate exempts only that plugin name—see [Quality Strategy](../quality/QUALITY_STRATEGY.md).
+- PlantUML is an independent editor capability, enabled by default, with settings taking effect immediately.
+- Real-machine completion evidence must include the NSIS installer + Win32 OS pointer path: `scripts/release/verify-installed-plantuml-os.mjs`.
 
-- 若 `@plantuml/core` 破坏 API 或体积失控，回退评估 Rust sidecar / 本地 jar，并重新评估远程方案。
-- 若官方 npm 产物停更，改为 vendoring `plantuml.js` + `viz-global.js`。
+## Rollback / revisit criteria
+
+- If `@plantuml/core` breaks API or size becomes uncontrolled, fall back to evaluating a Rust sidecar / local jar and reassess remote options.
+- If the official npm artifacts stop updating, vendor `plantuml.js` + `viz-global.js` instead.

@@ -1,131 +1,133 @@
+> Language: **English** · [中文](DEVELOPMENT_PROCESS.zh.md)
+
 # DEVELOPMENT_PROCESS.md
 
-本文件规定 LumaMark 的 AI 原生开发流程。目标是让项目在大量使用 AI 构建的情况下，仍然保持可用、可测、可维护，避免堆出大量不可控 bug。
+This file defines LumaMark’s AI-native development process. The goal is to keep the project usable, testable, and maintainable even when AI writes a large share of the code, and to avoid accumulating uncontrollable bugs.
 
-## 核心原则
+## Core principles
 
-1. AI 可以大量写代码，但不能自己证明自己写对了。
-2. 所有完成声明必须有新鲜验证证据。
-3. 所有功能和 bugfix 默认测试先行。
-4. 大任务必须拆成可独立验收的小任务。
-5. 手动测试只能作为补充，不能替代自动化测试。
-6. 性能、源码保真、i18n 和编辑器交互属于一级质量门禁。
-7. 发现问题先找根因，再修复；禁止猜测式补丁。
+1. AI may write a lot of code, but it cannot prove its own correctness.
+2. Every completion claim must have fresh verification evidence.
+3. Features and bugfixes default to tests first.
+4. Large work must be split into independently acceptable small tasks.
+5. Manual testing is only a supplement; it cannot replace automated tests.
+6. Performance, source fidelity, i18n, and editor interaction are first-class quality gates.
+7. Find root cause before fixing; no guesswork patches.
 
-## 标准工作流
+## Standard workflow
 
-每个实现任务必须按以下顺序推进：
+Every implementation task must proceed in this order:
 
-1. **读取上下文**：阅读 `AGENTS.md`、本文件、相关需求文档和已有代码。
-2. **拆分任务**：把任务拆到一次只改变一个清晰行为。
-3. **写验收标准**：明确本任务如何证明完成。
-4. **测试先行**：先写会失败的测试或可重复验证脚本。
-5. **确认失败**：运行测试，确认它因目标行为缺失而失败。
-6. **最小实现**：只写让测试通过所需的最小代码。
-7. **验证通过**：重新运行相关测试、类型检查、lint、构建或 E2E。
-8. **回归检查**：确认没有破坏源码保真、i18n、性能和关键编辑器行为。
-9. **实现者自审**：对照本任务验收标准快速检查遗漏、多余改动和明显回归。默认到此为止，不要另开审查轮次或审查子代理。
-10. **记录结果**：说明运行过哪些验证、结果是什么、还剩哪些风险。
+1. **Read context**: read `AGENTS.md`, this file, related requirements, and existing code.
+2. **Split the task**: change only one clear behavior at a time.
+3. **Write acceptance criteria**: define how this task proves completion.
+4. **Tests first**: write a failing test or a repeatable verification script first.
+5. **Confirm failure**: run the test and confirm it fails because the target behavior is missing.
+6. **Minimal implementation**: write only the code needed to make the test pass.
+7. **Verify pass**: re-run related tests, typecheck, lint, build, or E2E.
+8. **Regression check**: confirm source fidelity, i18n, performance, and critical editor behavior were not broken.
+9. **Implementer self-review**: quickly check omissions, extra changes, and obvious regressions against this task’s acceptance criteria. Stop here by default; do not open extra review rounds or review subagents.
+10. **Record results**: state which verifications ran, what the results were, and remaining risks.
 
-不得跳过测试先行，除非任务明确属于纯文档、一次性原型、生成文件或配置初始化，并且需要在结果中说明原因。
+Do not skip tests-first unless the task is clearly pure documentation, a one-off prototype, generated files, or config initialization—and the reason must be stated in the result.
 
-## 任务粒度
+## Task granularity
 
-AI 任务必须小而可验收。
+AI tasks must be small and acceptable.
 
-一个任务应该满足：
+A task should:
 
-- 目标能用一句话说清。
-- 只触及一个主要行为或一个薄切片。
-- 能在同一轮中实现、验证和说明。
-- 有明确的自动化验收方式。
+- Be expressible in one sentence.
+- Touch only one primary behavior or one thin slice.
+- Be implementable, verifiable, and explainable in the same round.
+- Have a clear automated acceptance path.
 
-以下任务太大，必须拆分：
+The following are too large and must be split:
 
-- “实现编辑器”
-- “复刻 Typora”
-- “做完整文件系统”
-- “优化性能”
-- “实现 Mermaid”
-- “完善 UI”
+- “Implement the editor”
+- “Replicate Typora”
+- “Build a complete filesystem”
+- “Optimize performance”
+- “Implement Mermaid”
+- “Finish the UI”
 
-推荐拆成：
+Prefer splits such as:
 
-- 接入 CodeMirror 并显示 Markdown 文本。
-- 实现标题样式 decoration。
-- 实现粗体源码符号隐藏。
-- 实现 Mermaid fenced block 检测。
-- 实现 Mermaid 异步渲染缓存。
-- 实现打开文件。
-- 实现保存后 round-trip 无无关 diff。
+- Wire CodeMirror and display Markdown text.
+- Implement heading style decorations.
+- Hide bold source markers.
+- Detect Mermaid fenced blocks.
+- Add Mermaid async render caching.
+- Implement open file.
+- Ensure save round-trip has no unrelated diff.
 
-## TDD 规则
+## TDD rules
 
-功能、bugfix、重构和行为变更默认必须 TDD。
+Features, bugfixes, refactors, and behavior changes default to TDD.
 
-硬规则：
+Hard rules:
 
-1. 没有失败测试，不写生产代码。
-2. 测试必须先失败，并且失败原因必须正确。
-3. 实现只做让测试通过所需的最小改动。
-4. 修 bug 前必须先写能复现 bug 的失败测试。
-5. 测试通过后才允许重构。
-6. 如果无法测试，说明设计可能过度耦合，必须先重新审视接口。
+1. No production code without a failing test.
+2. The test must fail first, and for the correct reason.
+3. Implementation is only the minimal change that makes the test pass.
+4. Before fixing a bug, write a failing test that reproduces it.
+5. Refactor only after tests pass.
+6. If something cannot be tested, the design may be over-coupled; revisit the interface first.
 
-例外只包括：
+Exceptions are only:
 
-- 纯文档改动
-- 一次性探索原型
-- 初始化配置
-- 生成文件
+- Pure documentation changes
+- One-off exploration prototypes
+- Config initialization
+- Generated files
 
-例外不能扩大解释。即使是例外，也要尽可能补充静态检查、截图检查或人工验收说明。
+Exceptions must not be stretched. Even for exceptions, add static checks, screenshot checks, or a human acceptance note whenever possible.
 
-## 自动化测试分层
+## Automated test layers
 
-LumaMark 必须逐步建立以下测试层。
+LumaMark must gradually establish these layers.
 
-### 单元测试
+### Unit tests
 
-覆盖纯逻辑：
+Cover pure logic:
 
-- Markdown token 识别
-- 源码片段转换
-- 设置解析
-- i18n key 检查
-- 缓存 key 生成
-- 文件路径处理
-- 搜索和索引逻辑
+- Markdown token recognition
+- Source fragment transforms
+- Settings parsing
+- i18n key checks
+- Cache key generation
+- File path handling
+- Search and indexing logic
 
-### 集成测试
+### Integration tests
 
-覆盖模块协作：
+Cover module collaboration:
 
-- 打开文件到编辑器
-- 编辑后保存
-- Mermaid 渲染任务调度
-- 自动保存和恢复
-- Rust command 与前端调用
-- 设置变更影响 UI 和编辑器
+- Open file into the editor
+- Edit then save
+- Mermaid render task scheduling
+- Autosave and recovery
+- Rust commands and frontend callers
+- Settings changes affecting UI and editor
 
-### E2E 测试
+### E2E tests
 
-使用 Playwright 或同等级成熟方案覆盖真实用户路径：
+Use Playwright or an equivalent mature approach for real user paths:
 
-- 启动应用
-- 新建文档
-- 打开 Markdown 文件
-- 输入中文和英文
-- 输入标题、列表、代码块、Mermaid
-- 保存文件
-- 搜索和替换
-- 切换语言
-- 切换明暗主题
-- 检查关键截图
+- Launch the app
+- Create a document
+- Open a Markdown file
+- Type Chinese and English
+- Enter headings, lists, code blocks, Mermaid
+- Save a file
+- Search and replace
+- Switch language
+- Switch light/dark theme
+- Critical screenshot checks
 
-### Fixture 回归测试
+### Fixture regression tests
 
-建立固定 Markdown 样本库：
+Maintain a fixed Markdown sample library:
 
 - `basic.md`
 - `headings.md`
@@ -141,11 +143,11 @@ LumaMark 必须逐步建立以下测试层。
 - `large-5mb.md`
 - `large-10mb.md`
 
-每次编辑器核心、保存逻辑、解析逻辑变更，都必须运行 open -> save -> diff 测试。无关 diff 必须为 0。
+Every editor-core, save-logic, or parse-logic change must run open → save → diff tests. Unrelated diff must be zero.
 
-## CI 门禁
+## CI gates
 
-一旦项目脚手架建立，必须提供并维护以下命令或等价命令：
+Once project scaffolding exists, provide and maintain these commands or equivalents:
 
 - `pnpm typecheck`
 - `pnpm lint`
@@ -159,191 +161,193 @@ LumaMark 必须逐步建立以下测试层。
 - `cargo check`
 - `cargo test`
 
-GitHub Actions 必须维护 `.github/workflows/v1-quality.yml`，并在默认分支 `main`（以及遗留的 `v1-implementation`）的 push 和 pull request 上运行 V1 质量门禁；也支持 `workflow_dispatch` 手动触发。该 workflow 至少覆盖 typecheck、lint、普通测试、fixture round-trip、Rust check/test、Web E2E、生产构建启动回归、远程图片真实公网缓存、Web chunk 门禁和独立性能基准。
+GitHub Actions must maintain `.github/workflows/v1-quality.yml` and run V1 quality gates on push and pull request to default branch `main` (and legacy `v1-implementation`); `workflow_dispatch` manual trigger is also supported. The workflow must at least cover typecheck, lint, ordinary tests, fixture round-trip, Rust check/test, Web E2E, production-build launch regression, real public-network remote image cache, Web chunk gates, and standalone performance benchmarks.
 
-任务完成前必须运行与改动相关的命令。
+Before finishing a task, run the commands relevant to the change.
 
-`pnpm test` 是普通单元和集成测试门禁，不应包含 `tests/perf/**`。性能基准必须通过 `pnpm perf:bench` 单独运行，并且 `tests/perf/**` 内部测试文件也必须串行执行，避免大文档基准在同一机器上互相抢占 CPU、磁盘或 jsdom 资源。性能基准不得与 E2E、构建、typecheck、lint 等重 CPU 门禁并行执行。并行运行造成的性能预算失败不能直接作为退化结论，必须单独复现后再判断。
+`pnpm test` is the ordinary unit/integration gate and must not include `tests/perf/**`. Performance benchmarks must run via `pnpm perf:bench` alone, and tests inside `tests/perf/**` must also run serially so large-document benches do not contend for CPU, disk, or jsdom on the same machine. Performance benchmarks must not run in parallel with E2E, build, typecheck, lint, or other heavy CPU gates. Budget failures caused by parallel contention are not direct regression conclusions; reproduce alone before judging.
 
-测试、构建和发布脚本输出中的 warning 也是质量信号。新增 warning 必须定位根因并修复；确认为既有外部限制时，必须在结果中说明证据、影响范围和后续治理项。
+Warnings in test, build, and release script output are also quality signals. New warnings must be rooted and fixed; if confirmed as an existing external limitation, state evidence, impact, and follow-up governance in the result.
 
-如果某个命令尚未建立，agent 必须说明：
+If a command is not yet established, the agent must state:
 
-- 缺少哪个验证命令。
-- 本次用了什么替代验证。
-- 后续应该补哪一个自动化门禁。
+- Which verification command is missing.
+- What substitute verification was used.
+- Which automated gate should be added later.
 
-禁止在缺少验证命令时声称功能已经自动化验证通过。
+Do not claim automated functional verification when the verification command is missing.
 
 ## Definition of Done
 
-任何实现任务完成前必须满足：
+Before any implementation task is complete:
 
-- 需求和验收标准逐项对应。
-- 新行为有测试，且测试经历过失败到通过。
-- 相关 typecheck 通过。
-- 相关 lint 通过。
-- 相关单元测试或集成测试通过。
-- 涉及 UI 时，相关 E2E 或截图检查通过。
-- 涉及编辑器时，检查 IME、撤销重做、选区、复制粘贴和源码保真风险。
-- 涉及保存时，fixture round-trip 无无关 diff。
-- 涉及性能敏感路径时，性能基准无明显退化。
-- 涉及 UI 文案时，中文和英文 i18n 资源同步更新。
-- 涉及基础组件时，确认已优先使用成熟组件。
-- 没有新增静默错误处理。
-- 最终回复中列出实际运行的验证命令和结果。
+- Requirements and acceptance criteria map item by item.
+- New behavior has tests that went from fail to pass.
+- Related typecheck passes.
+- Related lint passes.
+- Related unit or integration tests pass.
+- When UI is involved, related E2E or screenshot checks pass.
+- When the editor is involved, check IME, undo/redo, selection, copy/paste, and source-fidelity risk.
+- When save is involved, fixture round-trip has no unrelated diff.
+- When performance-sensitive paths are involved, benchmarks show no clear regression.
+- When UI copy is involved, Chinese and English i18n resources update together.
+- When primitives are involved, confirm mature components were preferred.
+- No new silent error handling was added.
+- The final reply lists verification commands actually run and their results.
 
-不满足以上条件时，只能说明“已完成某部分改动”，不能声称任务完成。
+If the above are not met, you may only say “part of the change is done,” not that the task is complete.
 
-## 性能基准
+## Performance benchmarks
 
-性能目标必须从项目早期开始测量。
+Performance targets must be measured from early in the project.
 
-初始目标：
+Initial targets:
 
-- 1MB Markdown 文件打开时间小于 300ms。
-- 5MB Markdown 文件打开时间小于 1s。
-- 10MB Markdown 文件可编辑且不冻结。
-- 普通输入延迟尽量小于 16ms。
-- 滚动接近 60 FPS。
-- Mermaid 渲染不能阻塞输入。
-- 保存前后无关 diff 为 0。
+- Open a 1MB Markdown file in under 300ms.
+- Open a 5MB Markdown file in under 1s.
+- A 10MB Markdown file remains editable without freezing.
+- Ordinary input latency preferably under 16ms.
+- Scrolling near 60 FPS.
+- Mermaid rendering must not block typing.
+- Unrelated diff before/after save is 0.
 
-这些数字可以随着真实测试调整，但不能取消性能门禁。
+These numbers may adjust with real measurement, but the performance gate must not be cancelled.
 
-涉及以下区域的改动必须附带性能说明：
+Changes in these areas must include a performance note:
 
-- 编辑器核心
-- decorations/widgets
+- Editor core
+- Decorations/widgets
 - Mermaid
-- 数学公式
-- 图片预览
-- 文件打开和保存
-- 搜索和索引
-- 大纲生成
-- 虚拟列表
-- 工作区文件树
+- Math
+- Image preview
+- File open and save
+- Search and indexing
+- Outline generation
+- Virtual lists
+- Workspace file tree
 
-## 手动测试最小化
+## Minimize manual testing
 
-手动测试只用于探索和最终体验确认。凡是重复执行两次以上的手动测试，都必须转成自动化测试或验证脚本。
+Manual testing is only for exploration and final experience confirmation. Any manual test repeated more than twice must become an automated test or verification script.
 
-允许的手动测试：
+Allowed manual testing:
 
-- 视觉审美判断
-- 新交互原型体验
-- 跨平台真实设备抽检
-- 自动化尚无法稳定覆盖的系统行为
+- Visual aesthetic judgment
+- New interaction prototype experience
+- Spot checks on real cross-platform devices
+- System behavior that automation cannot yet cover reliably
 
-不允许长期依赖手动测试的区域：
+Areas that must not depend on manual testing long term:
 
-- 打开和保存
+- Open and save
 - Markdown round-trip
-- 基础编辑行为
-- i18n 文案覆盖
-- 主题切换
-- Mermaid 生命周期
-- 搜索
-- 快捷键
-- 大文档性能
+- Basic editing behavior
+- i18n copy coverage
+- Theme switching
+- Mermaid lifecycle
+- Search
+- Shortcuts
+- Large-document performance
 
-## Bug 处理流程
+## Bug handling process
 
-遇到 bug、测试失败、构建失败、性能异常时，必须按根因流程处理：
+On bugs, test failures, build failures, or performance anomalies, follow root-cause process:
 
-1. 完整读取错误信息。
-2. 稳定复现问题。
-3. 检查最近改动。
-4. 找到问题发生的边界。
-5. 提出单一假设。
-6. 写失败测试或复现脚本。
-7. 做最小修复。
-8. 重新运行验证。
+1. Read the full error.
+2. Reproduce stably.
+3. Inspect recent changes.
+4. Find the boundary where the problem occurs.
+5. Form a single hypothesis.
+6. Write a failing test or reproduction script.
+7. Make a minimal fix.
+8. Re-run verification.
 
-禁止：
+Forbidden:
 
-- 未复现就修。
-- 同时尝试多个修复。
-- 修症状不修根因。
-- 修复后不补回归测试。
-- 三次修复失败后继续硬试。三次失败说明可能是架构问题，必须暂停并重新讨论方案。
+- Fixing without reproduction.
+- Trying multiple fixes at once.
+- Fixing symptoms instead of root cause.
+- Shipping a fix without a regression test.
+- Continuing brute-force attempts after three failed fixes. Three failures likely indicate an architecture problem; pause and re-discuss the approach.
 
-## 代码审查规则
+## Code review rules
 
-质量门禁以测试、typecheck、lint 和实现者自审为主。审查是例外，不是默认步骤。
+Quality gates center on tests, typecheck, lint, and implementer self-review. Review is an exception, not the default step.
 
-默认不要做：
+By default do not:
 
-- 每片实现后再派 spec reviewer、quality reviewer 或任何审查子代理。
-- 规格审查与代码质量审查分两轮。
-- 为同一 diff 反复复审、扩大范围或把 P2/文风/抽象偏好当成阻断。
-- 把“独立审查 GO”当成合入或完成条件。
+- Dispatch a spec reviewer, quality reviewer, or any review subagent after every implementation slice.
+- Split spec review and code-quality review into two rounds.
+- Re-review the same diff repeatedly, expand scope, or treat P2 / style / abstraction preferences as blockers.
+- Treat “independent review GO” as a merge or completion condition.
 
-实现者自审只覆盖本任务 diff，一次即可，重点是：
+Implementer self-review covers only this task’s diff, once, focusing on:
 
-- 验收标准是否漏做。
-- 是否多做了任务外改动。
-- 是否有测试能直接证明的回归（源码保真、i18n、明显行为错误）。
+- Whether acceptance criteria were missed.
+- Whether out-of-scope changes were added.
+- Whether there are regressions a test can directly prove (source fidelity, i18n, clear behavior errors).
 
-只有用户明确要求审查，或改动会改变保存语义、源码保真合同、安全边界时，才做一次独立审查。该审查必须：
+Run an independent review only when the user explicitly requests it, or when the change alters save semantics, source-fidelity contracts, or security boundaries. That review must:
 
-- 由当前会话直接阅读 diff，不默认另开子代理。
-- 只报会在真实用户路径上出错的 P0/P1，并附文件与行号。
-- 单次通过后结束；修完 P0/P1 后只对修复行做核对，不再全量重审。
+- Be done by reading the diff in the current session; do not default to spawning a subagent.
+- Report only P0/P1 issues that would fail on real user paths, with file and line numbers.
+- End after a single pass; after fixing P0/P1, verify only the fixed lines—do not re-review the whole diff.
 
-P2、风格、命名、分层偏好和“可以更优雅”不算阻断，不得因此停住后续任务。
+P2, style, naming, layering preference, and “could be more elegant” are not blockers and must not stop follow-on work.
 
-## 依赖和自研决策
+## Dependency and custom-build decisions
 
-引入依赖前必须确认：
+Before introducing a dependency, confirm:
 
-- 是否成熟、维护活跃、文档清晰。
-- 是否符合 LumaMark 的性能目标。
-- 是否支持 TypeScript 或 Rust 类型安全。
-- 是否影响包体积、启动速度或跨平台能力。
-- 是否与 i18n、可访问性和主题系统兼容。
+- It is mature, actively maintained, and clearly documented.
+- It fits LumaMark performance goals.
+- It supports TypeScript or Rust type safety.
+- It does not harm package size, startup, or cross-platform capability.
+- It is compatible with i18n, accessibility, and the theme system.
 
-替代成熟组件或自研基础组件前，必须写明：
+Before replacing a mature component or hand-rolling a primitive, write down:
 
-- 已评估的成熟组件。
-- 它无法满足的目标。
-- 证据。
-- 自研范围。
-- 维护成本。
-- 用户是否明确批准。
+- Mature components evaluated.
+- Goals they cannot meet.
+- Evidence.
+- Custom scope.
+- Maintenance cost.
+- Whether the user explicitly approved.
 
-未经用户明确批准，不得自研基础组件。
+Do not hand-roll primitives without explicit user approval.
 
-## 文档和决策记录
+## Documentation and decision records
 
-以下内容必须文档化：
+The following must be documented:
 
-- 产品定位和版本目标
-- 架构决策
-- 依赖选择
-- 性能基准结果
-- 自研例外
-- 编辑器核心行为变化
-- 源码保真策略
-- 测试策略变化
+- Product positioning and version goals
+- Architecture decisions
+- Dependency choices
+- Performance benchmark results
+- Custom-build exceptions
+- Editor-core behavior changes
+- Source-fidelity strategy
+- Test strategy changes
 
-推荐目录：
+Recommended directories (English default paths):
 
-- `docs/decisions/`：架构和依赖决策
-- `docs/testing/`：测试策略和 fixture 说明
-- `docs/performance/`：性能基准和结果
-- `docs/product/`：产品定位、路线图、PRD
+- `docs/decisions/`: architecture and dependency decisions
+- `docs/testing/`: test strategy and fixture notes
+- `docs/performance/`: performance benchmarks and results
+- `docs/product/`: product positioning, roadmap, PRD
 
-## Agent 完成汇报格式
+Documentation defaults to English at canonical paths, with a full Chinese mirror under `docs/zh/**` and root `*.zh.md`. For living docs, update English first, then the Chinese mirror in the same change. See `AGENTS.md` documentation language policy and `docs/README.md` for the map and bilingual layout. `docs/superpowers/` is non-authoritative agent planning scratch only.
 
-实现任务的最终汇报必须包含：
+## Agent completion report format
 
-- 改了什么。
-- 运行了哪些验证命令。
-- 每个命令的结果。
-- 未能运行的验证和原因。
-- 剩余风险。
+Final reports for implementation tasks must include:
 
-禁止只说“完成了”“应该可以”“看起来没问题”。
+- What changed.
+- Which verification commands ran.
+- The result of each command.
+- Verifications that could not run and why.
+- Remaining risks.
 
-纯文档任务也必须至少读取改动后的文件确认内容落盘。
+Do not only say “done,” “should be fine,” or “looks okay.”
+
+Pure documentation tasks must at least read the written files to confirm content landed on disk.

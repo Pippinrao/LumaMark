@@ -1,41 +1,43 @@
-# ADR 0011：侧边栏内容自适应宽度与约束放开
+> Language: **English** · [中文](../zh/decisions/0011-sidebar-adaptive-width.md)
 
-**状态：** 已接受
+# ADR 0011: Sidebar Content-Adaptive Width and Constraint Relaxation
 
-**日期：** 2026-08-10
+**Status:** Accepted
 
-## 背景
+**Date:** 2026-08-10
 
-侧边栏基于 `react-resizable-panels`，拖拽宽度被硬编码在 240–360px 之间。深层目录或长文件名在上限处仍会被省略号截断，而窄屏用户又无法把侧栏压得更窄，两端都受限。
+## Context
 
-此前已有一套“自适应”逻辑，但它只测量当前打开文件的文件名宽度，与侧栏实际显示的文件树内容无关，因此经常算出与观感不符的宽度。它还有一个未被察觉的缺陷：标记“用户已手动设置宽度”的引用不持久化，而宽度本身持久化在 `localStorage`，于是重启后自适应会覆盖用户上次拖出来的宽度，用户的调整看起来会随机丢失。
+The sidebar is based on `react-resizable-panels`, with drag width hard-coded between 240–360px. Deep directories or long filenames are still ellipsis-truncated at the upper bound, while narrow-screen users cannot make the sidebar narrower—both ends are constrained.
 
-## 决策
+There was already an “adaptive” path, but it only measured the currently open filename width, unrelated to the file tree actually shown in the sidebar, so it often computed widths that felt wrong. It also had an unnoticed defect: the “user has manually set width” marker was not persisted while width itself was persisted in `localStorage`, so after restart adaptive overwrote the user’s last dragged width and adjustments appeared to vanish randomly.
 
-- 拖拽下限降到 120px。继续向左拖动则吸附折叠为 0，等同于关闭侧边栏。
-- 拖拽上限不再是固定像素值，而是由编辑器面板自身的最小宽度 360px 反推得出，即窗口宽度减去编辑器最小宽度。侧栏不能吃满整个窗口。
-- 自适应宽度的依据改为文件树当前所有已展开节点中最长的一项，并计入缩进层级，clamp 到 200–480px。未打开工作区时按最近文件列表与当前文件名计算，使用同一套 clamp。
-- 宽度测量走 canvas `measureText`，从节点数据源计算，不读取 DOM。文件树由 `react-arborist` 虚拟化，DOM 中只存在可见节点，读 DOM 会得到随滚动变化的结果。
-- 只在文件树结构变化时重算：打开工作区或文件夹、展开或折叠节点、文件增删。滚动和切换到大纲页签都不触发重算。
-- 本会话内用户一旦手动拖动过侧栏，自适应即让位，后续结构变化不再改动宽度。重启后恢复自适应。
-- 移除侧栏宽度的 `localStorage` 持久化。侧栏开关状态的持久化保留。
+## Decision
 
-## 被否决方案
+- Lower the drag minimum to 120px. Continuing to drag left snaps closed to 0, equivalent to closing the sidebar.
+- The drag maximum is no longer a fixed pixel value; it is derived from the editor panel’s own 360px minimum width—window width minus editor minimum. The sidebar cannot consume the whole window.
+- Adaptive width is based on the longest item among currently expanded file-tree nodes, including indent depth, clamped to 200–480px. With no workspace open, compute from the recent-files list and current filename using the same clamp.
+- Width measurement uses canvas `measureText` from node data sources and does not read the DOM. The file tree is virtualized by `react-arborist`, so only visible nodes exist in the DOM and reading DOM would yield scroll-dependent results.
+- Recompute only when the file-tree structure changes: opening a workspace or folder, expanding or collapsing nodes, or file add/remove. Scrolling and switching to the outline tab do not recompute.
+- Once the user manually drags the sidebar in the current session, adaptive yields and later structure changes no longer alter width. After restart, adaptive resumes.
+- Remove `localStorage` persistence of sidebar width. Persistence of sidebar open/closed state remains.
 
-- **完全取消上下限：** 侧栏可被拖到几十像素，页签与文件名同时不可用，且没有任何机制把它恢复到可用区间，因为此时自适应已被“用户手动设置过”关闭。
-- **连编辑器面板的 360px 最小宽度一起取消：** 会让编辑区可以被压到不可写作的宽度，与“为长时间写作设计”的产品原则冲突。
-- **保留宽度持久化并在启动后再自适应到位：** 首屏会出现一次可见的宽度跳变，且两个宽度来源同时存在，需要额外规则判断谁优先。既然启动一律自适应，持久化的宽度就是无人读取的死数据。
-- **按当前可见节点实时自适应：** 虚拟列表滚动时可见节点集合不断变化，侧栏宽度会跟着抖动。
-- **沿用只测量当前文件名的旧逻辑：** 它与侧栏实际呈现的内容无关，无法解决深层目录被截断的原始问题。
-- **用横向滚动条容纳过长文件名：** 内层滚动会引入新的坐标系，属于工作契约中明确标注的高风险做法。
+## Alternatives considered
 
-## 影响
+- **Remove min/max entirely:** the sidebar can be dragged to a few dozen pixels where tabs and filenames are both unusable, with no way back into a usable range because adaptive is then disabled by “user has manually set width”.
+- **Also remove the editor panel’s 360px minimum:** the editing area could be crushed below a writable width, conflicting with the product principle of designing for long writing sessions.
+- **Keep width persistence and re-adapt after startup:** the first paint would show a visible width jump, and two width sources would coexist, needing extra priority rules. If startup always adapts, persisted width is unread dead data.
+- **Adapt in real time from currently visible nodes:** the virtual list’s visible set changes while scrolling, so sidebar width would jitter.
+- **Keep the old measure-current-filename-only logic:** unrelated to what the sidebar actually presents and cannot fix deep-directory truncation.
+- **Use a horizontal scrollbar for long filenames:** inner scrolling introduces a new coordinate system and is explicitly marked high-risk in the working contract.
 
-- `sidebarPanelConstraints` 的常量语义整体改变，依赖 240/360 边界的单元测试、集成测试和端到端断言必须同步重写。
-- 侧栏宽度不再跨会话保留，这是用户可感知的行为变化：手动调整只在当前会话有效。
-- 自适应测量从“一个文件名”变成“一批节点”，因此重算时机被严格限制在结构变化，避免在滚动热路径上产生测量开销。
-- `localStorage` 中遗留的旧布局键不再被读取。
+## Consequences
 
-## 回滚与复审条件
+- The constant semantics of `sidebarPanelConstraints` change as a whole; unit, integration, and E2E assertions that depend on 240/360 bounds must be rewritten together.
+- Sidebar width no longer persists across sessions—a user-visible behavior change: manual adjustments apply only to the current session.
+- Adaptive measurement changes from “one filename” to “a batch of nodes”, so recompute timing is strictly limited to structure changes to avoid measurement cost on the scroll hot path.
+- Legacy layout keys left in `localStorage` are no longer read.
 
-若用户反馈手动宽度不跨会话保留造成困扰，可在保留自适应默认值的前提下重新引入宽度持久化，但必须同时持久化“用户已手动设置”标记，否则会退回本记录描述的宽度丢失缺陷。若未来侧栏承载更多页签且各页签内容宽度差异显著，应复审“只按文件树自适应”是否仍然合适。
+## Rollback and revisit criteria
+
+If users report that non-persistent manual width is painful, reintroduce width persistence while keeping adaptive defaults, but also persist the “user has manually set” marker; otherwise the width-loss defect described here returns. If the sidebar later hosts more tabs with significantly different content widths, revisit whether “adapt only from the file tree” remains appropriate.

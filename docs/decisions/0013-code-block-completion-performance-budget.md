@@ -1,36 +1,38 @@
-# ADR 0013：代码块围栏补齐的独立性能预算
+> Language: **English** · [中文](../zh/decisions/0013-code-block-completion-performance-budget.md)
 
-**状态：** 已接受
+# ADR 0013: Independent Performance Budget for Code-Block Fence Completion
 
-**日期：** 2026-08-13
+**Status:** Accepted
 
-## 背景
+**Date:** 2026-08-13
 
-代码块密集基准在 2048 个 fenced blocks（约 0.46 MiB）的文档末尾模拟真实 `Enter`，由编辑器识别 opening fence、插入匹配 closing fence、保留光标并完成 CodeMirror 更新。它不是普通单字符 dispatch：一次命令同时包含语法确认、多段文本与 selection transaction、视口和高度映射更新。
+## Context
 
-该用例最初沿用了普通输入的 P80 `< 16 ms`、最大值 `< 50 ms`。新鲜复测显示普通尾部输入仍稳定在 2–5 ms，而围栏补齐在同一代码树上的本机 P80 为 17–28 ms；GitHub Windows runner 的 P80 为 31.08 ms、最大值为 57.20 ms。原始引入该基准的提交在独立工作树中，依赖初始化后的第二轮也复现 P80 19.77 ms、最大值 24.05 ms；首轮为 P80 54.85 ms、最大值 77.86 ms，显示进程冷启动的跨轮方差，但仍落在新硬上限内。这说明失败不是后续功能合并造成的性能退化，而是首次基线低估了复杂命令的稳定成本。
+The dense code-block benchmark simulates a real `Enter` at the end of a document with 2048 fenced blocks (~0.46 MiB). The editor recognizes the opening fence, inserts a matching closing fence, keeps the caret, and completes the CodeMirror update. It is not an ordinary single-character dispatch: one command includes syntax confirmation, multi-span text and selection transaction, and viewport/height-map updates together.
 
-## 决策
+That case originally reused ordinary typing’s P80 `< 16 ms` and max `< 50 ms`. Fresh remeasurement shows ordinary tail typing still stable at 2–5 ms, while fence completion on the same code tree has local P80 17–28 ms; on GitHub Windows runners P80 was 31.08 ms and max 57.20 ms. The original commit that introduced the benchmark, in an isolated worktree after dependency init, also reproduced P80 19.77 ms / max 24.05 ms on the second round; the first round was P80 54.85 ms / max 77.86 ms, showing cross-round cold-start variance, but still within the new hard max. This means the failure is not regression from later feature merges, but an initial baseline that understated the stable cost of a complex command.
 
-- 普通代码块密集文档尾部输入和聚焦激活继续使用 P80 `< 16 ms`、最大值 `< 50 ms`，不放宽普通输入门禁。
-- 真实 `Enter` 围栏补齐作为复杂编辑命令单独使用 P80 `< 50 ms`、最大值 `< 100 ms`。
-- 采样继续遵守 [ADR 0007](0007-stable-performance-sampling.md)：固定 5 个样本、保留首样本、使用 P80、输出全部样本，不预热、不丢样本、不 retry，最大值仍由 `max(50 ms, 2 × 主预算)` 计算。
-- 基准继续验证命令确实被处理、closing fence 精确生成、光标与临时文本清理正确；提高预算不能替代功能断言。
-- 真实 Tauri WebView2 后续若加入该命令的键盘 P95，应作为产品环境补充证据，不能用来删除 jsdom 回归门禁。
+## Decision
 
-## 被否决方案
+- Ordinary dense code-block document tail typing and focus activation continue to use P80 `< 16 ms` and max `< 50 ms`; ordinary typing gates are not relaxed.
+- Real `Enter` fence completion, as a complex edit command, separately uses P80 `< 50 ms` and max `< 100 ms`.
+- Sampling continues to follow [ADR 0007](0007-stable-performance-sampling.md): fixed 5 samples, keep the first sample, use P80, report all samples, no warmup, no sample discard, no retry; max is still `max(50 ms, 2 × primary budget)`.
+- The benchmark continues to assert the command is actually handled, the closing fence is generated exactly, and caret plus temporary-text cleanup are correct; raising the budget cannot replace functional assertions.
+- If real Tauri WebView2 later adds keyboard P95 for this command, treat it as supplemental product-environment evidence; do not use it to delete the jsdom regression gate.
 
-- **继续把围栏补齐视为普通单键输入并维持 16/50 ms：** 实测已在原始提交、当前本机和 GitHub runner 上重复越线，无法区分真实退化与从一开始就不成立的预算。
-- **丢弃首样本、增加预热或失败后重跑：** 会违反 ADR 0007，并隐藏用户首次触发命令时的尖峰。
-- **只提高所有代码块输入预算：** 普通输入仍满足 16/50 ms，没有证据支持放宽它。
-- **在没有热点证据时改写编辑器核心：** 非持久化的临时分段定位未将主要耗时指向项目代码块插件，耗时集中在完整 CodeMirror/jsdom view update、解析和几何更新；该诊断只用于排除猜测方向，不作为长期性能基线。猜测式改写风险高且没有证据能恢复 16 ms。
+## Alternatives considered
 
-## 影响
+- **Keep treating fence completion as ordinary single-key typing at 16/50 ms:** measured overruns already repeated on the original commit, current local machines, and GitHub runners, so real regression cannot be distinguished from a budget that was never valid.
+- **Discard the first sample, add warmup, or rerun after failure:** violates ADR 0007 and hides spikes on the user’s first trigger of the command.
+- **Raise all code-block typing budgets:** ordinary typing still meets 16/50 ms; there is no evidence to relax it.
+- **Rewrite editor core without hotspot evidence:** non-persistent temporary segment profiling did not point primary cost at the project code-block plugin; cost concentrates in full CodeMirror/jsdom view update, parsing, and geometry updates. That diagnosis only rules out guessed directions and is not a long-term performance baseline. Speculative rewrites are high risk with no evidence they can restore 16 ms.
 
-- CI 不再因为一个被错误归类的复杂命令预算而间歇失败，同时仍会阻止围栏补齐 P80 达到 50 ms 或任一样本达到 100 ms 的退化。
-- 普通输入、激活、加载及其他编辑器性能预算保持不变；本决策不能作为放宽其他输入门禁的先例。
-- `docs/performance/V1_BASELINE.md` 必须记录新预算和每次校准的完整样本。
+## Consequences
 
-## 回滚与复审条件
+- CI no longer intermittently fails because a complex command was misclassified under the ordinary typing budget, while still blocking regressions where fence-completion P80 reaches 50 ms or any sample reaches 100 ms.
+- Ordinary typing, activation, load, and other editor performance budgets stay unchanged; this decision is not precedent for relaxing other typing gates.
+- `docs/performance/V1_BASELINE.md` must record the new budget and full samples for each calibration.
 
-若生产 WebView2 的围栏补齐 P95 达到 100 ms、用户感知到卡顿，或 CodeMirror 升级后出现持续增长，应先以 profiler 定位真实热点并收紧预算。若后续优化让本地与 CI 的多轮 P80 都稳定低于 16 ms，可用新 ADR 恢复严格预算；不得仅凭一次快速样本回滚。
+## Rollback and revisit criteria
+
+If production WebView2 fence-completion P95 reaches 100 ms, users perceive stalls, or CodeMirror upgrades cause sustained growth, first locate the real hotspot with a profiler and tighten the budget. If later optimizations make multi-round local and CI P80 stably under 16 ms, a new ADR may restore the strict budget; do not roll back from a single fast sample.

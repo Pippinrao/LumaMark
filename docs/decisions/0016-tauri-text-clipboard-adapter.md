@@ -1,36 +1,38 @@
-# ADR 0016：桌面纯文本剪贴板适配
+> Language: **English** · [中文](../zh/decisions/0016-tauri-text-clipboard-adapter.md)
 
-## 用途与范围
+# ADR 0016: Desktop Plain-Text Clipboard Adapter
 
-记录 LumaMark 在桌面与浏览器环境中读写纯文本剪贴板的唯一平台边界。本决策不包含图片、HTML、RTF、文件列表或剪贴板历史管理。
+## Purpose and scope
 
-## 背景
+Records the sole platform boundary for reading and writing plain-text clipboard content in LumaMark across desktop and browser environments. This decision does not cover images, HTML, RTF, file lists, or clipboard history management.
 
-浏览器 Playwright 可以显式授予 `clipboard-read` / `clipboard-write`，但安装版 Windows WebView 中 `navigator.clipboard.readText()` 可能不完成。继续把 WebView Clipboard API 当作桌面事实来源，会让真实菜单的 Paste 命令永久等待，并且浏览器 E2E 无法覆盖该失败。
+## Context
 
-## 决策
+Browser Playwright can explicitly grant `clipboard-read` / `clipboard-write`, but in installed Windows WebView `navigator.clipboard.readText()` may never complete. Continuing to treat the WebView Clipboard API as the desktop source of truth would make real menu Paste commands wait forever, and browser E2E cannot cover that failure.
 
-- 桌面运行时采用官方 `tauri-plugin-clipboard-manager`，仅向主窗口授予 `clipboard-manager:allow-read-text` 与 `clipboard-manager:allow-write-text`。
-- `services/clipboard` 是平台 facade：Tauri 运行时只调用插件；浏览器预览和浏览器测试才解析 navigator adapter。
-- app controller 把结构化的纯文本端口注入 `EditorCommandPort`。editor、feature 与 shell 不 import Tauri plugin，也不持有平台检测逻辑。
-- 原生调用失败必须原样 reject，由现有命令错误通道本地化显示；禁止探测或回退到 navigator，以免重新进入已知的 WebView pending 路径。
-- 表格、链接地址、图片路径与文件树路径等纯文本复制复用同一端口/facade。图片或富媒体剪贴板不因插件依赖而获得产品入口或 capability。
+## Decision
 
-## 否决方案
+- Desktop runtime adopts official `tauri-plugin-clipboard-manager` and grants only `clipboard-manager:allow-read-text` and `clipboard-manager:allow-write-text` to the main window.
+- `services/clipboard` is the platform facade: Tauri runtime calls only the plugin; browser preview and browser tests resolve the navigator adapter.
+- The app controller injects a structured plain-text port into `EditorCommandPort`. Editor, feature, and shell neither import the Tauri plugin nor hold platform-detection logic.
+- Native call failures must reject as-is and be localized through the existing command error channel; probing or falling back to navigator is forbidden, to avoid re-entering the known WebView pending path.
+- Plain-text copies such as tables, link addresses, image paths, and file-tree paths reuse the same port/facade. Image or rich-media clipboard does not gain a product entry or capability merely because the plugin dependency exists.
 
-- **桌面继续使用 `navigator.clipboard`：** 安装版已有不完成的真实证据，否决。
-- **自研 Rust clipboard command：** 官方 Tauri v2 plugin 已提供跨平台命令、权限清单和 JS API，没有自研收益。
-- **授予 `clipboard-manager:default` 或图片/HTML 权限：** default 不表达本产品能力，额外格式超出当前需求和最小权限边界。
-- **原生失败后回退 navigator：** 会掩盖原生错误并重新引入不可完成路径，否决。
+## Alternatives considered
 
-## 影响
+- **Keep using `navigator.clipboard` on desktop:** installed builds already have real evidence of non-completion; rejected.
+- **Custom Rust clipboard command:** official Tauri v2 plugin already provides cross-platform commands, permission lists, and JS API; custom work has no benefit.
+- **Grant `clipboard-manager:default` or image/HTML permissions:** default does not express this product’s capability, and extra formats exceed current needs and least-privilege boundaries.
+- **Fall back to navigator after native failure:** would mask native errors and reintroduce the non-completing path; rejected.
 
-- JS 与 Rust lockfile 会新增官方插件；Rust plugin 通过 `arboard` 带入平台相关依赖，即使产品 capability 仍仅限文本。
-- 桌面安装包大小、构建时间和 hash 可能变化，发布验收必须记录最终 EXE 版本、大小与 SHA-256。
-- 浏览器 adapter 保留，因此非 Tauri 的单元测试和浏览器 E2E 无需模拟桌面 IPC。
+## Consequences
 
-## 复审条件
+- JS and Rust lockfiles gain the official plugin; the Rust plugin brings platform-related dependencies via `arboard` even though product capability remains text-only.
+- Desktop installer size, build time, and hashes may change; release acceptance must record final EXE version, size, and SHA-256.
+- The browser adapter remains, so non-Tauri unit tests and browser E2E need not simulate desktop IPC.
 
-- Tauri 官方插件改变 read/write-text 命令、权限名、错误语义或最低版本。
-- WebView 提供可验证、跨平台且无需额外授权的稳定剪贴板能力，并通过安装版真实菜单验收。
-- 产品需要图片、HTML 或文件列表剪贴板；届时另行设计权限、隐私与恢复合同，不能直接扩大本 ADR。
+## Revisit criteria
+
+- The official Tauri plugin changes read/write-text commands, permission names, error semantics, or minimum version.
+- WebView provides verifiable, cross-platform, stable clipboard capability without extra grants, and passes installed-build real-menu acceptance.
+- The product needs image, HTML, or file-list clipboard; design permissions, privacy, and recovery contracts separately then—do not simply enlarge this ADR.

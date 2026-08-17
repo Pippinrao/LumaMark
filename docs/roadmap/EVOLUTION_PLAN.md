@@ -1,313 +1,330 @@
-# 演进计划
+> Language: **English** · [中文](../zh/roadmap/EVOLUTION_PLAN.md)
 
-## 规划原则
+# Evolution Plan
 
-LumaMark 的路线采用“近细远粗”的规划方式。
+## Planning principles
 
-- **近期细化**：当前 Parity Reliability Foundation 由唯一的 [当前执行计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)写到可执行、可验证。
-- **中期定方向**：Typora Migration Completeness 保留依赖顺序和能力边界，在进入 Now 前不锁死实现任务。
-- **远期留弹性**：World-Class 和生态方向只保留主题，不做过细承诺。
+LumaMark plans with a near-fine / far-coarse approach.
 
-原因很简单：编辑器产品的真实判断来自原型、性能数据和用户试用。远期计划写得过细，会制造假确定性，并增加返工。
+- **Near term, detailed:** The current Parity Reliability Foundation is written to be executable and verifiable in the sole [current execution plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+- **Mid term, directional:** Typora Migration Completeness keeps dependency order and capability boundaries, without locking implementation tasks before it enters Now.
+- **Far term, flexible:** World-Class and ecosystem directions keep themes only, without over-specific commitments.
 
-Foundation 与 MarkText+ 已形成 Alpha 技术基线，其历史范围保留在 [V1 版本设计](../product/V1_VERSION_DESIGN.md) 和 [V1 落地实施计划](V1_IMPLEMENTATION_PLAN.md)。本文只维护阶段定位与 Now/Next/Later，不复制当前实施细节。
+The reason is simple: real judgment for an editor product comes from prototypes, performance data, and user trials. Over-detailed far-term plans create false certainty and more rework.
 
-## 总体路径
+Foundation and MarkText+ have formed an Alpha technical baseline. Their historical scope remains in [V1 Version Design](../product/V1_VERSION_DESIGN.md) and [V1 Implementation Plan](V1_IMPLEMENTATION_PLAN.md). Those documents are a historical Alpha baseline only—not the current execution source. This document maintains stage positioning and Now / Next / Later only; it does not copy current implementation detail. The current sole execution source is [TYPORA_PARITY_IMPLEMENTATION_PLAN.md](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
 
-LumaMark 的演进路线分为四个层级：
+## Overall path
 
-1. **Foundation**：建立架构、质量和验证地基。
-2. **MarkText+**：快速超过 MarkText，形成可试用 Alpha。
-3. **Typora Parity**：追平 Typora 核心日常体验。
-4. **World-Class**：基于真实反馈选择创新方向，冲击世界第一的 WYSIWYG Markdown 编辑器。
+LumaMark’s evolution path has four levels:
 
-路线原则：
+1. **Foundation:** Establish architecture, quality, and verification foundations.
+2. **MarkText+:** Quickly surpass MarkText and form a trialable Alpha.
+3. **Typora Parity:** Match Typora’s core day-to-day experience.
+4. **World-Class:** Choose innovation directions from real feedback and aim for a world-class WYSIWYG Markdown editor.
 
-- 每个阶段都必须有可运行产物。
-- 每个阶段都必须有性能和源码保真验证。
-- 不为了功能数量牺牲输入流畅度。
-- 不提前建设插件、云同步等大系统。
-- 后一阶段的详细计划，必须基于前一阶段的验证结果再展开。
+Path principles:
 
-## 阶段 0：Foundation
+- Every stage must produce a runnable artifact.
+- Every stage must verify performance and source fidelity.
+- Do not sacrifice input fluency for feature count.
+- Do not build large systems early (plugins, cloud sync, and the like).
+- Detailed plans for a later stage must expand only after verification results from the previous stage.
 
-目标：建立可持续开发的项目地基，证明默认架构可行。
+## Stage 0: Foundation
 
-**状态：** 已形成技术基线；以下内容作为历史阶段定义保留。
+Goal: Establish a sustainable project foundation and prove the default architecture is viable.
 
-### 核心产出
+**Status:** Technical baseline formed; the following is retained as historical stage definition.
 
-- 初始化 Tauri + React + TypeScript 项目。
-- 接入 CodeMirror 6，并显示、编辑 Markdown 文本。
-- 接入基础 i18n，支持简体中文和英文。
-- 建立基础主题系统，至少支持亮色和暗色。
-- 建立测试框架。
-- 建立 Playwright E2E 框架。
-- 建立 Markdown fixture round-trip 测试框架。
-- 建立性能 benchmark 框架。
-- 建立基础 CI 门禁。
+### Core deliverables
 
-### 验收标准
+- Initialize the Tauri + React + TypeScript project.
+- Integrate CodeMirror 6 and display/edit Markdown text.
+- Integrate basic i18n with Simplified Chinese and English.
+- Establish a basic theme system with at least light and dark themes.
+- Establish a test framework.
+- Establish a Playwright E2E framework.
+- Establish a Markdown fixture round-trip test framework.
+- Establish a performance benchmark framework.
+- Establish basic CI gates.
 
-- 应用可启动。
-- 编辑器可显示和编辑 Markdown 文本。
-- 可以运行 typecheck、lint、unit test、E2E 基础用例。
-- 可以执行 open -> save -> diff 的 fixture 验证。
-- 所有用户可见示例文案进入 i18n。
+### Acceptance criteria
 
-### 阶段退出条件
+- The app can launch.
+- The editor can display and edit Markdown text.
+- typecheck, lint, unit tests, and basic E2E cases can run.
+- open → save → diff fixture verification can run.
+- All user-visible sample copy is in i18n.
 
-只有满足以下条件，才能进入 MarkText+ 阶段：
+### Stage exit criteria
 
-- CodeMirror 6 作为主编辑核心跑通。
-- React 未进入逐字符编辑热路径。
-- fixture round-trip 验证机制可运行。
-- 性能基准机制可运行。
-- AI 开发流程和完成门禁已被项目文档固定。
+Enter the MarkText+ stage only when all of the following hold:
 
-## 阶段 1：MarkText+
+- CodeMirror 6 runs as the primary editor core.
+- React is not on the per-character editing hot path.
+- The fixture round-trip verification mechanism runs.
+- The performance baseline mechanism runs.
+- The AI development process and Definition of Done are fixed in project docs.
 
-目标：快速超过 MarkText 的流畅性、现代感和源码可信度，形成可试用 Alpha。
+## Stage 1: MarkText+
 
-**状态：** 已形成 Alpha 能力基线；可靠性缺口并入当前 Parity Reliability Foundation 收敛。
+Goal: Quickly surpass MarkText on fluency, modernity, and source trustworthiness, and form a trialable Alpha.
 
-### 核心产出
+**Status:** Alpha capability baseline formed; reliability gaps are folded into the current Parity Reliability Foundation for convergence.
 
-编辑闭环：
+### Core deliverables
 
-- 打开 Markdown 文件。
-- 编辑 Markdown 文件。
-- 保存 Markdown 文件。
-- 最近文件。
-- dirty 状态提示。
+Editing loop:
 
-基础 Typora-like 编辑体验：
+- Open Markdown files.
+- Edit Markdown files.
+- Save Markdown files.
+- Recent files.
+- Dirty-state indication.
 
-- 标题。
-- 粗体。
-- 斜体。
-- 删除线。
-- 引用。
-- 有序列表。
-- 无序列表。
-- 任务列表。
-- 行内代码。
-- 代码块。
+Basic Typora-like editing:
 
-应用外壳：
+- Headings.
+- Bold.
+- Italic.
+- Strikethrough.
+- Blockquotes.
+- Ordered lists.
+- Unordered lists.
+- Task lists.
+- Inline code.
+- Code blocks.
 
-- Typora-like 基础布局。
-- 中央编辑区。
-- 可选文件树。
-- 大纲。
-- 亮色主题。
-- 暗色主题。
-- 中文和英文界面。
+App shell:
 
-复杂块初版：
+- Typora-like basic layout.
+- Central editing area.
+- Optional file tree.
+- Outline.
+- Light theme.
+- Dark theme.
+- Chinese and English UI.
 
-- 识别 Mermaid fenced code block。
-- Mermaid 异步渲染。
-- Mermaid 渲染失败状态。
-- Mermaid 渲染不阻塞输入。
+First-pass complex blocks:
 
-质量和性能：
+- Recognize Mermaid fenced code blocks.
+- Asynchronous Mermaid rendering.
+- Mermaid render-failure states.
+- Mermaid rendering must not block input.
 
-- 1MB、5MB、10MB Markdown 样本文档。
-- 保存无无关 diff。
-- 基础 E2E。
-- 大文档性能基准。
+Quality and performance:
 
-### 验收标准
+- 1MB, 5MB, and 10MB Markdown sample documents.
+- Saves produce no unrelated diffs.
+- Basic E2E.
+- Large-document performance baselines.
 
-- Windows 开发构建可用。
-- 用户能完成打开、编辑、保存 Markdown 的闭环。
-- 基础 Markdown WYSIWYG 行为可用。
-- Mermaid 可用且不阻塞输入。
-- 1MB 和 5MB 文件打开与编辑顺畅。
-- 10MB 文件不冻结。
-- 保存后无无关 diff。
-- 中文和英文界面可切换。
-- 基础 E2E 和 fixture 测试通过。
+### Acceptance criteria
 
-### 阶段定位
+- Windows development builds are usable.
+- Users can complete the open → edit → save Markdown loop.
+- Basic Markdown WYSIWYG behavior works.
+- Mermaid works and does not block input.
+- Opening and editing 1MB and 5MB files feels smooth.
+- 10MB files do not freeze.
+- Saves produce no unrelated diffs.
+- Chinese and English UI can be switched.
+- Basic E2E and fixture tests pass.
 
-> 让用户第一次使用就觉得 LumaMark 比 MarkText 更顺、更稳、更现代。
+### Stage positioning
 
-### 阶段退出条件
+> On first use, users should feel LumaMark is smoother, more stable, and more modern than MarkText.
 
-历史阶段定义要求满足以下条件后再进入 Typora Parity 细化规划。当前已转入可靠性收敛不等于追溯宣称每项完成；缺失证据直接纳入当前计划：
+### Stage exit criteria
 
-- MarkText+ 核心路径经过自动化验证。
-- 性能基准数据稳定。
-- Markdown 源码保真策略被验证。
-- Mermaid 异步渲染策略被验证。
-- 至少完成一轮真实自用或试用反馈整理。
+The historical stage definition required the following before entering detailed Typora Parity planning. Moving into reliability convergence now does not retroactively claim every item complete; missing evidence is absorbed into the current plan:
 
-## 阶段 2：Typora Parity
+- MarkText+ core paths are automated-verified.
+- Performance baseline data is stable.
+- Markdown source-fidelity strategy is verified.
+- Mermaid async-rendering strategy is verified.
+- At least one round of real self-use or trial feedback is collected.
 
-目标：追平 Typora 的核心日常写作体验。
+## Stage 2: Typora Parity
 
-**状态：当前阶段。** 第一子阶段是 Parity Reliability Foundation：先统一源码保真、焦点、输入和撤销合同，再将合同推广到代表性 Markdown 行为。完整范围、顺序和退出门禁只在 [当前执行计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)维护。
+Goal: Match Typora’s core day-to-day writing experience.
 
-### 方向范围
+**Status: current stage.** The first sub-stage is Parity Reliability Foundation: unify source fidelity, focus, input, and undo contracts first, then extend those contracts across representative Markdown behaviors. Full scope, order, and exit gates are maintained only in the [current execution plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
 
-优先方向：
+### Directional scope
 
-- 当前：源码格式、interaction context、IME、撤销、模式切换与 Mermaid 单主文档模型。
-- 当前代表切片：段落、行内 span、列表与引用、代码块、标题、水平线和安全降级。
-- 后续迁移完整性：链接、图片、代码块入口、表格和经 ADR 选型后的块级数学。
-- 后续产品闭环：共享 heading identity、TOC、YAML、脚注、查找替换、导出、设置和快捷键。
+Priority directions:
 
-### 规划原则
+- Current: source format, interaction context, IME, undo, mode switching, and the Mermaid single-primary-document model.
+- Current representative slices: paragraphs, inline spans, lists and quotes, code blocks, headings, horizontal rules, and safe degradation.
+- Later migration completeness: links, images, code-block entry, tables, and block math (MathJax landed via ADR 0017; remaining math gaps continue as follow-on work).
+- Later product loop: shared heading identity, TOC, YAML, footnotes, find/replace, export, settings, and shortcuts.
 
-- 只补齐 Typora 日常迁移所需的核心能力。
-- 每个能力都必须先定义验收样例和自动化测试。
-- 任何会影响编辑热路径的能力，都必须先做性能原型。
-- 不为追平功能清单牺牲输入流畅度。
+### Planning principles
 
-### 阶段成功标准
+- Add only the core capabilities needed for day-to-day Typora migration.
+- Every capability must define acceptance samples and automated tests first.
+- Any capability that can affect the editing hot path must prototype performance first.
+- Do not sacrifice input fluency to chase a feature checklist.
 
-- Typora 用户可以完成主要迁移。
-- 常用 Markdown 写作动作自然。
-- 图片、表格、链接、公式没有明显日常使用缺口。
-- 保存仍然不产生无关 diff。
-- 性能基准没有明显退化。
-- 数据损坏、IME、撤销和 active-save 阻断问题为零。
+### Stage success criteria
 
-## 阶段 3：World-Class
+- Typora users can complete a primary migration.
+- Common Markdown writing actions feel natural.
+- Images, tables, links, and math have no obvious day-to-day gaps.
+- Saves still produce no unrelated diffs.
+- Performance baselines show no clear regression.
+- Data-corruption, IME, undo, and active-save blocking issues are at zero.
 
-目标：超过 Typora，形成 LumaMark 自己的护城河。
+### Landed capabilities
 
-本阶段只保留创新主题，不提前承诺具体功能。真实方向必须来自前两个阶段的性能数据、用户反馈和产品判断。
+These capabilities have landed and are available, but they do **not** mean the whole Typora Parity milestone is complete. Remaining Parity Reliability Foundation work and Migration Completeness remain open under the [current execution plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
 
-### 候选创新主题
+- Settings persistence: [ADR 0014](../decisions/0014-settings-persistence.md) + [Settings System Design](../product/SETTINGS_SYSTEM_DESIGN.md)
+- Menu system: [Menu System Design](../product/MENU_SYSTEM_DESIGN.md)
+- MathJax: [ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md)
+- PlantUML local rendering: [ADR 0018](../decisions/0018-plantuml-local-rendering.md)
+- GitHub NSIS updater: [ADR 0012](../decisions/0012-github-nsis-auto-update.md)
+- Desktop multi-window open routing: [ADR 0009](../decisions/0009-desktop-file-open-bridge.md)
 
-- 大文档体验做到行业领先。
-- 源码保真做到行业领先。
-- 异步复杂块渲染做到行业领先。
-- 工作区体验更现代。
-- 搜索和索引更强。
-- 主题和视觉系统更精致。
-- 跨平台体验更稳定。
-- AI 辅助写作和 Markdown 重构。
-- 扩展点或插件能力。
+## Stage 3: World-Class
 
-### 规划原则
+Goal: Surpass Typora and form LumaMark’s own moat.
 
-- 先验证用户痛点，再决定创新方向。
-- 先做好核心写作体验，再扩展生态。
-- 先做内部扩展点，再考虑公开插件系统。
-- 任何新方向都不能破坏“打开快、输入顺、滚动稳、保存可信、界面美”。
+This stage keeps innovation themes only and does not pre-commit specific features. Real directions must come from performance data, user feedback, and product judgment from the prior stages.
 
-## Later：生态和平台
+### Candidate innovation themes
 
-以下方向只作为长期候选，不进入近期承诺：
+- Industry-leading large-document experience.
+- Industry-leading source fidelity.
+- Industry-leading async complex-block rendering.
+- More modern workspace experience.
+- Stronger search and indexing.
+- More refined theme and visual systems.
+- More stable cross-platform experience.
+- AI-assisted writing and Markdown refactoring.
+- Extension points or plugin capability.
 
-- 插件市场。
-- 云同步。
-- Git 工作流集成。
-- 团队协作。
-- 文档发布平台。
-- 移动端。
-- 知识库增强。
+### Planning principles
 
-进入这些方向前必须重新评估：
+- Validate user pain points before choosing innovation directions.
+- Finish the core writing experience before expanding the ecosystem.
+- Build internal extension points before considering a public plugin system.
+- No new direction may break “opens fast, types smoothly, scrolls steadily, saves trustworthily, looks polished.”
 
-- 是否已有足够用户需求。
-- 是否会拖慢核心编辑体验。
-- 是否需要新的商业或运营能力。
-- 是否会显著增加维护成本。
+## Later: ecosystem and platform
+
+These directions are long-term candidates only and are not near-term commitments:
+
+- Plugin marketplace.
+- Cloud sync.
+- Git workflow integration.
+- Team collaboration.
+- Document publishing platform.
+- Mobile.
+- Knowledge-base enhancements.
+
+Before entering any of these directions, re-evaluate:
+
+- Whether there is enough user demand.
+- Whether it would slow the core editing experience.
+- Whether new commercial or operational capability is required.
+- Whether maintenance cost would rise significantly.
 
 ## Now / Next / Later
 
 ### Now
 
-- 收敛已有保存、恢复、外部变更、图片 watcher 与增量渲染可靠性改动。
-- 建立共享 editing context、精确 `DocumentSourceFormat` 和单主 `EditorView` 合同。
-- 用段落、行内 span、列表/引用、代码块/标题/水平线和 Mermaid 代表切片验证合同。
-- 完成真实保存重开、Windows 中文 IME、可访问性、独立性能门禁和自用反馈。
+- Converge existing reliability changes for save, recovery, external change handling, image watchers, and incremental rendering.
+- Establish the shared editing context, precise `DocumentSourceFormat`, and single-primary `EditorView` contracts.
+- Validate the contracts with representative slices: paragraphs, inline spans, lists/quotes, code blocks/headings/horizontal rules, and Mermaid.
+- Complete real save-and-reopen, Windows Chinese IME, accessibility, independent performance gates, and self-use feedback.
 
-详细任务、顺序与退出证据见 [Typora Parity 核心体验改进计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；核心架构合同见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
+Detailed tasks, order, and exit evidence are in [Typora Parity Core Experience Improvement Plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md); core architecture contracts are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md).
+
+See also [Landed capabilities](#landed-capabilities) under Stage 2: landed work is available, but the Typora Parity milestone as a whole is not claimed complete.
 
 ### Next
 
-- 完整链接工作流。
-- 图片选择器、策略持久化和事务回滚。
-- 代码块创建入口与表格行列、对齐、粘贴合同。
-- 以固定迁移语料评估 KaTeX/MathJax，形成 ADR 后先做块级数学。
-- 建立共享增量 heading identity，再推进 Outline、内部锚点、TOC、YAML、脚注、查找替换、导出、设置与快捷键闭环。
+- Complete link workflows.
+- Image picker, strategy persistence, and transactional rollback.
+- Code-block creation entry points and table row/column, alignment, and paste contracts.
+- Remaining math gaps after landed MathJax ([ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md)): continue block/inline math coverage and settings gating as follow-on work—do not reopen engine selection as if KaTeX vs MathJax were still undecided.
+- Establish shared incremental heading identity, then advance Outline, internal anchors, TOC, YAML, footnotes, find/replace, export, settings, and shortcut loops.
 
 ### Later
 
-- Callout、受限 HTML/嵌入、高级图表和更新器。
-- macOS/Linux 深度打磨。
-- 根据真实反馈选择插件、AI 和生态方向。
-- 任意 HTML、iframe 或全局 CSP 放宽不构成近期承诺。
+- Callout, constrained HTML/embeds, and advanced diagrams.
+- macOS/Linux deep polish.
+- Choose plugin, AI, and ecosystem directions from real feedback.
+- Arbitrary HTML, iframes, or global CSP relaxation are not near-term commitments.
 
-## 阶段状态与当前里程碑
+The GitHub NSIS updater has already landed via [ADR 0012](../decisions/0012-github-nsis-auto-update.md) and is not listed as future work here.
 
-### 历史 Alpha 基线
+## Stage status and current milestone
 
-M0 可运行骨架、M1 可编辑 Markdown 与 M2 可日常试用 Alpha 的原始定义保留在历史 [V1 落地实施计划](V1_IMPLEMENTATION_PLAN.md)。这些历史 checkbox 不用于推断当前完成状态。
+### Historical Alpha baseline
 
-### 当前：Parity Reliability Foundation
+Original definitions for M0 runnable skeleton, M1 editable Markdown, and M2 day-to-day trialable Alpha remain in the historical [V1 Implementation Plan](V1_IMPLEMENTATION_PLAN.md). Those historical checkboxes must not be used to infer current completion status. They are historical Alpha baseline only; current execution is governed solely by [TYPORA_PARITY_IMPLEMENTATION_PLAN.md](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
 
-- 以“薄内核 + 代表切片”完成可靠性收敛。
-- 保持 Markdown 字节意图、IME、选区、scroll 和统一 undo 合同。
-- 退出前完成自动化门禁、Windows 实测和真实自用。
-- 数据损坏、IME、撤销与 Mermaid active-save 阻断问题必须归零。
+### Current: Parity Reliability Foundation
 
-## 主要风险
+- Converge reliability with a thin core plus representative slices.
+- Preserve Markdown byte intent, IME, selection, scroll, and unified undo contracts.
+- Before exit, complete automation gates, Windows real-path verification, and real self-use.
+- Data-corruption, IME, undo, and Mermaid active-save blocking issues must reach zero.
 
-### 编辑器 WYSIWYG 难度
+## Major risks
 
-风险：Typora-like 行为细节多，容易漏掉 IME、撤销、选区、粘贴等边缘场景。
+### Editor WYSIWYG difficulty
 
-应对：
+Risk: Typora-like behavior has many details; IME, undo, selection, paste, and other edge cases are easy to miss.
 
-- 小步实现。
-- 每个 Markdown 行为有测试。
-- E2E 覆盖关键输入路径。
+Response:
 
-### 性能退化
+- Implement in small steps.
+- Test every Markdown behavior.
+- Cover critical input paths with E2E.
 
-风险：功能增加后输入和滚动变慢。
+### Performance regression
 
-应对：
+Risk: Adding features slows typing and scrolling.
 
-- React 不进入编辑热路径。
-- 性能基准进入 CI。
-- Mermaid、搜索、导出异步化。
+Response:
 
-### 源码保真破坏
+- Keep React off the editing hot path.
+- Put performance baselines in CI.
+- Async Mermaid, search, and export.
 
-风险：WYSIWYG 逻辑或保存逻辑产生无关 diff。
+### Source-fidelity breakage
 
-应对：
+Risk: WYSIWYG or save logic produces unrelated diffs.
 
-- fixture round-trip 测试。
-- Markdown 源文作为唯一真实数据。
-- 不做全量自动格式化。
+Response:
 
-### AI 生成质量波动
+- Fixture round-trip tests.
+- Markdown source as the only source of truth.
+- No full-file auto-formatting.
 
-风险：AI 写出可运行但不可维护或未验证的代码。
+### AI-generated quality variance
 
-应对：
+Risk: AI produces runnable but unmaintainable or unverified code.
 
-- TDD。
-- Definition of Done。
-- 独立代码审查。
-- 自动化验证。
-- 小任务拆分。
+Response:
 
-## 战略判断
+- TDD.
+- Definition of Done.
+- Independent code review.
+- Automated verification.
+- Small task decomposition.
 
-LumaMark 最容易失败的方式，是变成一个功能很多但输入不顺、保存不可信、性能不稳的 Markdown 工具。
+## Strategic judgment
 
-LumaMark 最应该坚持的路径，是先用狭窄但高质量的核心体验立住：
+The easiest way for LumaMark to fail is to become a Markdown tool with many features that types poorly, saves untrustworthily, and performs unstably.
 
-> 打开快，输入顺，滚动稳，保存可信，界面美。
+The path LumaMark should hold is a narrow, high-quality core experience first:
 
-当这五件事成立后，再根据真实反馈细化后续计划。
+> Opens fast, types smoothly, scrolls steadily, saves trustworthily, looks polished.
+
+Only after those five hold should later plans be refined from real feedback.

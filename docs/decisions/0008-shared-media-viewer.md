@@ -1,37 +1,39 @@
-# ADR 0008：图片与 Mermaid 共享媒体查看器
+> Language: **English** · [中文](../zh/decisions/0008-shared-media-viewer.md)
 
-**状态：** 已接受
+# ADR 0008: Shared Media Viewer for Images and Mermaid
 
-**日期：** 2026-08-04
+**Status:** Accepted
 
-## 背景
+**Date:** 2026-08-04
 
-图片 block 和 Mermaid block 需要在编辑器外层展开查看，并支持放大、缩小、平移和重置。该交互不能改写 Markdown、创建编辑 transaction、复制 Mermaid 渲染任务，或把图片/SVG payload 放入全局 store。Dialog、缩放和平移属于基础 UI 能力，应优先使用成熟组件。
+## Context
 
-## 决策
+Image blocks and Mermaid blocks need expand-to-view outside the editor, with zoom, pan, and reset. That interaction must not rewrite Markdown, create edit transactions, duplicate Mermaid render work, or put image/SVG payloads in a global store. Dialog, zoom, and pan are foundational UI capabilities and should prefer mature components.
 
-- 使用既有 `@radix-ui/react-dialog` 提供模态层、焦点陷阱、Esc 关闭和可访问名称；使用 `react-zoom-pan-pinch` 提供缩放、平移、触控和 transform 状态。
-- `features/media-viewer` 拥有查看器 React UI 与会话状态，并由 app container 懒加载。每次请求创建新 session，使缩放状态归一；关闭后优先把焦点还给仍连接的展开按钮，否则聚焦主编辑器。
-- editor 只暴露 `EditorMediaPreviewRequestHandler`：普通图片传递浏览器实际加载的 resolved asset URL；Mermaid 传递当前 Widget 已成功渲染的 SVG。Mermaid 查看器不得重新调用 renderer。
-- image 与 Mermaid Widget 只在成功状态暴露展开按钮。按钮事件阻止冒泡到编辑/删除行为，但不派发 CodeMirror transaction；loading/error 状态没有可用的展开操作。
-- Mermaid SVG 只保留在 Widget 实例和当前 feature 会话内，不写入 Zustand、service 或持久化层。查看器关闭后不参与 Markdown 保存、恢复或 undo/redo。
-- 图片 capability 拆为 `imageBlockDetection`、`imagePathResolver`、`ImageBlockWidget` 和 `imagePreviewExtension`，避免 toolbar 和异步图片生命周期继续扩大 StateField 文件。
+## Decision
 
-## 被否决方案
+- Use existing `@radix-ui/react-dialog` for modal layer, focus trap, Esc close, and accessible name; use `react-zoom-pan-pinch` for zoom, pan, touch, and transform state.
+- `features/media-viewer` owns the viewer React UI and session state and is lazy-loaded by the app container. Each request creates a new session so zoom state resets; on close, prefer returning focus to a still-connected expand button, otherwise focus the primary editor.
+- The editor only exposes `EditorMediaPreviewRequestHandler`: ordinary images pass the resolved asset URL actually loaded by the browser; Mermaid passes the SVG already successfully rendered by the current Widget. The Mermaid viewer must not re-call the renderer.
+- Image and Mermaid widgets expose expand buttons only in the success state. Button events stop propagation into edit/delete behavior but do not dispatch CodeMirror transactions; loading/error states have no expand action.
+- Mermaid SVG stays only in the Widget instance and the current feature session; it is not written to Zustand, services, or persistence. After the viewer closes it does not participate in Markdown save, restore, or undo/redo.
+- The image capability is split into `imageBlockDetection`, `imagePathResolver`, `ImageBlockWidget`, and `imagePreviewExtension` so toolbar and async image lifecycle stop expanding the StateField file.
 
-- **使用 gallery/lightbox 套件（如 yet-another-react-lightbox）：** 其 gallery、slide 和 modal 抽象与现有 Radix Dialog 重叠，本需求只有单媒体查看，不需要相册状态。
-- **自研 pointer/wheel transform 引擎：** 需要自行维护边界、触控、滚轮、动画和跨浏览器行为，不符合成熟组件优先原则。
-- **在 CodeMirror Widget 内直接挂全屏层：** 会把应用级模态、焦点和 i18n 生命周期耦合到 decoration DOM，Widget 重建时也更易丢失会话。
-- **使用浏览器 Fullscreen API：** 会进入操作系统全屏权限与窗口级 Esc 语义；本需求采用应用视口内 Dialog，行为更可预测且跨 Tauri 平台一致。
-- **复刻 Typora 私有 viewer：** 只参考公开体验目标，不复制专有素材或私有实现。
+## Alternatives considered
 
-## 影响
+- **Use a gallery/lightbox suite (for example yet-another-react-lightbox):** its gallery, slide, and modal abstractions overlap existing Radix Dialog; this need is single-media viewing, not album state.
+- **Custom pointer/wheel transform engine:** would require owning bounds, touch, wheel, animation, and cross-browser behavior; violates mature-components-first.
+- **Mount a fullscreen layer directly inside a CodeMirror Widget:** couples app-level modal, focus, and i18n lifecycle to decoration DOM and makes sessions easier to lose on Widget rebuild.
+- **Use the browser Fullscreen API:** enters OS fullscreen permission and window-level Esc semantics; this need uses an in-app viewport Dialog for more predictable, consistent Tauri cross-platform behavior.
+- **Clone Typora’s proprietary viewer:** public experience goals only; do not copy proprietary assets or private implementation.
 
-- 新增一个仅在首次展开时加载的前端 chunk 和 `react-zoom-pan-pinch` 依赖；启动和编辑输入热路径不导入该组件。
-- editor capability 多一个注入式轻量事件边界，但不依赖 React、app、feature、service 或 Tauri。
-- Mermaid 展开复用已有 SVG，因此不增加 Mermaid 解析/渲染成本；图片按钮只在成功 load 后创建。
-- 中英文按钮名称、tooltip、Dialog 标题和说明由 i18n 资源统一提供。
+## Consequences
 
-## 回滚与复审条件
+- Adds one frontend chunk loaded only on first expand and a `react-zoom-pan-pinch` dependency; startup and typing hot paths do not import the component.
+- Editor capabilities gain one injectable lightweight event boundary but do not depend on React, app, feature, service, or Tauri.
+- Mermaid expand reuses the existing SVG, so it does not add Mermaid parse/render cost; image buttons are created only after successful load.
+- Button names, tooltips, Dialog titles, and descriptions for Chinese and English are provided uniformly by i18n resources.
 
-若依赖导致可测量的启动包体、首次打开延迟、内存或跨平台触控退化，应先验证升级或配置收敛；仍无法满足门禁时再评估替换库。若未来加入多图导航、下载、旋转或导出，应重新评估 gallery 组件，不在当前 feature 内累积自研基础设施。
+## Rollback and revisit criteria
+
+If the dependency causes measurable startup bundle, first-open latency, memory, or cross-platform touch regression, first verify upgrade or config convergence; only then evaluate replacing the library if gates still cannot be met. If multi-image navigation, download, rotate, or export is added later, re-evaluate gallery components instead of accumulating custom infrastructure inside the current feature.

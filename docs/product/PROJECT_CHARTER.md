@@ -1,129 +1,131 @@
-# LumaMark 项目章程
+> Language: **English** · [中文](../zh/product/PROJECT_CHARTER.md)
 
-日期：2026-07-04
+# LumaMark Project Charter
 
-## 一句话定位
+Date: 2026-07-04
 
-LumaMark 是一个高性能、现代化、跨平台的所见即所得 Markdown 编辑器，第一阶段以 Typora-like 体验为基线，先复刻成熟写作体验，再在性能、工程能力和现代工作流上创新。
+## One-line positioning
 
-## 愿景
+LumaMark is a high-performance, modern, cross-platform WYSIWYG Markdown editor. In phase one it uses a Typora-like experience as the baseline: first recreate a mature writing experience, then innovate on performance, engineering capability, and modern workflows.
 
-成为世界第一的所见即所得 Markdown 编辑器。
+## Vision
 
-这里的“世界第一”不是功能数量最多，而是在以下方面做到综合领先：
+Become the world's leading WYSIWYG Markdown editor.
 
-- 写作体验自然、安静、稳定。
-- 大文档依然流畅。
-- Markdown 源码保真。
-- Mermaid、公式、图片、代码块等高成本内容不阻塞输入。
-- 界面现代、美观、轻量。
-- 多语言和跨平台体验可靠。
-- AI 原生开发流程让项目长期可维护。
+“World-leading” here does not mean the largest feature count. It means leading overall on:
 
-## 使命
+- Natural, quiet, and stable writing experience.
+- Smoothness that holds up on large documents.
+- Markdown source fidelity.
+- Expensive content such as Mermaid, math, images, and code blocks that does not block typing.
+- A modern, beautiful, lightweight UI.
+- Reliable multilingual and cross-platform experience.
+- An AI-native development process that keeps the project maintainable long term.
 
-帮助用户用 Markdown 进行长时间、低干扰、高可靠的写作和文档维护。
+## Mission
 
-LumaMark 要让用户感觉：
+Help users write and maintain documents in Markdown for long sessions with low distraction and high reliability.
 
-- 打开快。
-- 输入顺。
-- 滚动稳。
-- 保存可信。
-- 界面舒服。
-- 重文档也不怕。
+LumaMark should make users feel that:
 
-## 战略路线
+- Opening is fast.
+- Typing feels smooth.
+- Scrolling stays stable.
+- Saving is trustworthy.
+- The UI is comfortable.
+- Heavy documents are not something to fear.
 
-LumaMark 采用“先复刻，再创新”的路线。
+## Strategic path
 
-### 先复刻
+LumaMark follows a “recreate first, then innovate” path.
 
-第一阶段不急于发散创新，先对齐成熟的 Typora-like 范式：
+### Recreate first
 
-- 中央编辑区是第一主角。
-- 侧边栏和大纲可选、克制。
-- Markdown 源码符号在合适时机隐藏或弱化。
-- 编辑和阅读融为一体。
-- 常用 Markdown 输入动作顺滑可预测。
+Phase one does not rush into divergent innovation. It first aligns with the mature Typora-like paradigm:
 
-复刻的目标是降低用户学习成本，并建立一个清晰、可比较的体验基线。
+- The central editor is the primary surface.
+- Sidebar and outline are optional and restrained.
+- Markdown source markers hide or soften at the right moments.
+- Editing and reading feel unified.
+- Common Markdown input actions are smooth and predictable.
 
-### 再创新
+The goal of recreation is to lower learning cost and establish a clear, comparable experience baseline.
 
-在基线稳定后，创新集中在 LumaMark 的差异化方向：
+### Then innovate
 
-- 大文档性能。
-- 源码保真。
-- 异步块渲染。
-- 现代 UI 和主题系统。
-- 工作区、全文搜索和命令面板。
-- 可扩展能力。
-- AI 辅助写作和 Markdown 重构。
+After the baseline is stable, innovation concentrates on LumaMark’s differentiation:
 
-## 目标用户
+- Large-document performance.
+- Source fidelity.
+- Async block rendering.
+- Modern UI and theming.
+- Workspace, full-text search, and command palette.
+- Extensibility.
+- AI-assisted writing and Markdown refactoring.
 
-核心用户：
+## Target users
 
-- 开发者
-- 技术作者
-- 产品经理
-- 研究者
-- 写作型知识工作者
-- 长期使用 Typora、MarkText、Obsidian、Zettlr 等 Markdown 工具的用户
+Core users:
 
-这些用户共同关心：
+- Developers
+- Technical writers
+- Product managers
+- Researchers
+- Writing-oriented knowledge workers
+- Long-time users of Markdown tools such as Typora, MarkText, Obsidian, and Zettlr
 
-- 写作时不被 UI 打扰。
-- Markdown 文件可长期保存和迁移。
-- 大文档不能卡。
-- 编辑器不能悄悄改坏文件。
-- Mermaid、代码块、图片、目录等内容必须可靠。
+These users share concerns about:
 
-## 成功标准
+- Not being interrupted by the UI while writing.
+- Markdown files remaining durable and portable over time.
+- Large documents not stuttering.
+- The editor not silently corrupting files.
+- Mermaid, code blocks, images, outlines, and similar content remaining reliable.
 
-短期成功：快速超过 MarkText。
+## Success criteria
 
-- 更流畅。
-- 更现代。
-- 源码更可信。
-- 维护策略更清晰。
-- Windows 体验更稳定。
+Short-term success: quickly surpass MarkText.
 
-中期成功：追平 Typora 核心体验。
+- Smoother.
+- More modern.
+- More trustworthy source handling.
+- Clearer maintenance strategy.
+- More stable Windows experience.
 
-- Typora 用户能无明显阻力迁移。
-- 常用 Markdown 编辑动作自然。
-- 图片、链接、表格、代码块、Mermaid、公式、导出等核心能力完整。
+Medium-term success: match Typora’s core experience.
 
-长期成功：超过 Typora。
+- Typora users can migrate without obvious friction.
+- Common Markdown editing actions feel natural.
+- Core capabilities such as images, links, tables, code blocks, Mermaid, math, and export are complete.
 
-- 大文档体验明显更好。
-- 工作区和搜索能力更强。
-- 源码保真更可靠。
-- UI 更现代。
-- 性能观测、自动化质量和扩展能力更强。
+Long-term success: surpass Typora.
 
-## 非目标
+- Clearly better large-document experience.
+- Stronger workspace and search.
+- More reliable source fidelity.
+- More modern UI.
+- Stronger performance observability, automation quality, and extensibility.
 
-第一阶段不做：
+## Non-goals
 
-- 云同步平台。
-- 完整插件市场。
-- 团队协作套件。
-- 类 Notion 数据库。
-- 复杂知识图谱。
-- 移动端应用。
-- 学术写作全家桶。
+Phase one does not include:
 
-这些能力可以在核心编辑体验稳定后重新评估。
+- A cloud sync platform.
+- A full plugin marketplace.
+- A team collaboration suite.
+- Notion-like databases.
+- Complex knowledge graphs.
+- Mobile apps.
+- A full academic writing suite.
 
-## 核心约束
+These capabilities can be reassessed after the core editing experience is stable.
 
-- 优先使用成熟组件。
-- 不手搓基础组件，除非用户明确批准。
-- Markdown 源文件是唯一真实数据。
-- 所有 UI 文案必须可本地化。
-- 编辑器热路径不交给 React。
-- 性能指标必须自动化测量。
-- AI 开发必须遵守测试、验证和审查门禁。
+## Core constraints
+
+- Prefer mature components.
+- Do not hand-roll basic components unless the user explicitly approves.
+- Markdown source files are the single source of truth.
+- All UI copy must be localizable.
+- Editor hot paths must not be owned by React.
+- Performance metrics must be measured automatically.
+- AI development must obey testing, verification, and review gates.

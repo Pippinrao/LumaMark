@@ -1,44 +1,46 @@
-# ADR 0010：阅读模式的只读与渲染锁定合同
+> Language: **English** · [中文](../zh/decisions/0010-reading-mode-readonly-contract.md)
 
-**状态：** 已接受
+# ADR 0010: Reading Mode Read-Only and Render-Lock Contract
 
-**日期：** 2026-08-10
+**Status:** Accepted
 
-## 背景
+**Date:** 2026-08-10
 
-视图菜单此前只有实时预览与源码两种显示模式，两者都允许修改文档。长时间阅读长文档时，用户需要一个不会因误触而改动 Markdown 的状态，同时保留渲染后的排版、图片和图表。
+## Context
 
-LumaMark 已有的实时预览会在光标进入某个 span 或块时展开对应的 Markdown 源码标记，这是写作态的核心行为，但在纯阅读场景下会让版面持续跳动。因此“不允许修改”与“不展开源码”必须作为同一个模式的两个约束一起成立，不能只关掉其中一个。
+The View menu previously offered only live preview and source display modes, both of which allow document edits. For long reading sessions, users need a state that cannot change Markdown through accidental input while keeping rendered layout, images, and diagrams.
 
-CodeMirror 提供两种互不等价的只读手段：`EditorState.readOnly` 拒绝文档变更但保留 `contenteditable`，`EditorView.editable` 直接摘掉 `contenteditable`。二者在光标、选区、键盘导航和辅助技术上的表现差异很大，必须显式选择。
+Existing live preview expands corresponding Markdown source marks when the caret enters a span or block. That is core writing-mode behavior, but for pure reading it makes the layout keep jumping. Therefore “no edits allowed” and “do not expand source” must hold together as one mode’s two constraints; turning only one off is insufficient.
 
-## 决策
+CodeMirror provides two non-equivalent read-only mechanisms: `EditorState.readOnly` rejects document changes while keeping `contenteditable`, and `EditorView.editable` removes `contenteditable`. They differ substantially for caret, selection, keyboard navigation, and assistive technology, so the choice must be explicit.
 
-- 阅读模式是视图菜单 `display-mode` radio 组的第三项，与实时预览、源码互斥。它是会话级全局状态，不写入 `settings.json`，重启后回到可编辑状态。
-- 只读通过独立 Compartment 重配置 `EditorState.readOnly` 实现，与 `editorDisplayModeCompartment` 并列，切换模式不重建 `EditorView`。选区、复制、搜索高亮和键盘导航全部保留。
-- 光标用 `caret-color: transparent` 隐藏。文本仍可选中和复制，但不出现闪烁竖线。
-- 阅读模式下 `shouldRevealSyntaxNode` 恒定不展开源码标记，正文始终保持渲染态。
-- 表格不激活嵌套编辑器，任务勾选框不可点击；图片与 Mermaid 保留点击放大预览，因为查看器不产生文档变更。
-- 用户触发编辑类操作（输入、格式化快捷键、粘贴）时，状态栏的只读标识高亮闪动一次并通过 `aria-live` 播报。格式化 keymap 在只读时显式拦截并触发该反馈，不允许命令静默失效。
-- 保存路径完全不受影响。`Ctrl+S` 与自动保存照常工作，带着未保存改动进入阅读模式仍能正常落盘。
-- 搜索面板保留查找与高亮，隐藏替换部分。
-- `Ctrl+/` 由两态切换改为三态循环：实时预览 → 源码 → 阅读 → 实时预览。
+## Decision
 
-## 被否决方案
+- Reading mode is the third item in the View menu `display-mode` radio group, mutually exclusive with live preview and source. It is session-level global state, not written to `settings.json`, and returns to editable after restart.
+- Read-only is implemented by reconfiguring `EditorState.readOnly` through an independent Compartment alongside `editorDisplayModeCompartment`; mode switches do not rebuild `EditorView`. Selection, copy, search highlights, and keyboard navigation are all retained.
+- The caret is hidden with `caret-color: transparent`. Text remains selectable and copyable, but no blinking vertical caret appears.
+- In reading mode, `shouldRevealSyntaxNode` never expands source marks; the body always stays in rendered form.
+- Tables do not activate nested editors; task checkboxes are not clickable; images and Mermaid keep click-to-expand preview because the viewer does not produce document changes.
+- When the user triggers edit-class actions (typing, format shortcuts, paste), the status-bar read-only indicator flashes once and announces via `aria-live`. Format keymaps explicitly intercept while read-only and trigger that feedback; commands must not fail silently.
+- Save paths are completely unaffected. `Ctrl+S` and autosave continue to work; entering reading mode with unsaved changes can still flush to disk normally.
+- The search panel keeps find and highlight and hides replace.
+- `Ctrl+/` changes from a two-state toggle to a three-state cycle: live preview → source → reading → live preview.
 
-- **用 `EditorView.editable = false` 实现只读：** 会移除 `contenteditable`，同时失去光标定位、CodeMirror 键盘导航和部分辅助技术行为。阅读模式仍需要可选中、可搜索、可键盘浏览，代价不成比例。
-- **让阅读模式成为可叠加在实时预览或源码之上的正交开关：** 源码模式下的“只读”与阅读模式要求的“渲染态”互相矛盾，会产生四种组合中两种没有产品意义的状态，菜单和快捷键语义也随之复杂化。
-- **引入 toast 通知系统承载“当前只读”提示：** 项目当前没有任何通知基础设施，为一条提示引入通用 toast 需要额外承担堆叠、自动消失、`aria-live` 和 i18n 的长期维护成本。状态栏已有常驻位置，足以表达该状态。
-- **静默忽略编辑操作：** 违反工作契约中“不要用静默 fallback 掩盖错误”的要求，用户无法区分“只读”和“程序坏了”。
-- **把阅读模式持久化到设置或按文档记忆：** 阅读模式是临时的阅读姿态，持久化会让用户下次打开时莫名其妙无法输入。
+## Alternatives considered
 
-## 影响
+- **Implement read-only with `EditorView.editable = false`:** removes `contenteditable` and also loses caret positioning, CodeMirror keyboard navigation, and some assistive-technology behavior. Reading mode still needs selectable, searchable, keyboard-browsable text; the cost is disproportionate.
+- **Make reading mode an orthogonal switch stacked on live preview or source:** “read-only” in source mode conflicts with reading mode’s required “rendered state”, producing two of four combinations with no product meaning and complicating menu/shortcut semantics.
+- **Introduce a toast system for “currently read-only” feedback:** the project has no notification infrastructure yet; a general toast for one hint would take on long-term stacking, auto-dismiss, `aria-live`, and i18n maintenance. The status bar already has a persistent place for this state.
+- **Silently ignore edit actions:** violates the working contract “do not hide errors with silent fallbacks”; users cannot distinguish read-only from a broken program.
+- **Persist reading mode in settings or per document:** reading mode is a temporary reading posture; persistence would leave users mysteriously unable to type on next open.
 
-- 编辑器新增一个 Compartment 与一个只读态判定入口；模式切换仍是 reconfigure，不触碰文档、撤销栈和滚动位置。
-- 表格单元格的点击激活路径在阅读模式下被整体关闭。该路径属于工作契约中标注的高成本缺陷区，因此必须补充“阅读模式下点击单元格不进入编辑态且不产生文档变更”的端到端断言。
-- 状态栏新增只读标识与瞬时反馈样式，中英文文案进入 i18n 资源。
-- `Ctrl+/` 的语义从切换变为循环，菜单快捷键列的展示需要相应调整，避免把循环键标注成只属于源码模式。
+## Consequences
 
-## 回滚与复审条件
+- The editor gains one Compartment and one read-only predicate entry; mode switches remain reconfigure and do not touch the document, undo stack, or scroll position.
+- Table cell click-to-activate is closed entirely in reading mode. That path is a high-cost defect area marked in the working contract, so E2E assertions must cover “clicking a cell in reading mode neither enters edit mode nor produces document changes”.
+- The status bar gains a read-only indicator and transient feedback styling; Chinese and English copy enter i18n resources.
+- `Ctrl+/` semantics change from toggle to cycle; menu shortcut columns need matching updates so the cycle key is not labeled as belonging only to source mode.
 
-若三态循环在真实使用中被证明比两态切换更难预测，可以退回 `Ctrl+/` 只切换实时预览与源码，并为阅读模式单独分配键位，该调整不影响只读实现本身。若未来引入通用通知基础设施，可复审状态栏闪动是否替换为统一提示。若阅读模式需要跨会话保持或按文档记忆，必须重新评估持久化位置并修订本记录。
+## Rollback and revisit criteria
+
+If three-state cycling proves less predictable than two-state toggling in real use, `Ctrl+/` can return to switching only live preview and source, with a dedicated key for reading mode; that change does not affect the read-only implementation itself. If a general notification infrastructure is introduced later, revisit whether status-bar flashing should be replaced by a unified prompt. If reading mode must persist across sessions or per document, re-evaluate persistence location and revise this record.

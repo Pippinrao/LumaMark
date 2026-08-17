@@ -1,268 +1,270 @@
-# 架构策略
+> Language: **English** · [中文](../zh/architecture/ARCHITECTURE_STRATEGY.md)
 
-详细模块边界、数据流和技术选型见 [详细架构设计与技术选型](DETAILED_ARCHITECTURE.md)。本文件只保留高层原则。Parity Reliability 的共享交互、源码格式与单主编辑器合同见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
+# Architecture Strategy
 
-## 架构目标
+For detailed module boundaries, data flows, and technology choices, see [Detailed Architecture Design and Technology Selection](DETAILED_ARCHITECTURE.md). This document keeps only high-level principles. Shared interaction, source format, and single primary editor contracts for Parity Reliability are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md).
 
-LumaMark 的架构必须同时服务三个目标：
+## Architecture Goals
 
-1. 高性能。
-2. 现代化美观界面。
-3. 轻量流畅体验。
+LumaMark’s architecture must serve three goals at once:
 
-这三个目标不能互相牺牲。架构选择必须让它们天然成立，而不是靠后期补丁。
+1. High performance.
+2. A modern, polished UI.
+3. A light, fluid experience.
 
-## 总体架构
+These goals must not trade off against each other. Architectural choices must make them hold by design, not by later patches.
+
+## Overall Architecture
 
 ```text
-Tauri 桌面壳
-├─ React App Shell：布局、侧边栏、设置、命令面板、文件树
-├─ CodeMirror 6 Editor：Markdown 源文本、输入、选区、撤销、WYSIWYG decorations
-├─ Async Render Layer：Mermaid、公式、图片、导出预览、缓存
-├─ Rust Core：文件 IO、搜索、索引、缓存、系统集成、重任务调度
-└─ i18n / Theme / Settings：从第一天内建
+Tauri desktop shell
+├─ React App Shell: layout, sidebar, settings, command palette, file tree
+├─ CodeMirror 6 Editor: Markdown source text, input, selection, undo, WYSIWYG decorations
+├─ Async Render Layer: Mermaid, math, images, export preview, cache
+├─ Rust Core: file IO, search, index, cache, system integration, heavy-task scheduling
+└─ i18n / Theme / Settings: built in from day one
 ```
 
-核心原则：
+Core principle:
 
-> React 负责应用外壳，CodeMirror 6 独占编辑热路径，Rust 负责系统和重任务，成熟组件库负责 UI 行为。
+> React owns the application shell, CodeMirror 6 exclusively owns the editing hot path, Rust owns system and heavy work, and mature component libraries own UI behavior.
 
-## 技术选择
+## Technology Choices
 
 ### Tauri
 
-选择 Tauri 作为桌面壳。
+Choose Tauri as the desktop shell.
 
-原因：
+Reasons:
 
-- 轻量。
-- 使用系统 WebView。
-- Rust 适合系统能力和重任务。
-- 天然支持 Windows、macOS、Linux。
-- 与现代前端框架组合简单。
+- Lightweight.
+- Uses the system WebView.
+- Rust fits system capabilities and heavy work.
+- Naturally supports Windows, macOS, and Linux.
+- Combines simply with modern frontend frameworks.
 
-边界：
+Boundaries:
 
-- 不把所有逻辑都迁移到 Rust。
-- Rust 只承担明确有收益的工作。
-- 前端和 Rust 之间通过清晰 command 边界通信。
+- Do not move all logic into Rust.
+- Rust only takes work with clear benefit.
+- Frontend and Rust communicate through clear command boundaries.
 
 ### React + TypeScript
 
-选择 React 构建应用外壳。
+Choose React to build the application shell.
 
-负责：
+Responsibilities:
 
-- 布局。
-- 面板。
-- 设置。
-- 文件树。
-- 大纲。
-- 命令面板。
-- 主题。
-- i18n。
+- Layout.
+- Panels.
+- Settings.
+- File tree.
+- Outline.
+- Command palette.
+- Theme.
+- i18n.
 
-边界：
+Boundaries:
 
-- React 不参与逐字符输入。
-- shell 渲染组件只消费 view model、labels、callbacks 和 slots，不直接调用业务 workflow、store、service 或 editor command。
-- 业务行为进入 feature workflow、app controller 或 service facade，不能堆进 JSX 组件。
-- 不把每个 Markdown 块都变成 React component。
-- 不把每次输入同步到全局 React state 再渲染。
-- React 只订阅必要的轻量状态，例如当前文件、dirty 状态、outline、选区摘要。
+- React does not participate in per-character input.
+- Shell render components only consume view models, labels, callbacks, and slots; they must not call business workflows, stores, services, or editor commands directly.
+- Business behavior goes into feature workflows, app controllers, or service facades — not into JSX components.
+- Do not turn every Markdown block into a React component.
+- Do not sync every keystroke into global React state and re-render.
+- React only subscribes to necessary lightweight state, such as current file, dirty status, outline, and selection summary.
 
 ### CodeMirror 6
 
-选择 CodeMirror 6 作为主编辑器核心。
+Choose CodeMirror 6 as the primary editor core.
 
-原因：
+Reasons:
 
-- 高性能文本模型。
-- 适合大文档。
-- 支持增量解析。
-- 支持 decorations/widgets。
-- 可实现 Typora-like 的 Markdown 视觉层。
-- Markdown 源文可以保持为主数据。
+- High-performance text model.
+- Suitable for large documents.
+- Supports incremental parsing.
+- Supports decorations/widgets.
+- Can implement a Typora-like Markdown visual layer.
+- Markdown source can remain the primary data.
 
-负责：
+Responsibilities:
 
-- 文本文档。
-- 输入。
-- 光标。
-- 选区。
-- 撤销和重做。
-- 基础语法高亮。
-- Markdown WYSIWYG decorations。
-- Mermaid 等块级 widget 的挂载点。
-- `EditorInteractionContext` 和 `DocumentSourceFormat` 等与正文同步映射的编辑器状态。
+- Text document.
+- Input.
+- Caret.
+- Selection.
+- Undo and redo.
+- Basic syntax highlighting.
+- Markdown WYSIWYG decorations.
+- Mount points for Mermaid and other block-level widgets.
+- Editor state that maps in sync with body text, such as `EditorInteractionContext` and `DocumentSourceFormat`.
 
-边界：
+Boundaries:
 
-- 不用富文本 AST 作为主存储。
-- 不绕过 CodeMirror 自己实现光标、选区和输入。
-- 不在 CodeMirror 外层硬套虚拟滚动。
-- 不为 Mermaid 或其他复杂块创建持有待提交正文、选区或独立 undo 栈的第二个 `EditorView`。
+- Do not use a rich-text AST as primary storage.
+- Do not bypass CodeMirror to implement caret, selection, and input yourself.
+- Do not wrap CodeMirror with an outer virtual-scroll layer.
+- Do not create a second `EditorView` for Mermaid or other complex blocks that holds pending body text, selection, or an independent undo stack.
 
 ### Rust Core
 
-Rust 负责系统能力和性能敏感后台任务。
+Rust owns system capabilities and performance-sensitive background work.
 
-适合放到 Rust 的能力：
+Good fits for Rust:
 
-- 文件读写。
-- 文件监听。
-- 工作区索引。
-- 全文搜索。
-- 缓存管理。
-- 导出流程。
-- 大文件预处理。
-- 性能敏感解析或调度。
+- File read/write.
+- File watching.
+- Workspace indexing.
+- Full-text search.
+- Cache management.
+- Export pipelines.
+- Large-file preprocessing.
+- Performance-sensitive parsing or scheduling.
 
-不适合放到 Rust 的能力：
+Poor fits for Rust:
 
-- 普通 UI 状态。
-- 简单组件交互。
-- 无性能压力的轻量逻辑。
-- 只是为了“更底层”而迁移的功能。
+- Ordinary UI state.
+- Simple component interaction.
+- Lightweight logic with no performance pressure.
+- Features migrated only to feel “more low-level.”
 
-## WYSIWYG 策略
+## WYSIWYG Strategy
 
-LumaMark 不采用“富文本 AST 主存储 -> 保存时 stringify Markdown”的路线。
+LumaMark does not take the “rich-text AST as primary storage → stringify Markdown on save” path.
 
-默认策略：
+Default strategy:
 
-- Markdown 源文件是 source of truth。
-- CodeMirror 文本模型持有源文。
-- CodeMirror 内部规范化 `Text`，同时映射 BOM、末尾换行和逐行换行格式；保存边界精确序列化。
-- Lezer/Markdown parser 生成语法信息。
-- decorations 隐藏或弱化 Markdown 符号。
-- widgets 渲染 Mermaid、公式、图片预览等复杂块。
-- 保存直接基于 editor snapshot；受控转换只能产生必要的最小 changes，不能静默全文件归一化。
+- The Markdown source file is the source of truth.
+- The CodeMirror text model holds the source.
+- CodeMirror normalizes `Text` internally while mapping BOM, trailing newline, and per-line newline formats; the save boundary serializes exactly.
+- The Lezer/Markdown parser produces syntax information.
+- Decorations hide or soften Markdown markers.
+- Widgets render Mermaid, math, image previews, and other complex blocks.
+- Save is based directly on the editor snapshot; controlled transforms may produce only necessary minimal changes and must not silently normalize the whole file.
 
-这种策略可以降低源码保真风险。
+This strategy lowers source-fidelity risk.
 
-## Editor Capability 策略
+## Editor Capability Strategy
 
-Mermaid、表格、代码块、图片等复杂编辑器子功能按 Editor Capability 独立演进。
+Complex editor subfeatures such as Mermaid, tables, code blocks, and images evolve independently as Editor Capabilities.
 
-默认边界：
+Default boundaries:
 
-- 每个复杂能力有独立 `editor/capabilities/<name>/` 目录和薄 public entry。
-- `editor/core` 只消费 capability 聚合入口，不直接 import Mermaid、table、image、code-block 内部实现。
-- `editor/commands` 只通过 capability command factory 调用复杂能力，不知道 widget、DOM 或第三方库路径。
-- `editor/widgets/*` 只作为旧路径兼容 re-export，不承载新实现。
-- 通用 `editor/wysiwyg` 只负责低成本、源码保真的视觉规则和 capability decoration 组合，不承担异步渲染、文件路径解析、block widget lifecycle 或能力专属命令。
+- Each complex capability has its own `editor/capabilities/<name>/` directory and a thin public entry.
+- `editor/core` only consumes capability aggregate entries; it must not import Mermaid, table, image, or code-block internals directly.
+- `editor/commands` only invokes complex capabilities through capability command factories; it does not know widget, DOM, or third-party library paths.
+- `editor/widgets/*` exists only as compatibility re-exports for old paths; it must not host new implementations.
+- Shared `editor/wysiwyg` only owns low-cost, source-faithful visual rules and capability decoration composition; it must not own async rendering, file-path resolution, block widget lifecycle, or capability-specific commands.
 
-当前仍需警惕的混杂点：
+Current mix points still to watch:
 
-- image capability 的检测、路径解析和 DOM 仍在一个文件里，继续增长前必须拆分。
-- 表格源码视觉 class 仍在通用 WYSIWYG，若扩展为表格专属视觉行为应迁回 table capability。
-- 任务列表目前仍属于通用列表/WYSIWYG 行为，若变成独立交互能力应抽成 list 或 task-list capability。
+- Image capability detection, path resolution, and DOM still live in one file and must be split before further growth.
+- Table source visual classes still live in shared WYSIWYG; if they grow into table-specific visual behavior, move them back into the table capability.
+- Task lists still belong to shared list/WYSIWYG behavior; if they become an independent interactive capability, extract a list or task-list capability.
 
-## Mermaid 策略
+## Mermaid Strategy
 
-Mermaid 是高性能风险点，必须异步。
+Mermaid is a high-performance risk point and must be asynchronous.
 
-要求：
+Requirements:
 
-- 识别 fenced code block。
-- 激活块时在主 `EditorView` 中显示围栏源码，预览置于块下方；编辑立即进入统一 undo 栈。
-- 不在输入同步路径渲染。
-- 使用任务队列。
-- 支持取消过期任务。
-- 支持缓存。
-- 渲染错误可视化展示。
+- Detect fenced code blocks.
+- When a block is active, show fenced source in the main `EditorView` with preview below the block; edits enter the unified undo stack immediately.
+- Do not render on the synchronous input path.
+- Use a task queue.
+- Support canceling stale tasks.
+- Support caching.
+- Surface render errors visually.
 
-缓存 key 至少包含：
+Cache keys must at least include:
 
-- Mermaid 源码。
-- Mermaid 版本。
-- Mermaid 配置。
-- 当前主题。
+- Mermaid source.
+- Mermaid version.
+- Mermaid configuration.
+- Current theme.
 
-## UI 组件策略
+## UI Component Strategy
 
-成熟组件优先。
+Mature components first.
 
-优先选择：
+Prefer:
 
-- Radix UI / Ariakit / 同等级 headless 组件。
-- lucide-react 或同等级图标库。
-- TanStack Virtual 或同等级虚拟化库。
-- i18next 或同等级 i18n 方案。
+- Radix UI / Ariakit / equivalent headless components.
+- lucide-react or an equivalent icon library.
+- TanStack Virtual or an equivalent virtualization library.
+- i18next or an equivalent i18n solution.
 
-LumaMark 自己负责：
+LumaMark owns:
 
-- 设计 token。
-- 主题风格。
-- 组件组合。
-- 编辑器专属交互。
+- Design tokens.
+- Theme styling.
+- Component composition.
+- Editor-specific interactions.
 
-不自己手搓：
+Do not hand-roll:
 
-- 菜单。
-- 对话框。
-- tooltip。
-- tab。
-- split pane。
-- 树组件。
-- 命令面板。
-- 虚拟列表。
-- 快捷键系统。
+- Menus.
+- Dialogs.
+- Tooltips.
+- Tabs.
+- Split panes.
+- Tree components.
+- Command palettes.
+- Virtual lists.
+- Shortcut systems.
 
-除非有证据证明成熟组件无法达成目标，并且用户明确批准。
+Unless there is evidence that mature components cannot meet the goals, and the user explicitly approves.
 
-## 性能策略
+## Performance Strategy
 
-性能从架构阶段开始设计。
+Performance is designed from the architecture stage.
 
-热路径：
+Hot paths:
 
-- 输入。
-- 光标和选区。
-- 滚动。
-- 语法装饰。
-- 保存。
+- Input.
+- Caret and selection.
+- Scrolling.
+- Syntax decorations.
+- Save.
 
-热路径必须尽可能留在 CodeMirror 或浏览器高效机制中。
+Hot paths must stay in CodeMirror or efficient browser mechanisms whenever possible.
 
-冷路径或后台路径：
+Cold or background paths:
 
-- Mermaid。
-- 搜索。
-- 导出。
-- 大纲生成。
-- 文件索引。
-- 图片处理。
+- Mermaid.
+- Search.
+- Export.
+- Outline generation.
+- File indexing.
+- Image processing.
 
-这些路径应异步、可取消、可缓存。
+These paths should be asynchronous, cancelable, and cacheable.
 
-## 反模式
+## Anti-Patterns
 
-禁止以下方向：
+Forbid these directions:
 
-- 用 ProseMirror/Milkdown 作为主编辑核心，除非新的验证证明它更符合目标。
-- 用富文本 AST 作为 Markdown 主存储。
-- 自研基础 UI 组件。
-- 让 AppShell、controller 或 feature component 变成跨功能总控。
-- 让 `editor/capabilities/index.ts` 或 `wysiwyg/markdownDecorations.ts` 变成新的编辑器能力总控。
-- 让某个 editor capability 反向依赖 app、feature、service 层。
-- 在渲染组件里直接 import store、service、workflow、Tauri wrapper 或编辑器命令。
-- React 逐字符重渲染编辑器。
-- Mermaid 同步渲染。
-- 保存时格式化整个文档。
-- 先堆功能再补性能。
-- 缺少 benchmark 就判断“足够流畅”。
+- Using ProseMirror/Milkdown as the primary editor core unless new validation proves it better fits the goals.
+- Using a rich-text AST as Markdown primary storage.
+- Hand-rolling basic UI components.
+- Letting AppShell, a controller, or a feature component become a cross-feature god object.
+- Letting `editor/capabilities/index.ts` or `wysiwyg/markdownDecorations.ts` become a new editor-capability god object.
+- Letting an editor capability depend upward on app, feature, or service layers.
+- Directly importing stores, services, workflows, Tauri wrappers, or editor commands inside render components.
+- React re-rendering the editor on every character.
+- Synchronous Mermaid rendering.
+- Formatting the entire document on save.
+- Shipping features first and patching performance later.
+- Declaring something “smooth enough” without benchmarks.
 
-## 架构验收
+## Architecture Acceptance
 
-每次重大架构改动都必须回答：
+Every major architecture change must answer:
 
-- 是否保护 Markdown 源码保真？
-- 是否影响输入延迟？
-- 是否影响滚动流畅度？
-- 是否增加 React 热路径渲染？
-- 是否有成熟组件可用？
-- 是否影响 i18n？
-- 是否有自动化验证？
-- 是否有性能基准？
+- Does it protect Markdown source fidelity?
+- Does it affect input latency?
+- Does it affect scroll smoothness?
+- Does it increase React hot-path rendering?
+- Is a mature component available?
+- Does it affect i18n?
+- Is there automated verification?
+- Are there performance baselines?

@@ -1,126 +1,163 @@
-# LumaMark 文档地图
+> Language: **English** · [中文](zh/README.md)
 
-本文件是 `docs/` 目录的唯一索引。新增、删除、移动或重命名项目文档时，必须同步更新这里。
+# LumaMark documentation map
 
-## 文档治理原则
+This file is the sole index for the `docs/` directory. When adding, deleting, moving, or renaming project docs, update this file in the same change.
 
-- 文档要少而准，不为临时想法创建长期文档。
-- 同一主题只能有一个主事实来源。
-- 近期计划可以细，远期计划保持大纲和决策门。
-- 文档服务决策和执行，不记录流水账。
-- 修改产品目标、架构、质量门禁或路线时，同步更新相关文档。
+## Documentation governance
 
-## 目录结构
+- Keep docs few and accurate; do not create long-lived docs for temporary ideas.
+- Each topic may have only one primary source of truth.
+- Near-term plans may be detailed; far-term plans stay outline-level with decision gates.
+- Docs serve decisions and execution; they do not record diaries.
+- When product goals, architecture, quality gates, or roadmap change, update related docs together.
+
+## Bilingual layout
+
+- **English (default / canonical):** `docs/**` at these paths, plus root `README.md`, `AGENTS.md`, and `DEVELOPMENT_PROCESS.md`.
+- **Chinese (full mirror):** `docs/zh/**`, plus root `README.zh.md`, `AGENTS.zh.md`, and `DEVELOPMENT_PROCESS.zh.md`.
+- Living docs: update English first, then the Chinese mirror in the same change set.
+- Language switchers link paired files; internal links in English docs use English default paths (except the switcher itself).
+- Agent chat replies to the project owner still default to Chinese; see `AGENTS.md` documentation language policy.
+
+## Directory structure
 
 ```text
 docs/
-├─ README.md                 # 文档地图
-├─ product/                  # 产品定位、版本范围、PRD、竞品策略
-│  ├─ typora-baseline/       # Typora 公开行为基线（专题事实与对齐表）
-│  └─ typora-competitive-analysis/ # LumaMark 当前快照与专题差距分析
-├─ architecture/             # 架构原则、模块边界、技术选型
-├─ decisions/                # 重大决策记录
-├─ quality/                  # 测试、性能、质量策略
-├─ performance/              # 性能基线和门禁结果
-├─ release/                  # 构建、发布和版本交付记录
-└─ roadmap/                  # 演进计划和阶段目标
+├─ README.md                 # Documentation map (this file)
+├─ zh/                       # Full Chinese mirror of project docs
+├─ superpowers/              # Non-authoritative agent planning scratch (specs/plans)
+├─ product/                  # Product positioning, version scope, PRD, competitor strategy
+│  ├─ typora-baseline/       # Typora public behavior baseline (topic facts and alignment tables)
+│  └─ typora-competitive-analysis/ # LumaMark snapshot and topic gap analysis
+├─ architecture/             # Architecture principles, module boundaries, technology choices
+├─ decisions/                # Major decision records
+├─ quality/                  # Testing, performance, quality strategy
+├─ performance/              # Performance baselines and gate results
+├─ release/                  # Build, release, and delivery records
+└─ roadmap/                  # Evolution plans and phase goals
 ```
 
-按需再创建：
+Create on demand:
 
-- `docs/testing/`：测试夹具和测试细则。
+- `docs/testing/`: test fixtures and detailed test rules.
 
-不要提前创建空目录。
+Do not pre-create empty directories.
 
-## 必读顺序
+`docs/superpowers/` holds agent specs and plans only. It is **not** a product, architecture, quality, or roadmap source of truth.
 
-新 agent 或贡献者建议按以下顺序阅读：
+## Must-read order
 
-1. [项目章程](product/PROJECT_CHARTER.md)
-2. [产品定位与策略](product/PRODUCT_STRATEGY.md)
-3. [演进计划](roadmap/EVOLUTION_PLAN.md)
-4. [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
-5. [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md)
-6. [V1 UX 设计](product/V1_UX_DESIGN.md)
-7. [质量策略](quality/QUALITY_STRATEGY.md)
-8. [V1 版本设计（历史 Alpha 基线）](product/V1_VERSION_DESIGN.md)
-9. [V1 落地实施计划（历史 Alpha 基线）](roadmap/V1_IMPLEMENTATION_PLAN.md)
-10. [Agent 工作契约](../AGENTS.md)
-11. [AI 开发流程](../DEVELOPMENT_PROCESS.md)
+New agents or contributors should read in this order:
 
-## 当前文档清单
+1. [Project charter](product/PROJECT_CHARTER.md)
+2. [Product positioning and strategy](product/PRODUCT_STRATEGY.md)
+3. [Evolution plan](roadmap/EVOLUTION_PLAN.md)
+4. [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
+5. [Detailed architecture and technology choices](architecture/DETAILED_ARCHITECTURE.md)
+6. [Quality strategy](quality/QUALITY_STRATEGY.md)
+7. [Agent working contract](../AGENTS.md)
+8. [AI development process](../DEVELOPMENT_PROCESS.md)
 
-| 文档 | 类型 | 职责 | 更新时机 |
+### Archive (historical Alpha baseline — not primary reading)
+
+These documents record Foundation / MarkText+ Alpha baselines. They are frozen in principle and must not be used to infer current implementation status or execution order:
+
+- [V1 product requirements](product/V1_PRODUCT_REQUIREMENTS.md)
+- [V1 UX design](product/V1_UX_DESIGN.md)
+- [V1 version design](product/V1_VERSION_DESIGN.md)
+- [V1 implementation plan](roadmap/V1_IMPLEMENTATION_PLAN.md)
+
+## Current status
+
+Foundation and MarkText+ form an Alpha technical baseline. The active milestone is **Parity Reliability Foundation**: converge source fidelity, IME, undo, focus, and active-save reliability before stacking more topic features. Scope, order, and exit gates live only in the [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+
+Landed capabilities (high level; follow the linked English docs for contracts and acceptance):
+
+| Capability | Primary doc |
+|---|---|
+| Settings system | [SETTINGS_SYSTEM_DESIGN.md](product/SETTINGS_SYSTEM_DESIGN.md), [ADR 0014](decisions/0014-settings-persistence.md) |
+| Menu and context menus | [MENU_SYSTEM_DESIGN.md](product/MENU_SYSTEM_DESIGN.md) |
+| MathJax math | [ADR 0017](decisions/0017-mathjax-document-worker-chtml.md) |
+| Local PlantUML | [ADR 0018](decisions/0018-plantuml-local-rendering.md) |
+| GitHub NSIS auto-update | [ADR 0012](decisions/0012-github-nsis-auto-update.md) |
+| Multi-window / desktop open routing | [ADR 0009](decisions/0009-desktop-file-open-bridge.md) |
+
+## Current document inventory
+
+| Document | Type | Responsibility | When to update |
 |---|---|---|---|
-| [项目章程](product/PROJECT_CHARTER.md) | 产品 | 项目愿景、使命、成功标准、非目标 | 项目定位或长期愿景变化 |
-| [产品定位与策略](product/PRODUCT_STRATEGY.md) | 产品 | 用户价值、战场选择、差异化方向 | 产品战略或目标用户变化 |
-| [V1 产品需求](product/V1_PRODUCT_REQUIREMENTS.md) | 历史产品基线 | Foundation / MarkText+ 的 V1 功能范围和验收口径 | 原则上冻结，仅修正链接或历史状态说明 |
-| [V1 版本设计](product/V1_VERSION_DESIGN.md) | 历史产品基线 | Foundation / MarkText+ 的 Alpha 产品、交互和架构切片记录；不作为当前执行计划 | 原则上冻结，仅修正链接或历史状态说明 |
-| [V1 UX 设计](product/V1_UX_DESIGN.md) | 历史 UX 基线 | Alpha 默认布局、视觉方向、高保真原型和 UX 验收记录 | 稳定视觉原则或历史状态说明变化 |
-| [菜单系统设计](product/MENU_SYSTEM_DESIGN.md) | 产品 UX | 顶栏菜单、右键菜单与命令面板共用的视觉、信息结构、命令合同、上下文命中、Typora 快捷键映射和验收标准 | 菜单/右键结构、快捷键、相关 capability 状态或菜单技术方案变化 |
-| [设置系统设计](product/SETTINGS_SYSTEM_DESIGN.md) | 产品 UX | 设置对话框分区、schema、持久化与迁移合同、设置与会话状态边界、测试与验收 | 设置分区/字段、持久化后端、迁移策略或设置门禁变化 |
-| [竞品策略与历史债务](product/COMPETITOR_STRATEGY.md) | 产品 | Typora、MarkText 等竞品策略和避坑 | 竞品判断或避坑策略变化 |
-| [Typora 行为基线](product/typora-baseline/README.md) | 产品 | Typora 公开写作行为事实、出处与 LumaMark 对齐表 | Typora 版本复核、基线专题增补或对齐决策变化 |
-| [Typora 专题竞争分析](product/typora-competitive-analysis/README.md) | 产品 | 18 份专题报告的目录导航、职责边界、状态词表和维护门禁 | 相关实现证据、Typora 基线或专题结构变化后 |
-| [架构策略](architecture/ARCHITECTURE_STRATEGY.md) | 架构 | 高层架构原则和反模式 | 架构原则变化 |
-| [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md) | 架构 | 模块边界、数据流、技术选型 | 默认架构或主要依赖变化 |
-| [ADR 0001：V1 应用外壳成熟组件选型](decisions/0001-task8-ui-components.md) | 决策 | Task 8 UI 基础组件选择和复审条件 | 文件树、分栏、命令面板、dialog 基础组件变化 |
-| [ADR 0002：CodeMirror 表格交互组件选型](decisions/0002-codemirror-markdown-tables.md) | 决策 | Markdown 表格交互成熟组件选择和复审条件 | 表格交互、源码保真或主编辑器核心变化 |
-| [ADR 0003：Live Preview 图片缓存、代码高亮和表格内嵌语法](decisions/0003-live-preview-assets-code-and-table-inline.md) | 决策 | 图片解析/刷新与 draft finalize、代码高亮依赖和表格 inline 渲染薄层 | 图片、代码块、表格内嵌语法或相关依赖变化 |
-| [ADR 0004：本地恢复草稿的安全边界](decisions/0004-local-recovery-drafts.md) | 决策 | 本地恢复草稿的精确序列化、恢复和清理边界 | 恢复策略、保存语义或草稿持久化变化 |
-| [ADR 0005：外部 Markdown 与本地图片变更监听](decisions/0005-external-file-and-image-watch.md) | 决策 | 文件监听、外部修改冲突和图片磁盘刷新边界 | watcher 依赖、冲突策略或图片刷新语义变化 |
-| [ADR 0006：Parity Reliability 编辑器合同](decisions/0006-parity-reliability-editor-contracts.md) | 决策 | 共享 interaction context、精确源码格式、Mermaid 单主编辑器与保存 diff 依赖边界 | 编辑交互、源码序列化、Mermaid 编辑所有权或保存转换变化 |
-| [ADR 0007：稳定的性能采样门禁](decisions/0007-stable-performance-sampling.md) | 决策 | 性能样本的 P80、最大值、独立冷路径与 CI 防抖口径 | 样本数量、统计方式、主预算或最大值硬上限变化 |
-| [ADR 0008：图片与 Mermaid 共享媒体查看器](decisions/0008-shared-media-viewer.md) | 决策 | 展开查看、缩放依赖、editor 事件和焦点/源码保真边界 | 媒体查看、缩放组件、payload 所有权或全屏语义变化 |
-| [ADR 0009：桌面文件打开与多窗口路由](decisions/0009-desktop-file-open-bridge.md) | 决策 | 文件关联、持久请求、文档 identity、单实例 worker、multi/aggregate 窗口所有权和恢复边界 | 桌面文件关联、窗口路由、路径 identity、请求生命周期或 single-instance 依赖变化 |
-| [ADR 0010：阅读模式的只读与渲染锁定合同](decisions/0010-reading-mode-readonly-contract.md) | 决策 | 只读实现方式、渲染态锁定、控件交互边界、反馈方式和显示模式循环 | 显示模式集合、只读语义、源码展开策略或只读反馈方式变化 |
-| [ADR 0011：侧边栏内容自适应宽度与约束放开](decisions/0011-sidebar-adaptive-width.md) | 决策 | 侧栏拖拽上下限、自适应依据与重算时机、宽度持久化边界 | 侧栏宽度约束、自适应算法、重算触发条件或宽度持久化策略变化 |
-| [ADR 0012：GitHub NSIS 自动更新](decisions/0012-github-nsis-auto-update.md) | 决策 | 官方 updater 插件、NSIS-only、GitHub `latest.json`、签名密钥、发布 workflow 与 Windows 手动系统代理边界 | 更新源、签名策略、发布产物形态、代理边界或安装确认交互变化 |
-| [ADR 0013：代码块围栏补齐的独立性能预算](decisions/0013-code-block-completion-performance-budget.md) | 决策 | 复杂围栏补齐命令与普通输入的预算边界、采样口径和复审条件 | 围栏补齐实现、CodeMirror 更新成本、主预算或最大值变化 |
-| [ADR 0014：设置持久化下沉到 Rust 配置文件](decisions/0014-settings-persistence.md) | 决策 | 设置从 localStorage 迁到 `settings.json`、损坏备份、迁移与会话状态边界 | 设置持久化后端、迁移策略或配置文件布局变化 |
-| [ADR 0015：外部打开与工作区文件变更](decisions/0015-external-open-and-file-mutations.md) | 决策 | opener 依赖、协议白名单、工作区写操作、回收站删除与 capability 边界 | opener/shell 依赖、删除语义、工作区路径校验或文件树写操作变化 |
-| [ADR 0016：桌面纯文本剪贴板适配](decisions/0016-tauri-text-clipboard-adapter.md) | 决策 | 官方 Tauri clipboard-manager、浏览器 adapter、EditorCommandPort 注入与最小文本权限 | 剪贴板插件、权限、纯文本命令入口或桌面/浏览器适配边界变化 |
-| [ADR 0017：MathJax 文档级 Worker 与 CHTML 数学渲染](decisions/0017-mathjax-document-worker-chtml.md) | 决策 | 数学引擎、文档状态、Worker/CHTML、离线字体、安全和回滚边界 | MathJax 版本、输出格式、TeX 包、安全策略、chunk 或性能门禁变化 |
-| [ADR 0018：PlantUML 官方 TeaVM 本地渲染](decisions/0018-plantuml-local-rendering.md) | 决策 | 本地 PlantUML 引擎、canonical 设置、阅读锁、暗色、懒加载 chunk 与安装包验收 | PlantUML 引擎、设置字段、渲染锁或安装包验收变化 |
-| [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
-| [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果和已知限制 | 性能预算、基准命令或实测结果变化 |
-| [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |
-| [演进计划](roadmap/EVOLUTION_PLAN.md) | 路线 | 近细远粗的阶段计划 | 近期阶段目标或退出条件变化 |
-| [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) | 当前执行路线 | Parity Reliability Foundation 的实施顺序、合同、证据与退出门禁 | 当前里程碑范围、顺序或门禁变化 |
-| [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md) | 历史路线基线 | Foundation / MarkText+ 的 Alpha 任务拆解；保留原始 checkbox，不代表当前完成状态 | 原则上冻结，仅修正链接或历史状态说明 |
+| [Project charter](product/PROJECT_CHARTER.md) | Product | Vision, mission, success criteria, non-goals | Project positioning or long-term vision changes |
+| [Product positioning and strategy](product/PRODUCT_STRATEGY.md) | Product | User value, battlefield choice, differentiation | Product strategy or target-user changes |
+| [V1 product requirements](product/V1_PRODUCT_REQUIREMENTS.md) | Historical product baseline | Foundation / MarkText+ V1 feature scope and acceptance | Frozen in principle; fix links or historical status notes only |
+| [V1 version design](product/V1_VERSION_DESIGN.md) | Historical product baseline | Alpha product, interaction, and architecture slices; not a current execution plan | Frozen in principle; fix links or historical status notes only |
+| [V1 UX design](product/V1_UX_DESIGN.md) | Historical UX baseline | Alpha default layout, visual direction, hi-fi prototypes, UX acceptance | Stable visual principles or historical status notes change |
+| [Menu system design](product/MENU_SYSTEM_DESIGN.md) | Product UX | Shared visual/info structure, command contracts, context hit-testing, Typora shortcut mapping, and acceptance for top menus, context menus, and command palette | Menu/context structure, shortcuts, related capability status, or menu tech approach changes |
+| [Settings system design](product/SETTINGS_SYSTEM_DESIGN.md) | Product UX | Settings dialog sections, schema, persistence/migration contracts, settings vs session boundaries, tests and acceptance | Settings sections/fields, persistence backend, migration strategy, or settings gates change |
+| [Competitor strategy and historical debt](product/COMPETITOR_STRATEGY.md) | Product | Typora, MarkText, and related competitor strategy and pitfalls | Competitor judgment or pitfall strategy changes |
+| [Typora behavior baseline](product/typora-baseline/README.md) | Product | Typora public writing-behavior facts, sources, and LumaMark alignment tables | Typora version re-check, baseline topic additions, or alignment decisions |
+| [Typora topic competitive analysis](product/typora-competitive-analysis/README.md) | Product | Index, responsibility boundaries, status vocabulary, and maintenance gates for 18 topic reports | Related implementation evidence, Typora baseline, or topic structure changes |
+| [Architecture strategy](architecture/ARCHITECTURE_STRATEGY.md) | Architecture | High-level architecture principles and anti-patterns | Architecture principle changes |
+| [Detailed architecture and technology choices](architecture/DETAILED_ARCHITECTURE.md) | Architecture | Module boundaries, data flow, technology choices | Default architecture or major dependency changes |
+| [ADR 0001: V1 app shell mature UI components](decisions/0001-task8-ui-components.md) | Decision | Task 8 UI primitive choices and review conditions | File tree, split pane, command palette, or dialog primitive changes |
+| [ADR 0002: CodeMirror Markdown table interaction](decisions/0002-codemirror-markdown-tables.md) | Decision | Mature table interaction choice and review conditions | Table interaction, source fidelity, or primary editor core changes |
+| [ADR 0003: Live preview assets, code highlight, table inline](decisions/0003-live-preview-assets-code-and-table-inline.md) | Decision | Image resolve/refresh and draft finalize, code-highlight deps, table inline render thin layer | Image, code block, table inline syntax, or related dependency changes |
+| [ADR 0004: Local recovery draft safety boundary](decisions/0004-local-recovery-drafts.md) | Decision | Exact serialization, restore, and cleanup boundary for local recovery drafts | Recovery strategy, save semantics, or draft persistence changes |
+| [ADR 0005: External Markdown and local image watch](decisions/0005-external-file-and-image-watch.md) | Decision | File watch, external-edit conflict, and on-disk image refresh boundaries | Watcher dependency, conflict policy, or image refresh semantics changes |
+| [ADR 0006: Parity Reliability editor contracts](decisions/0006-parity-reliability-editor-contracts.md) | Decision | Shared interaction context, exact source format, Mermaid single primary editor, and save-diff dependency boundaries | Edit interaction, source serialization, Mermaid ownership, or save transform changes |
+| [ADR 0007: Stable performance sampling gates](decisions/0007-stable-performance-sampling.md) | Decision | P80, max, independent cold path, and CI debounce rules for performance samples | Sample count, statistics, primary budget, or hard max changes |
+| [ADR 0008: Shared media viewer for images and Mermaid](decisions/0008-shared-media-viewer.md) | Decision | Expand view, zoom dependency, editor events, and focus/source-fidelity boundaries | Media viewing, zoom component, payload ownership, or fullscreen semantics changes |
+| [ADR 0009: Desktop file open and multi-window routing](decisions/0009-desktop-file-open-bridge.md) | Decision | File association, durable requests, document identity, single-instance worker, multi/aggregate window ownership and restore | Desktop association, window routing, path identity, request lifecycle, or single-instance dependency changes |
+| [ADR 0010: Reading mode readonly and render-lock contract](decisions/0010-reading-mode-readonly-contract.md) | Decision | Readonly implementation, render-state lock, control interaction, feedback, and display-mode cycle | Display-mode set, readonly semantics, source expand strategy, or readonly feedback changes |
+| [ADR 0011: Sidebar adaptive width and constraint release](decisions/0011-sidebar-adaptive-width.md) | Decision | Sidebar drag bounds, adaptive basis and recalc timing, width persistence boundary | Width constraints, adaptive algorithm, recalc triggers, or persistence strategy changes |
+| [ADR 0012: GitHub NSIS auto-update](decisions/0012-github-nsis-auto-update.md) | Decision | Official updater plugin, NSIS-only, GitHub `latest.json`, signing keys, release workflow, Windows manual system-proxy boundary | Update source, signing policy, artifact shape, proxy boundary, or install confirmation UX changes |
+| [ADR 0013: Independent performance budget for fence completion](decisions/0013-code-block-completion-performance-budget.md) | Decision | Budget boundary between complex fence-completion commands and ordinary typing, sampling rules, review conditions | Fence-completion implementation, CodeMirror update cost, primary budget, or max changes |
+| [ADR 0014: Settings persistence in Rust config file](decisions/0014-settings-persistence.md) | Decision | Move settings from localStorage to `settings.json`, corrupt backups, migration, and session-state boundaries | Settings persistence backend, migration strategy, or config layout changes |
+| [ADR 0015: External open and workspace file mutations](decisions/0015-external-open-and-file-mutations.md) | Decision | Opener dependency, protocol allowlist, workspace writes, trash delete, and capability boundaries | Opener/shell dependency, delete semantics, workspace path validation, or file-tree write changes |
+| [ADR 0016: Desktop plain-text clipboard adapter](decisions/0016-tauri-text-clipboard-adapter.md) | Decision | Official Tauri clipboard-manager, browser adapter, EditorCommandPort injection, minimal text permissions | Clipboard plugin, permissions, plain-text command entry, or desktop/browser adapter boundaries |
+| [ADR 0017: MathJax document worker and CHTML math](decisions/0017-mathjax-document-worker-chtml.md) | Decision | Math engine, document state, Worker/CHTML, offline fonts, security, and rollback boundaries | MathJax version, output format, TeX packages, security policy, chunk, or performance gate changes |
+| [ADR 0018: Local PlantUML via official TeaVM](decisions/0018-plantuml-local-rendering.md) | Decision | Local PlantUML engine, canonical settings, reading lock, dark mode, lazy chunk, and installed-package acceptance | PlantUML engine, settings fields, render lock, or installed-package acceptance changes |
+| [Quality strategy](quality/QUALITY_STRATEGY.md) | Quality | Testing, performance, and AI development quality strategy | Test or quality gate changes |
+| [V1 performance baseline](performance/V1_BASELINE.md) | Performance | V1 alpha performance budgets, measured results, known limits | Performance budgets, benchmark commands, or measured results change |
+| [Windows V1 build record](release/WINDOWS_V1_BUILD.md) | Release | Windows build commands, install artifacts, release gaps | Windows build config, artifacts, or release gates change |
+| [Evolution plan](roadmap/EVOLUTION_PLAN.md) | Roadmap | Near-detail / far-outline phase plan | Near-term phase goals or exit conditions change |
+| [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) | Current execution roadmap | Parity Reliability Foundation order, contracts, evidence, and exit gates | Current milestone scope, order, or gates change |
+| [V1 implementation plan](roadmap/V1_IMPLEMENTATION_PLAN.md) | Historical roadmap baseline | Foundation / MarkText+ Alpha task breakdown; original checkboxes retained; not current completion status | Frozen in principle; fix links or historical status notes only |
 
-## 事实来源约定
+## Fact-source rules
 
-- 工作规则以 [AGENTS.md](../AGENTS.md) 为准。
-- 开发流程以 [DEVELOPMENT_PROCESS.md](../DEVELOPMENT_PROCESS.md) 为准。
-- 长期产品定位以 [项目章程](product/PROJECT_CHARTER.md) 和 [产品定位与策略](product/PRODUCT_STRATEGY.md) 为准。
-- Alpha 前台 UX 历史基线见 [V1 UX 设计](product/V1_UX_DESIGN.md)；当前交互实施范围以当前执行计划和详细架构为准。
-- 当前详细架构以 [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md) 为准。
-- 当前阶段定位与 Now/Next/Later 以 [演进计划](roadmap/EVOLUTION_PLAN.md) 为准。
-- 当前可执行范围、顺序和退出门禁以 [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。
-- [V1 产品需求](product/V1_PRODUCT_REQUIREMENTS.md)、[V1 UX 设计](product/V1_UX_DESIGN.md)、[V1 版本设计](product/V1_VERSION_DESIGN.md) 与 [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md) 只作为历史 Alpha 基线，不用于推断当前实现状态。
-- Typora 公开行为细节以 [Typora 行为基线](product/typora-baseline/README.md) 为准；专题实现快照以 [Typora 专题竞争分析](product/typora-competitive-analysis/README.md) 为准；LumaMark 当前实施范围仍以当前执行计划为准。
+- Working rules: [AGENTS.md](../AGENTS.md).
+- Development process: [DEVELOPMENT_PROCESS.md](../DEVELOPMENT_PROCESS.md).
+- Long-term product positioning: [Project charter](product/PROJECT_CHARTER.md) and [Product positioning and strategy](product/PRODUCT_STRATEGY.md).
+- Alpha front-end UX historical baseline: [V1 UX design](product/V1_UX_DESIGN.md); current interaction implementation scope follows the current execution plan and detailed architecture.
+- Current detailed architecture: [Detailed architecture and technology choices](architecture/DETAILED_ARCHITECTURE.md).
+- Current phase positioning and Now/Next/Later: [Evolution plan](roadmap/EVOLUTION_PLAN.md).
+- Current executable scope, order, and exit gates: [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+- [V1 product requirements](product/V1_PRODUCT_REQUIREMENTS.md), [V1 UX design](product/V1_UX_DESIGN.md), [V1 version design](product/V1_VERSION_DESIGN.md), and [V1 implementation plan](roadmap/V1_IMPLEMENTATION_PLAN.md) are historical Alpha baselines only; do not infer current implementation status from them.
+- Typora public behavior detail: [Typora behavior baseline](product/typora-baseline/README.md); topic implementation snapshots: [Typora topic competitive analysis](product/typora-competitive-analysis/README.md); LumaMark current implementation scope still follows the current execution plan.
+- `docs/superpowers/` is non-authoritative planning scratch and never overrides the sources above.
 
-如果文档之间出现冲突，先按上述事实来源判断，再更新过期文档。
+If documents conflict, judge by the fact sources above first, then update the stale document.
 
-## 新增文档准入
+## Admission for new documents
 
-新增长期文档前，先回答：
+Before adding a long-lived document, answer:
 
-- 能不能更新现有文档？
-- 新文档是否有独立生命周期？
-- 新文档是否有明确读者？
-- 新文档是否会成为新的事实来源？
-- 是否已经在本文件登记？
+- Can an existing document be updated instead?
+- Does the new document have an independent lifecycle?
+- Does it have a clear audience?
+- Will it become a new source of truth?
+- Is it already registered in this file?
 
-如果答案不清楚，不要新增文档。
+If the answers are unclear, do not add the document.
 
-## 维护检查
+## Maintenance checks
 
-每次文档任务结束前检查：
+Before finishing a documentation task, check:
 
-- 链接是否可达。
-- 是否存在重复事实来源。
-- 是否出现未完成占位标记。
-- 是否把远期计划写得过细。
-- 是否需要更新本索引。
+- Are links reachable?
+- Are there duplicate fact sources?
+- Are there unfinished placeholders?
+- Is far-term planning written too finely?
+- Does this index need updating?
+- Were English defaults updated before Chinese mirrors for living docs?

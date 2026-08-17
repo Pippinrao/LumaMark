@@ -1,206 +1,208 @@
-﻿# LumaMark 菜单系统设计
+> Language: **English** · [中文](../zh/product/MENU_SYSTEM_DESIGN.md)
 
-> 本文定义 LumaMark **顶栏菜单、编辑器/文件树右键菜单与命令面板** 共用的产品结构、视觉方向、命令合同、Typora 基线映射与验收标准。它面向菜单实现者、测试人员和后续 Markdown capability 维护者；当前实施顺序仍以 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。设置页不在本文范围，见 [设置系统设计](SETTINGS_SYSTEM_DESIGN.md)。外部打开与文件变更依赖见 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
+# LumaMark Menu System Design
 
-## 用途与范围
+> This document defines the shared product structure, visual direction, command contracts, Typora baseline mapping, and acceptance criteria for LumaMark **top-bar menus, editor/file-tree context menus, and the command palette**. It is for menu implementers, testers, and later Markdown capability maintainers. Current implementation order remains governed by the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). Settings are out of scope here; see [Settings System Design](SETTINGS_SYSTEM_DESIGN.md). External open and file-mutation dependencies are in [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
 
-顶栏菜单改造已解决视觉粗糙、入口错配与状态不清问题。本文继续约束右键菜单与统一命令模型，使三类入口不分裂为多套事实源。范围包括：
+## Purpose and scope
 
-- 顶部菜单的高对比桌面工具视觉。
-- 文件、编辑、段落、格式、视图、主题、语言和帮助入口。
-- **编辑区、文件树等上下文菜单（右键）**。
-- 菜单、**右键**、快捷键和命令面板共用同一命令事实源。
-- 分隔线、子菜单、checkbox、radio、图标、快捷键列和禁用态。
-- 已有 Markdown capability 的准确接线与 Typora 已核实快捷键。
-- Web Playwright、生产 Web E2E 和 Windows Tauri 实机截图验收。
-- 菜单与右键覆盖矩阵，明确已接入能力与尚未实现的专题能力。
+The top-bar menu redesign already addressed rough visuals, mismatched entries, and unclear state. This document continues to constrain context menus and a unified command model so the three entry surfaces do not split into multiple sources of truth. Scope includes:
 
-## 非目标
+- High-contrast desktop-tool visuals for the top menu.
+- File, Edit, Paragraph, Format, View, Theme, Language, and Help entries.
+- **Context menus (right-click) for the editor area, file tree, and similar surfaces**.
+- One shared command source of truth for menus, **context menus**, shortcuts, and the command palette.
+- Separators, submenus, checkboxes, radios, icons, shortcut columns, and disabled states.
+- Accurate wiring of existing Markdown capabilities and Typora-verified shortcuts.
+- Acceptance via Web Playwright, production Web E2E, and Windows Tauri real-device screenshots.
+- A menu and context-menu coverage matrix that makes clear which capabilities are wired and which topical capabilities are not yet implemented.
 
-- 不在本轮实现数学、脚注、TOC、Callout、YAML Front Matter 或受限 HTML capability。
-- 不为未实现能力添加“即将推出”、永久禁用或点击无反应的虚假菜单项。
-- 不复制 Typora 品牌、图标、主题素材或未公开实现。
-- 不将 Markdown 全文、编辑器高频状态或平台细节放入 React store。
-- 不替换 CodeMirror、Radix Menubar / Context Menu、命令面板或 Tauri 架构。
-- 不单独维护第二套右键命令注册表或第二份菜单设计文档。
-- 大纲右键（复制标题锚点等）在共享 heading identity 落地前不做，避免第二套锚点身份。
+## Non-goals
 
-## 事实来源
+- Do not implement math, footnotes, TOC, Callout, YAML Front Matter, or restricted HTML capabilities in this round.
+- Do not add “coming soon”, permanently disabled, or no-op fake menu items for unimplemented capabilities.
+- Do not copy Typora branding, icons, theme assets, or unpublished implementation.
+- Do not put full Markdown text, high-frequency editor state, or platform details into React stores.
+- Do not replace CodeMirror, Radix Menubar / Context Menu, the command palette, or the Tauri architecture.
+- Do not maintain a second context-menu command registry or a second menu design document.
+- Outline context menus (for example copy heading anchors) wait until shared heading identity lands, to avoid a second anchor identity.
 
-Typora 行为只取自 [Typora 行为基线](typora-baseline/README.md)；LumaMark 当前状态只取自 [Typora 专题竞争分析](typora-competitive-analysis/README.md) 和当前代码、测试。证据不足的 Typora 菜单路径或键位不会被写成已确认事实。
+## Sources of truth
 
-本设计重点复核了：
+Typora behavior is taken only from the [Typora behavior baseline](typora-baseline/README.md). LumaMark’s current state is taken only from the [Typora topical competitive analysis](typora-competitive-analysis/README.md) plus current code and tests. Typora menu paths or keybindings without sufficient evidence are not written as confirmed facts.
 
-- [Live Preview 横切模型](typora-baseline/00-live-preview-model.md)：源码模式 `Ctrl+/`、复制为 Markdown `Ctrl+Shift+C`、粘贴为纯文本 `Ctrl+Shift+V`。
-- [标题](typora-baseline/02-headings.md)：标题 1–6 使用 `Ctrl+1…6`。
-- [图片](typora-baseline/07-images.md)：插入本地图片使用 `Ctrl+Shift+I`，入口位于 Format → Image。
-- [代码块](typora-baseline/08-code-blocks.md)：插入代码围栏使用 `Ctrl+Shift+K`。
-- [表格](typora-baseline/10-tables.md)：插表 `Ctrl+T`、选行 `Ctrl+L`、选单元格 `Ctrl+E`、删行 `Ctrl+Shift+Backspace`。
-- [数学](typora-baseline/09-math.md)：数学块使用 `Ctrl+Shift+M`，但 LumaMark 当前未实现数学 capability。
-- [Mermaid](typora-baseline/11-mermaid-and-diagrams.md)、[脚注](typora-baseline/12-footnotes.md)、[分割线](typora-baseline/13-horizontal-rules.md) 与 [TOC](typora-baseline/15-toc.md)：没有已核实的专用默认快捷键。
+This design specifically re-checked:
 
-## 改造前问题与根因
+- [Live Preview cross-cutting model](typora-baseline/00-live-preview-model.md): source mode `Ctrl+/`, Copy as Markdown `Ctrl+Shift+C`, Paste as Plain Text `Ctrl+Shift+V`.
+- [Headings](typora-baseline/02-headings.md): headings 1–6 use `Ctrl+1…6`.
+- [Images](typora-baseline/07-images.md): insert local image uses `Ctrl+Shift+I`, entry under Format → Image.
+- [Code blocks](typora-baseline/08-code-blocks.md): insert code fence uses `Ctrl+Shift+K`.
+- [Tables](typora-baseline/10-tables.md): insert table `Ctrl+T`, select row `Ctrl+L`, select cell `Ctrl+E`, delete row `Ctrl+Shift+Backspace`.
+- [Math](typora-baseline/09-math.md): math block uses `Ctrl+Shift+M`, but LumaMark currently has no math capability.
+- [Mermaid](typora-baseline/11-mermaid-and-diagrams.md), [Footnotes](typora-baseline/12-footnotes.md), [Horizontal rules](typora-baseline/13-horizontal-rules.md), and [TOC](typora-baseline/15-toc.md): no verified dedicated default shortcuts.
 
-改造前的 `CommandMenuItem` 只能表达扁平 action、label、shortcut 和 disabled。`TopChrome` 直接映射每个项目为 `Menubar.Item`，因此不能准确表达分组、子菜单、选中状态或动态结构。旧 `runAction` 将字符串强制转换为 action 类型，未知 action 缺少显式失败路径。菜单标签和真实行为也曾存在错配，例如“关于 LumaMark”实际打开设置、当前显示模式只显示另一个切换动作、主题和语言只显示含义不清的 toggle。当前实现已收敛到递归节点、统一 registry 与类型安全 dispatcher；保留本段用于解释设计来源，而不是描述现状。
+## Pre-redesign problems and root causes
 
-旧视觉层只有基础矩形浮层和单色 hover；图标、分隔、状态列、子菜单箭头、可见焦点、进出动画和暗色层级均缺失。表格复制和删除曾常驻编辑菜单，但在非表格上下文可能没有结果，强化了“菜单不可用”的感受。
+Before the redesign, `CommandMenuItem` could only express flat action, label, shortcut, and disabled. `TopChrome` mapped each item directly to `Menubar.Item`, so grouping, submenus, selected state, and dynamic structure could not be expressed accurately. Old `runAction` coerced strings into action types, and unknown actions lacked an explicit failure path. Menu labels and real behavior also mismatched—for example “About LumaMark” opened settings, the current display mode only showed another toggle action, and theme/language only showed unclear toggles. The current implementation has already converged on recursive nodes, a unified registry, and a type-safe dispatcher; this section is kept to explain design provenance, not to describe the present state.
 
-## 方案选择
+The old visual layer had only basic rectangular popovers and monochrome hover. Icons, separators, state columns, submenu arrows, visible focus, enter/exit animation, and dark-theme layering were all missing. Table copy and delete once lived permanently in the Edit menu but could produce no result outside table context, reinforcing the sense that “menus do nothing.”
 
-### 采用：Radix 菜单系统重构
+## Option choice
 
-继续使用已安装且成熟的 `@radix-ui/react-menubar`，建立递归菜单模型和统一命令注册表。Radix 负责方向键、Home/End、Escape、typeahead、焦点管理和 ARIA 基线；LumaMark 负责命令状态、编辑器焦点合同、图标、视觉和 E2E。
+### Adopted: Radix menu-system refactor
 
-### 未采用：Tauri 原生系统菜单
+Continue using the already installed and mature `@radix-ui/react-menubar`, and establish a recursive menu model plus a unified command registry. Radix owns arrow keys, Home/End, Escape, typeahead, focus management, and ARIA baseline; LumaMark owns command state, editor focus contracts, icons, visuals, and E2E.
 
-原生菜单的系统助记键和辅助技术集成更直接，但其字体、行高、图标、圆角、高亮和阴影主要由操作系统决定，无法兑现已确认的强视觉方向。Playwright 也无法直接操作或截图系统菜单，需要额外的 Windows UI Automation 链路。原生菜单还会让 WebView 命令与系统菜单状态形成双轨事实源。只有产品未来明确优先系统原生外观并接受平台差异时才复审。
+### Not adopted: Tauri native system menus
 
-Radix 菜单重构本身继续使用现有成熟组件，不引入主要依赖，也不改变应用架构，因此无需单独新增 ADR；本轮外部 opener、工作区文件变更与权限边界另由 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md) 记录。
+Native menus integrate system mnemonics and assistive technology more directly, but font, line height, icons, radius, highlight, and shadow are largely OS-owned and cannot deliver the confirmed strong visual direction. Playwright also cannot drive or screenshot system menus directly and would need an extra Windows UI Automation path. Native menus would also create a dual source of truth between WebView commands and system-menu state. Revisit only if the product later prioritizes system-native appearance and accepts platform variance.
 
-## 视觉设计
+The Radix menu refactor itself continues to use existing mature components, introduces no major dependency, and does not change application architecture, so a standalone ADR is not required. This round’s external opener, workspace file mutations, and permission boundaries are recorded separately in [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
 
-采用“强视觉桌面工具”方向：
+## Visual design
 
-- 顶部触发区保持紧凑，但提供清晰的 hover、open 和 `focus-visible` 状态。
-- 浮层采用较大的命中区、完整图标列、深色高对比选中态和明确阴影层级。
-- label、shortcut、state/check 和 submenu arrow 使用稳定列宽，长文案不挤压快捷键。
-- 分组用细分隔线表达，不用多余说明文字。
-- 亮色和暗色主题使用相同层级关系；disabled、highlighted、checked 不能只依赖颜色。
-- 动画只用于淡入和轻微位移，并尊重 `prefers-reduced-motion`。
-- Windows 高对比模式保留边框、焦点轮廓和选中标记。
-- 原生窗口拖拽只允许从无控件的空白 title strip 开始。菜单 portal 虽挂到 `document.body`，React 合成事件仍可能回到标题栏；`shouldStartChromeDragging` 必须拒绝 non-descendant portal、`[data-lm-window-interactive]`、`[role="menu"]` / `menuitem*` 与 `.lm-menu-content`，菜单触发器和窗口控制同样标记为可交互区域。
+Adopt a “strong visual desktop tool” direction:
 
-## 架构与模块边界
+- Top triggers stay compact but provide clear hover, open, and `focus-visible` states.
+- Popovers use larger hit targets, a full icon column, dark high-contrast selected states, and clear shadow layering.
+- Label, shortcut, state/check, and submenu arrow use stable column widths so long copy does not crush shortcuts.
+- Groups are expressed with thin separators, not extra explanatory copy.
+- Light and dark themes share the same hierarchy; disabled, highlighted, and checked must not rely on color alone.
+- Animation is limited to fade-in and slight translation, and respects `prefers-reduced-motion`.
+- Windows high-contrast mode retains borders, focus outlines, and selected markers.
+- Native window dragging may start only from an empty title strip with no controls. Menu portals mount on `document.body`, but React synthetic events can still bubble back to the title bar; `shouldStartChromeDragging` must reject non-descendant portals, `[data-lm-window-interactive]`, `[role="menu"]` / `menuitem*`, and `.lm-menu-content`. Menu triggers and window controls are likewise marked as interactive regions.
+
+## Architecture and module boundaries
 
 ```text
-app/controllers 当前轻量状态
+app/controllers current lightweight state
             │
             ▼
-features/commands 统一命令注册表
+features/commands unified command registry
             │
-            ├── 顶部递归菜单模型
-            ├── 命令面板模型
-            ├── 上下文（右键）菜单模型
-            └── 全局 / CodeMirror 快捷键
+            ├── top recursive menu model
+            ├── command palette model
+            ├── context (right-click) menu model
+            └── global / CodeMirror shortcuts
             │
             ▼
-app/shell 菜单 / ContextMenuSurface 渲染
-            ──► 类型安全 dispatcher ──► editor / feature / service handler
+app/shell menu / ContextMenuSurface rendering
+            ──► type-safe dispatcher ──► editor / feature / service handlers
 ```
 
-- `features/commands` 是命令 ID、i18n key、图标、快捷键、节点组合与可用性规则的唯一事实源；`app/controllers` 注入无参数 action 与带 payload action 的完整类型安全执行映射，shell 只分发 invocation。
-- 顶栏与右键共用可区分联合节点类型：`item`、`label`、`separator`、`submenu`、`checkbox`、`radio`（含 `disabled`、`icon`、`shortcut`）。废弃仅含 `action/label/shortcut` 的精简 `CommandContextMenuItem`。
-- `app/controllers` 只注入 `fileOpening`、display mode、sidebar、focus mode、theme、language、recent files 与右键命中目标等轻量状态。
-- `app/shell` 只递归渲染 Radix primitives（Menubar / ContextMenu），不读取 Markdown 全文；`EditorPane` 是唯一薄 DOM→editor public interaction adapter，用外层 `EditorApi` 的坐标/DOM 命中接口取得已分类 target，目标语义与命令仍由 `editor/interaction` 和 command model 决定。抽出 `ContextMenuSurface` 供编辑器与文件树复用。
-- 编辑器 action 通过稳定 command port 执行，不让 feature 或 shell 读取 Markdown 全文。
-- `CommandNode` 的可区分联合类型不能表示未知 action；若运行时伪造 invocation，dispatcher 会失败且不得静默 fallback，生产 UI 只生成类型系统覆盖的 action。
-- 动态最近文件使用 `openRecentFile` 的类型安全 payload invocation 携带路径；路径不进入 action ID，也不能绕过统一 dispatcher 注入任意 callback。
+- `features/commands` is the single source of truth for command IDs, i18n keys, icons, shortcuts, node composition, and availability rules. `app/controllers` injects the complete type-safe execution map for zero-arg and payload actions; the shell only dispatches invocations.
+- Top bar and context menus share distinguishable union node types: `item`, `label`, `separator`, `submenu`, `checkbox`, `radio` (including `disabled`, `icon`, `shortcut`). Retire the slim `CommandContextMenuItem` that only held `action/label/shortcut`.
+- `app/controllers` injects only lightweight state such as `fileOpening`, display mode, sidebar, focus mode, theme, language, recent files, and context-menu hit targets.
+- `app/shell` only recursively renders Radix primitives (Menubar / ContextMenu) and does not read full Markdown text. `EditorPane` is the sole thin DOM→editor public interaction adapter: it uses outer `EditorApi` coordinate/DOM hit interfaces to obtain a classified target; target semantics and commands remain owned by `editor/interaction` and the command model. Extract `ContextMenuSurface` for reuse by editor and file tree.
+- Editor actions execute through a stable command port so features or shell never read full Markdown text.
+- The distinguishable union on `CommandNode` cannot represent unknown actions. If a runtime forges an invocation, the dispatcher fails and must not silently fall back; production UI only generates actions covered by the type system.
+- Dynamic recent files use a type-safe payload invocation of `openRecentFile` to carry the path. Paths do not enter action IDs and cannot inject arbitrary callbacks that bypass the unified dispatcher.
 
-## 命令执行与焦点合同
+## Command execution and focus contracts
 
-1. 顶栏或右键菜单打开不得清空 CodeMirror selection。
-2. 格式、段落、撤销、重做和查找等**顶栏**动作对菜单打开前的 selection 执行。
-3. **右键目标专属命令**的作用点是右键命中位置（文档坐标或树节点），不是当前光标位置；「复制链接地址」必须复制命中链接的 URL，图片删除与表格复制/删除必须携带命中 range。普通剪切、复制、粘贴与全选仍按打开菜单前保留的 selection/cursor 执行。
-4. **LumaMark 显式定义：** 右键落在当前选区外时，**不移动光标、不折叠选区**；菜单关闭后 selection 保持打开前状态。目标专属命令使用命中位置而非 `selection.main`，普通剪贴板命令不把右键位置冒充新光标。该行为写入测试并锁定（Typora 基线此处未核实）。
-5. 编辑器动作完成后恢复编辑器焦点；打开文件选择器、设置、关于、工作区选择器、系统 opener 或二次确认对话框的动作不强制抢回焦点。
-6. 格式与段落动作产生最小 CodeMirror transaction，并保留单次撤销语义。打开右键菜单与只读动作（复制链接、复制路径）的 transaction 必须 `docChanged === false`。
-7. action 的成功副作用或失败提示必须可观察，不能静默执行破坏性 fallback。依赖特定命中目标的上下文动作（链接、图片、表格）在不适用时**隐藏不显示**；普通剪切、复制、粘贴、全选等稳定编辑入口保留在菜单中，并按只读态、选区与纯文本剪贴板端口可用性显示 disabled。桌面端口使用官方 Tauri clipboard-manager；原生失败不得回退 WebView navigator。
-8. 异步文件动作保留现有错误通知和并发保护，不由菜单吞掉错误。
-9. 键盘：Shift+F10 与应用菜单键可打开右键菜单；Escape 关闭并归还焦点。
+1. Opening the top bar or a context menu must not clear the CodeMirror selection.
+2. Format, paragraph, undo, redo, find, and similar **top-bar** actions operate on the selection that existed before the menu opened.
+3. **Context-target-specific commands** act at the right-click hit location (document coordinate or tree node), not the current caret. “Copy link address” must copy the hit link’s URL; image delete and table copy/delete must carry the hit range. Ordinary cut, copy, paste, and select-all still use the selection/cursor preserved before the menu opened.
+4. **LumaMark explicitly defines:** when right-click lands outside the current selection, **do not move the caret or collapse the selection**; after the menu closes, selection remains as before open. Target-specific commands use the hit location rather than `selection.main`; ordinary clipboard commands do not treat the right-click location as a new caret. This behavior is locked by tests (Typora baseline is unverified here).
+5. After editor actions complete, restore editor focus. Actions that open file pickers, settings, about, workspace pickers, system openers, or secondary confirmation dialogs do not forcibly steal focus back.
+6. Format and paragraph actions produce minimal CodeMirror transactions and preserve single-step undo semantics. Opening a context menu and read-only actions (copy link, copy path) must have transactions with `docChanged === false`.
+7. Success side effects or failure feedback for actions must be observable; destructive silent fallbacks are forbidden. Context actions that depend on a specific hit target (link, image, table) are **hidden when inapplicable**. Stable editing entries such as cut, copy, paste, and select-all remain in the menu and show disabled based on read-only state, selection, and plain-text clipboard port availability. Desktop ports use the official Tauri clipboard-manager; native failure must not fall back to WebView `navigator`.
+8. Async file actions retain existing error notifications and concurrency protection; menus must not swallow errors.
+9. Keyboard: Shift+F10 and the Application Menu key can open the context menu; Escape closes and returns focus.
 
-## 菜单信息结构
+## Menu information architecture
 
-### 文件
+### File
 
-- 新建文档
-- 打开文件
-- 打开最近文件（动态子菜单）
-- 打开工作区
-- 分隔线
-- 保存
-- 另存为
-- 分隔线
-- 设置
+- New document
+- Open file
+- Open recent file (dynamic submenu)
+- Open workspace
+- Separator
+- Save
+- Save as
+- Separator
+- Settings
 
-### 编辑
+### Edit
 
-- 撤销
-- 重做
-- 分隔线
-- 剪切
-- 复制
-- 粘贴
-- 全选
-- 分隔线
-- 查找
-- 命令面板
+- Undo
+- Redo
+- Separator
+- Cut
+- Copy
+- Paste
+- Select all
+- Separator
+- Find
+- Command palette
 
-表格复制和删除不再常驻编辑菜单。相关动作只在真实表格上下文中出现；“删除整张表”必须与 Typora 的“删除表格行”区分。
+Table copy and delete no longer live permanently in the Edit menu. Related actions appear only in real table context. “Delete entire table” must be distinguished from Typora’s “delete table row.”
 
-### 段落
+### Paragraph
 
-- 普通段落与标题 1–6
-- 列表子菜单：有序列表、无序列表、任务列表
-- 块子菜单：引用、代码块
-- 插入子菜单：表格、分割线
+- Normal paragraph and headings 1–6
+- Lists submenu: ordered list, unordered list, task list
+- Blocks submenu: quote, code block
+- Insert submenu: table, horizontal rule
 
-普通段落作为 LumaMark 的明确归一化命令，不冒充 Typora 已核实的独立菜单入口。它只移除当前 ATX heading marker，不重排段落内容。
+Normal paragraph is an explicit LumaMark normalize command and does not pretend to be a Typora-verified standalone menu entry. It only removes the current ATX heading marker and does not rearrange paragraph content.
 
-### 格式
+### Format
 
-- 加粗
-- 斜体
-- 删除线
-- 行内代码
-- 分隔线
-- 链接
-- 图片
+- Bold
+- Italic
+- Strikethrough
+- Inline code
+- Separator
+- Link
+- Image
 
-图片命令使用真实本地图片选择和既有 image import pipeline；不再仅插入通用 URL 占位符。
+The image command uses real local image picking and the existing image import pipeline; it no longer only inserts a generic URL placeholder.
 
-### 视图
+### View
 
-- 实时预览 / 源码模式 / 阅读模式 radio group
-- 侧边栏 checkbox
-- 专注模式 checkbox
-- 重置缩放
-- 聚焦编辑器
+- Live Preview / Source / Reading Mode radio group
+- Sidebar checkbox
+- Focus mode checkbox
+- Reset zoom
+- Focus editor
 
-阅读模式与实时预览、源码互斥。它锁定渲染态、拒绝文档变更、隐藏光标并保留选区与查找，属于会话级状态，不写入设置。只读实现方式、控件行为边界和反馈方式见 [ADR 0010](../decisions/0010-reading-mode-readonly-contract.md)。
+Reading Mode is mutually exclusive with Live Preview and Source. It locks rendered state, rejects document changes, hides the caret, and preserves selection and find. It is session-level state and is not written to settings. Read-only implementation, control behavior boundaries, and feedback are in [ADR 0010](../decisions/0010-reading-mode-readonly-contract.md).
 
-### 主题与语言
+### Theme and Language
 
-- 亮色 / 暗色 / 跟随系统 radio group；三项与设置 schema 共用 typed action、当前值和 i18n，`system` 不另建命令模型
-- 语言菜单：简体中文 / English radio group
+- Light / Dark / System radio group; the three items share typed action, current value, and i18n with the settings schema; `system` does not get a separate command model
+- Language menu: Simplified Chinese / English radio group
 
-### 帮助
+### Help
 
-- 检查更新
-- 关于 LumaMark
+- Check for updates
+- About LumaMark
 
-“关于”打开独立对话框，显示应用名、版本和产品定位，不再转发到设置。
+“About” opens a dedicated dialog showing app name, version, and product positioning; it no longer forwards to settings.
 
-## 快捷键合同
+## Shortcut contracts
 
-| 命令 | 菜单显示 | 实现策略 |
+| Command | Menu display | Implementation strategy |
 |---|---|---|
-| 新建 / 打开 / 保存 / 另存为 | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | 显示并复用现有全局快捷键 |
-| 剪切 / 复制 / 粘贴 / 全选 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` / `Ctrl+A` | 顶栏、右键、快捷键共用 EditorCommandPort 与实时可用性判定；app 注入 `services/clipboard` 的纯文本端口，桌面走官方 Tauri plugin、浏览器走 navigator adapter；异步剪贴板完成前校验原选区，失败不误删文本。平台边界见 [ADR 0016](../decisions/0016-tauri-text-clipboard-adapter.md) |
-| 命令面板 | `Ctrl+K` | 显示并复用现有全局快捷键 |
-| 标题 1–6 | `Ctrl+1…6` | 与 Typora 基线一致；复用 CodeMirror keymap |
-| 加粗 / 斜体 | `Ctrl+B` / `Ctrl+I` | 显示现有 LumaMark 键位，不声明为本地基线已核实的 Typora 键位 |
-| 图片 | `Ctrl+Shift+I` | 对齐 Typora；菜单、命令面板和快捷键调用真实本地图片流程 |
-| 代码块 | `Ctrl+Shift+K` | 对齐 Typora；三个入口调用同一 command |
-| 表格 | `Ctrl+T` | 对齐 Typora；当前 `Ctrl+Alt+T` 在迁移期兼容，菜单只显示 `Ctrl+T` |
-| 删除整张表 | 独立 LumaMark 键位 | 不复用 Typora `Ctrl+Shift+Backspace`，避免把删行冒充删表 |
-| 显示模式循环 | `Ctrl+/` | 键位与 Typora 基线一致，但循环实时预览 → 源码 → 阅读；三个 radio 状态同步，菜单不把该键标注为只属于源码模式 |
-| 侧边栏 / 专注模式 | 现有 LumaMark 键位 | 在菜单显示，但不声明为 Typora 基线键位 |
+| New / Open / Save / Save as | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Display and reuse existing global shortcuts |
+| Cut / Copy / Paste / Select all | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` / `Ctrl+A` | Top bar, context menu, and shortcuts share `EditorCommandPort` and live availability checks; the app injects the plain-text port from `services/clipboard`; desktop uses the official Tauri plugin, browser uses the navigator adapter; before async clipboard completion, validate the original selection and never delete text on failure. Platform boundaries are in [ADR 0016](../decisions/0016-tauri-text-clipboard-adapter.md) |
+| Command palette | `Ctrl+K` | Display and reuse existing global shortcuts |
+| Headings 1–6 | `Ctrl+1…6` | Matches Typora baseline; reuse CodeMirror keymap |
+| Bold / Italic | `Ctrl+B` / `Ctrl+I` | Display existing LumaMark bindings; do not claim them as locally verified Typora bindings |
+| Image | `Ctrl+Shift+I` | Align with Typora; menu, command palette, and shortcut call the real local-image flow |
+| Code block | `Ctrl+Shift+K` | Align with Typora; all three entries call the same command |
+| Table | `Ctrl+T` | Align with Typora; current `Ctrl+Alt+T` remains compatible during migration; menu shows only `Ctrl+T` |
+| Delete entire table | Dedicated LumaMark binding | Do not reuse Typora `Ctrl+Shift+Backspace`, to avoid presenting row delete as table delete |
+| Display-mode cycle | `Ctrl+/` | Binding matches Typora baseline, but cycles Live Preview → Source → Reading; the three radio states stay in sync; the menu does not label this key as source-mode only |
+| Sidebar / Focus mode | Existing LumaMark bindings | Shown in the menu, but not claimed as Typora baseline bindings |
 
-`Ctrl+Shift+C` 复制为 Markdown、`Ctrl+Shift+V` 粘贴为纯文本、表格选行/选单元格/删行和数学块属于已知差距。本轮不注册空动作；它们保留在覆盖矩阵中，由对应 capability 和剪贴板合同实现后接入。
+`Ctrl+Shift+C` Copy as Markdown, `Ctrl+Shift+V` Paste as Plain Text, table select-row / select-cell / delete-row, and math blocks are known gaps. This round does not register empty actions; they remain in the coverage matrix and are wired after the corresponding capability and clipboard contracts land.
 
-## 右键菜单：上下文命中模型
+## Context menus: hit-target model
 
-编辑区上下文最终只由外层文档的 `EditorState` 与语法树判定。普通目标使用外层 `view.posAtCoords()`；表格 widget 的 DOM 只作为命中提示，再用外层 `view.posAtDOM(widget)` 映射回文档位置并校验精确 `Table` 范围。不得读取 widget 内嵌套 `EditorView` 的文档，也不得仅凭 `target.closest('.tbl-table-widget')` 认定表格：
+Editor context is ultimately decided only from the outer document’s `EditorState` and syntax tree. Ordinary targets use outer `view.posAtCoords()`. Table-widget DOM is only a hit hint, then outer `view.posAtDOM(widget)` maps back to a document position and validates the precise `Table` range. Do not read nested `EditorView` documents inside widgets, and do not treat `target.closest('.tbl-table-widget')` alone as proof of a table:
 
 ```ts
 export type EditorContextTarget =
@@ -213,197 +215,197 @@ export type EditorContextTarget =
   | { from: number; kind: 'image'; src: string; to: number };
 ```
 
-- 普通正文位置由外层 `view.posAtCoords()` 得到；表格 widget 由外层 `view.posAtDOM()` 回到稳定边界，再由语法树确认范围。
-- 新增 `deriveInteractionAtPosition(state, pos)`，复用既有 block/inline owner 收集；不改动基于 `state.selection` 的 `deriveEditorInteractionContext`。
-- fenced code、行内代码与 protected-source（YAML、`[^id]`、`[toc]`）范围内不产生链接/图片目标。
-- 非编辑器区域：文件树用 `react-arborist` 节点数据；大纲暂不实现右键。
+- Ordinary body positions come from outer `view.posAtCoords()`; table widgets return through outer `view.posAtDOM()` to stable bounds, then the syntax tree confirms the range.
+- Add `deriveInteractionAtPosition(state, pos)`, reusing existing block/inline owner collection; do not change `deriveEditorInteractionContext`, which is based on `state.selection`.
+- Inside fenced code, inline code, and protected-source ranges (YAML, `[^id]`, `[toc]`), do not produce link/image targets.
+- Outside the editor: the file tree uses `react-arborist` node data; outline context menus are not implemented yet.
 
 ```text
-右键事件
-  ├─ 编辑器普通目标 → outer posAtCoords ───────────┐
-  ├─ 表格 widget → outer posAtDOM → Table 校验 ──┴→ EditorContextTarget ─┐
-  └─ 文件树 → react-arborist 节点数据 ───────────────→ FileTreeContextTarget ─┤
+right-click event
+  ├─ editor ordinary target → outer posAtCoords ───────────┐
+  ├─ table widget → outer posAtDOM → Table validate ──┴→ EditorContextTarget ─┐
+  └─ file tree → react-arborist node data ───────────────→ FileTreeContextTarget ─┤
                                                                           ↓
-features/commands 上下文菜单模型
+features/commands context-menu model
         ↓
-ContextMenuSurface（Radix）→ exhaustive typed invocation dispatcher
+ContextMenuSurface (Radix) → exhaustive typed invocation dispatcher
 ```
 
-## 右键菜单：各触发对象清单
+## Context menus: per-target inventories
 
-不适用项隐藏。依赖 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md) 的项在能力未接线前不得显示虚假入口。
+Hide inapplicable items. Items that depend on [ADR 0015](../decisions/0015-external-open-and-file-mutations.md) must not show fake entries before capabilities are wired.
 
-### 编辑区通用
+### Editor general
 
-- 剪切、复制、粘贴、全选
-- 分隔线
-- 插入表格
+- Cut, copy, paste, select all
+- Separator
+- Insert table
 
-复制为纯文本 / Markdown 等剪贴板合同落地后再接入。
+Copy as plain text / Markdown and similar clipboard contracts are wired after those contracts land.
 
-### 链接
+### Link
 
-- 打开链接（协议白名单；相对路径走应用内打开）
-- 复制链接地址
+- Open link (protocol allowlist; relative paths open in-app)
+- Copy link address
 
-Typora 基线中这两项为已核实（observed）事实，优先实现。
+In the Typora baseline these two are verified (observed) facts and are prioritized.
 
-### 图片
+### Image
 
-- 复制图片路径
-- 在文件管理器中显示
-- 删除引用（只删 `![]()` 语法，单次可撤销）
+- Copy image path
+- Reveal in file manager
+- Delete reference (remove only `![]()` syntax; single undo step)
 
-删除磁盘文件、移动、重命名：更后批，且删除磁盘文件必须二次确认。
+Delete on disk, move, and rename: later batches; deleting on disk must require secondary confirmation.
 
-### 表格
+### Table
 
-- 插入表格（通用区已有）
-- 复制表格、删除整表（仅表格命中时）
+- Insert table (already in general area)
+- Copy table, delete entire table (only when a table is hit)
 
-行列增删与对齐等在表格 capability 补齐后接入同一 command contract。
+Row/column insert/delete and alignment join the same command contract after table capability is complete.
 
 ### Mermaid
 
-当前没有专用右键项；编辑继续走既有预览/源码交互，不为同一动作复制第二入口。复制图像、保存 SVG/PNG/JPG 属后续专题，在 capability 与导出合同落地前不显示虚假菜单。
+No dedicated context items today; editing continues through existing preview/source interaction. Do not duplicate a second entry for the same action. Copy image and save SVG/PNG/JPG are later topics; do not show fake menus before capability and export contracts land.
 
-### 文件树
+### File tree
 
-- 新建文件、新建文件夹
-- 重命名
-- 删除（回收站语义，见 ADR 0015）
-- 在文件管理器中显示
-- 复制路径
+- New file, new folder
+- Rename
+- Delete (recycle-bin semantics; see ADR 0015)
+- Reveal in file manager
+- Copy path
 
-目录与文件节点菜单项集合可不同；工作区根节点不提供删除。
+Directory and file node menus may differ; the workspace root node does not offer delete.
 
-### 大纲
+### Outline
 
-暂不做。
+Not implemented yet.
 
-## 右键安全合同
+## Context-menu safety contracts
 
-- 外链：仅 `http` / `https` / `mailto`；`javascript:` / `data:` / `file:` 拒绝并返回明确错误；Rust 为安全边界。
-- 工作区写操作：claimed root 必须与 Rust `WorkspaceSession` 当前 canonical 根等价，目标的 canonical 路径必须在该根内；`..`、symlink/junction 逃逸或已失效会话 → `invalid_path`。
-- reveal：有工作区时沿用上述 managed-session 边界；standalone 文档仅以“现存文档的 canonical 实际父目录”为可信内置前端 fallback，不宣称抵御 compromised WebView，详细边界见 ADR 0015。
-- 重名不覆盖；删除默认进回收站。
+- External links: only `http` / `https` / `mailto`; reject `javascript:` / `data:` / `file:` with an explicit error; Rust is the security boundary.
+- Workspace writes: claimed root must be equivalent to the current canonical root of Rust `WorkspaceSession`; the target’s canonical path must stay inside that root; `..`, symlink/junction escape, or an invalid session → `invalid_path`.
+- Reveal: with a workspace, reuse the managed-session boundary above; for a standalone document, the only trusted built-in frontend fallback is “canonical actual parent directory of an existing document.” This does not claim to resist a compromised WebView; detailed boundaries are in ADR 0015.
+- Name collisions do not overwrite; delete defaults to the recycle bin.
 
-## 竞品菜单覆盖矩阵
+## Competitor menu coverage matrix
 
-| 能力 | Typora 基线 | LumaMark 本轮状态 | 菜单策略 |
+| Capability | Typora baseline | LumaMark this round | Menu strategy |
 |---|---|---|---|
-| 标题、列表、引用、代码块、分割线 | 已有公开输入或菜单/快捷键证据 | 已接入真实命令；代码块 `Ctrl+Shift+K` 已补齐 | 保持单一 command port；不夸大专题边界体验 |
-| 本地图片 | Format → Image，`Ctrl+Shift+I` | 真实多选文件入口和快捷键已接入既有导入 pipeline | 取消不改文档；错误沿用文件通知合同 |
-| GFM 表格插入 | `Ctrl+T` | `Ctrl+T` 已接入，旧 `Ctrl+Alt+T` 迁移期兼容 | 顶部菜单只显示标准键位 |
-| 表格行列与选择 | 工具栏/上下文菜单及专用键 | 证据不足或未实现 | 不生成虚假顶部入口；保留专题差距 |
-| 表格右键复制/删整表 | 上下文菜单 | 已实现（仅表格命中时） | 保持；行列项待 capability |
-| 链接右键打开/复制地址 | 已核实 observed | 已实现绝对 URL 白名单、相对文档打开与复制失败提示 | 显示真实命令；前后端双重协议校验 |
-| 图片右键资源管理 | Support 记载 | 已实现复制路径、reveal、删引用 | 远程图片不显示本地 reveal；删引用按命中范围执行 |
-| 文件树右键 | 非 Typora 编辑区基线；产品需要 | 已实现根/目录/文件场景组合与变更确认 | 回收站删除；路径与目录链接逃逸防护 |
-| Copy as Markdown / Paste as Plain Text | 已确认 | 未建立可靠剪贴板合同 | 不显示；作为剪贴板专题高优先级缺口 |
-| 数学 | `Ctrl+Shift+M`、Math Tools | 未实现 | 不显示 |
-| Mermaid | 围栏键入为主，无专用键 | 已实现主要渲染路径，未接入专用右键 | 当前不显示；编辑走既有预览/源码交互，导出图属后续 |
-| YAML Front Matter | 顶部菜单可插入，无专用默认键 | 未实现 | 不显示 |
-| 脚注 | 无专用菜单或键 | 未实现 | 不显示 |
-| TOC | `[toc]` + Return；专用菜单证据不足 | 未实现 | 不显示 |
-| Callout | Paragraph → Alert，无专用默认键 | 未实现 | 不显示 |
-| HTML / iframe / video | 键入或粘贴，无通用插入键 | 未实现且安全合同缺失 | 不显示 |
+| Headings, lists, quotes, code blocks, horizontal rules | Public input or menu/shortcut evidence exists | Real commands wired; code-block `Ctrl+Shift+K` completed | Keep a single command port; do not overclaim topical edge experience |
+| Local images | Format → Image, `Ctrl+Shift+I` | Real multi-select file entry and shortcut wired into existing import pipeline | Cancel leaves the document unchanged; errors reuse the file notification contract |
+| GFM table insert | `Ctrl+T` | `Ctrl+T` wired; old `Ctrl+Alt+T` compatible during migration | Top menu shows only the standard binding |
+| Table row/column and selection | Toolbar/context menu and dedicated keys | Insufficient evidence or unimplemented | Do not invent fake top entries; keep topical gaps |
+| Table context copy / delete entire table | Context menu | Implemented (only when a table is hit) | Keep; row/column items await capability |
+| Link context open / copy address | Verified observed | Absolute URL allowlist, relative document open, and copy-failure feedback implemented | Show real commands; dual frontend/backend protocol checks |
+| Image context resource management | Documented in Support | Copy path, reveal, delete reference implemented | Remote images do not show local reveal; delete reference runs on the hit range |
+| File-tree context | Not a Typora editor-area baseline; product need | Root/directory/file scenario combinations and mutation confirmations implemented | Recycle-bin delete; path and directory-link escape protection |
+| Copy as Markdown / Paste as Plain Text | Confirmed | Reliable clipboard contract not yet established | Do not show; high-priority clipboard-topic gap |
+| Math | `Ctrl+Shift+M`, Math Tools | Unimplemented | Do not show |
+| Mermaid | Mostly fence typing; no dedicated key | Main render path implemented; no dedicated context menu | Do not show for now; editing uses existing preview/source interaction; export images come later |
+| YAML Front Matter | Insertable from top menu; no dedicated default key | Unimplemented | Do not show |
+| Footnotes | No dedicated menu or key | Unimplemented | Do not show |
+| TOC | `[toc]` + Return; dedicated-menu evidence insufficient | Unimplemented | Do not show |
+| Callout | Paragraph → Alert; no dedicated default key | Unimplemented | Do not show |
+| HTML / iframe / video | Type or paste; no general insert key | Unimplemented and safety contract missing | Do not show |
 
-## 2026-08-02 历史菜单重构基线
+## 2026-08-02 historical menu-refactor baseline
 
-本节只摘要 2026-08-02 顶栏菜单重构，不代表当前工作树的新鲜验证结果；当时的版本、提交、测试计数与发布产物以 [0.2.1 NSIS-only Release](../release/WINDOWS_V1_BUILD.md#021-nsis-only-release) 为历史事实源。右键与设置系统的本轮验证台账在完成全部门禁后追加到同一 Windows 构建记录，不在产品设计内维护第二份计数。
+This section only summarizes the 2026-08-02 top-bar menu refactor. It is not fresh verification evidence for the current worktree. Version, commit, test counts, and release artifacts from that time take the [0.2.1 NSIS-only Release](../release/WINDOWS_V1_BUILD.md#021-nsis-only-release) as the historical source of truth. Context-menu and settings-system verification ledgers for this round are appended to the same Windows build record after all gates pass; a second count is not maintained inside product design.
 
-- 递归 Radix 菜单已经落地，8 个顶层菜单组可表达 action、separator、submenu、checkbox 和 radio；菜单、命令面板与全局快捷键通过同一类型安全 handler map 分发。
-- 本地图片入口已接入 Tauri 多选系统对话框与既有图片引用 pipeline；浏览器 E2E 验证菜单和 `Ctrl+Shift+I` 的命令编排，Rust 测试验证 IPC 合同，Windows Tauri 实机验证系统对话框可打开且取消后文档不变。
-- `Ctrl+Shift+K`、`Ctrl+T`、`Ctrl+/`、`Ctrl+1…6` 和 `Ctrl+0` 均有自动化命令结果验证；旧 `Ctrl+Alt+T` 迁移键仍受支持。
-- 最终自动化结果为 Vitest 637 项、Web Playwright 137 项、生产 bundle Playwright 2 项、Rust 81 项和独立性能基准 23 项全部通过；菜单专项另有 6 项，通过固定 1440×900 视口生成亮色、暗色、二级菜单和英文四种截图。
-- Windows Tauri 实机已人工检查顶部菜单、二级结构、快捷键列、源码模式状态和图片系统对话框；真实选择图片后的磁盘导入由分层自动化覆盖，本轮人工步骤只执行取消路径，未修改用户文件。
+- Recursive Radix menus landed; eight top-level menu groups can express action, separator, submenu, checkbox, and radio. Menus, command palette, and global shortcuts dispatch through the same type-safe handler map.
+- Local image entry wired to the Tauri multi-select system dialog and the existing image-reference pipeline. Browser E2E verifies menu and `Ctrl+Shift+I` command orchestration; Rust tests verify the IPC contract; Windows Tauri real-device checks confirm the system dialog can open and that cancel leaves the document unchanged.
+- `Ctrl+Shift+K`, `Ctrl+T`, `Ctrl+/`, `Ctrl+1…6`, and `Ctrl+0` all have automated command-result verification; the old `Ctrl+Alt+T` migration key remains supported.
+- Final automation results were Vitest 637, Web Playwright 137, production-bundle Playwright 2, Rust 81, and standalone performance benches 23, all passing. Menu-specific work added 6 more cases that generate light, dark, nested, and English screenshots at a fixed 1440×900 viewport.
+- Windows Tauri real-device manual checks covered top menus, nested structure, shortcut columns, source-mode state, and the image system dialog. Disk import after a real image selection is covered by layered automation; the manual step for that round only exercised the cancel path and did not modify user files.
 
-截图证据随实现一同保存：[亮色中文文件菜单](../../artifacts/menu-system-report/menu-light-file-zh.png)、[暗色中文状态菜单](../../artifacts/menu-system-report/menu-dark-view-states-zh.png)、[暗色中文键盘二级菜单](../../artifacts/menu-system-report/menu-dark-nested-keyboard-zh.png)、[暗色英文文件菜单](../../artifacts/menu-system-report/menu-dark-file-en.png)、[Windows 原生图片选择器](../../artifacts/menu-system-report/tauri-native-image-dialog-zh.png)和[取消后的未修改文档](../../artifacts/menu-system-report/tauri-image-dialog-cancelled-zh.png)。
+Screenshot evidence is stored with the implementation: [light Chinese File menu](../../artifacts/menu-system-report/menu-light-file-zh.png), [dark Chinese state menu](../../artifacts/menu-system-report/menu-dark-view-states-zh.png), [dark Chinese keyboard nested menu](../../artifacts/menu-system-report/menu-dark-nested-keyboard-zh.png), [dark English File menu](../../artifacts/menu-system-report/menu-dark-file-en.png), [Windows native image picker](../../artifacts/menu-system-report/tauri-native-image-dialog-zh.png), and [unmodified document after cancel](../../artifacts/menu-system-report/tauri-image-dialog-cancelled-zh.png).
 
-仍未补齐的 Typora 差距没有生成虚假菜单入口：Copy as Markdown、Paste as Plain Text、表格选行/选单元格/删行，以及数学、脚注、TOC、Callout、YAML Front Matter 和受限 HTML 继续由各专题 capability 计划负责。
+Remaining Typora gaps did not get fake menu entries: Copy as Markdown, Paste as Plain Text, table select-row / select-cell / delete-row, plus math, footnotes, TOC, Callout, YAML Front Matter, and restricted HTML remain owned by their topical capability plans.
 
-## 错误与降级
+## Errors and degradation
 
-- 文件或图片对话框取消是正常结果，不显示错误。
-- 文件或图片选择失败沿用稳定错误码和双语通知，不静默 fallback 为占位 Markdown。
-- recent file 不存在时显示明确错误并保留条目，避免一次临时磁盘离线静默删除用户历史；最近文件清理另设显式操作。
-- action 不适用于当前上下文时不运行破坏性 fallback。
-- 高对比、减少动画或窄窗口不改变菜单语义；窄窗口允许菜单栏水平裁剪或聚合前必须另行设计，不在本轮手搓自适应 overflow 菜单。
+- Canceling a file or image dialog is a normal result and does not show an error.
+- File or image selection failures reuse stable error codes and bilingual notifications; they must not silently fall back to placeholder Markdown.
+- When a recent file is missing, show an explicit error and keep the entry, so a temporary disk offline event does not silently erase user history; recent-file cleanup is a separate explicit action.
+- When an action does not apply to the current context, do not run a destructive fallback.
+- High contrast, reduced motion, or narrow windows do not change menu semantics. Narrow-window menubar horizontal clipping or aggregation requires a separate design before implementation; this round does not hand-roll an adaptive overflow menu.
 
-## 测试设计
+## Test design
 
 ### Unit
 
-- 菜单树节点类型、分组顺序、separator、submenu、checkbox 和 radio。
-- 中英文标签、shortcut 和 command palette 元数据一致。
-- display mode、sidebar、focus mode、theme、language 与 fileOpening 的状态投影。
-- 未知 action、动态 recent file 参数和异步错误传播。
-- 新增普通段落、代码块、表格键位与图片入口的精确命令结果。
-- `deriveInteractionAtPosition`：链接文本/URL、相邻普通文本、嵌套 emphasis 内链接、图片、code/protected-source 内伪链接。
-- 右键菜单模型：link / plain / table / image / 文件树节点各自产出正确项集。
-- 协议白名单与相对路径分支；路径逃逸与重名冲突错误码。
+- Menu-tree node types, group order, separators, submenus, checkboxes, and radios.
+- Chinese/English labels, shortcuts, and command-palette metadata consistency.
+- State projection for display mode, sidebar, focus mode, theme, language, and fileOpening.
+- Unknown actions, dynamic recent-file parameters, and async error propagation.
+- Exact command results for new normal-paragraph, code-block, table-key, and image-entry work.
+- `deriveInteractionAtPosition`: link text/URL, adjacent plain text, links inside nested emphasis, images, and pseudo-links inside code/protected-source.
+- Context-menu model: link / plain / table / image / file-tree nodes each produce the correct item sets.
+- Protocol allowlist and relative-path branches; path-escape and name-collision error codes.
 
 ### Component / Integration
 
-- 鼠标和键盘打开菜单，覆盖方向键、Home/End、Escape、typeahead、子菜单与焦点返回。
-- 打开菜单前建立选区，执行格式或段落动作后断言文本、selection 和一次 undo。
-- radio/checkbox 执行后重新打开菜单，状态与应用一致。
-- 表格上下文外不出现表格破坏性动作；表格内动作名称和语义准确。
-- 关于对话框与设置对话框相互独立，关闭后焦点回到触发器。
-- 右键不清空 selection；选区外右键不移动光标；复制链接使用命中 URL。
-- Shift+F10 打开右键；Escape 归还编辑器焦点。
-- 打开右键与复制链接的 transaction `docChanged === false`。
+- Open menus with mouse and keyboard, covering arrow keys, Home/End, Escape, typeahead, submenus, and focus return.
+- Establish a selection before opening the menu; after format or paragraph actions, assert text, selection, and one undo.
+- After radio/checkbox execution, reopen the menu and assert state matches the app.
+- Destructive table actions do not appear outside table context; in-table action names and semantics are accurate.
+- About dialog and settings dialog are independent; after close, focus returns to the trigger.
+- Context menus do not clear selection; right-click outside selection does not move the caret; copy link uses the hit URL.
+- Shift+F10 opens the context menu; Escape returns editor focus.
+- Opening a context menu and copying a link have transactions with `docChanged === false`.
 
 ### Playwright E2E
 
-- 逐个执行文件、编辑、段落、格式、视图、主题和帮助菜单的主路径。
-- 通过真实编辑器文本变化证明格式命令执行，而非只断言菜单文字。
-- 覆盖代码块 `Ctrl+Shift+K`、图片 `Ctrl+Shift+I`、表格 `Ctrl+T`、标题、源码模式和旧表格键迁移兼容。
-- 覆盖中文和英文菜单，以及亮色和暗色状态。
-- 1440×900 固定视口截取亮色菜单、暗色菜单、子菜单、radio/checkbox 和 keyboard focus。
-- 新增 `context-menu` 专项：链接右键复制地址、表格右键回归、文件树新建文件主路径；文件树菜单保留[亮色中文](../../artifacts/context-menu-report/file-tree-context-menu-light-zh.png)与[暗色中文](../../artifacts/context-menu-report/file-tree-context-menu-dark-zh.png)视觉基线。
+- Execute main paths for File, Edit, Paragraph, Format, View, Theme, and Help menus one by one.
+- Prove format commands via real editor text changes, not menu-label assertions alone.
+- Cover code block `Ctrl+Shift+K`, image `Ctrl+Shift+I`, table `Ctrl+T`, headings, source mode, and old table-key migration compatibility.
+- Cover Chinese and English menus, plus light and dark states.
+- Capture light menus, dark menus, submenus, radio/checkbox, and keyboard focus at a fixed 1440×900 viewport.
+- Add a `context-menu` specialty: link right-click copy address, table right-click regression, and file-tree new-file main path; file-tree menus keep [light Chinese](../../artifacts/context-menu-report/file-tree-context-menu-light-zh.png) and [dark Chinese](../../artifacts/context-menu-report/file-tree-context-menu-dark-zh.png) visual baselines.
 
-### Windows Tauri 实机
+### Windows Tauri real-device
 
-- 真实窗口验证文件和图片选择器、菜单点击、快捷键、窗口拖拽区、最小化/最大化按钮与菜单互不抢占。
-- 验证菜单执行编辑器动作后光标回归，打开系统对话框时不抢焦点。
-- 保存桌面截图作为人工视觉验收证据。
-- 系统 opener 打开外链、reveal in explorer、回收站删除：人工抽检，不计入纯 Web E2E 通过声明。
-- `scripts/release/verify-installed-menu-context-os.mjs` 绑定当前工作树 Release exe，以 Win32 OS 指针、`ClientToScreen`、Per-Monitor V2 与 `WindowFromPoint` 验证标题栏菜单、portal、编辑器/文件树右键及设置重启恢复；运行和隔离边界见 [Windows V1 构建记录](../release/WINDOWS_V1_BUILD.md)。
+- Real windows verify file and image pickers, menu clicks, shortcuts, and that window drag regions, minimize/maximize buttons, and menus do not steal from each other.
+- Verify caret returns after menus run editor actions, and that opening system dialogs does not steal focus.
+- Save desktop screenshots as manual visual acceptance evidence.
+- System opener for external links, reveal in explorer, and recycle-bin delete: manual spot checks; do not count them as pure Web E2E pass claims.
+- `scripts/release/verify-installed-menu-context-os.mjs` binds the current worktree Release exe and uses Win32 OS pointer, `ClientToScreen`, Per-Monitor V2, and `WindowFromPoint` to verify title-bar menus, portals, editor/file-tree context menus, and settings restart restore. Run and isolation boundaries are in the [Windows V1 build record](../release/WINDOWS_V1_BUILD.md).
 
-### 质量门禁
+### Quality gates
 
-- 相关 Vitest。
-- `pnpm typecheck`。
-- `pnpm lint`。
-- `pnpm test:e2e` 的菜单专项和完整回归。
-- `pnpm test:e2e:production`。
-- `pnpm quality:web-build`。
-- 涉及编辑器 transaction 时 `pnpm test:fixtures`。
-- 涉及 Rust command 时 `cargo test --manifest-path src-tauri/Cargo.toml`。
+- Related Vitest.
+- `pnpm typecheck`.
+- `pnpm lint`.
+- Menu specialty and full regression from `pnpm test:e2e`.
+- `pnpm test:e2e:production`.
+- `pnpm quality:web-build`.
+- `pnpm test:fixtures` when editor transactions are involved.
+- `cargo test --manifest-path src-tauri/Cargo.toml` when Rust commands are involved.
 
-菜单与右键不位于编辑器输入热路径，不新增 Markdown 全文订阅或高频 React 状态，因此不单独增加大文档性能基准。若实现引入 selection/context 的 React 高频同步，必须停止并改为 CodeMirror 派生或按菜单打开时查询。文件树右键若导致整树重渲染，按既有 outline 大文档 bench 模式补测。
+Menus and context menus are not on the editor input hot path and do not add full-Markdown subscriptions or high-frequency React state, so they do not alone require a new large-document performance bench. If an implementation introduces high-frequency React sync of selection/context, stop and switch to CodeMirror-derived state or query-on-menu-open. If file-tree context menus cause whole-tree re-renders, add coverage in the existing outline large-document bench pattern.
 
-## 验收标准
+## Acceptance criteria
 
-1. 所有可见菜单项与右键项都有真实执行路径，且测试证明产生预期结果；不存在“关于打开设置”或非表格上下文删表无响应等错配。
-2. 顶部菜单支持分组、图标、子菜单、radio、checkbox、快捷键列、禁用态和可见键盘焦点。
-3. 右键与顶栏共用节点类型、命令注册表和 exhaustive typed invocation dispatcher；`ContextMenuSurface` 不包含业务逻辑，也不能执行任意 callback。
-4. 代码块、图片、表格和标题快捷键符合本文合同；菜单、快捷键和命令面板复用同一 action。
-5. 菜单/右键打开前的 CodeMirror selection 保持正确；右键作用点为命中位置；只读动作零 doc change。
-6. 中英文资源对称，亮色、暗色、减少动画与 Windows 高对比下信息可辨。
-7. Playwright E2E、生产 E2E 和 Windows Tauri 实机路径都有新鲜运行证据与截图；opener/回收站人工项单独标明。
-8. 未实现的数学、脚注、TOC、Callout、YAML 和 HTML 不出现虚假入口，覆盖矩阵准确记录差距。
-9. 菜单实现不持有 Markdown 全文，不改变保存或源码保真策略，不增加编辑器输入热路径工作。
-10. 外链协议白名单与工作区路径逃逸防护有自动化证据。
+1. Every visible menu and context item has a real execution path, and tests prove expected results. There are no mismatches such as “About opens settings” or no-response delete-table outside table context.
+2. Top menus support grouping, icons, submenus, radios, checkboxes, shortcut columns, disabled states, and visible keyboard focus.
+3. Context menus and the top bar share node types, the command registry, and an exhaustive typed invocation dispatcher. `ContextMenuSurface` contains no business logic and cannot execute arbitrary callbacks.
+4. Code-block, image, table, and heading shortcuts match this document’s contracts; menus, shortcuts, and the command palette reuse the same action.
+5. CodeMirror selection from before menu/context open remains correct; context actions use the hit location; read-only actions produce zero doc change.
+6. Chinese and English resources are symmetric; information remains distinguishable in light, dark, reduced motion, and Windows high contrast.
+7. Playwright E2E, production E2E, and Windows Tauri real-device paths have fresh run evidence and screenshots; opener/recycle-bin manual items are marked separately.
+8. Unimplemented math, footnotes, TOC, Callout, YAML, and HTML do not appear as fake entries; the coverage matrix accurately records gaps.
+9. Menu implementation does not hold full Markdown text, does not change save or source-fidelity strategy, and does not add work to the editor input hot path.
+10. External-link protocol allowlisting and workspace path-escape protection have automated evidence.
 
-## 更新时机
+## When to update
 
-出现以下变化时更新本文：
+Update this document when any of the following change:
 
-- 增删顶部菜单组、右键触发对象、菜单节点类型或全局快捷键。
-- 新 Markdown capability 进入可用状态并需要菜单或右键入口。
-- Typora 基线复核改变已确认的菜单、右键或快捷键事实。
-- Radix Menubar/Context Menu、Tauri 原生菜单策略、opener 或菜单自动化链路发生变化。
-- 剪贴板、图片、表格、链接、文件树或关于对话框合同发生变化。
+- Top menu groups, context-menu trigger targets, menu node types, or global shortcuts are added or removed.
+- A new Markdown capability becomes available and needs a menu or context entry.
+- Typora baseline review changes confirmed menu, context-menu, or shortcut facts.
+- Radix Menubar/Context Menu, Tauri native-menu strategy, opener, or menu automation paths change.
+- Clipboard, image, table, link, file-tree, or about-dialog contracts change.

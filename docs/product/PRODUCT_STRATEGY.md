@@ -1,156 +1,158 @@
-# 产品定位与策略
+> Language: **English** · [中文](../zh/product/PRODUCT_STRATEGY.md)
 
-## 产品定位
+# Product Positioning and Strategy
 
-LumaMark 是面向高频 Markdown 写作者的现代桌面编辑器。
+## Product positioning
 
-它不试图一开始成为“所有文档工具的集合”，而是先成为一个足够快、足够美、足够可信的 Typora-like Markdown 编辑器。
+LumaMark is a modern desktop editor for people who write Markdown frequently.
 
-## 核心承诺
+It does not try to become “the collection of every document tool” from day one. It first aims to be a Typora-like Markdown editor that is fast enough, beautiful enough, and trustworthy enough.
 
-LumaMark 对用户的承诺：
+## Core promises
 
-- 你的 Markdown 文件不会被编辑器悄悄改坏。
-- 大文档也应该能顺畅写作。
-- Mermaid 等复杂内容不应该拖慢输入。
-- UI 应该服务写作，而不是抢走注意力。
-- 中文和英文用户应该拥有同等级体验。
+LumaMark promises users that:
 
-## 战场选择
+- Your Markdown files will not be silently corrupted by the editor.
+- Large documents should still be comfortable to write in.
+- Complex content such as Mermaid should not slow typing.
+- The UI should serve writing instead of stealing attention.
+- Chinese and English users should receive equal-class experience.
 
-第一战场不是插件生态，也不是云同步，而是：
+## Battlefield choice
 
-> 世界上最流畅、最美观、最保真的 Typora-like Markdown 编辑体验。
+The first battlefield is not plugin ecosystems or cloud sync. It is:
 
-这个战场足够窄，也足够有价值。
+> The world’s smoothest, most beautiful, and most fidelity-preserving Typora-like Markdown editing experience.
 
-## 用户价值
+That battlefield is narrow enough, and valuable enough.
 
-### 对 Typora 用户
+## User value
 
-LumaMark 需要提供一个熟悉但更现代、更流畅的替代选择。
+### For Typora users
 
-关键迁移动机：
+LumaMark should offer a familiar alternative that is more modern and smoother.
 
-- 更好的大文档性能。
-- 更透明的源码保真策略。
-- 更现代的 UI。
-- 更强的工作区和搜索能力。
-- 更好的 Mermaid 和异步渲染体验。
+Key migration motives:
 
-### 对 MarkText 用户
+- Better large-document performance.
+- A more transparent source-fidelity strategy.
+- A more modern UI.
+- Stronger workspace and search.
+- Better Mermaid and async rendering experience.
 
-LumaMark 需要提供更稳定、更少卡顿、更可信的开源替代方向。
+### For MarkText users
 
-关键迁移动机：
+LumaMark should offer a more stable, less stuttery, more trustworthy open-source direction.
 
-- 避免历史性能债务。
-- 避免源码 round-trip 风险。
-- 避免自研编辑器长期维护成本。
-- 更明确的质量门禁和演进策略。
+Key migration motives:
 
-### 对 Obsidian 用户
+- Avoid historical performance debt.
+- Avoid source round-trip risk.
+- Avoid the long-term cost of a hand-rolled editor.
+- Clearer quality gates and evolution strategy.
 
-LumaMark 不在第一阶段正面竞争知识库生态。
+### For Obsidian users
 
-可吸引点：
+LumaMark does not compete head-on with knowledge-base ecosystems in phase one.
 
-- 更纯粹的单文档 WYSIWYG 写作。
-- 更接近 Typora 的视觉和输入体验。
-- 更专注 Markdown 文件本身。
+Attractors:
 
-### 对 Zettlr 用户
+- Purer single-document WYSIWYG writing.
+- Visual and input experience closer to Typora.
+- Stronger focus on the Markdown file itself.
 
-LumaMark 不在第一阶段正面竞争学术发布套件。
+### For Zettlr users
 
-可吸引点：
+LumaMark does not compete head-on with academic publishing suites in phase one.
 
-- 更轻量。
-- 更现代。
-- 更顺滑的 WYSIWYG 写作体验。
+Attractors:
 
-## 产品原则
+- Lighter weight.
+- More modern.
+- Smoother WYSIWYG writing experience.
 
-### 复刻优先
+## Product principles
 
-V1 先对齐用户已经理解的 Typora-like 模式，降低学习成本。
+### Recreate first
 
-布局先尽量复刻成熟范式：
+V1 first aligns with Typora-like patterns users already understand, lowering learning cost.
 
-- 中央编辑区。
-- 可隐藏侧边栏。
-- 大纲和文件树作为辅助。
-- 顶部工具尽量克制。
-- 写作优先，不做营销式首屏。
+Layout first recreates the mature paradigm as closely as practical:
 
-### 性能优先
+- Central editing area.
+- Hideable sidebar.
+- Outline and file tree as assistants.
+- Restrained top chrome.
+- Writing-first, not a marketing-style first screen.
 
-性能不是一个技术指标，而是产品体验。
+### Performance first
 
-需要长期关注：
+Performance is not merely a technical metric; it is product experience.
 
-- 启动速度。
-- 文件打开速度。
-- 输入延迟。
-- 滚动流畅度。
-- 内存占用。
-- Mermaid 渲染阻塞。
-- 保存可靠性。
+Long-term attention is required for:
 
-### 源码保真
+- Startup speed.
+- File open speed.
+- Input latency.
+- Scroll smoothness.
+- Memory use.
+- Mermaid render blocking.
+- Save reliability.
 
-Markdown 文件是用户资产。
+### Source fidelity
 
-LumaMark 不应该因为 WYSIWYG 行为而随意重排文本、删除空行、改变缩进、格式化未编辑区域。
+Markdown files are user assets.
 
-### 多语言内建
+LumaMark must not casually rearrange text, delete blank lines, change indentation, or reformat unedited regions because of WYSIWYG behavior.
 
-多语言不是后期补丁。
+### Multilingual by design
 
-从第一天开始：
+Multilingual support is not a late patch.
 
-- 中文和英文文案同步维护。
-- 所有用户可见字符串进入 i18n。
-- 不拼接翻译片段。
-- 设置项、菜单、tooltip、错误提示都可本地化。
+From day one:
 
-### 成熟组件优先
+- Chinese and English copy are maintained in sync.
+- All user-visible strings go through i18n.
+- Translation fragments are not concatenated.
+- Settings, menus, tooltips, and error messages are all localizable.
 
-LumaMark 的自研预算只花在差异化能力上：
+### Mature components first
 
-- Typora-like 编辑体验。
-- 大文档流畅度。
-- 源码保真。
-- 异步渲染调度。
-- 性能观测。
+LumaMark’s custom-build budget is spent only on differentiating capabilities:
 
-菜单、对话框、树、tab、虚拟列表、tooltip、命令面板等基础组件优先使用成熟库。
+- Typora-like editing experience.
+- Large-document fluency.
+- Source fidelity.
+- Async render scheduling.
+- Performance observability.
 
-## 差异化方向
+Menus, dialogs, trees, tabs, virtual lists, tooltips, command palettes, and similar basics prefer mature libraries.
 
-LumaMark 最终应形成五个差异化能力：
+## Differentiation
 
-1. **高性能编辑内核**：基于 CodeMirror 6，避免全文 DOM 和富文本 AST 主存储。
-2. **源码保真**：打开、编辑、保存过程不产生无关 diff。
-3. **异步块渲染**：Mermaid、公式、图片、导出预览不阻塞输入。
-4. **现代桌面体验**：Tauri + React 带来轻量、安静、美观的 UI。
-5. **AI 原生质量体系**：AI 写代码，但由测试、基准、审查和 CI 保证质量。
+LumaMark should ultimately form five differentiating capabilities:
 
-## 品牌气质
+1. **High-performance editing core**: based on CodeMirror 6, avoiding full-document DOM and rich-text AST as the primary store.
+2. **Source fidelity**: opening, editing, and saving do not produce unrelated diffs.
+3. **Async block rendering**: Mermaid, math, images, and export preview do not block typing.
+4. **Modern desktop experience**: Tauri + React deliver a lightweight, quiet, beautiful UI.
+5. **AI-native quality system**: AI writes code, but tests, benchmarks, review, and CI guarantee quality.
 
-LumaMark 应该是：
+## Brand character
 
-- 清亮。
-- 安静。
-- 精致。
-- 可靠。
-- 轻快。
-- 专业。
+LumaMark should feel:
 
-避免：
+- Clear and bright.
+- Quiet.
+- Refined.
+- Reliable.
+- Light and quick.
+- Professional.
 
-- 重工具感。
-- 过度装饰。
-- 花哨动画。
-- 类 IDE 的压迫感。
-- 功能堆叠式复杂 UI。
+Avoid:
+
+- Heavy tool aesthetic.
+- Over-decoration.
+- Flashy animation.
+- IDE-like pressure.
+- Feature-stacked complex UI.

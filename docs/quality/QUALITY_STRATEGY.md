@@ -1,193 +1,195 @@
-# 质量策略
+> Language: **English** · [中文](../zh/quality/QUALITY_STRATEGY.md)
 
-## 背景
+# Quality Strategy
 
-LumaMark 计划大量使用 AI 构建。AI 可以显著提升产出速度，但也容易带来：
+## Background
 
-- 大量未经验证的代码。
-- 模糊需求导致返工。
-- 功能能跑但不可维护。
-- 手动测试压力不断上升。
-- 性能退化无人察觉。
-- 边缘场景不断漏测。
+LumaMark plans to rely heavily on AI for building. AI can greatly increase throughput, but it also tends to bring:
 
-因此 LumaMark 必须从第一天建立 AI 原生质量体系。
+- Large amounts of unverified code.
+- Ambiguous requirements that cause rework.
+- Features that run but are not maintainable.
+- Steadily rising manual-test pressure.
+- Performance regressions that go unnoticed.
+- Edge cases that keep slipping through.
 
-详细执行规则见根目录 [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.md)。
+Therefore LumaMark must establish an AI-native quality system from day one.
 
-当前 Parity Reliability 的专题门禁、真实 Windows 路径和里程碑退出条件见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。本文件维护长期质量分层，不复制当前任务清单。
+Detailed execution rules are in the root [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.md).
 
-## 质量目标
+Current thematic gates, real Windows paths, and milestone exit criteria for Parity Reliability are in the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). This document maintains the long-term quality layering and does not copy the current task list.
 
-LumaMark 的质量体系要做到：
+## Quality Goals
 
-- 让 AI 每次只做小而清晰的任务。
-- 让测试证明功能，而不是让 AI 自证。
-- 让手动测试变成少量体验确认。
-- 让源码保真和性能成为自动化门禁。
-- 让 bug 通过根因流程修复，而不是猜测式补丁。
+LumaMark’s quality system must:
 
-## 测试金字塔
+- Keep each AI task small and clear.
+- Let tests prove the feature—do not let the AI self-certify.
+- Reduce manual testing to a small amount of experiential confirmation.
+- Make source fidelity and performance automated gates.
+- Fix bugs through a root-cause process, not guess-and-patch.
 
-### 单元测试
+## Test Pyramid
 
-用于验证纯逻辑：
+### Unit Tests
 
-- Markdown token 识别。
-- 缓存 key。
-- i18n key。
-- 设置解析。
-- 文件路径处理。
-- 搜索和索引算法。
+Used to verify pure logic:
 
-### 集成测试
+- Markdown token recognition.
+- Cache keys.
+- i18n keys.
+- Settings parsing.
+- File path handling.
+- Search and indexing algorithms.
 
-用于验证模块协作：
+### Integration Tests
 
-- 打开文件到编辑器。
-- 编辑后保存。
-- Mermaid 渲染队列。
-- 自动保存和恢复。
-- Rust command 调用。
+Used to verify module collaboration:
 
-### E2E 测试
+- Opening a file into the editor.
+- Saving after edits.
+- Mermaid render queue.
+- Autosave and recovery.
+- Rust command invocation.
 
-用于验证真实用户路径：
+### E2E Tests
 
-- 启动应用。
-- 打开文件。
-- 输入 Markdown。
-- 输入中文。
-- 保存。
-- 切换语言。
-- 切换主题。
-- 渲染 Mermaid。
-- 搜索和替换。
+Used to verify real user paths:
 
-### Fixture 回归测试
+- Launching the app.
+- Opening a file.
+- Typing Markdown.
+- Typing Chinese.
+- Saving.
+- Switching language.
+- Switching theme.
+- Rendering Mermaid.
+- Search and replace.
 
-用于保护 Markdown 源码保真。
+### Fixture Regression Tests
 
-仓库内固定 fixture 用于稳定、可复现地覆盖核心语法和编辑器交互边界。`tests/fixtures/markdownFixtureManifest.ts` 记录每个 fixture 的语法标签，覆盖测试必须确保新增语法不会遗漏样本。
+Used to protect Markdown source fidelity.
 
-每个 fixture 需要覆盖一种或多种文档特征：
+Fixed fixtures in the repository provide stable, reproducible coverage of core syntax and editor interaction boundaries. `tests/fixtures/markdownFixtureManifest.ts` records syntax tags for each fixture; coverage tests must ensure newly added syntax does not leave samples uncovered.
 
-- 标题。
-- 列表。
-- 任务列表。
-- 表格。
-- 代码块。
-- Mermaid。
-- 图片。
-- 链接。
-- 中英文混排。
-- 大文档。
+Each fixture should cover one or more document characteristics:
 
-Mermaid 采用分层语料：
+- Headings.
+- Lists.
+- Task lists.
+- Tables.
+- Code blocks.
+- Mermaid.
+- Images.
+- Links.
+- Mixed Chinese and English.
+- Large documents.
 
-- `mermaid-gallery.md` 覆盖 V1 必须渲染成功的核心 Mermaid 图类型。
-- `mermaid-edge-cases.md` 覆盖 info string 变体、错误图、连续块、长图和 fixture-only 图类型。
-- 冷门或 beta Mermaid 图类型先做源码保真和 fixture 覆盖，升级为正式支持后再进入必过渲染门禁。
+Mermaid uses layered corpora:
 
-关键检查：
+- `mermaid-gallery.md` covers the core Mermaid diagram types that V1 must render successfully.
+- `mermaid-edge-cases.md` covers info-string variants, error diagrams, consecutive blocks, long diagrams, and fixture-only diagram types.
+- Niche or beta Mermaid diagram types first get source-fidelity and fixture coverage; only after they are promoted to official support do they enter must-pass render gates.
 
-> open -> save -> diff，无关 diff 必须为 0。
+Key check:
 
-外部 Markdown corpus 作为真实世界大样本补充，只验证解析、源码保真和 Lezer 节点覆盖；它不能替代仓库内确定性 fixture，也不作为 Mermaid 渲染正确性的唯一依据。
+> open -> save -> diff; unrelated diffs must be 0.
 
-## 性能门禁
+External Markdown corpora supplement as real-world large samples and only verify parsing, source fidelity, and Lezer node coverage; they do not replace deterministic in-repo fixtures and are not the sole basis for Mermaid render correctness.
 
-每个性能敏感改动都必须关注：
+## Performance Gates
 
-- 启动时间。
-- 打开文件时间。
-- 输入延迟。
-- 滚动流畅度。
-- 内存占用。
-- Mermaid 渲染耗时。
-- 保存耗时。
+Every performance-sensitive change must watch:
 
-性能基准必须独立于默认单元测试运行：`pnpm test` 不包含 `tests/perf/**`，性能数据和预算判断通过 `pnpm perf:bench` 单独执行。`pnpm perf:bench` 必须串行运行性能测试文件，避免大文档基准在同一机器上互相抢占资源并产生假回归。输入路径固定采集 5 个样本，既有主预算约束 P80，并对所有单次样本设置明确最大值；冷路径和 pending-render 的每个样本必须使用独立 editor/activation/render 生命周期。不得丢弃首样本、失败重跑或取最小值，详细口径见 [ADR 0007](../decisions/0007-stable-performance-sampling.md)。复杂编辑命令若有实测证据证明成本边界不同，必须单独命名、单独设预算并用新 ADR 说明，不能借此放宽普通输入门禁；代码块围栏补齐的边界见 [ADR 0013](../decisions/0013-code-block-completion-performance-budget.md)。
+- Startup time.
+- File open time.
+- Input latency.
+- Scroll smoothness.
+- Memory usage.
+- Mermaid render time.
+- Save time.
 
-初始目标：
+Performance benchmarks must run independently of the default unit tests: `pnpm test` does not include `tests/perf/**`; performance data and budget judgments run separately via `pnpm perf:bench`. `pnpm perf:bench` must run performance test files serially so large-document benchmarks do not contend for resources on the same machine and produce false regressions. Input paths always collect 5 samples; existing primary budgets constrain P80, and every single sample has an explicit maximum. Cold paths and pending-render each use an independent editor/activation/render lifecycle per sample. Do not drop the first sample, fail-and-rerun, or take the minimum; see [ADR 0007](../decisions/0007-stable-performance-sampling.md) for the full policy. Complex editing commands that have measured evidence of different cost boundaries must be named separately, budgeted separately, and documented in a new ADR—they must not be used to relax ordinary input gates; the code-block fence completion boundary is in [ADR 0013](../decisions/0013-code-block-completion-performance-budget.md).
 
-- 1MB 文件打开小于 300ms。
-- 5MB 文件打开小于 1s。
-- 10MB 文件可编辑且不冻结。
-- 输入延迟尽量小于 16ms。
-- 滚动接近 60 FPS。
-- Mermaid 渲染不阻塞输入。
+Initial targets:
 
-## AI 开发护栏
+- Open a 1MB file in under 300ms.
+- Open a 5MB file in under 1s.
+- A 10MB file remains editable without freezing.
+- Input latency preferably under 16ms.
+- Scrolling near 60 FPS.
+- Mermaid rendering must not block input.
 
-AI agent 必须遵守：
+## AI Development Guardrails
 
-- 先读 `AGENTS.md` 和 `DEVELOPMENT_PROCESS.md`。
-- 先拆小任务。
-- 先写验收标准。
-- 功能和 bugfix 默认测试先行。
-- 没有新鲜验证不得声称完成。
-- 审查以 `DEVELOPMENT_PROCESS.md` 为准：默认实现者自审，不默认独立审查或审查子代理。
-- 无法自动验证的地方必须明确说明。
+AI agents must:
+
+- Read `AGENTS.md` and `DEVELOPMENT_PROCESS.md` first.
+- Break work into small tasks first.
+- Write acceptance criteria first.
+- Default to test-first for features and bugfixes.
+- Never claim completion without fresh verification.
+- Review against `DEVELOPMENT_PROCESS.md`: the implementer self-reviews by default; independent review or review sub-agents are not the default.
+- Explicitly call out anything that cannot be verified automatically.
 
 ## Definition of Done
 
-任务完成必须满足：
+A task is done only when:
 
-- 需求逐项对应。
-- 新行为有测试。
-- 相关验证命令已运行。
-- 验证输出已阅读。
-- 涉及 UI 文案时 i18n 已同步。
-- 涉及编辑器时源码保真风险已检查。
-- 涉及性能时没有明显退化。
-- 涉及基础组件时符合成熟组件优先原则。
+- Requirements map item by item.
+- New behavior has tests.
+- Related verification commands have been run.
+- Verification output has been read.
+- When UI copy is involved, i18n is updated.
+- When the editor is involved, source-fidelity risk has been checked.
+- When performance is involved, there is no obvious regression.
+- When base components are involved, mature-component-first is satisfied.
 
-## GitHub 质量门禁
+## GitHub Quality Gates
 
-仓库必须维护 `.github/workflows/v1-quality.yml`，在默认分支 `main`（以及遗留的 `v1-implementation`）的 push 和 pull request 上自动运行 V1 质量门禁，并支持 `workflow_dispatch` 手动触发。
+The repository must maintain `.github/workflows/v1-quality.yml`, which automatically runs V1 quality gates on push and pull request to the default branch `main` (and the legacy `v1-implementation`), and supports manual trigger via `workflow_dispatch`.
 
-该门禁至少覆盖：
+That gate must at least cover:
 
-- TypeScript typecheck。
-- lint。
-- 普通单元和集成测试。
-- fixture round-trip。
-- Rust check/test。
-- Playwright E2E。
-- 生产构建启动与 Mermaid 动态 import 渲染回归。
-- 远程图片确定性 mock 与独立真实公网缓存集成测试。
-- Web 构建 chunk 预算。
-- 单独执行的性能基准。
+- TypeScript typecheck.
+- lint.
+- Ordinary unit and integration tests.
+- Fixture round-trip.
+- Rust check/test.
+- Playwright E2E.
+- Production-build startup and Mermaid dynamic-import render regression.
+- Deterministic remote-image mocks and separate real public-network cache integration tests.
+- Web build chunk budgets.
+- Separately executed performance benchmarks.
 
-已知外部限制：Vite 8 / Rolldown 复制 MathJax NewCM WOFF2（105 个）和懒加载 PlantUML TeaVM 引擎时，会在 `vite:asset` 上发出 `PLUGIN_TIMINGS`。这是打包已知大资源的拷贝成本，不是自定义插件变慢。`quality:web-build` 只豁免仅点名 `vite:asset` 的该诊断；其它插件计时警告仍失败。Vite `build.rolldownOptions.checks.pluginTimings` 关闭同一诊断，避免 `pnpm build:web` 日志被噪声淹没。后续治理：若 Rolldown 提高 asset 插件阈值或字体/引擎拷贝不再触发，收回该豁免并重新打开检查。
+Known external limitation: when Vite 8 / Rolldown copies MathJax NewCM WOFF2 (105 files) and the lazily loaded PlantUML TeaVM engine, it emits `PLUGIN_TIMINGS` on `vite:asset`. That is the copy cost of packing known large assets, not a custom plugin getting slower. `quality:web-build` exempts only that diagnostic when it names `vite:asset` alone; other plugin-timing warnings still fail. Vite `build.rolldownOptions.checks.pluginTimings` turns off the same diagnostic so `pnpm build:web` logs are not drowned in noise. Follow-up: if Rolldown raises the asset-plugin threshold or font/engine copies stop triggering it, revoke the exemption and re-enable the check.
 
-仓库还必须维护 `.github/workflows/windows-release-build.yml`，作为手动发布构建门禁，用于在 GitHub Windows runner 上签名生成并上传 release exe、MSI、NSIS 和 `*.sig`。该 workflow 不创建 GitHub Release；正式分发只接受 `.github/workflows/windows-release-publish.yml` 的签名发布。
+The repository must also maintain `.github/workflows/windows-release-build.yml` as a manual release-build gate that signs, generates, and uploads release exe, MSI, NSIS, and `*.sig` on a GitHub Windows runner. That workflow does not create a GitHub Release; formal distribution only accepts signed publish from `.github/workflows/windows-release-publish.yml`.
 
-任何用于 V1 发布判断的手动发布构建，都必须先运行 `pnpm release:verify-artifacts`，生成包含大小和 SHA-256 的 `lumamark-windows-artifacts.json`，并将该 manifest 作为 GitHub artifact 保留。`docs/release/WINDOWS_V1_BUILD.md` 必须记录 workflow run 链接、提交哈希、结论和 artifact 清单。没有可追溯 run 证据和 artifact manifest 时，不得把 GitHub runner 发布构建视为已验证。
+Any manual release build used for V1 release judgment must first run `pnpm release:verify-artifacts`, produce `lumamark-windows-artifacts.json` with sizes and SHA-256, and retain that manifest as a GitHub artifact. `docs/release/WINDOWS_V1_BUILD.md` must record the workflow run link, commit hash, conclusion, and artifact inventory. Without traceable run evidence and an artifact manifest, a GitHub runner release build must not be treated as verified.
 
-Windows 本地候选包还必须运行 `pnpm release:packaged-webview`：从真实临时 Markdown 文件进入 release WebView，要求 Mermaid SVG 成功、主 CodeMirror 编辑态立即保存、Unicode 输入、`Mod-/` 往返及任务 checkbox 可访问名称通过。该自动化使用 WebView2 CDP，只证明应用内 DOM、键盘事件和真实 Rust 文件写入；它不能替代中文 IME 候选窗、系统剪贴板或 Narrator/NVDA 的前台人工检查。
+Windows local candidate packages must also run `pnpm release:packaged-webview`: enter the release WebView from a real temporary Markdown file and require successful Mermaid SVG, immediate save of the main CodeMirror edit state, Unicode input, `Mod-/` round-trip, and accessible names for task checkboxes. That automation uses WebView2 CDP and only proves in-app DOM, keyboard events, and real Rust file writes; it does not replace foreground manual checks for Chinese IME candidate windows, the system clipboard, or Narrator/NVDA.
 
-## 手动测试策略
+## Manual Test Strategy
 
-手动测试只保留在以下场景：
+Manual testing is reserved for:
 
-- 视觉审美判断。
-- 新交互初次体验。
-- 跨平台真实环境抽检。
-- 自动化暂时无法稳定覆盖的系统行为。
+- Visual aesthetic judgment.
+- First experience of new interactions.
+- Spot checks in real cross-platform environments.
+- System behaviors that automation cannot yet cover stably.
 
-凡是重复执行两次以上的手动测试，都应该转为自动化。
+Any manual test executed more than twice should be automated.
 
-## Bug 策略
+## Bug Strategy
 
-Bug 修复必须遵守：
+Bug fixes must follow:
 
-1. 复现。
-2. 定位根因。
-3. 写失败测试。
-4. 最小修复。
-5. 验证。
-6. 保留回归测试。
+1. Reproduce.
+2. Locate the root cause.
+3. Write a failing test.
+4. Minimal fix.
+5. Verify.
+6. Keep the regression test.
 
-三次修复失败后必须暂停，重新审视架构或假设。
+After three failed fix attempts, pause and re-examine the architecture or assumptions.

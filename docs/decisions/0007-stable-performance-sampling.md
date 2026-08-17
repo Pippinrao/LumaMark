@@ -1,38 +1,40 @@
-# ADR 0007：稳定的性能采样门禁
+> Language: **English** · [中文](../zh/decisions/0007-stable-performance-sampling.md)
 
-**状态：** 已接受
+# ADR 0007: Stable Performance Sampling Gates
 
-**日期：** 2026-08-01
+**Status:** Accepted
 
-## 背景
+**Date:** 2026-08-01
 
-V1 性能测试已经独立、串行运行，但同步输入路径仍只取一次 wall-clock 样本。GitHub `windows-latest` 的两次 0.2.0 候选门禁中，首个样本出现了与数据规模无关的抖动：1MB 样本慢于 5MB/10MB，且三个互不相关的 `< 16 ms` 路径分别只超出 0.17ms、0.17ms 和 3.44ms。相同 run 中 Mermaid 1/5/10MB active-edit 保持近似常数时间，功能、E2E 和生产构建均通过。
+## Context
 
-单次 wall-clock 同时包含目标代码、JIT、jsdom 初始化与共享 runner 调度，既可能把噪声误判为退化，也无法区分持续变慢和一个尖峰。直接提高既有 16ms 目标或失败后重跑都会削弱门禁，因此需要明确且可复查的统计口径。
+V1 performance tests already run independently and serially, but synchronous typing paths still took a single wall-clock sample. Across two GitHub `windows-latest` 0.2.0 candidate gates, the first sample showed scale-independent jitter: the 1MB sample was slower than 5MB/10MB, and three unrelated `< 16 ms` paths each exceeded budget by only 0.17ms, 0.17ms, and 3.44ms. In the same run, Mermaid 1/5/10MB active-edit stayed near-constant time, and functional, E2E, and production builds all passed.
 
-## 决策
+A single wall-clock sample mixes target code, JIT, jsdom initialization, and shared runner scheduling. It can misread noise as regression and cannot distinguish sustained slowdown from one spike. Raising the existing 16ms target or rerunning after failure would weaken the gate, so a clear, reviewable statistical contract is required.
 
-- 大文档尾部输入、代码块密集输入和 Mermaid active-edit 固定采集 5 个样本，首样本必须保留并输出，不做丢弃、retry 或取最小值。默认编辑器首次输入的每个样本使用独立新 editor；Mermaid 冷路径的每个样本使用独立新 editor 和独立 activation，避免用同一生命周期内的后续热输入稀释首次路径。
-- 既有 1/5/10MB 主预算不变，分别约束 5 个样本的 P80（排序后的第 4 个样本）；严格输入路径仍以 `< 16 ms` 为主目标，因此每组最多只能有 1 个样本超过主预算。中位数继续输出用于观察，但不作为更宽松的通过条件。
-- 每组同时约束最大值：`max(50 ms, 2 × 主预算)`。因此 `< 16 ms` 路径的任何一次样本都必须 `< 50 ms`，`< 50/100 ms` 路径的最大值必须 `< 100/200 ms`。
-- 默认小文档编辑器创建同样采集 5 个独立生命周期，首样本和 P80 都必须 `< 300 ms`、最大值必须 `< 600 ms`；每个生命周期只采集一次首次输入，并执行上述 `< 16 ms` P80 与 `< 50 ms` 最大值门禁。
-- 两个 Mermaid pending-render 用例同样建立 5 个独立 render/editor 生命周期，每个生命周期只测一次指定未完成 render 期间的主文档 dispatch；P80 和最大值都必须 `< 50 ms`。
-- 所有样本值、P80、中位数和最大值必须写入测试输出。任一主预算或最大值失败都使门禁失败，不能用自动重跑作为通过证据。
-- `pnpm perf:bench` 继续与其他重 CPU 门禁分离并串行执行。真实 Tauri WebView2 的键盘 P50/P95、撤销和打开测量继续作为产品环境证据，不能由 jsdom 统计替代。
+## Decision
 
-## 被否决方案
+- Large-document tail typing, dense code-block typing, and Mermaid active-edit always collect 5 samples. The first sample must be kept and reported; no discard, retry, or take-minimum. Each sample for default editor first typing uses an independent new editor; each Mermaid cold-path sample uses an independent new editor and independent activation so later warm typing in the same lifecycle cannot dilute the first-path measurement.
+- Existing 1/5/10MB primary budgets stay unchanged and constrain the P80 of the 5 samples (4th after sorting). Strict typing paths still use `< 16 ms` as the primary target, so each group may have at most 1 sample over the primary budget. Median continues to be reported for observation but is not a more lenient pass criterion.
+- Each group also constrains the maximum: `max(50 ms, 2 × primary budget)`. Therefore every sample on a `< 16 ms` path must be `< 50 ms`, and `< 50/100 ms` paths must keep max `< 100/200 ms`.
+- Default small-document editor creation likewise collects 5 independent lifecycles; first sample and P80 must both be `< 300 ms`, and max must be `< 600 ms`. Each lifecycle measures first typing once and applies the `< 16 ms` P80 and `< 50 ms` max gates above.
+- The two Mermaid pending-render cases likewise establish 5 independent render/editor lifecycles, measuring the specified in-flight render main-document dispatch once per lifecycle; P80 and max must both be `< 50 ms`.
+- All sample values, P80, median, and max must be written to test output. Failure of any primary budget or max fails the gate; automatic reruns are not pass evidence.
+- `pnpm perf:bench` remains separated from other heavy CPU gates and runs serially. Real Tauri WebView2 keyboard P50/P95, undo, and open measurements remain product-environment evidence and cannot be replaced by jsdom statistics.
 
-- **直接提高 16ms 主预算：** 会把持续输入退化合法化。
-- **失败后重跑或只取最小值：** 会隐藏可复现的尖峰，并使通过结果不可比较。
-- **无限制预热后只测稳态：** 无法约束首次创建和首次输入。
-- **根据单次 CI 数据立即改生产热路径：** 当前数据呈现跨用例同步抖动，没有支持某个生产模块退化的证据。
+## Alternatives considered
 
-## 影响
+- **Directly raise the 16ms primary budget:** legitimizes sustained typing regression.
+- **Rerun after failure or keep only the minimum:** hides reproducible spikes and makes pass results incomparable.
+- **Unlimited warmup then measure only steady state:** cannot constrain first create and first typing.
+- **Immediately change production hot paths from a single CI run:** current data shows synchronized cross-case jitter without evidence of a specific production module regression.
 
-- 输入门禁从“单次样本必须低于主预算”变为“5 次 P80 低于原主预算，且任一次不得超过明确硬上限”。冷路径和 pending-render 的 5 次输入都来自 5 个独立生命周期；这最多允许每组 1 次进程级 JIT 或共享 runner 尖峰，但 2/5 次超过主预算即失败，也不允许任何一次超过硬上限。
-- 基准会执行更多真实编辑 transaction，运行时间略增；每个样本仍修改真实 CodeMirror 文档并验证最终内容。
-- 性能基线文档必须同时记录样本、P80、中位数和最大值。新增或提高主预算、样本硬上限仍需新的 ADR。
+## Consequences
 
-## 回滚与复审条件
+- Typing gates change from “one sample must be under the primary budget” to “5-sample P80 under the original primary budget, and no sample may exceed an explicit hard max”. Cold-path and pending-render’s five typing samples each come from five independent lifecycles; this allows at most one process-level JIT or shared-runner spike per group, but 2/5 over the primary budget fails, and any sample over the hard max fails.
+- Benchmarks execute more real edit transactions and take slightly longer; each sample still mutates a real CodeMirror document and verifies final content.
+- Performance baseline docs must record samples, P80, median, and max together. Adding or raising a primary budget or sample hard max still requires a new ADR.
 
-获得固定硬件 runner 后，应比较单样本、P95 与当前 P80/最大值口径；若稳定硬件证明最大值门禁过宽，收紧硬上限。若用户实测出现首次输入卡顿，必须优先增加真实 WebView 冷路径 P95 门禁并复审本决策，不能只调 jsdom 数值。
+## Rollback and revisit criteria
+
+After obtaining a fixed-hardware runner, compare single-sample, P95, and the current P80/max contract; if stable hardware proves the max gate too loose, tighten the hard max. If user measurement shows first-typing stalls, prioritize adding a real WebView cold-path P95 gate and revisit this decision; do not only tune jsdom numbers.

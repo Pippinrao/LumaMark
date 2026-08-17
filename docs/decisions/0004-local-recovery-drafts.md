@@ -1,41 +1,43 @@
-# ADR 0004：本地恢复草稿的安全边界
+> Language: **English** · [中文](../zh/decisions/0004-local-recovery-drafts.md)
 
-日期：2026-07-11
+# ADR 0004: Safety Boundaries for Local Recovery Drafts
 
-更新：2026-07-27（恢复草稿改用精确源码序列化）
+Date: 2026-07-11
 
-## 背景
+Updated: 2026-07-27 (recovery drafts use exact source serialization)
 
-写作应用需要在意外退出后尽可能保留未保存的内容，但恢复机制不能绕过用户的保存意图，更不能静默覆盖 Markdown 源文件。恢复功能还不能把高频 Markdown 正文放入 React 或 Zustand 状态。
+## Context
 
-## 决策
+A writing app should preserve unsaved work after unexpected exits as much as possible, but recovery must not bypass the user’s save intent and must never silently overwrite Markdown source files. Recovery also must not put high-frequency Markdown body text into React or Zustand state.
 
-- 用户编辑后以 500ms debounce，通过 `EditorDocumentPort.serializeText()` 将当前 CodeMirror 精确序列化文本和可选原文件路径写入浏览器本地存储；不得使用规范化的 `getText()` 代替。
-- 草稿持久化放在 `services/drafts`；React feature 只调度快照、呈现恢复决策并通过 `EditorDocumentPort` 读取或载入文本。
-- 序列化快照包含 `DocumentSourceFormat` 恢复出的 UTF-8 BOM、混合 LF/CRLF/CR 分布和末尾换行意图。恢复时 `loadText(..., { saved: false })` 重新建立规范化 `Text` 与格式状态，并作为未保存文档进入 editor；详细合同见 [ADR 0006](0006-parity-reliability-editor-contracts.md)。
-- 启动且编辑器端口就绪后，如发现草稿，使用 Radix dialog 显式提供“恢复草稿”和“丢弃草稿”。对话框不允许通过 Escape 或点击遮罩绕过选择。
-- 恢复总是创建新的未保存文档：清空文档上下文路径、标记 dirty、聚焦编辑器；绝不写回或覆盖记录中的原文件路径。
-- 成功打开、新建或成功保存且文档保持 clean 时取消待写任务并清除已有恢复草稿。
-- 浏览器存储不可访问或损坏时，恢复能力安全降级且不影响正在进行的编辑。
+## Decision
 
-## 被否决方案
+- After edits, debounce 500ms and write the current CodeMirror exact serialized text plus an optional original file path into browser local storage via `EditorDocumentPort.serializeText()`. Do not substitute normalized `getText()`.
+- Draft persistence lives in `services/drafts`. React features only schedule snapshots, present recovery choices, and read or load text through `EditorDocumentPort`.
+- Serialized snapshots include UTF-8 BOM, mixed LF/CRLF/CR distribution, and trailing-newline intent recovered by `DocumentSourceFormat`. On restore, `loadText(..., { saved: false })` rebuilds normalized `Text` and format state and enters the editor as an unsaved document. Detailed contracts are in [ADR 0006](0006-parity-reliability-editor-contracts.md).
+- After startup, once the editor port is ready, if a draft exists, a Radix dialog explicitly offers “Restore draft” and “Discard draft”. The dialog must not be dismissed via Escape or overlay click to skip the choice.
+- Restore always creates a new unsaved document: clear the document context path, mark dirty, focus the editor; never write back or overwrite the recorded original file path.
+- On successful open, new document, or successful save while the document stays clean, cancel pending write tasks and clear any existing recovery draft.
+- If browser storage is unavailable or corrupt, recovery degrades safely without affecting in-progress editing.
 
-- 静默把恢复内容写回原文件：会绕过用户确认，可能覆盖磁盘上较新的版本。
-- 把全文放进 app store：会使 React 订阅高频变化数据，破坏编辑器热路径边界。
-- 仅在 `beforeunload` 时存储：异常退出、进程终止或 WebView 崩溃时不可靠。
+## Alternatives considered
 
-## 影响
+- Silently write recovered content back to the original file: bypasses user confirmation and may overwrite a newer on-disk version.
+- Put full text in the app store: pulls high-frequency changing data into React subscriptions and breaks editor hot-path boundaries.
+- Persist only on `beforeunload`: unreliable for abnormal exits, process termination, or WebView crashes.
 
-- 恢复草稿是本机浏览器 profile 内的短期恢复能力，不是跨设备同步或历史版本功能。
-- 对原文件的存储路径仅用于说明来源，不用于自动写入。
-- 单元/集成测试覆盖调度、显式恢复、保存后的清理、存储不可用，以及 BOM、混合换行和末尾换行的保存/恢复 round-trip；Playwright 覆盖恢复和丢弃两个真实用户路径。
-- 草稿存储的是一次精确序列化字符串，不持有活动 `EditorState`、selection 或 undo history；恢复后的撤销边界仍由主 EditorView 建立。
+## Consequences
 
-## 回滚或复审条件
+- Recovery drafts are a short-term recovery capability inside the local browser profile, not cross-device sync or version history.
+- The stored original file path is only used to explain provenance, never for automatic writes.
+- Unit/integration tests cover scheduling, explicit restore, post-save cleanup, unavailable storage, and save/restore round-trips for BOM, mixed newlines, and trailing newlines. Playwright covers both real restore and discard user paths.
+- Drafts store one exact serialized string; they do not hold a live `EditorState`, selection, or undo history. Undo boundaries after restore are still established by the primary EditorView.
 
-- 本地存储容量、隐私策略或多窗口需求使单一草稿槽不足。
-- 需要跨重启的多个草稿、版本历史、加密或跨设备同步时，应采用有容量管理和冲突策略的独立服务。
-- 恢复路径影响 CodeMirror 的 IME、撤销重做、选区稳定性或启动性能。
-- 浏览器存储或后续草稿 schema 无法逐字保存 `DocumentSourceFormat` 所表达的格式意图。
+## Rollback or revisit criteria
 
-当前恢复草稿的门禁与 active-save 共同纳入 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+- Local storage capacity, privacy policy, or multi-window needs make a single draft slot insufficient.
+- When multiple drafts across restarts, version history, encryption, or cross-device sync are required, move to an independent service with capacity management and conflict strategy.
+- The restore path affects CodeMirror IME, undo/redo, selection stability, or startup performance.
+- Browser storage or a later draft schema cannot preserve format intent expressed by `DocumentSourceFormat` byte-for-byte.
+
+Current recovery-draft gates are included with active-save in the [Typora Parity core experience improvement plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).

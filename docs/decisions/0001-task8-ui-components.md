@@ -1,47 +1,49 @@
-# ADR 0001：V1 应用外壳成熟组件选型
+> Language: **English** · [中文](../zh/decisions/0001-task8-ui-components.md)
 
-日期：2026-07-05
+# ADR 0001: V1 App Shell Mature Component Selection
 
-## 背景
+Date: 2026-07-05
 
-Task 8 需要落地工作区、文件树、大纲、命令面板、设置页和可调整分栏。项目规则要求优先成熟组件；只有在成熟组件无法满足性能、可访问性、i18n 或可维护性目标，并得到用户确认后，才允许自研基础组件。
+## Context
 
-## 决策
+Task 8 needs to ship workspace, file tree, outline, command palette, settings, and resizable panes. Project rules require preferring mature components; custom foundational UI is allowed only when mature components cannot meet performance, accessibility, i18n, or maintainability goals and the user has confirmed that approach.
 
-V1 应用外壳采用以下成熟组件：
+## Decision
 
-- `react-resizable-panels`：分栏、折叠和布局持久化。
-- `react-arborist`：文件树虚拟化、键盘导航和自定义节点渲染。
-- `cmdk`：命令面板、命令过滤和键盘导航。
-- Radix Primitives：设置 dialog、tabs 和后续 tooltip。
-- `lucide-react`：工具按钮图标。
+The V1 app shell uses these mature components:
 
-项目代码只负责 LumaMark 的数据适配、命令编排、i18n 文案和性能边界，不自研基础 UI 组件。
+- `react-resizable-panels`: panes, collapse, and layout persistence.
+- `react-arborist`: file-tree virtualization, keyboard navigation, and custom node rendering.
+- `cmdk`: command palette, command filtering, and keyboard navigation.
+- Radix Primitives: settings dialog, tabs, and later tooltips.
+- `lucide-react`: toolbar button icons.
 
-## 评估结论
+Project code owns only LumaMark data adaptation, command orchestration, i18n copy, and performance boundaries. It does not custom-build foundational UI components.
 
-- 文件树：`react-arborist` 支持虚拟化、键盘导航、受控数据和自定义 renderer；Windows 路径通过 `path` 字段透传，不在 UI 里硬切分路径。目录懒加载由 workspace store 在 `onToggle` 时调用 Rust `workspace_list_children` 实现。
-- 分栏：`react-resizable-panels` 支持 collapsible panel 和 layout 持久化，满足 V1 侧边栏/编辑区/大纲布局。
-- 命令面板：`cmdk` 支持可控 open/search、命令过滤和键盘导航；命令 label、placeholder、empty state 和分组文案全部由 LumaMark i18n 资源提供；`Ctrl/Cmd+K` 快捷键由应用层监听并打开受控面板；V1 命令量很小，不需要额外虚拟化。若未来命令规模显著增长，可切换为 `shouldFilter={false}` 并接入应用侧过滤或虚拟化。
-- Dialog/Tabs/Tooltip：Radix 提供焦点管理和可访问性基础，符合成熟组件优先原则。
+## Evaluation conclusions
 
-## 被否决方案
+- File tree: `react-arborist` supports virtualization, keyboard navigation, controlled data, and custom renderers. Windows paths pass through the `path` field without hard-splitting paths in the UI. Directory lazy loading is implemented by the workspace store calling Rust `workspace_list_children` on `onToggle`.
+- Panes: `react-resizable-panels` supports collapsible panels and layout persistence, covering the V1 sidebar / editor / outline layout.
+- Command palette: `cmdk` supports controlled open/search, command filtering, and keyboard navigation. Command labels, placeholders, empty states, and group copy all come from LumaMark i18n resources. The `Ctrl/Cmd+K` shortcut is listened for at the app layer and opens the controlled palette. V1 command volume is small, so extra virtualization is unnecessary. If command scale grows significantly later, switch to `shouldFilter={false}` and plug in app-side filtering or virtualization.
+- Dialog / Tabs / Tooltip: Radix provides focus management and accessibility foundations, matching the mature-components-first rule.
 
-- 自研文件树、分栏、命令面板或 dialog：没有证据表明成熟组件无法满足 V1，因此不允许。
-- 一次性引入大型完整设计系统：当前需要的是安静的桌面应用壳和可控交互基础，不需要增加过重的主题/组件约束。
+## Alternatives considered
 
-## 影响
+- Custom file tree, panes, command palette, or dialog: no evidence that mature components fail V1 needs, so custom work is disallowed.
+- Introducing a large full design system at once: the need is a quiet desktop shell and controllable interaction primitives, not heavy theme/component constraints.
 
-- `AppShell` 只做跨功能编排。
-- `features/file-tree`、`features/outline`、`features/command-palette`、`features/settings` 各自保持边界。
-- Markdown 正文仍只在 CodeMirror 中，outline 由当前编辑器文本派生，不进入全局 store。
-- Rust workspace command 保持薄入口，目录读取和过滤进入 `workspace_service`。
+## Consequences
 
-## 复审条件
+- `AppShell` only does cross-feature orchestration.
+- `features/file-tree`, `features/outline`, `features/command-palette`, and `features/settings` keep their own boundaries.
+- Markdown body stays only in CodeMirror; outline is derived from the current editor text and does not enter the global store.
+- Rust workspace commands stay thin entry points; directory listing and filtering live in `workspace_service`.
 
-出现以下情况时重新评估：
+## Revisit criteria
 
-- 文件树节点规模或懒加载需求超出 `react-arborist` 能力。
-- 分栏持久化或跨平台输入行为出现不可接受问题。
-- 命令数量达到需要自定义索引、虚拟化或异步检索的规模。
-- 任何组件阻塞输入、滚动或编辑器热路径。
+Re-evaluate when any of the following occurs:
+
+- File-tree node scale or lazy-loading needs exceed `react-arborist` capabilities.
+- Pane persistence or cross-platform input behavior becomes unacceptable.
+- Command count reaches a scale that needs custom indexing, virtualization, or async search.
+- Any component blocks typing, scrolling, or the editor hot path.

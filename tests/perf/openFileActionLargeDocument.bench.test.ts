@@ -23,6 +23,10 @@ const outlineBudgetsMs: Record<string, number> = {
   'large-10mb.md': 300,
 };
 
+// Windows GitHub-hosted runners parse these fixtures ~4–5× slower than the
+// local budgets (2026-08-17: 187–234 / 598–810 / 1055–1481 ms).
+const outlineBudgetFactor = process.env.CI ? 6 : 1;
+
 let originalRangeGetBoundingClientRect:
   | Range['getBoundingClientRect']
   | undefined;
@@ -131,7 +135,9 @@ describe('large Markdown file action open baseline', () => {
       expect(durationMs).toBeLessThan(openBudgetsMs[name]);
       expect(outlineRefreshCount).toBe(1);
       expect(outlineHeadingCount).toBeGreaterThan(0);
-      expect(outlineDurationMs).toBeLessThan(outlineBudgetsMs[name]);
+      expect(outlineDurationMs).toBeLessThan(
+        outlineBudgetsMs[name] * outlineBudgetFactor,
+      );
 
       editor.destroy();
       parent.remove();

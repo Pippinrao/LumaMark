@@ -494,7 +494,7 @@ describe('package quality scripts', () => {
       join(process.cwd(), 'playwright.config.ts'),
       'utf8',
     );
-    expect(playwrightConfig).toContain('workers: process.env.CI ? 2 : 4');
+    expect(playwrightConfig).toContain('workers: process.env.CI ? 1 : 4');
     expect(workflow).toContain('actions/checkout@v7');
     expect(workflow).toContain('actions/setup-node@v6');
     expect(workflow).toContain('pnpm/action-setup@v6');

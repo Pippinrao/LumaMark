@@ -13,8 +13,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  // One CI worker left E2E over the 60m job budget once click timeouts retry.
-  workers: process.env.CI ? 2 : 4,
+  // Heavy MathJax/Mermaid E2E is not isolated enough for two CI workers.
+  workers: process.env.CI ? 1 : 4,
   reporter: [['list']],
   use: {
     baseURL: e2eBaseUrl,

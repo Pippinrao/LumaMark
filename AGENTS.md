@@ -451,7 +451,7 @@ Final replies for documentation tasks must state which files were read or search
 
 ## High-cost defect retrospectives (mandatory)
 
-The following two defects were long misdiagnosed, repeatedly “fixed then broken again,” and only closed on the real installed-package path. When agents see similar symptoms, they must investigate using this section first—not start from “handler not wired” or “tweak CSS.”
+The defects below were long misdiagnosed, repeatedly “fixed then broken again,” and only closed on the real installed-package path. When agents see similar symptoms, they must investigate using this section first—not start from “handler not wired” or “tweak CSS.”
 
 ### 1. Menu opens but clicks do nothing
 
@@ -494,13 +494,32 @@ Reference implementations: `src/app/shell/TopChrome.tsx`, `src/app/controllers/u
 
 Reference implementations: `src/editor/capabilities/table/tableCellClickSync.ts`, `src/editor/capabilities/table/table.css`; regressions: `tests/e2e/editor-table-caret*.spec.ts`, `scripts/release/repro-installed-table-caret*.mjs`.
 
-### 3. General lessons from these two fixes
+### 3. Live-preview single click selects text instead of placing a caret
+
+**Real root cause (not “our caret math is wrong”):** the wrong selection is produced by CodeMirror's built-in `basicMouseSelection`, and it is painted while the button is held.
+
+1. The built-in style hit-tests the press coordinates when the gesture starts and again on every later pointer event, then takes the union. Hidden WYSIWYG delimiters make those two hits disagree, so a press inside link or bold text resolves to the delimiter position and the release resolves to the clicked character.
+2. It has no click slop. A one-to-two CSS pixel travel during a normal hand-held press maps to the next character and paints a one-character range.
+3. Correcting the result on `mouseup` cannot remove either symptom, because the wrong range was already committed and painted for the whole press. The bug then reads as “mostly fixed, still flashes sometimes,” which is what made it recur twice (issues #14 and #19).
+
+**Mandatory rules:**
+
+- Live preview owns pointer caret placement through its own `EditorView.mouseSelectionStyle`. Do not go back to correcting the settled selection on `mouseup` as the primary mechanism.
+- The press anchor is resolved once, from the browser-native caret hit, and mapped through document changes; do not re-resolve it per pointer event.
+- Keep the DPR-aware click slop. Any selection produced inside the slop is a defect, not a rounding artifact.
+- The style must decline double click, triple click, and presses without a caret candidate so CodeMirror keeps owning word/line selection.
+- Evidence for this class of bug must sample selection state **during** the press, not only after release. Browser E2E asserts collapsed state at press, after a small move, and after release; installed-package acceptance drives Win32 `SendInput` press-move-release.
+
+Reference implementations: `src/editor/wysiwyg/pointerSelectionStyle.ts`, `src/editor/wysiwyg/markdownDecorations.ts`, [ADR 0019](docs/decisions/0019-live-preview-pointer-selection-style.md); regressions: `tests/e2e/editor-preview-click-selection.spec.ts`, `scripts/release/verify-installed-preview-click-selection-os.mjs`.
+
+### 4. General lessons from these fixes
 
 1. **Classify the symptom before changing code.** “No response” may mean the event was swallowed; “caret drifts” may be geometry/coordinates, not a wrong selection API.
 2. **Verify desktop-shell bugs and browser bugs on separate evidence chains.** Tauri drag, installed path, OS mouse quantification, and CDP clicks are not the same chain.
 3. **Fix geometry contracts first, then interaction enhancements.** Any CSS that disconnects hit-test area from visible text amplifies into caret disasters on tables/widgets.
 4. **Do not mask hit issues with new visual constraints.** Scrollbars, clipping, fake blank space, and fake carets are high-risk shortcuts.
 5. **Guard against “fixed then broken again.”** After caret fixes merge, later UI polish that touches table overflow/padding is a high-risk change, not pure styling.
+6. **Sample the whole gesture, not just its result.** A defect that is visible while the button is held cannot be proven fixed by asserting the state after release; a fix that only corrects the settled state will be reported as “still happens sometimes.”
 
 ## Agent workflow
 

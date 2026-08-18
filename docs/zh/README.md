@@ -117,6 +117,7 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 | [ADR 0016：桌面纯文本剪贴板适配](decisions/0016-tauri-text-clipboard-adapter.md) | 决策 | 官方 Tauri clipboard-manager、浏览器 adapter、EditorCommandPort 注入与最小文本权限 | 剪贴板插件、权限、纯文本命令入口或桌面/浏览器适配边界变化 |
 | [ADR 0017：MathJax 文档级 Worker 与 CHTML 数学渲染](decisions/0017-mathjax-document-worker-chtml.md) | 决策 | 数学引擎、文档状态、Worker/CHTML、离线字体、安全和回滚边界 | MathJax 版本、输出格式、TeX 包、安全策略、chunk 或性能门禁变化 |
 | [ADR 0018：PlantUML 官方 TeaVM 本地渲染](decisions/0018-plantuml-local-rendering.md) | 决策 | 本地 PlantUML 引擎、canonical 设置、阅读锁、暗色、懒加载 chunk 与安装包验收 | PlantUML 引擎、设置字段、渲染锁或安装包验收变化 |
+| [ADR 0019：实时预览指针选区 style](decisions/0019-live-preview-pointer-selection-style.md) | 决策 | 自定义 `mouseSelectionStyle` 所有权、按下锚点、单击容差与安装包指针验收 | 指针选区所有权、单击容差、锚点解析或指针验收变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果和已知限制 | 性能预算、基准命令或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |

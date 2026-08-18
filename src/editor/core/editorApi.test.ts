@@ -805,6 +805,92 @@ describe('editorApi', () => {
     parent.remove();
   });
 
+  it('does not rebuild live-preview widgets when locking a document transition', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'livePreview',
+      doc: [
+        'intro $E=mc^2$',
+        '',
+        '| A | B |',
+        '| - | - |',
+        '| 1 | 2 |',
+        '',
+        'after',
+      ].join('\n'),
+      parent,
+    });
+    const tableBefore = parent.querySelector('.tbl-table-widget');
+    const displayBefore = editorDisplayModeCompartment.get(editor.view.state);
+    expect(tableBefore).not.toBeNull();
+    expect(editor.view.state.readOnly).toBe(false);
+
+    editor.setDocumentTransitionLocked(true);
+
+    expect(editor.view.state.readOnly).toBe(true);
+    expect(deleteCharBackward(editor.view)).toBe(false);
+    expect(editorDisplayModeCompartment.get(editor.view.state)).toBe(
+      displayBefore,
+    );
+    expect(parent.querySelector('.tbl-table-widget')).toBe(tableBefore);
+
+    editor.setDocumentTransitionLocked(false);
+
+    expect(editor.view.state.readOnly).toBe(false);
+    expect(editorDisplayModeCompartment.get(editor.view.state)).toBe(
+      displayBefore,
+    );
+    expect(parent.querySelector('.tbl-table-widget')).toBe(tableBefore);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('keeps transition-lock dispatch cheaper than rebuilding live preview', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      displayMode: 'livePreview',
+      doc: [
+        'intro $E=mc^2$',
+        '',
+        '| A | B |',
+        '| - | - |',
+        '| 1 | 2 |',
+        '',
+        'after',
+      ].join('\n'),
+      parent,
+    });
+    editor.setDocumentTransitionLocked(true);
+    editor.setDocumentTransitionLocked(false);
+
+    const lockSamples: number[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const started = performance.now();
+      editor.setDocumentTransitionLocked(true);
+      editor.setDocumentTransitionLocked(false);
+      lockSamples.push(performance.now() - started);
+    }
+
+    const rebuildSamples: number[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const started = performance.now();
+      editor.setDisplayMode('source');
+      editor.setDisplayMode('livePreview');
+      rebuildSamples.push(performance.now() - started);
+    }
+
+    const lockP80 = [...lockSamples].sort((left, right) => left - right)[3] ?? 0;
+    const rebuildP80 =
+      [...rebuildSamples].sort((left, right) => left - right)[3] ?? 0;
+    expect(lockP80).toBeLessThan(Math.max(2, rebuildP80 / 4));
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('keeps a document transition read-only across display-mode changes and restores the mode policy after release', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

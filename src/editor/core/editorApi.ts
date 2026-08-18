@@ -384,18 +384,9 @@ export class CodeMirrorEditorApi implements EditorApi {
 
     this.transitionLocked = locked;
     this.editorView.dispatch({
-      effects: [
-        editorDisplayModeCompartment.reconfigure(
-          editorDisplayModeExtension(
-            this.displayMode,
-            this.documentContext,
-            this.transitionLocked,
-          ),
-        ),
-        editorReadOnlyCompartment.reconfigure(
-          editorReadOnlyExtension(this.displayMode, this.transitionLocked),
-        ),
-      ],
+      effects: editorReadOnlyCompartment.reconfigure(
+        editorReadOnlyExtension(this.displayMode, this.transitionLocked),
+      ),
     });
   }
 

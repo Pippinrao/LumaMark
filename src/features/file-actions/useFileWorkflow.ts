@@ -1076,13 +1076,13 @@ export function useFileWorkflow({
           return { status: 'failed' } as const;
         }
 
-        speculativeRead = actions.readFile(path);
-
-        const reservationTerminal = await reserveDocumentToTerminal(
+        const reservationPromise = reserveDocumentToTerminal(
           documentClaimClient,
           requestId,
           path,
         );
+        speculativeRead = actions.readFile(path);
+        const reservationTerminal = await reservationPromise;
         if (reservationTerminal.status === 'unknown') {
           await blockCurrentWorkflowOnUnknownOwnership(
             reservationTerminal.error,
@@ -1154,7 +1154,16 @@ export function useFileWorkflow({
         }
         reservationHeld = !alreadyOwned;
 
-        const result = await speculativeRead;
+        let result = await speculativeRead;
+        speculativeRead = null;
+
+        if (!isCurrentRequest()) {
+          return { status: 'superseded' } as const;
+        }
+
+        if (!result.ok) {
+          result = await actions.readFile(path);
+        }
 
         if (!isCurrentRequest()) {
           return { status: 'superseded' } as const;

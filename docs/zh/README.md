@@ -118,7 +118,7 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 | [ADR 0017：MathJax 文档级 Worker 与 CHTML 数学渲染](decisions/0017-mathjax-document-worker-chtml.md) | 决策 | 数学引擎、文档状态、Worker/CHTML、离线字体、安全和回滚边界 | MathJax 版本、输出格式、TeX 包、安全策略、chunk 或性能门禁变化 |
 | [ADR 0018：PlantUML 官方 TeaVM 本地渲染](decisions/0018-plantuml-local-rendering.md) | 决策 | 本地 PlantUML 引擎、canonical 设置、阅读锁、暗色、懒加载 chunk 与安装包验收 | PlantUML 引擎、设置字段、渲染锁或安装包验收变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
-| [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果和已知限制 | 性能预算、基准命令或实测结果变化 |
+| [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果、已知限制与装机交互卡顿门禁 | 性能预算、基准命令、装机交互门禁或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |
 | [演进计划](roadmap/EVOLUTION_PLAN.md) | 路线 | 近细远粗的阶段计划 | 近期阶段目标或退出条件变化 |
 | [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) | 当前执行路线 | Parity Reliability Foundation 的实施顺序、合同、证据与退出门禁 | 当前里程碑范围、顺序或门禁变化 |

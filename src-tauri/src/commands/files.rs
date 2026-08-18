@@ -1,13 +1,11 @@
 use std::path::{Path, PathBuf};
-use std::thread;
-use std::time::Duration;
 
 use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::commands::document_claims::claim_error_to_app_error;
 use crate::errors::AppError;
-use crate::services::document_claim_service::{ClaimError, DocumentClaimService};
+use crate::services::document_claim_service::DocumentClaimService;
 use crate::services::file_service::{read_text, write_text, ReadTextResult, WriteTextResult};
 use crate::services::file_watch_service::FileWatchError;
 use crate::services::file_watch_session_hub::FileWatchSessionHub;
@@ -59,9 +57,6 @@ pub fn files_write_text_claimed(
     )
 }
 
-const CLAIMED_OPEN_READ_ATTEMPTS: u32 = 16;
-const CLAIMED_OPEN_READ_RETRY: Duration = Duration::from_millis(5);
-
 fn read_text_with_claim(
     claims: &DocumentClaimService,
     window_label: &str,
@@ -69,28 +64,20 @@ fn read_text_with_claim(
     operation_id: u64,
     document_path: &str,
 ) -> Result<ReadTextResult, AppError> {
-    let mut last_error = ClaimError::StaleToken;
-    for attempt in 0..CLAIMED_OPEN_READ_ATTEMPTS {
-        match claims.with_validated_operation_io(
-            window_label,
-            session_id,
-            operation_id,
-            document_path,
-            |io_target| read_text(io_target),
-        ) {
-            Ok(result) => {
-                let mut result = result?;
-                result.path = document_path.to_owned();
-                return Ok(result);
-            }
-            Err(ClaimError::StaleToken) if attempt + 1 < CLAIMED_OPEN_READ_ATTEMPTS => {
-                last_error = ClaimError::StaleToken;
-                thread::sleep(CLAIMED_OPEN_READ_RETRY);
-            }
-            Err(error) => return Err(claim_error_to_app_error(error)),
+    match claims.with_validated_operation_io(
+        window_label,
+        session_id,
+        operation_id,
+        document_path,
+        |io_target| read_text(io_target),
+    ) {
+        Ok(result) => {
+            let mut result = result?;
+            result.path = document_path.to_owned();
+            Ok(result)
         }
+        Err(error) => Err(claim_error_to_app_error(error)),
     }
-    Err(claim_error_to_app_error(last_error))
 }
 
 #[cfg(test)]
@@ -321,8 +308,8 @@ mod tests {
     }
 
     #[test]
-    fn claimed_read_waits_for_an_in_flight_reservation() {
-        let directory = unique_test_dir("claimed-read-inflight");
+    fn claimed_read_without_a_reservation_fails_closed() {
+        let directory = unique_test_dir("claimed-read-unreserved");
         let document = directory.join("note.md");
         fs::write(&document, "overlapped").expect("test document should exist");
         let display_path = document
@@ -334,31 +321,35 @@ mod tests {
             .begin_session("window-a", "session-a")
             .expect("session should begin");
 
-        std::thread::scope(|scope| {
-            scope.spawn(|| {
-                std::thread::sleep(Duration::from_millis(20));
-                assert!(matches!(
-                    claims
-                        .reserve(
-                            "window-a",
-                            ClaimOperation::new("session-a", 7),
-                            &display_path,
-                        )
-                        .expect("late reservation should succeed"),
-                    ReserveOutcome::Reserved { .. }
-                ));
-            });
+        let error = read_text_with_claim(
+            &claims,
+            "window-a",
+            "session-a",
+            7,
+            &display_path,
+        )
+        .expect_err("claimed read must not block the command thread waiting for a reservation");
+        assert_eq!(error.code, "document_claim.stale_operation");
 
-            let result = read_text_with_claim(
-                &claims,
-                "window-a",
-                "session-a",
-                7,
-                &display_path,
-            )
-            .expect("claimed read should wait for the overlapping reservation");
-            assert_eq!(result.text, "overlapped");
-        });
+        assert!(matches!(
+            claims
+                .reserve(
+                    "window-a",
+                    ClaimOperation::new("session-a", 7),
+                    &display_path,
+                )
+                .expect("reservation after the failed overlapped read should succeed"),
+            ReserveOutcome::Reserved { .. }
+        ));
+        let result = read_text_with_claim(
+            &claims,
+            "window-a",
+            "session-a",
+            7,
+            &display_path,
+        )
+        .expect("claimed read should succeed after the reservation exists");
+        assert_eq!(result.text, "overlapped");
 
         fs::remove_dir_all(directory).expect("test directory should be removed");
     }

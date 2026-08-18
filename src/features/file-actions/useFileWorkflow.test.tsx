@@ -718,6 +718,81 @@ describe('useFileWorkflow', () => {
     expect(loadText).not.toHaveBeenCalled();
   });
 
+  it('retries the claimed read after reservation if the overlapped read lost the race', async () => {
+    const loadText = vi.fn();
+    const reserveDocument = vi.fn(async ({ path }: { path: string }) => {
+      if (path.endsWith('b.md')) {
+        await delay(30);
+      }
+      return {
+        data: { status: 'reserved' as const },
+        ok: true as const,
+      };
+    });
+    const readTextClaimed = vi.fn(async (_operationId: number, path: string) => {
+      if (path.endsWith('b.md')) {
+        if (readTextClaimed.mock.calls.filter((call) => call[1] === path).length < 2) {
+          return {
+            error: {
+              code: 'document_claim.stale_token',
+              message: 'The overlapped read arrived before the reservation.',
+              recoverable: true,
+            },
+            ok: false as const,
+          };
+        }
+        return {
+          data: { byteLength: 4, path, text: '# B' },
+          ok: true as const,
+        };
+      }
+      return {
+        data: { byteLength: 4, path, text: '# A' },
+        ok: true as const,
+      };
+    });
+    const documentClaims = {
+      ...createTestDocumentClaimClient(),
+      readTextClaimed,
+      reserveDocument,
+    } satisfies DocumentClaimClient;
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+
+    render(
+      <WorkflowHarness
+        documentClaims={documentClaims}
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => (loadText.mock.calls.at(-1)?.[0] as string | undefined) ?? '',
+            loadText,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+            setTransitionLocked: vi.fn(),
+          },
+        }}
+        fileWatch={createFileWatchClient()}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={createState()}
+        status={{ setStatusKey: vi.fn() }}
+      />,
+    );
+
+    await expect(
+      workflowRef.current?.openPath('E:/notes/a.md'),
+    ).resolves.toMatchObject({ status: 'opened' });
+    await expect(
+      workflowRef.current?.openPath('E:/notes/b.md'),
+    ).resolves.toMatchObject({ status: 'opened' });
+
+    expect(readTextClaimed.mock.calls.filter((call) => call[1] === 'E:/notes/b.md')).toHaveLength(2);
+    expect(loadText).toHaveBeenLastCalledWith('# B');
+  });
+
   it('reaches loadDocument within 50ms when same-window claim and read overlap', async () => {
     const ipcDelayMs = 20;
     const loadStartedAt: number[] = [];

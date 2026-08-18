@@ -11,7 +11,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
@@ -26,6 +26,7 @@ const FILE_SWITCH_P80_BUDGET_MS = 50;
 const FILE_SWITCH_SAMPLES = 5;
 const DRAG_ENGAGE_BUDGET_MS = 50;
 const MIXED_SCROLL_P80_BUDGET_MS = 16;
+const MIXED_SCROLL_P80_VSYNC_SLACK_MS = 1;
 const MIXED_SCROLL_P95_BUDGET_MS = 32;
 const MIXED_LONG_TASK_BUDGET_MS = 50;
 
@@ -100,10 +101,13 @@ async function runAcceptance() {
     const nonce = Date.now();
     const markerA = `LM_UX_SWITCH_A_${nonce}`;
     const markerB = `LM_UX_SWITCH_B_${nonce}`;
+    const markerMixed = `LM_UX_MIXED_${nonce}`;
     const fileA = join(fixturesDirectory, 'switch-a.md');
     const fileB = join(fixturesDirectory, 'switch-b.md');
+    const fileMixed = join(fixturesDirectory, 'mixed.md');
     await writeFile(fileA, `# Switch A\n\n${markerA}\n`, 'utf8');
     await writeFile(fileB, `# Switch B\n\n${markerB}\n`, 'utf8');
+    await writeFile(fileMixed, createMixedFixture(markerMixed), 'utf8');
     await writeFile(
       join(settingsConfigDirectory, 'settings.json'),
       `${JSON.stringify(acceptanceSettings(), null, 2)}\n`,
@@ -116,6 +120,7 @@ async function runAcceptance() {
           files: [
             { name: 'switch-b.md', openedAt: nonce - 1_000, path: fileB },
             { name: 'switch-a.md', openedAt: nonce - 2_000, path: fileA },
+            { name: 'mixed.md', openedAt: nonce - 3_000, path: fileMixed },
           ],
           legacyImported: false,
           revision: 1,
@@ -138,7 +143,7 @@ async function runAcceptance() {
 
     const launchedAt = Date.now();
     app = spawn(absoluteExecutablePath, [fileA], {
-      cwd: dirname(absoluteExecutablePath),
+      cwd: tempDirectory,
       env: environment,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: false,
@@ -167,7 +172,15 @@ async function runAcceptance() {
       context.pages()[0] ??
       (await context.waitForEvent('page', { timeout: 5_000 }));
     await page.waitForLoadState('domcontentloaded', { timeout: 15_000 }).catch(() => {});
-    await waitForEditorMarker(page, markerA, 25_000);
+    await page
+      .getByRole('banner')
+      .getByRole('heading', { name: /lumamark/i })
+      .waitFor({ state: 'visible', timeout: 20_000 });
+    await page.locator('.lm-editor-title', { hasText: 'switch-a.md' }).waitFor({
+      state: 'visible',
+      timeout: 20_000,
+    });
+    await waitForEditorMarker(page, markerA, 20_000);
     const coldArgvMs = Date.now() - launchedAt;
 
     const childPid = app.pid;
@@ -219,11 +232,21 @@ async function runAcceptance() {
       return null;
     });
 
+    const mixedUx = await measureMixedDocumentUx({
+      expectedMarker: markerMixed,
+      page,
+    });
+
     const fileSwitchP80 = percentile(samples, 80);
+    const mixedScrollP80 = percentile(mixedUx.scrollSamplesMs, 80);
+    const mixedScrollP95 = percentile(mixedUx.scrollSamplesMs, 95);
     const evidence = {
       budgets: {
         dragEngageMs: DRAG_ENGAGE_BUDGET_MS,
         fileSwitchP80Ms: FILE_SWITCH_P80_BUDGET_MS,
+        mixedLongTaskMs: MIXED_LONG_TASK_BUDGET_MS,
+        mixedScrollP80Ms: MIXED_SCROLL_P80_BUDGET_MS,
+        mixedScrollP95Ms: MIXED_SCROLL_P95_BUDGET_MS,
       },
       coldArgvOpenMs: coldArgvMs,
       dragEngageMs: dragEngage,
@@ -233,6 +256,10 @@ async function runAcceptance() {
         coldArgvOpenMs:
           'Cold argv→visible text includes WebView boot and is not the 50ms same-window budget.',
       },
+      mixedLongTaskMaxMs: mixedUx.longTaskMaxMs,
+      mixedScrollP80Ms: mixedScrollP80,
+      mixedScrollP95Ms: mixedScrollP95,
+      mixedScrollSamplesMs: mixedUx.scrollSamplesMs,
     };
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
     if (fileSwitchP80 >= FILE_SWITCH_P80_BUDGET_MS) {
@@ -248,6 +275,39 @@ async function runAcceptance() {
         `Titlebar drag engage ${dragEngage}ms exceeds ${DRAG_ENGAGE_BUDGET_MS}ms.`,
       );
     }
+    if (mixedScrollP80 >= MIXED_SCROLL_P80_BUDGET_MS + MIXED_SCROLL_P80_VSYNC_SLACK_MS) {
+      throw new Error(
+        `Mixed-document scroll P80 ${mixedScrollP80.toFixed(1)}ms exceeds ${MIXED_SCROLL_P80_BUDGET_MS}ms (60Hz vsync slack ${MIXED_SCROLL_P80_VSYNC_SLACK_MS}ms).`,
+      );
+    }
+    if (mixedScrollP95 >= MIXED_SCROLL_P95_BUDGET_MS) {
+      throw new Error(
+        `Mixed-document scroll P95 ${mixedScrollP95.toFixed(1)}ms exceeds ${MIXED_SCROLL_P95_BUDGET_MS}ms.`,
+      );
+    }
+    if (mixedUx.longTaskMaxMs >= MIXED_LONG_TASK_BUDGET_MS) {
+      throw new Error(
+        `Mixed-document long task ${mixedUx.longTaskMaxMs.toFixed(1)}ms exceeds ${MIXED_LONG_TASK_BUDGET_MS}ms.`,
+      );
+    }
+  } catch (error) {
+    process.stderr.write(
+      `[release:installed-ux-stutter] stdout: ${processOutput.stdout.join('')}\nstderr: ${processOutput.stderr.join('')}\n`,
+    );
+    if (page) {
+      const snapshot = await page
+        .evaluate(() => ({
+          body: document.body?.innerText?.slice(0, 800) ?? '',
+          hasEditor: Boolean(document.querySelector('.cm-content')),
+          title: document.title,
+          url: location.href,
+        }))
+        .catch(() => null);
+      process.stderr.write(
+        `[release:installed-ux-stutter] page: ${JSON.stringify(snapshot)}\n`,
+      );
+    }
+    throw error;
   } finally {
     await browser?.close().catch(() => {});
     if (app && app.exitCode === null) {
@@ -351,6 +411,107 @@ async function measureFileSwitchClick({ expectedMarker, page, probe }) {
     await delay(16);
   }
   throw new Error(`Same-window file click did not reveal ${expectedMarker} in time.`);
+}
+
+function createMixedFixture(marker) {
+  const body = Array.from(
+    { length: 24 },
+    (_, index) =>
+      `Paragraph ${index}: mixed math $a_${index}$, prose, and lists keep the caret in ordinary text.`,
+  ).join('\n\n');
+  return [
+    '# Mixed writing sample',
+    '',
+    marker,
+    '',
+    'Lead-in with inline math $E=mc^2$ before the heavy blocks.',
+    '',
+    '$$',
+    '\\int_0^1 x^2 \\, dx = \\tfrac{1}{3}',
+    '$$',
+    '',
+    '```mermaid',
+    'flowchart TD',
+    '  A[Start] --> B{Branch}',
+    '  B --> C[Done]',
+    '```',
+    '',
+    '```plantuml',
+    '@startuml',
+    'Alice -> Bob: hello',
+    '@enduml',
+    '```',
+    '',
+    '| Col | Value |',
+    '| --- | ----- |',
+    '| a   | 1     |',
+    '| b   | 2     |',
+    '',
+    body,
+    '',
+    'Tail paragraph for typing.',
+    '',
+  ].join('\n');
+}
+
+async function measureMixedDocumentUx({ expectedMarker, page }) {
+  await page.evaluate(() => {
+    window.__lmUxLongTasks = [];
+    window.__lmUxLongTaskObserver?.disconnect?.();
+    try {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          window.__lmUxLongTasks.push(entry.duration);
+        }
+      });
+      observer.observe({ type: 'longtask', buffered: true });
+      window.__lmUxLongTaskObserver = observer;
+    } catch {
+      window.__lmUxLongTaskObserver = null;
+    }
+  });
+
+  const target = page.locator('.lm-recent-file', { hasText: 'mixed.md' }).first();
+  await target.waitFor({ state: 'visible', timeout: 8_000 });
+  await target.click({ timeout: 5_000 });
+  await waitForEditorMarker(page, expectedMarker, 15_000);
+  await delay(3_000);
+
+  const longTaskMaxMs = await page.evaluate(() => {
+    const durations = Array.isArray(window.__lmUxLongTasks)
+      ? window.__lmUxLongTasks
+      : [];
+    return durations.reduce((max, duration) => Math.max(max, duration), 0);
+  });
+
+  const scrollSamplesMs = await page.evaluate(async () => {
+    const scroller = document.querySelector('.cm-scroller');
+    if (!(scroller instanceof HTMLElement)) {
+      throw new Error('Mixed document has no .cm-scroller.');
+    }
+    const waitTwoFrames = () =>
+      new Promise((resolveFrame) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolveFrame());
+        });
+      });
+    for (let warmup = 0; warmup < 2; warmup += 1) {
+      scroller.scrollTop += 280;
+      scroller.dispatchEvent(new Event('scroll'));
+      await waitTwoFrames();
+    }
+    const samples = [];
+    for (let index = 0; index < 12; index += 1) {
+      const started = performance.now();
+      scroller.scrollTop += 280;
+      scroller.dispatchEvent(new Event('scroll'));
+      await waitTwoFrames();
+      samples.push(performance.now() - started);
+    }
+    return samples;
+  });
+
+  return { longTaskMaxMs, scrollSamplesMs };
 }
 
 async function measureTitlebarDragEngage({ page, probe }) {

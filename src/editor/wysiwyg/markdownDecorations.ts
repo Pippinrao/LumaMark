@@ -45,6 +45,10 @@ import {
   resolveInlinePointerOwner,
   unclampedInlinePointerPosition,
 } from './inlinePointerSelection';
+import {
+  createPointerSelectionStyle,
+  type PointerSelectionAnchor,
+} from './pointerSelectionStyle';
 import './wysiwyg.css';
 
 export type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
@@ -1107,6 +1111,7 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
     private gestureCleanup: (() => void) | null = null;
     private inlinePointerCandidate: InlinePointerCandidate | null = null;
     private lastInlinePointerCandidate: SettledInlinePointerCandidate | null = null;
+    private pointerGestureEvent: MouseEvent | null = null;
     private settlementQueued = false;
     private wasComposing: boolean;
 
@@ -1180,6 +1185,7 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
     beginPointerSelection(event: MouseEvent, view: EditorView): boolean {
       this.beginGesture(view);
       this.inlinePointerCandidate = null;
+      this.pointerGestureEvent = event;
 
       if (
         event.button !== 0 ||
@@ -1303,6 +1309,30 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
       this.beginGesture(view);
       this.inlinePointerCandidate = null;
       this.lastInlinePointerCandidate = null;
+      this.pointerGestureEvent = null;
+    }
+
+    /**
+     * CodeMirror asks for a selection style right after this plugin handled the
+     * same `mousedown`, so the press candidate is the position the gesture must
+     * stay anchored to.
+     */
+    pointerSelectionAnchor(event: MouseEvent): PointerSelectionAnchor | null {
+      const candidate = this.inlinePointerCandidate;
+      if (
+        !this.gestureActive ||
+        this.pointerGestureEvent !== event ||
+        candidate === null ||
+        candidate.intent !== 'caret'
+      ) {
+        return null;
+      }
+
+      return {
+        position: candidate.position,
+        x: candidate.x,
+        y: candidate.y,
+      };
     }
 
     private beginGesture(view: EditorView): void {
@@ -1360,6 +1390,7 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
       this.cleanupGestureListeners();
       const candidate = this.inlinePointerCandidate;
       this.inlinePointerCandidate = null;
+      this.pointerGestureEvent = null;
       const isPrimaryClick =
         candidate !== null &&
         event !== null &&
@@ -1438,6 +1469,7 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
       this.settlementQueued = false;
       this.inlinePointerCandidate = null;
       this.lastInlinePointerCandidate = null;
+      this.pointerGestureEvent = null;
       this.cleanupGestureListeners();
     }
   },
@@ -1464,9 +1496,20 @@ export function markdownWysiwygExtension(): Extension {
   return [
     protectedSourceRangesExtension(),
     markdownDecorationsPlugin,
+    pointerSelectionStyleExtension(),
     paragraphEditingKeymap(),
     keymapExtension(),
   ];
+}
+
+function pointerSelectionStyleExtension(): Extension {
+  return EditorView.mouseSelectionStyle.of((view, event) => {
+    const anchor = view
+      .plugin(markdownDecorationsPlugin)
+      ?.pointerSelectionAnchor(event);
+
+    return anchor ? createPointerSelectionStyle(view, anchor) : null;
+  });
 }
 
 function keymapExtension(): Extension {

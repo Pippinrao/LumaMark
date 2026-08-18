@@ -79,6 +79,12 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve };
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function createState(initial?: Partial<FileActionState>) {
   let current: FileActionState = {
     currentFile: null,
@@ -549,6 +555,238 @@ describe('useFileWorkflow', () => {
     ).resolves.toMatchObject({ status: 'opened' });
     expect(readTextClaimed).toHaveBeenCalledWith(1, 'E:/notes/draft.md');
     expect(plainRead).not.toHaveBeenCalled();
+  });
+
+  it('overlaps the second-file claimed read with same-window reservation', async () => {
+    const ipcDelayMs = 20;
+    let secondReserveResolvedAt = Number.POSITIVE_INFINITY;
+    let secondReadStartedAt = Number.NEGATIVE_INFINITY;
+    const loadText = vi.fn();
+    const lockCalls: boolean[] = [];
+    const reserveDocument = vi.fn(async ({ path }: { path: string }) => {
+      if (path.endsWith('b.md')) {
+        await delay(ipcDelayMs);
+        secondReserveResolvedAt = performance.now();
+      }
+      return {
+        data: { status: 'reserved' as const },
+        ok: true as const,
+      };
+    });
+    const readTextClaimed = vi.fn(async (operationId: number, path: string) => {
+      if (path.endsWith('b.md')) {
+        secondReadStartedAt = performance.now();
+        await delay(ipcDelayMs);
+        return {
+          data: {
+            byteLength: 4,
+            path,
+            text: '# B',
+          },
+          ok: true as const,
+        };
+      }
+      return {
+        data: {
+          byteLength: 4,
+          path,
+          text: '# A',
+        },
+        ok: true as const,
+      };
+    });
+    const documentClaims = {
+      ...createTestDocumentClaimClient(),
+      readTextClaimed,
+      reserveDocument,
+    } satisfies DocumentClaimClient;
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+    const state = createState();
+
+    render(
+      <WorkflowHarness
+        documentClaims={documentClaims}
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => (loadText.mock.calls.at(-1)?.[0] as string | undefined) ?? '',
+            loadText,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+            setTransitionLocked: (locked) => {
+              lockCalls.push(locked);
+            },
+          },
+        }}
+        fileWatch={createFileWatchClient()}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={state}
+        status={{ setStatusKey: vi.fn() }}
+      />,
+    );
+
+    await expect(
+      workflowRef.current?.openPath('E:/notes/a.md'),
+    ).resolves.toMatchObject({ status: 'opened' });
+    await expect(
+      workflowRef.current?.openPath('E:/notes/b.md'),
+    ).resolves.toMatchObject({ status: 'opened' });
+
+    expect(secondReadStartedAt).toBeLessThan(secondReserveResolvedAt);
+    expect(loadText).toHaveBeenLastCalledWith('# B');
+    expect(lockCalls.filter((locked) => locked)).toHaveLength(2);
+    expect(lockCalls.at(-1)).toBe(false);
+  });
+
+  it('does not load the document when an overlapped reservation fails', async () => {
+    const loadText = vi.fn();
+    const reserveError = {
+      code: 'ipc.response_lost',
+      message: 'The reserve response was lost.',
+      recoverable: true,
+    };
+    const reserveDocument = vi.fn(async ({ path }: { path: string }) => {
+      if (path.endsWith('b.md')) {
+        await delay(20);
+        return { error: reserveError, ok: false as const };
+      }
+      return {
+        data: { status: 'reserved' as const },
+        ok: true as const,
+      };
+    });
+    const readTextClaimed = vi.fn(async (_operationId: number, path: string) => {
+      if (path.endsWith('b.md')) {
+        await delay(20);
+        return {
+          data: { byteLength: 4, path, text: '# B' },
+          ok: true as const,
+        };
+      }
+      return {
+        data: { byteLength: 4, path, text: '# A' },
+        ok: true as const,
+      };
+    });
+    const documentClaims = {
+      ...createTestDocumentClaimClient(),
+      readTextClaimed,
+      releaseReservation: vi.fn(async () => ({
+        data: { status: 'released' as const },
+        ok: true as const,
+      })),
+      reserveDocument,
+    } satisfies DocumentClaimClient;
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+
+    render(
+      <WorkflowHarness
+        documentClaims={documentClaims}
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => '# A',
+            loadText,
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={createFileWatchClient()}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={createState()}
+        status={{ setStatusKey: vi.fn() }}
+      />,
+    );
+
+    await expect(
+      workflowRef.current?.openPath('E:/notes/a.md'),
+    ).resolves.toMatchObject({ status: 'opened' });
+    loadText.mockClear();
+    await expect(
+      workflowRef.current?.openPath('E:/notes/b.md'),
+    ).resolves.toEqual({ status: 'failed' });
+
+    expect(readTextClaimed).toHaveBeenCalledWith(2, 'E:/notes/b.md');
+    expect(loadText).not.toHaveBeenCalled();
+  });
+
+  it('reaches loadDocument within 50ms when same-window claim and read overlap', async () => {
+    const ipcDelayMs = 20;
+    const loadStartedAt: number[] = [];
+    const reserveDocument = vi.fn(async ({ path }: { path: string }) => {
+      if (path.endsWith('b.md')) {
+        await delay(ipcDelayMs);
+      }
+      return {
+        data: { status: 'reserved' as const },
+        ok: true as const,
+      };
+    });
+    const readTextClaimed = vi.fn(async (_operationId: number, path: string) => {
+      if (path.endsWith('b.md')) {
+        await delay(ipcDelayMs);
+      }
+      return {
+        data: {
+          byteLength: path.endsWith('b.md') ? 4 : 4,
+          path,
+          text: path.endsWith('b.md') ? '# B' : '# A',
+        },
+        ok: true as const,
+      };
+    });
+    const documentClaims = {
+      ...createTestDocumentClaimClient(),
+      readTextClaimed,
+      reserveDocument,
+    } satisfies DocumentClaimClient;
+    const workflowRef: { current: FileWorkflow | null } = { current: null };
+
+    render(
+      <WorkflowHarness
+        documentClaims={documentClaims}
+        editorRef={{
+          current: {
+            focus: vi.fn(),
+            getText: () => '# A',
+            loadText: vi.fn((text: string) => {
+              if (text === '# B') {
+                loadStartedAt.push(performance.now());
+              }
+            }),
+            markSaved: vi.fn(),
+            markUnsaved: vi.fn(),
+            setContext: vi.fn(),
+          },
+        }}
+        fileWatch={createFileWatchClient()}
+        onWorkflow={(workflow) => {
+          workflowRef.current = workflow;
+        }}
+        recentFiles={{ addRecentFile: vi.fn() }}
+        state={createState()}
+        status={{ setStatusKey: vi.fn() }}
+      />,
+    );
+
+    await expect(
+      workflowRef.current?.openPath('E:/notes/a.md'),
+    ).resolves.toMatchObject({ status: 'opened' });
+    const openedAt = performance.now();
+    await expect(
+      workflowRef.current?.openPath('E:/notes/b.md'),
+    ).resolves.toMatchObject({ status: 'opened' });
+
+    expect(loadStartedAt[0]).toBeDefined();
+    expect((loadStartedAt[0] ?? 0) - openedAt).toBeLessThan(50);
   });
 
   it('writes Save As through the active reservation tuple', async () => {
@@ -5839,7 +6077,7 @@ describe('useFileWorkflow', () => {
     expect(workflowRef.current?.fileOpening).toBe(false);
   });
 
-  it('reserves before reading and commits ownership before applying the document', async () => {
+  it('starts the claimed read while reserving and commits ownership before applying the document', async () => {
     const sequence: string[] = [];
     const documentClaims = {
       beginSession: vi.fn(async () => {
@@ -5924,7 +6162,14 @@ describe('useFileWorkflow', () => {
     await expect(
       workflowRef.current?.openPath('E:/docs/next.md'),
     ).resolves.toMatchObject({ status: 'opened' });
-    expect(sequence).toEqual(['begin', 'reserve', 'read', 'commit', 'apply']);
+    expect(sequence.filter((step) => step !== 'read')).toEqual([
+      'begin',
+      'reserve',
+      'commit',
+      'apply',
+    ]);
+    expect(sequence.indexOf('read')).toBeGreaterThan(sequence.indexOf('begin'));
+    expect(sequence.indexOf('read')).toBeLessThan(sequence.indexOf('commit'));
     expect(documentClaims.commitReservation).toHaveBeenCalledWith(
       1,
       'E:/docs/next.md',
@@ -6070,6 +6315,7 @@ describe('useFileWorkflow', () => {
       reserveDocument,
     } satisfies DocumentClaimClient;
     const readText = vi.fn();
+    const loadText = vi.fn();
     window.__LUMAMARK_E2E_FILE_COMMANDS__ = createFileCommandClient({ readText });
     const workflowRef: { current: FileWorkflow | null } = { current: null };
     const state = createState();
@@ -6081,7 +6327,7 @@ describe('useFileWorkflow', () => {
           current: {
             focus: vi.fn(),
             getText: () => '# Current',
-            loadText: vi.fn(),
+            loadText,
             markSaved: vi.fn(),
             markUnsaved: vi.fn(),
             setContext: vi.fn(),
@@ -6111,7 +6357,7 @@ describe('useFileWorkflow', () => {
       reserveDocument.mock.calls[0]![0].operationId,
       'E:/docs/next.md',
     );
-    expect(readText).not.toHaveBeenCalled();
+    expect(loadText).not.toHaveBeenCalled();
     expect(state.getState().lastFileError).toEqual(releaseError);
   });
 
@@ -6890,17 +7136,18 @@ describe('useFileWorkflow', () => {
     await expect(workflowRef.current?.openFromDialog()).resolves.toMatchObject({
       status: 'opened',
     });
-    expect(sequence).toEqual([
+    expect(sequence.filter((step) => step !== 'read')).toEqual([
       'begin',
       'select',
       'reserve',
-      'read',
       'commit',
       'apply',
     ]);
+    expect(sequence.indexOf('read')).toBeGreaterThan(sequence.indexOf('select'));
+    expect(sequence.indexOf('read')).toBeLessThan(sequence.indexOf('commit'));
   });
 
-  it('does not read or apply a document after the claim operation was already released', async () => {
+  it('does not apply a document after the claim operation was already released', async () => {
     const readText = vi.fn(async (path: string) => ({
       data: { byteLength: 6, path, text: '# Next' },
       ok: true as const,
@@ -6950,12 +7197,11 @@ describe('useFileWorkflow', () => {
     await expect(
       workflowRef.current?.openPath('E:/docs/next.md'),
     ).resolves.toEqual({ status: 'superseded' });
-    expect(readText).not.toHaveBeenCalled();
     expect(loadText).not.toHaveBeenCalled();
     expect(documentClaims.releaseReservation).not.toHaveBeenCalled();
   });
 
-  it('does not read, commit, or release another operation when a document claim is already pending', async () => {
+  it('does not apply, commit, or release another operation when a document claim is already pending', async () => {
     const readText = vi.fn();
     const loadText = vi.fn();
     const documentClaims = {
@@ -7003,7 +7249,6 @@ describe('useFileWorkflow', () => {
     await expect(
       workflowRef.current?.openPath('E:/docs/next.md'),
     ).resolves.toEqual({ status: 'superseded' });
-    expect(readText).not.toHaveBeenCalled();
     expect(loadText).not.toHaveBeenCalled();
     expect(documentClaims.commitReservation).not.toHaveBeenCalled();
     expect(documentClaims.releaseReservation).not.toHaveBeenCalled();

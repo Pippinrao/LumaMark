@@ -1042,6 +1042,9 @@ export function useFileWorkflow({
       let reservationHeld = false;
       let irreversibleTransitionStarted = false;
       let releaseTransitionLock: (() => boolean) | null = null;
+      let speculativeRead: ReturnType<
+        NonNullable<ReturnType<typeof createActions>>['readFile']
+      > | null = null;
       try {
         await waitForEditor();
 
@@ -1072,6 +1075,8 @@ export function useFileWorkflow({
           status.setStatusKey('status.openFailed');
           return { status: 'failed' } as const;
         }
+
+        speculativeRead = actions.readFile(path);
 
         const reservationTerminal = await reserveDocumentToTerminal(
           documentClaimClient,
@@ -1149,7 +1154,7 @@ export function useFileWorkflow({
         }
         reservationHeld = !alreadyOwned;
 
-        const result = await actions.readFile(path);
+        const result = await speculativeRead;
 
         if (!isCurrentRequest()) {
           return { status: 'superseded' } as const;
@@ -1348,6 +1353,13 @@ export function useFileWorkflow({
         currentWorkflow.setStatusKey('status.opened');
         return { file: openedFile, status: 'opened' } as const;
       } finally {
+        if (speculativeRead) {
+          try {
+            await speculativeRead;
+          } catch {
+            // Reservation outcome decides whether the document may load.
+          }
+        }
         releaseTransitionLock?.();
         if (
           irreversibleTransitionStarted &&

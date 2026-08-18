@@ -154,6 +154,20 @@ describe('tablePreviewExtension', () => {
     expect(nestedAfter).toEqual(nestedBefore);
     expect(nestedAfter).toHaveLength(0);
 
+    editor.view.scrollDOM.scrollTop += 280;
+    await settleTablePreview();
+    editor.view.dispatch({
+      changes: { from: doc.length, insert: '\ntail' },
+      selection: { anchor: doc.length + 5 },
+    });
+    await settleTablePreview();
+
+    const nestedAfterScroll = [
+      ...parent.querySelectorAll<HTMLElement>('.tbl-cell-editor .cm-editor'),
+    ];
+    expect(parent.querySelector('.tbl-table-widget')).toBe(tableWidget);
+    expect(nestedAfterScroll).toHaveLength(0);
+
     editor.destroy();
     parent.remove();
   });

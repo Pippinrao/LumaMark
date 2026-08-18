@@ -21,6 +21,7 @@ import {
 const mixedInputBudgetMs = 8;
 const mixedSelectionBudgetMs = 8;
 const mixedProcessingBudgetMs = 32;
+const mixedScrollBudgetMs = 16;
 
 class SilentMathWorker implements MathWorkerLike {
   onerror: ((event: ErrorEvent) => unknown) | null = null;
@@ -181,5 +182,36 @@ describe('mixed document input latency', () => {
     expect(selectionSamples.p80).toBeLessThan(mixedSelectionBudgetMs);
     expect(selectionSamples.maximum).toBeLessThan(mixedProcessingBudgetMs);
     expect(processingP95).toBeLessThan(mixedProcessingBudgetMs);
+  });
+
+  it('keeps mixed-doc scroll commits inside one frame', () => {
+    const doc = createMixedDocument();
+    const { parent, view } = createMixedEditor(doc);
+    const scrollValues: number[] = [];
+    try {
+      Object.defineProperty(view.scrollDOM, 'clientHeight', {
+        configurable: true,
+        value: 320,
+      });
+      Object.defineProperty(view.scrollDOM, 'scrollHeight', {
+        configurable: true,
+        value: 4_800,
+      });
+      for (let sampleIndex = 0; sampleIndex < 12; sampleIndex += 1) {
+        const startedAt = performance.now();
+        view.scrollDOM.scrollTop += 280;
+        view.scrollDOM.dispatchEvent(new Event('scroll'));
+        scrollValues.push(performance.now() - startedAt);
+      }
+    } finally {
+      view.destroy();
+      parent.remove();
+    }
+
+    const scrollSamples = summarizeLatencySamples(scrollValues);
+    process.stdout.write(
+      `[perf:mixed-doc] scroll p80 ${scrollSamples.p80.toFixed(2)} ms / max ${scrollSamples.maximum.toFixed(2)} ms (budget p80 <${mixedScrollBudgetMs} ms)\n`,
+    );
+    expect(scrollSamples.p80).toBeLessThan(mixedScrollBudgetMs);
   });
 });

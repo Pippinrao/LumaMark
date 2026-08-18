@@ -1,3 +1,4 @@
+import { syntaxTree } from '@codemirror/language';
 import {
   type EditorState,
   type Extension,
@@ -92,6 +93,20 @@ const mathCompositionField = StateField.define<readonly MathCompositionRange[]>(
   },
 });
 
+const mathInventoryField = StateField.define<readonly MathInventoryFormula[]>({
+  create: (state) => collectMathInventory(state),
+  update(inventory, transaction) {
+    if (
+      !transaction.docChanged &&
+      syntaxTree(transaction.startState) === syntaxTree(transaction.state)
+    ) {
+      return inventory;
+    }
+
+    return collectMathInventory(transaction.state);
+  },
+});
+
 export function mathPreviewExtension(
   options: MathPreviewExtensionOptions,
 ): Extension {
@@ -101,6 +116,7 @@ export function mathPreviewExtension(
     editorMathPreferencesField,
     mathRenderSnapshotField,
     mathCompositionField,
+    mathInventoryField,
     mathDecorationsField(options, geometryCache),
     mathRenderPlugin(options),
     EditorView.domEventHandlers({
@@ -124,7 +140,8 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
   return ViewPlugin.fromClass(
     class {
       private destroyed = false;
-      private inventory: MathInventoryFormula[];
+      private inventory: readonly MathInventoryFormula[];
+      private layoutMetrics: MathLayoutMetrics;
       private readonly resizeObserver: ResizeObserver | null;
       private resizeRenderFrame: number | null = null;
       private lastSuccessfulStylesheet = '';
@@ -132,7 +149,8 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
       private readonly styleElement = document.createElement('style');
 
       constructor(private readonly view: EditorView) {
-        this.inventory = collectMathInventory(this.view.state);
+        this.inventory = this.view.state.field(mathInventoryField);
+        this.layoutMetrics = readLayoutMetrics(this.view);
         this.styleElement.dataset.lmMathStyle = options.documentId;
         document.head.appendChild(this.styleElement);
         this.session = new MathRenderSession({
@@ -186,7 +204,7 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
           transaction.effects.some((effect) => effect.is(setEditorMathPreferencesEffect)),
         );
         if (update.docChanged) {
-          const nextInventory = collectMathInventory(this.view.state);
+          const nextInventory = this.view.state.field(mathInventoryField);
           if (
             preferencesChanged ||
             !sameFormulaSequence(this.inventory, nextInventory)
@@ -197,7 +215,7 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
             this.inventory = nextInventory;
           }
         } else if (preferencesChanged) {
-          this.inventory = collectMathInventory(this.view.state);
+          this.inventory = this.view.state.field(mathInventoryField);
           this.requestRender(this.inventory);
         }
       }
@@ -238,7 +256,7 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
         this.session.request({
           documentId: options.documentId,
           formulas,
-          layoutMetrics: currentLayoutMetrics(this.view),
+          layoutMetrics: this.layoutMetrics,
           preferences: {
             numbering: preferences.equationNumbering,
             physics: preferences.physicsEnabled,
@@ -253,7 +271,8 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
         this.resizeRenderFrame = requestAnimationFrame(() => {
           this.resizeRenderFrame = null;
           if (!this.destroyed) {
-            this.requestRender();
+            this.layoutMetrics = readLayoutMetrics(this.view);
+          this.requestRender();
           }
         });
       }
@@ -287,10 +306,9 @@ function mathDecorationsField(
         return decorations;
       }
 
-      const currentInventory = collectMathInventory(transaction.state);
-      const previousInventory = transaction.docChanged
-        ? collectMathInventory(transaction.startState)
-        : currentInventory;
+      const currentInventory = transaction.state.field(mathInventoryField);
+      const previousInventory = transaction.startState.field(mathInventoryField, false)
+        ?? currentInventory;
       const activeChanged =
         activeFormulaKey(transaction.startState, mode, previousInventory) !==
         activeFormulaKey(transaction.state, mode, currentInventory);
@@ -328,7 +346,7 @@ function buildMathDecorations(
   state: EditorState,
   options: MathPreviewExtensionOptions,
   geometryCache: BlockWidgetGeometryCache,
-  inventory = collectMathInventory(state),
+  inventory = state.field(mathInventoryField, false) ?? collectMathInventory(state),
 ): DecorationSet {
   const { mode } = options;
   const snapshot = state.field(mathRenderSnapshotField);
@@ -505,7 +523,7 @@ export function shouldRebuildMathDecorations({
   return renderChanged || formulaSequenceChanged || activeChanged;
 }
 
-function currentLayoutMetrics(view: EditorView): MathLayoutMetrics {
+function readLayoutMetrics(view: EditorView): MathLayoutMetrics {
   const fontSize = Number.parseFloat(getComputedStyle(view.contentDOM).fontSize);
   const em = Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 16;
   return {

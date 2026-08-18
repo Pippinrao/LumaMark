@@ -1042,6 +1042,31 @@ export type MarkdownDecorationUpdateMode =
   | 'map'
   | 'rebuild';
 
+function serializeDecorationOwners(
+  owners: readonly { readonly from: number; readonly kind?: string; readonly to: number }[],
+): string {
+  return owners
+    .map((owner) => `${owner.kind ?? ''}:${owner.from}:${owner.to}`)
+    .join(',');
+}
+
+export function markdownDecorationActiveIdentity(
+  state: EditorState,
+  composing: boolean,
+): string {
+  const interaction = deriveEditorInteractionContext(state, composing);
+  const delimiterRanges = interaction.selections.flatMap(
+    (selection) => selection.delimiterRanges,
+  );
+
+  return [
+    serializeDecorationOwners(interaction.activeBlocks),
+    serializeDecorationOwners(interaction.activeInlineOwners),
+    serializeDecorationOwners(interaction.protectedSourceRanges),
+    serializeDecorationOwners(delimiterRanges),
+  ].join('/');
+}
+
 export function selectMarkdownDecorationUpdateMode({
   compositionStarted,
   documentChanged = false,
@@ -1074,7 +1099,7 @@ export function selectMarkdownDecorationUpdateMode({
 
 const settlePointerMarkdownDecorations = StateEffect.define<null>();
 
-const markdownDecorationsPlugin = ViewPlugin.fromClass(
+export const markdownDecorationsPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     private destroyed = false;
@@ -1121,7 +1146,6 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
         requiresRebuild:
           pointerSettlement ||
           update.docChanged ||
-          update.selectionSet ||
           update.viewportChanged ||
           update.startState.readOnly !== update.state.readOnly ||
           isEditorRenderLocked(update.startState) !==
@@ -1129,7 +1153,18 @@ const markdownDecorationsPlugin = ViewPlugin.fromClass(
           activeMermaidBlockChanged(update) ||
           update.startState.phrase(TASK_CHECKBOX_ARIA_LABEL) !==
             update.state.phrase(TASK_CHECKBOX_ARIA_LABEL) ||
-          syntaxTree(update.startState) !== syntaxTree(update.state),
+          syntaxTree(update.startState) !== syntaxTree(update.state) ||
+          (
+            update.selectionSet &&
+            markdownDecorationActiveIdentity(
+              update.startState,
+              this.wasComposing,
+            ) !==
+              markdownDecorationActiveIdentity(
+                update.state,
+                compositionStarted,
+              )
+          ),
         wasComposing: this.wasComposing,
       });
 

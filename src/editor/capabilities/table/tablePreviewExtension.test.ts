@@ -116,6 +116,48 @@ afterAll(() => {
 });
 
 describe('tablePreviewExtension', () => {
+  it('maps inactive table decorations without remounting nested editors on selection', async () => {
+    const doc = [
+      'before',
+      '',
+      '| Content | Other |',
+      '| ------- | ----- |',
+      '| cell    | value |',
+      '',
+      'after',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc,
+      parent,
+    });
+    await settleTablePreview();
+
+    const nestedBefore = [
+      ...parent.querySelectorAll<HTMLElement>('.tbl-cell-editor .cm-editor'),
+    ];
+    const tableWidget = parent.querySelector('.tbl-table-widget');
+    if (!tableWidget) {
+      throw new Error('Expected an inactive table widget.');
+    }
+
+    editor.view.dispatch({
+      selection: { anchor: doc.indexOf('after') + 1 },
+    });
+    await settleTablePreview();
+
+    const nestedAfter = [
+      ...parent.querySelectorAll<HTMLElement>('.tbl-cell-editor .cm-editor'),
+    ];
+    expect(parent.querySelector('.tbl-table-widget')).toBe(tableWidget);
+    expect(nestedAfter).toEqual(nestedBefore);
+    expect(nestedAfter).toHaveLength(0);
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('makes locked table preview text selectable with a visible system selection', async () => {
     const doc = [
       'before',

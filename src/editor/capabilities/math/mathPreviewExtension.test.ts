@@ -3,11 +3,15 @@ import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { markdownLanguage } from '../../markdown/markdownLanguage';
 import { BlockWidgetGeometryCache } from '../blockWidgetGeometry';
+import * as mathInventory from './mathInventory';
 import {
   DEFAULT_EDITOR_MATH_PREFERENCES,
   editorMathPreferencesField,
   setEditorMathPreferencesEffect,
 } from './mathPreferences';
+import {
+  MathFormulaWidget,
+} from './MathFormulaWidget';
 import {
   indexMathRenderResults,
   mathPreviewExtension,
@@ -171,6 +175,73 @@ describe('mathPreviewExtension', () => {
 
     expect(retain).not.toHaveBeenCalled();
     view.destroy();
+  });
+
+  it('does not walk the math inventory or read layout on selection-only updates', async () => {
+    vi.useFakeTimers();
+    const doc = '$xyz$ tail';
+    const { view, worker } = createView({ doc, selection: 2 });
+    const request = await flushRender(worker);
+    worker.respond(
+      result(request, [
+        {
+          chtml: '<mjx-container><mjx-math>xyz</mjx-math></mjx-container>',
+          id: 'math:inline:0',
+          labels: [],
+        },
+      ]),
+    );
+    await vi.runAllTicks();
+    const collect = vi.spyOn(mathInventory, 'collectMathInventory');
+    const computedStyle = vi.spyOn(window, 'getComputedStyle');
+    collect.mockClear();
+    computedStyle.mockClear();
+
+    view.dispatch({ selection: EditorSelection.cursor(3) });
+
+    expect(collect).not.toHaveBeenCalled();
+    expect(computedStyle).not.toHaveBeenCalled();
+
+    collect.mockClear();
+    computedStyle.mockClear();
+    view.dispatch({
+      changes: { from: doc.length, insert: '!' },
+      selection: EditorSelection.cursor(doc.length + 1),
+    });
+
+    expect(collect).toHaveBeenCalledTimes(1);
+    expect(computedStyle).not.toHaveBeenCalled();
+    view.destroy();
+  });
+
+  it('does not read layout while constructing a formula widget', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'plain',
+        extensions: [markdownLanguage()],
+      }),
+    });
+    const bounding = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
+    const computedStyle = vi.spyOn(window, 'getComputedStyle');
+    const widget = new MathFormulaWidget({
+      activationOffset: 1,
+      chtml: '<mjx-container><mjx-math>x</mjx-math></mjx-container>',
+      display: true,
+      error: null,
+      formulaLength: 5,
+      renderedAfterSource: false,
+      source: 'x',
+    });
+
+    widget.toDOM(view);
+
+    expect(bounding).not.toHaveBeenCalled();
+    expect(computedStyle).not.toHaveBeenCalled();
+    view.destroy();
+    parent.remove();
   });
 
   it('stores rendering preferences in an editor-local state field', () => {

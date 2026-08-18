@@ -52,6 +52,9 @@ import {
   editorAppearanceExtension,
   type EditorAppearance,
 } from './editorAppearance';
+import {
+  recordEditorTransactionMetric,
+} from '../metrics/editorMetrics';
 
 export type CreateEditorApiOptions = Omit<
   CreateEditorStateOptions,
@@ -119,6 +122,15 @@ export class CodeMirrorEditorApi implements EditorApi {
       ...(options.searchPhrases ?? getEditorSearchPhrases(this.language)),
     };
     this.editorView = new EditorView({
+      dispatchTransactions: (transactions, view) => {
+        const startedAt = globalThis.performance?.now() ?? Date.now();
+        view.update(transactions);
+        recordEditorTransactionMetric({
+          docChanged: transactions.some((transaction) => transaction.docChanged),
+          startedAt,
+          transactionCount: transactions.length,
+        });
+      },
       parent: options.parent,
       state: createEditorState({
         appearance: this.appearance,

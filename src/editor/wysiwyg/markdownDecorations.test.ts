@@ -7,6 +7,8 @@ import { EditorView, runScopeHandlers } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import {
   collectMarkdownDecorationRanges,
+  markdownDecorationActiveIdentity,
+  markdownDecorationsPlugin,
   markdownWysiwygExtension,
   selectMarkdownDecorationUpdateMode,
 } from './markdownDecorations';
@@ -301,6 +303,70 @@ describe('markdown WYSIWYG extension', () => {
       ),
     ).toBe(true);
     expect(view.state.doc.toString()).toBe('plain\n\n');
+
+    view.destroy();
+    parent.remove();
+  });
+
+  it('keeps the decoration identity when the caret stays in the same unprotected paragraph', () => {
+    const doc = 'hello **bold** world';
+    const start = EditorState.create({
+      doc,
+      extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      selection: EditorSelection.cursor(doc.length),
+    });
+    const moved = start.update({
+      selection: EditorSelection.cursor(doc.length - 1),
+    }).state;
+
+    expect(markdownDecorationActiveIdentity(moved, false)).toBe(
+      markdownDecorationActiveIdentity(start, false),
+    );
+  });
+
+  it('changes the decoration identity when the caret enters an inline owner', () => {
+    const doc = 'hello **bold** world';
+    const start = EditorState.create({
+      doc,
+      extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      selection: EditorSelection.cursor(doc.length),
+    });
+    const insideBold = start.update({
+      selection: EditorSelection.cursor(doc.indexOf('bold') + 1),
+    }).state;
+
+    expect(markdownDecorationActiveIdentity(insideBold, false)).not.toBe(
+      markdownDecorationActiveIdentity(start, false),
+    );
+  });
+
+  it('maps decorations on selection-only updates unless the active span or block changes', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = 'hello **bold** world';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+        selection: EditorSelection.cursor(doc.length),
+      }),
+    });
+    const plugin = view.plugin(markdownDecorationsPlugin);
+    if (!plugin) {
+      throw new Error('Expected markdown decorations plugin.');
+    }
+    const decorations = plugin.decorations;
+
+    view.dispatch({ selection: EditorSelection.cursor(doc.length - 1) });
+    expect(view.plugin(markdownDecorationsPlugin)?.decorations).toBe(decorations);
+
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf('bold') + 1),
+    });
+    expect(view.plugin(markdownDecorationsPlugin)?.decorations).not.toBe(
+      decorations,
+    );
 
     view.destroy();
     parent.remove();

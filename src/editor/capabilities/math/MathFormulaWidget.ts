@@ -124,9 +124,6 @@ export class MathFormulaWidget extends WidgetType {
     });
 
     this.geometry?.mount(view, root);
-    void document.fonts?.ready.then(() => {
-      this.geometry?.sync();
-    });
     return root;
   }
 

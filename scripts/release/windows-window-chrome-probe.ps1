@@ -146,6 +146,41 @@ public static class LumaMarkWindowChromeNative
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll")]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+
+    public static bool ForceForeground(IntPtr window)
+    {
+        var foreground = GetForegroundWindow();
+        var foregroundRoot = GetAncestor(foreground, GA_ROOT);
+        if (foregroundRoot == window)
+        {
+            return true;
+        }
+
+        uint unusedPid;
+        var foregroundThread = GetWindowThreadProcessId(foreground, out unusedPid);
+        var currentThread = GetCurrentThreadId();
+        if (foregroundThread != 0 && foregroundThread != currentThread)
+        {
+            AttachThreadInput(currentThread, foregroundThread, true);
+        }
+        ShowWindowAsync(window, SW_RESTORE);
+        BringWindowToTop(window);
+        var ok = SetForegroundWindow(window);
+        if (foregroundThread != 0 && foregroundThread != currentThread)
+        {
+            AttachThreadInput(currentThread, foregroundThread, false);
+        }
+        return ok;
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowPos(
         IntPtr hWnd,
@@ -576,7 +611,7 @@ try {
         )
       }
       Start-Sleep -Milliseconds 250
-      [void][LumaMarkWindowChromeNative]::SetForegroundWindow($window)
+      [void][LumaMarkWindowChromeNative]::ForceForeground($window)
       Start-Sleep -Milliseconds 300
       $snapshot = Get-WindowSnapshot -Process $target -Window $window
       Assert-InteractiveSnapshot -Snapshot $snapshot -RequireHit $false

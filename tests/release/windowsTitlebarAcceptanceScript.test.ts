@@ -76,7 +76,8 @@ describe.skipIf(process.platform !== 'win32')(
       expect(nativeProbe).toContain('GetDpiForWindow');
       expect(nativeProbe).toContain('SetThreadDpiAwarenessContext');
       expect(nativeProbe).toContain('WindowFromPoint');
-      expect(nativeProbe).not.toContain('GetWindowRect');
+      expect(nativeProbe).toContain('DragEngage');
+      expect(nativeProbe).toContain('GetWindowRect');
       expect(nativeProbe).not.toContain('mouse_event');
       expect(nativeProbe).not.toContain('SetCursorPos');
       expect(nativeProbe).not.toContain('[Nullable[int]]$HitX');

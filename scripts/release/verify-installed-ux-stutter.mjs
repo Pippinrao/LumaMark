@@ -209,12 +209,24 @@ async function runAcceptance() {
       nextMarker = nextMarker === markerB ? markerA : markerB;
     }
 
+    const dragEngage = await measureTitlebarDragEngage({
+      page,
+      probe,
+    }).catch((error) => {
+      process.stderr.write(
+        `[release:installed-ux-stutter] drag engage skipped (${error instanceof Error ? error.message : error}).\n`,
+      );
+      return null;
+    });
+
     const fileSwitchP80 = percentile(samples, 80);
     const evidence = {
       budgets: {
+        dragEngageMs: DRAG_ENGAGE_BUDGET_MS,
         fileSwitchP80Ms: FILE_SWITCH_P80_BUDGET_MS,
       },
       coldArgvOpenMs: coldArgvMs,
+      dragEngageMs: dragEngage,
       fileSwitchP80Ms: fileSwitchP80,
       fileSwitchSamplesMs: samples,
       knownLimitations: {
@@ -226,6 +238,14 @@ async function runAcceptance() {
     if (fileSwitchP80 >= FILE_SWITCH_P80_BUDGET_MS) {
       throw new Error(
         `Same-window small-file click P80 ${fileSwitchP80.toFixed(1)}ms exceeds ${FILE_SWITCH_P80_BUDGET_MS}ms.`,
+      );
+    }
+    if (
+      typeof dragEngage === 'number' &&
+      dragEngage >= DRAG_ENGAGE_BUDGET_MS
+    ) {
+      throw new Error(
+        `Titlebar drag engage ${dragEngage}ms exceeds ${DRAG_ENGAGE_BUDGET_MS}ms.`,
       );
     }
   } finally {
@@ -331,6 +351,24 @@ async function measureFileSwitchClick({ expectedMarker, page, probe }) {
     await delay(16);
   }
   throw new Error(`Same-window file click did not reveal ${expectedMarker} in time.`);
+}
+
+async function measureTitlebarDragEngage({ page, probe }) {
+  const strip = page.locator('.lm-titlebar-drag');
+  const start = await nativePointForLocator(page, strip, probe, 'blank titlebar strip');
+  const state = probe('State');
+  const endX = Math.min(state.clientRect.right - 40, start.x + 180);
+  const endY = Math.min(state.clientRect.bottom - 40, start.y + 90);
+  const result = probe('DragEngage', {
+    EndX: endX,
+    EndY: endY,
+    X: start.x,
+    Y: start.y,
+  });
+  if (!Number.isFinite(result.firstMoveMs)) {
+    throw new Error(`DragEngage did not report firstMoveMs: ${JSON.stringify(result)}`);
+  }
+  return result.firstMoveMs;
 }
 
 async function waitForEditorMarker(page, marker, timeoutMs) {

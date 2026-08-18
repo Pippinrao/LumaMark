@@ -4,7 +4,7 @@ param(
   [int]$TargetProcessId,
 
   [Parameter(Mandatory = $true)]
-  [ValidateSet('State', 'PlaceNormal', 'Click', 'DoubleClick', 'Drag')]
+  [ValidateSet('State', 'PlaceNormal', 'Click', 'DoubleClick', 'Drag', 'DragEngage')]
   [string]$Action,
 
   [int]$X = 0,
@@ -25,6 +25,7 @@ $OutputEncoding = $utf8
 Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -102,6 +103,9 @@ public static class LumaMarkWindowChromeNative
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool ClientToScreen(IntPtr hWnd, ref POINT point);
@@ -256,7 +260,6 @@ public static class LumaMarkWindowChromeNative
         Button(MOUSEEVENTF_LEFTDOWN);
         try
         {
-            Thread.Sleep(130);
             const int steps = 18;
             for (var step = 1; step <= steps; step += 1)
             {
@@ -267,6 +270,49 @@ public static class LumaMarkWindowChromeNative
                 Thread.Sleep(28);
             }
             Thread.Sleep(90);
+        }
+        finally
+        {
+            Button(MOUSEEVENTF_LEFTUP);
+        }
+    }
+
+    public static int DragEngage(
+        IntPtr expectedWindow,
+        int startX,
+        int startY,
+        int endX,
+        int endY)
+    {
+        RECT before;
+        if (!GetWindowRect(expectedWindow, out before))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "GetWindowRect failed.");
+        }
+
+        Move(startX, startY);
+        Thread.Sleep(16);
+        AssertInputTarget(expectedWindow, startX, startY);
+        var clock = Stopwatch.StartNew();
+        Button(MOUSEEVENTF_LEFTDOWN);
+        try
+        {
+            const int steps = 24;
+            for (var step = 1; step <= steps; step++)
+            {
+                var ratio = (double)step / steps;
+                Move(
+                    (int)Math.Round(startX + ((endX - startX) * ratio)),
+                    (int)Math.Round(startY + ((endY - startY) * ratio)));
+                RECT now;
+                if (GetWindowRect(expectedWindow, out now) &&
+                    (now.Left != before.Left || now.Top != before.Top))
+                {
+                    return (int)clock.ElapsedMilliseconds;
+                }
+                Thread.Sleep(8);
+            }
+            return (int)clock.ElapsedMilliseconds;
         }
         finally
         {
@@ -642,6 +688,19 @@ try {
       )
       Start-Sleep -Milliseconds 700
       $snapshot = Get-WindowSnapshot -Process $target -Window $window
+    }
+    'DragEngage' {
+      $snapshot = Get-WindowSnapshot -Process $target -Window $window -HitX $X -HitY $Y
+      Assert-InteractiveSnapshot -Snapshot $snapshot -RequireHit $true
+      $firstMoveMs = [LumaMarkWindowChromeNative]::DragEngage(
+        $window,
+        $X,
+        $Y,
+        $EndX,
+        $EndY
+      )
+      $snapshot = Get-WindowSnapshot -Process $target -Window $window
+      $snapshot['firstMoveMs'] = $firstMoveMs
     }
     default {
       $snapshot = Get-WindowSnapshot -Process $target -Window $window

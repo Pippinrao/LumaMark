@@ -1,13 +1,12 @@
 import type { PlantumlRenderContext } from './plantumlRenderScheduler';
-import { renderPlantuml } from './plantumlEngine';
-import { yieldPlantumlRenderTurn } from './plantumlOffThread';
+import { getPlantumlOffThreadAdapter, yieldPlantumlRenderTurn } from './plantumlOffThread';
 
 export async function renderWithPlantuml({
   dark,
   source,
 }: PlantumlRenderContext): Promise<string> {
   await yieldPlantumlRenderTurn();
-  const svg = await renderPlantuml(source, { dark });
+  const svg = await getPlantumlOffThreadAdapter().render(source, { dark });
   const DOMPurify = (await import('dompurify')).default;
 
   return DOMPurify.sanitize(svg, {

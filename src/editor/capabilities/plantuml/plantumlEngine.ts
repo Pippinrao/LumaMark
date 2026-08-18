@@ -16,15 +16,13 @@ export type PlantumlRenderOptions = {
 let enginePromise: Promise<PlantumlCoreModule> | null = null;
 let renderQueue: Promise<void> = Promise.resolve();
 
+export { renderPlantuml } from './plantumlOffThread';
+
 /**
- * Renders PlantUML source to an SVG string using the official TeaVM-compiled
- * engine, entirely in the browser (no server, no Java, no Graphviz binary).
- *
- * Engine load failures stay sticky so a broken Graphviz script is not injected
- * again. Successful and failed renders share one serial queue because the
- * TeaVM runtime has process-wide mutable state.
+ * TeaVM render path. Call only from the PlantUML worker/iframe, where the
+ * runtime's process-wide mutable state can stay serial and off the input stack.
  */
-export function renderPlantuml(
+export function renderPlantumlOnThread(
   source: string,
   options: PlantumlRenderOptions = {},
 ): Promise<string> {
@@ -61,6 +59,10 @@ async function loadPlantumlEngine(): Promise<PlantumlCoreModule> {
 }
 
 function loadVizGlobalScript(): Promise<void> {
+  if (typeof document === 'undefined') {
+    return import(/* @vite-ignore */ vizGlobalUrl).then(() => undefined);
+  }
+
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = vizGlobalUrl;

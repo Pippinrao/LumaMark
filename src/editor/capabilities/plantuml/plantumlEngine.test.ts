@@ -5,9 +5,10 @@ describe('plantumlEngine', () => {
     vi.restoreAllMocks();
     vi.resetModules();
     vi.doUnmock('@plantuml/core');
+    vi.unstubAllGlobals();
   });
 
-  it('forwards dark rendering to the TeaVM engine', async () => {
+  it('forwards dark rendering to the TeaVM engine on the dedicated thread helper', async () => {
     const renderToString = vi.fn(
       (
         _lines: readonly string[],
@@ -21,11 +22,52 @@ describe('plantumlEngine', () => {
     vi.doMock('@plantuml/core', () => ({ renderToString }));
     stubVizGlobalLoad();
 
-    const { renderPlantuml } = await import('./plantumlEngine');
+    const { renderPlantumlOnThread } = await import('./plantumlEngine');
     await expect(
-      renderPlantuml('@startuml\nA -> B\n@enduml', { dark: true }),
+      renderPlantumlOnThread('@startuml\nA -> B\n@enduml', { dark: true }),
     ).resolves.toBe('<svg data-dark="true"></svg>');
     expect(renderToString.mock.calls[0]?.[3]).toEqual({ dark: true });
+  });
+
+  it('does not run TeaVM renderToString on the caller microtask after the engine is warm', async () => {
+    const renderToString = vi.fn(
+      (
+        _lines: readonly string[],
+        onSuccess: (svg: string) => void,
+      ) => {
+        const started = performance.now();
+        while (performance.now() - started < 80) {
+          // Simulate a TeaVM render occupying the main thread.
+        }
+        onSuccess('<svg></svg>');
+      },
+    );
+    const posted: unknown[] = [];
+    vi.stubGlobal(
+      'Worker',
+      class {
+        onmessage: ((event: MessageEvent) => void) | null = null;
+        addEventListener(_type: string, _listener: (event: MessageEvent) => void) {}
+        postMessage(message: unknown) {
+          posted.push(message);
+        }
+        terminate() {}
+      },
+    );
+    vi.doMock('@plantuml/core', () => ({ renderToString }));
+    stubVizGlobalLoad();
+
+    const { getPlantumlEngine, renderPlantuml } = await import('./plantumlEngine');
+    await getPlantumlEngine();
+
+    const started = performance.now();
+    const pending = renderPlantuml('@startuml\nA -> B\n@enduml');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(performance.now() - started).toBeLessThan(8);
+    expect(renderToString).not.toHaveBeenCalled();
+    expect(posted.length).toBeGreaterThan(0);
+    pending.catch(() => undefined);
   });
 
   it('keeps a failed engine promise sticky instead of injecting Graphviz again', async () => {

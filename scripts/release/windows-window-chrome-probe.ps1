@@ -4,7 +4,7 @@ param(
   [int]$TargetProcessId,
 
   [Parameter(Mandatory = $true)]
-  [ValidateSet('State', 'PlaceNormal', 'Click', 'DoubleClick', 'Drag', 'DragEngage')]
+  [ValidateSet('State', 'PlaceNormal', 'Click', 'DoubleClick', 'Drag', 'DragEngage', 'JitterClick')]
   [string]$Action,
 
   [int]$X = 0,
@@ -245,6 +245,31 @@ public static class LumaMarkWindowChromeNative
         Thread.Sleep(interval);
         AssertInputTarget(expectedWindow, x, y);
         SendClick(x, y);
+    }
+
+    /// A held press that travels a few physical pixels, which is what a real
+    /// hand produces on an intended single click.
+    public static void JitterClick(
+        IntPtr expectedWindow,
+        int startX,
+        int startY,
+        int endX,
+        int endY)
+    {
+        Move(startX, startY);
+        Thread.Sleep(120);
+        AssertInputTarget(expectedWindow, startX, startY);
+        Button(MOUSEEVENTF_LEFTDOWN);
+        try
+        {
+            Thread.Sleep(160);
+            Move(endX, endY);
+            Thread.Sleep(160);
+        }
+        finally
+        {
+            Button(MOUSEEVENTF_LEFTUP);
+        }
     }
 
     public static void Drag(
@@ -674,6 +699,19 @@ try {
       Assert-InteractiveSnapshot -Snapshot $snapshot -RequireHit $true
       [LumaMarkWindowChromeNative]::DoubleClick($window, $X, $Y)
       Start-Sleep -Milliseconds 700
+      $snapshot = Get-WindowSnapshot -Process $target -Window $window
+    }
+    'JitterClick' {
+      $snapshot = Get-WindowSnapshot -Process $target -Window $window -HitX $X -HitY $Y
+      Assert-InteractiveSnapshot -Snapshot $snapshot -RequireHit $true
+      [LumaMarkWindowChromeNative]::JitterClick(
+        $window,
+        $X,
+        $Y,
+        $EndX,
+        $EndY
+      )
+      Start-Sleep -Milliseconds 400
       $snapshot = Get-WindowSnapshot -Process $target -Window $window
     }
     'Drag' {

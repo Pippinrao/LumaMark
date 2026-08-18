@@ -453,7 +453,7 @@ LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通�
 
 ## 高成本缺陷复盘（强制遵守）
 
-以下两条缺陷曾长期误判、反复“修好又坏”，最终才在安装包真实路径上闭环。后续 agent 遇到同类症状时，必须先按本节排查，禁止从“功能没接线”“随便改 CSS”起步。
+以下缺陷曾长期误判、反复“修好又坏”，最终才在安装包真实路径上闭环。后续 agent 遇到同类症状时，必须先按本节排查，禁止从“功能没接线”“随便改 CSS”起步。
 
 ### 1. 菜单打开后点击没反应
 
@@ -496,13 +496,32 @@ LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通�
 
 参考实现：`src/editor/capabilities/table/tableCellClickSync.ts`、`src/editor/capabilities/table/table.css`；回归：`tests/e2e/editor-table-caret*.spec.ts`、`scripts/release/repro-installed-table-caret*.mjs`。
 
-### 3. 从这两次修复提炼的通用经验
+### 3. 实时预览单击选中文字而不是落光标
+
+**真实根因（不是“我们的光标算法算错了”）：** 错误选区由 CodeMirror 内置 `basicMouseSelection` 产生，并且是在按住鼠标期间就被绘制出来的。
+
+1. 内置 style 在手势开始时对按下坐标做一次命中测试，之后每个指针事件再做一次，并取并集。被隐藏的 WYSIWYG 分隔符让两次命中不一致：按在链接/加粗文字内部时按下解析到分隔符位置，抬起解析到实际点击的字符。
+2. 它没有单击容差。正常手持鼠标按下时一到两个 CSS 像素的位移就会映射到下一个字符，并画出一个字符的选区。
+3. 在 `mouseup` 纠正结果无法消除上述任一症状，因为错误区间在整个按住过程中已经提交并绘制。缺陷因此表现为“基本修好了，但偶尔还是会闪”，这正是它两次复发的原因（issue #14、#19）。
+
+**强制规则：**
+
+- 实时预览通过自己的 `EditorView.mouseSelectionStyle` 拥有指针光标落点。不得退回到以 `mouseup` 结算纠正为主要机制。
+- 按下锚点只解析一次，来自浏览器原生 caret 命中，并随文档变更映射；不得按指针事件重复解析。
+- 保留 DPR 感知的单击容差。容差内产生的任何选区都是缺陷，不是取整误差。
+- style 必须拒绝双击、三击以及没有光标候选的按下，让 CodeMirror 继续拥有选词/选行。
+- 该类缺陷的证据必须采样**按住期间**的选区状态，而不只是抬起后。浏览器 E2E 断言按下、小幅移动、抬起三个时刻均为折叠；安装包验收用 Win32 `SendInput` 执行按下—移动—抬起。
+
+参考实现：`src/editor/wysiwyg/pointerSelectionStyle.ts`、`src/editor/wysiwyg/markdownDecorations.ts`、[ADR 0019](docs/zh/decisions/0019-live-preview-pointer-selection-style.md)；回归：`tests/e2e/editor-preview-click-selection.spec.ts`、`scripts/release/verify-installed-preview-click-selection-os.mjs`。
+
+### 4. 从这几次修复提炼的通用经验
 
 1. **症状分类先于改代码。** “没反应”可能是事件被吞；“光标飘”可能是几何/坐标系，不是选区 API 写错。
 2. **桌面壳层 bug 与浏览器 bug 分层验证。** Tauri 拖拽、安装路径、OS 鼠标量化与 CDP 点击不是同一条证据链。
 3. **先固定几何契约，再谈交互增强。** 任何让 hit-test 区域与可见文本脱节的 CSS，都会在表格/widget 上放大成光标灾难。
 4. **禁止用新的视觉约束掩盖命中问题。** 滚动条、裁切、假空白、假光标都是高风险捷径。
 5. **回归要防“修好又坏”。** 光标类修复合并后，后续 UI 美化若动到表格 overflow/padding，必须当作高风险变更，而不是纯样式。
+6. **要采样整个手势，而不只是它的结果。** 按住期间可见的缺陷，无法用抬起后的状态断言证明已修复；只纠正结算状态的修复一定会被反馈为“还是偶尔出现”。
 
 ## Agent 工作流程
 

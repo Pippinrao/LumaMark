@@ -11,6 +11,7 @@ export type UpdateUiStatus =
   | 'checking'
   | 'available'
   | 'downloading'
+  | 'readyToInstall'
   | 'installing'
   | 'upToDate'
   | 'error';
@@ -29,7 +30,7 @@ export type UpdateStoreState = {
     dependencies?: UpdaterServiceDependencies;
   }) => Promise<void>;
   closeDialog: () => void;
-  installAvailableUpdate: (dependencies?: UpdaterServiceDependencies) => Promise<void>;
+  installAvailableUpdate: () => Promise<void>;
   openDialog: () => void;
   resetTransientState: () => void;
 };
@@ -39,15 +40,23 @@ type CreateUpdateStoreOptions = {
   currentVersion: string;
 };
 
+type PendingUpdate = {
+  download: Extract<UpdateCheckOutcome, { kind: 'available' }>['download'];
+  install: Extract<UpdateCheckOutcome, { kind: 'available' }>['install'];
+};
+
+const ACTIVE_UPDATE_STATUSES = new Set<UpdateUiStatus>([
+  'checking',
+  'downloading',
+  'readyToInstall',
+  'installing',
+]);
+
 export function createUpdateStore({
   check = checkForUpdate,
   currentVersion,
 }: CreateUpdateStoreOptions) {
-  let pendingInstall:
-    | ((
-        onProgress: (progress: UpdateDownloadProgress) => void,
-      ) => Promise<{ kind: 'installed' } | { kind: 'failed'; code: string; message: string }>)
-    | null = null;
+  let pendingUpdate: PendingUpdate | null = null;
 
   return create<UpdateStoreState>((set, get) => ({
     currentVersion,
@@ -65,7 +74,7 @@ export function createUpdateStore({
       set({ dialogOpen: false });
     },
     resetTransientState: () => {
-      pendingInstall = null;
+      pendingUpdate = null;
       set({
         errorCode: null,
         errorMessage: null,
@@ -76,12 +85,16 @@ export function createUpdateStore({
       });
     },
     checkForUpdates: async ({ openDialog = false, dependencies } = {}) => {
-      if (get().status === 'checking' || get().status === 'downloading') {
+      const current = get();
+      if (ACTIVE_UPDATE_STATUSES.has(current.status)) {
+        if (openDialog || current.dialogOpen) {
+          set({ dialogOpen: true });
+        }
         return;
       }
 
       set({
-        dialogOpen: openDialog ? true : get().dialogOpen,
+        dialogOpen: openDialog ? true : current.dialogOpen,
         errorCode: null,
         errorMessage: null,
         notes: null,
@@ -89,16 +102,17 @@ export function createUpdateStore({
         status: 'checking',
         version: null,
       });
-      pendingInstall = null;
+      pendingUpdate = null;
 
       const outcome = await check(dependencies);
-      applyCheckOutcome(outcome, openDialog, set, (install) => {
-        pendingInstall = install;
+      applyCheckOutcome(outcome, openDialog, set, (next) => {
+        pendingUpdate = next;
       });
     },
     installAvailableUpdate: async () => {
-      const install = pendingInstall;
-      if (!install) {
+      const pending = pendingUpdate;
+      const status = get().status;
+      if (!pending) {
         set({
           dialogOpen: true,
           errorCode: 'update.downloadFailed',
@@ -108,37 +122,95 @@ export function createUpdateStore({
         return;
       }
 
-      set({
-        dialogOpen: true,
-        errorCode: null,
-        errorMessage: null,
-        progress: { contentLength: null, downloaded: 0 },
-        status: 'downloading',
-      });
-
-      const outcome = await install((progress) => {
-        set({
-          progress,
-          status: 'downloading',
-        });
-      });
-
-      if (outcome.kind === 'installed') {
-        set({
-          progress: get().progress,
-          status: 'installing',
-        });
+      if (status === 'downloading' || status === 'installing') {
+        set({ dialogOpen: true });
         return;
       }
 
-      set({
-        dialogOpen: true,
-        errorCode: outcome.code,
-        errorMessage: outcome.message,
-        status: 'error',
-      });
+      if (status === 'readyToInstall') {
+        await installDownloadedUpdate(pending, set);
+        return;
+      }
+
+      await downloadAvailableUpdate(pending, set, get);
     },
   }));
+}
+
+async function downloadAvailableUpdate(
+  pending: PendingUpdate,
+  set: (
+    partial:
+      | Partial<UpdateStoreState>
+      | ((state: UpdateStoreState) => Partial<UpdateStoreState>),
+  ) => void,
+  get: () => UpdateStoreState,
+): Promise<void> {
+  set({
+    dialogOpen: true,
+    errorCode: null,
+    errorMessage: null,
+    progress: { contentLength: null, downloaded: 0 },
+    status: 'downloading',
+  });
+
+  const outcome = await pending.download((progress) => {
+    set({
+      progress,
+      status: 'downloading',
+    });
+  });
+
+  if (get().status !== 'downloading') {
+    return;
+  }
+
+  if (outcome.kind === 'downloaded') {
+    set({
+      dialogOpen: true,
+      progress: get().progress,
+      status: 'readyToInstall',
+    });
+    return;
+  }
+
+  set({
+    dialogOpen: true,
+    errorCode: outcome.code,
+    errorMessage: outcome.message,
+    status: 'error',
+  });
+}
+
+async function installDownloadedUpdate(
+  pending: PendingUpdate,
+  set: (
+    partial:
+      | Partial<UpdateStoreState>
+      | ((state: UpdateStoreState) => Partial<UpdateStoreState>),
+  ) => void,
+): Promise<void> {
+  set({
+    dialogOpen: true,
+    errorCode: null,
+    errorMessage: null,
+    status: 'installing',
+  });
+
+  const outcome = await pending.install();
+  if (outcome.kind === 'installed') {
+    set({
+      status: 'installing',
+    });
+    return;
+  }
+
+  set({
+    dialogOpen: true,
+    errorCode: outcome.code,
+    errorMessage: outcome.message,
+    status: 'error',
+  });
 }
 
 function applyCheckOutcome(
@@ -149,11 +221,7 @@ function applyCheckOutcome(
       | Partial<UpdateStoreState>
       | ((state: UpdateStoreState) => Partial<UpdateStoreState>),
   ) => void,
-  rememberInstall: (
-    install: NonNullable<
-      Extract<UpdateCheckOutcome, { kind: 'available' }>['install']
-    >,
-  ) => void,
+  rememberUpdate: (pending: PendingUpdate) => void,
 ) {
   switch (outcome.kind) {
     case 'unsupported':
@@ -171,7 +239,10 @@ function applyCheckOutcome(
       });
       return;
     case 'available':
-      rememberInstall(outcome.install);
+      rememberUpdate({
+        download: outcome.download,
+        install: outcome.install,
+      });
       set({
         dialogOpen: true,
         notes: outcome.notes ?? null,

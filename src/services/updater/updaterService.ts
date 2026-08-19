@@ -10,6 +10,10 @@ export type UpdateDownloadProgress = {
   downloaded: number;
 };
 
+export type UpdateDownloadOutcome =
+  | { kind: 'downloaded' }
+  | { kind: 'failed'; code: string; message: string };
+
 export type UpdateInstallOutcome =
   | { kind: 'installed' }
   | { kind: 'failed'; code: string; message: string };
@@ -22,9 +26,10 @@ export type UpdateCheckOutcome =
       version: string;
       notes?: string;
       date?: string;
-      install: (
+      download: (
         onProgress: (progress: UpdateDownloadProgress) => void,
-      ) => Promise<UpdateInstallOutcome>;
+      ) => Promise<UpdateDownloadOutcome>;
+      install: () => Promise<UpdateInstallOutcome>;
     }
   | { kind: 'failed'; code: string; message: string };
 
@@ -56,7 +61,8 @@ export async function checkForUpdate(
       version: update.version,
       notes: update.body ?? undefined,
       date: update.date ?? undefined,
-      install: (onProgress) => installUpdate(update, onProgress),
+      download: (onProgress) => downloadUpdate(update, onProgress),
+      install: () => installDownloadedUpdate(update),
     };
   } catch (error) {
     return {
@@ -67,15 +73,15 @@ export async function checkForUpdate(
   }
 }
 
-async function installUpdate(
+async function downloadUpdate(
   update: Update,
   onProgress: (progress: UpdateDownloadProgress) => void,
-): Promise<UpdateInstallOutcome> {
+): Promise<UpdateDownloadOutcome> {
   let downloaded = 0;
   let contentLength: number | null = null;
 
   try {
-    await update.downloadAndInstall((event: DownloadEvent) => {
+    await update.download((event: DownloadEvent) => {
       switch (event.event) {
         case 'Started':
           contentLength = event.data.contentLength ?? null;
@@ -93,14 +99,32 @@ async function installUpdate(
           break;
       }
     });
-    return { kind: 'installed' };
+    return { kind: 'downloaded' };
   } catch (error) {
     return {
       kind: 'failed',
       code: 'update.downloadFailed',
       message: normalizeErrorMessage(
         error,
-        'Failed to download or install the update. Portable builds and unsigned installs may not support in-app updates.',
+        'Failed to download the update. Portable builds and unsigned installs may not support in-app updates.',
+      ),
+    };
+  }
+}
+
+async function installDownloadedUpdate(
+  update: Update,
+): Promise<UpdateInstallOutcome> {
+  try {
+    await update.install();
+    return { kind: 'installed' };
+  } catch (error) {
+    return {
+      kind: 'failed',
+      code: 'update.installFailed',
+      message: normalizeErrorMessage(
+        error,
+        'Failed to install the update. Portable builds and unsigned installs may not support in-app updates.',
       ),
     };
   }

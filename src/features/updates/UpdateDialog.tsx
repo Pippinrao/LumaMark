@@ -32,8 +32,10 @@ export function UpdateDialog({
   version,
 }: UpdateDialogProps) {
   const { t } = useTranslation();
-  const busy = status === 'checking' || status === 'downloading' || status === 'installing';
+  const closeLocked = status === 'checking' || status === 'installing';
   const progressPercent = resolveProgressPercent(progress);
+  const showProgress = status === 'downloading' || status === 'installing';
+  const showPrimaryAction = status === 'available' || status === 'readyToInstall';
 
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
@@ -51,7 +53,7 @@ export function UpdateDialog({
             <Dialog.Close
               aria-label={t('dialog.close')}
               className="lm-icon-button"
-              disabled={busy}
+              disabled={closeLocked}
             >
               <X aria-hidden="true" size={16} />
             </Dialog.Close>
@@ -95,9 +97,11 @@ export function UpdateDialog({
             </section>
           ) : null}
 
-          {status === 'downloading' || status === 'installing' ? (
+          {showProgress ? (
             <div
-              aria-label={t('update.downloading')}
+              aria-label={
+                status === 'installing' ? t('update.installing') : t('update.downloading')
+              }
               aria-valuemax={100}
               aria-valuemin={0}
               aria-valuenow={progressPercent ?? undefined}
@@ -108,12 +112,16 @@ export function UpdateDialog({
                 className="lm-update-progress-bar"
                 style={{ width: `${progressPercent ?? 10}%` }}
               />
-              <p>{t('update.downloading')}</p>
+              <p>
+                {status === 'installing'
+                  ? t('update.installing')
+                  : t('update.downloading')}
+              </p>
             </div>
           ) : null}
 
           <div className="lm-dialog-actions">
-            {status === 'available' ? (
+            {showPrimaryAction ? (
               <>
                 <button
                   className="lm-icon-button"
@@ -129,19 +137,21 @@ export function UpdateDialog({
                   onClick={onInstall}
                   type="button"
                 >
-                  {t('update.installNow')}
+                  {status === 'readyToInstall'
+                    ? t('update.installReady')
+                    : t('update.installNow')}
                 </button>
               </>
             ) : (
               <button
                 className="lm-icon-button"
-                disabled={busy}
+                disabled={closeLocked}
                 onClick={() => {
                   onOpenChange(false);
                 }}
                 type="button"
               >
-                {t('dialog.close')}
+                {status === 'downloading' ? t('update.later') : t('dialog.close')}
               </button>
             )}
           </div>
@@ -170,8 +180,11 @@ function resolveDescription({
     case 'available':
       return t('update.available', { version: version ?? '' });
     case 'downloading':
-    case 'installing':
       return t('update.downloading');
+    case 'readyToInstall':
+      return t('update.readyToInstall', { version: version ?? '' });
+    case 'installing':
+      return t('update.installing');
     case 'upToDate':
       return t('update.upToDate');
     case 'error':
@@ -182,6 +195,11 @@ function resolveDescription({
         return errorMessage?.trim()
           ? errorMessage
           : t('update.downloadFailed');
+      }
+      if (errorCode === 'update.installFailed') {
+        return errorMessage?.trim()
+          ? errorMessage
+          : t('update.installFailed');
       }
       return errorMessage?.trim() ? errorMessage : t('update.checkFailed');
     default:

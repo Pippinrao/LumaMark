@@ -7,14 +7,14 @@ function createUpdate(overrides: Partial<Update> = {}): Update {
     version: '0.2.17',
     date: '2026-08-09T00:00:00Z',
     body: 'Bug fixes',
-    download: vi.fn(),
-    install: vi.fn(),
-    downloadAndInstall: vi.fn(async (onEvent) => {
+    download: vi.fn(async (onEvent) => {
       onEvent?.({ event: 'Started', data: { contentLength: 100 } });
       onEvent?.({ event: 'Progress', data: { chunkLength: 40 } });
       onEvent?.({ event: 'Progress', data: { chunkLength: 60 } });
       onEvent?.({ event: 'Finished' });
     }),
+    install: vi.fn(async () => undefined),
+    downloadAndInstall: vi.fn(),
     close: vi.fn(),
     rid: 1,
     available: true,
@@ -43,7 +43,7 @@ describe('updaterService', () => {
     expect(outcome).toEqual({ kind: 'upToDate' });
   });
 
-  it('returns available updates and reports download progress during install', async () => {
+  it('returns available updates and downloads without installing', async () => {
     const update = createUpdate();
     const outcome = await checkForUpdate({
       isDesktopRuntime: () => true,
@@ -60,17 +60,37 @@ describe('updaterService', () => {
 
     const progress: Array<{ contentLength: number | null; downloaded: number }> =
       [];
-    const installOutcome = await outcome.install((event) => {
+    const downloadOutcome = await outcome.download((event) => {
       progress.push(event);
     });
 
-    expect(installOutcome).toEqual({ kind: 'installed' });
+    expect(downloadOutcome).toEqual({ kind: 'downloaded' });
+    expect(update.install).not.toHaveBeenCalled();
     expect(progress).toEqual([
       { contentLength: 100, downloaded: 0 },
       { contentLength: 100, downloaded: 40 },
       { contentLength: 100, downloaded: 100 },
       { contentLength: 100, downloaded: 100 },
     ]);
+  });
+
+  it('installs a previously downloaded update', async () => {
+    const update = createUpdate();
+    const outcome = await checkForUpdate({
+      isDesktopRuntime: () => true,
+      check: vi.fn(async () => update),
+    });
+
+    expect(outcome.kind).toBe('available');
+    if (outcome.kind !== 'available') {
+      return;
+    }
+
+    await expect(outcome.download(vi.fn())).resolves.toEqual({
+      kind: 'downloaded',
+    });
+    await expect(outcome.install()).resolves.toEqual({ kind: 'installed' });
+    expect(update.install).toHaveBeenCalledOnce();
   });
 
   it('maps check failures to a stable failed outcome', async () => {
@@ -88,9 +108,9 @@ describe('updaterService', () => {
     });
   });
 
-  it('maps install failures to a stable failed outcome', async () => {
+  it('maps download failures to a stable failed outcome', async () => {
     const update = createUpdate({
-      downloadAndInstall: vi.fn(async () => {
+      download: vi.fn(async () => {
         throw new Error('signature mismatch');
       }),
     });
@@ -104,10 +124,33 @@ describe('updaterService', () => {
       return;
     }
 
-    await expect(outcome.install(vi.fn())).resolves.toEqual({
+    await expect(outcome.download(vi.fn())).resolves.toEqual({
       kind: 'failed',
       code: 'update.downloadFailed',
       message: 'signature mismatch',
+    });
+  });
+
+  it('maps install failures to a stable failed outcome', async () => {
+    const update = createUpdate({
+      install: vi.fn(async () => {
+        throw new Error('installer exited');
+      }),
+    });
+    const outcome = await checkForUpdate({
+      isDesktopRuntime: () => true,
+      check: vi.fn(async () => update),
+    });
+
+    expect(outcome.kind).toBe('available');
+    if (outcome.kind !== 'available') {
+      return;
+    }
+
+    await expect(outcome.install()).resolves.toEqual({
+      kind: 'failed',
+      code: 'update.installFailed',
+      message: 'installer exited',
     });
   });
 });

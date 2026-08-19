@@ -6,7 +6,7 @@
 
 **日期：** 2026-08-09
 
-**更新：** 2026-08-13（Windows 当前用户手动系统代理边界）
+**更新：** 2026-08-13（Windows 当前用户手动系统代理边界）；2026-08-19（后台下载后确认安装）
 
 ## 用途与范围
 
@@ -26,6 +26,14 @@ LumaMark Windows 分发以 NSIS 安装器为主。用户需要在应用内检查
 4. 应用层通过 `src/services/updater/` 封装插件；UI 落在 `src/features/updates/`，不在业务组件直接依赖插件对象。
 5. 新增 tag 触发的 `.github/workflows/windows-release-publish.yml`：校验 tag 与版本一致、签名构建 NSIS、生成 `latest.json` 并创建 GitHub Release。Windows CI 产出的 NSIS 必须经同一套 GitHub Secrets 签名；本地未签名安装包只可用于本机验收，不得作为正式分发或 updater 产物。
 6. Windows target 通过 Cargo feature union 为官方 updater 实际使用的 `reqwest 0.13.4` 启用 `system-proxy`；不修改 `updaterService.ts`、UI、IPC 或安装流程。
+
+7. 下载与安装使用官方插件的分开调用。“立即更新”启动 `update.download()` 后台下载，弹窗可在下载期间关闭。下载中、待安装或正在安装时再次“检查更新”只重开当前状态，不发起新的检查。下载完成后自动弹出确认，用户确认后才调用 `update.install()`。继续拒绝静默安装。
+
+### 安装确认交互
+
+- 安装器启动前必须由用户确认；下载完成不等于安装。
+- 进度只出现在现有更新弹窗，不另开进度面，也不加解释性文案。
+- 检查更新是单任务：下载或安装期间重叠检查属于缺陷。
 
 ### Windows 代理支持边界
 

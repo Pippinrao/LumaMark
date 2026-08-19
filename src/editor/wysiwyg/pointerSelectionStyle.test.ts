@@ -53,6 +53,16 @@ function mountEditor(): {
       offsetNode: textNode,
     })),
   });
+  vi.spyOn(view, 'posAtCoords').mockImplementation((coords) => {
+    if (!coords) {
+      return null;
+    }
+
+    return Math.max(
+      0,
+      Math.min(source.length, Math.round(coords.x - 100) + 6),
+    );
+  });
 
   return {
     cleanup: () => {
@@ -99,8 +109,34 @@ describe('pointer selection style', () => {
         x: 100,
         y: 20,
       });
-      const selection = style.get(mouseEvent(110, 20), false, false);
+      const twoPixel = style.get(mouseEvent(102, 20), false, false);
+      const twentyPixel = style.get(mouseEvent(120, 20), false, false);
 
+      expect(twoPixel.main.empty).toBe(true);
+      expect(twoPixel.main.head).toBe(6);
+      expect(twentyPixel.main.anchor).toBe(6);
+      expect(twentyPixel.main.head).toBe(16);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('does not query caretPositionFromPoint while dragging past the click slop', () => {
+    const { cleanup, view } = mountEditor();
+
+    try {
+      const caretSpy = document.caretPositionFromPoint as ReturnType<typeof vi.fn>;
+      const style = createPointerSelectionStyle(view, {
+        position: 6,
+        x: 100,
+        y: 20,
+      });
+      caretSpy.mockClear();
+
+      const selection = style.get(mouseEvent(120, 20), false, false);
+
+      expect(caretSpy).not.toHaveBeenCalled();
+      expect(selection.main.empty).toBe(false);
       expect(selection.main.anchor).toBe(6);
       expect(selection.main.head).toBe(16);
     } finally {

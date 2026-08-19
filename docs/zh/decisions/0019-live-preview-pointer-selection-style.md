@@ -4,6 +4,7 @@
 
 - 状态：已采纳
 - 日期：2026-08-18（对应 issue #14、#19 的同一根因）
+- 更新：2026-08-19（越过容差后的拖拽 head 使用 `posAtCoords`，不再每帧调用原生 caret 命中）
 
 ## 背景
 
@@ -21,7 +22,7 @@ Windows 安装包证据（WebView2、DPR 1.5、Win32 `SendInput`）与浏览器 
 - 实时预览注册自己的 `EditorView.mouseSelectionStyle`（`editor/wysiwyg/pointerSelectionStyle.ts`），只接管装饰插件已解析为光标候选的普通左键按下。
 - style 只解析一次锚点：使用插件基于浏览器原生 caret 命中计算出的按下候选，并在文档变更时映射该锚点。
 - 指针停留在 DPR 感知的单击容差内（`isPrimaryPointerClick`）时，style 返回锚点处的折叠光标，任何选区都不会进入编辑器状态。
-- 指针越过容差后，head 使用与锚点相同的浏览器原生命中函数解析，并回退到非精确查找，保证边缘自动滚动拖拽仍然可用。
+- 指针越过容差后，head 使用 CodeMirror `posAtCoords` 从按下坐标映射。原生 `caretPositionFromPoint` 只用于按下和 `mouseup` 结算，不得在每次拖拽 `mousemove` 上运行。
 - 以下情况返回 `null`，保留 CodeMirror 内置行为：双击与三击、已经 `preventDefault` 的行内代码 chip 按下、没有光标候选的按下。
 - `mouseup` 的指针结算保持不变，它现在只是对同一位置的确认，而不再是唯一的纠正点。
 
@@ -37,7 +38,7 @@ Windows 安装包证据（WebView2、DPR 1.5、Win32 `SendInput`）与浏览器 
 - 实时预览单击的光标落点不再依赖 CodeMirror 的坐标映射，而依赖装饰插件本就信任的浏览器原生 caret 命中。
 - 选词与选行语义不变，因为 style 不接管这些手势。
 - 修改单击容差、锚点解析或插件候选规则，现在会影响按住期间绘制的内容，而不只是结算结果。
-- 越过容差后每个指针事件多做一次 caret 命中测试，与 CodeMirror 自身 style 的工作量同一量级。
+- 越过容差后每个指针事件做一次 `posAtCoords` 查找。原生 caret 命中离开拖拽移动路径。
 
 ## 验证要求
 

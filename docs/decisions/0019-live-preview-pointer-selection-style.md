@@ -6,6 +6,8 @@
 
 **Date:** 2026-08-18
 
+Updated: 2026-08-19 (drag-move head uses `posAtCoords`, not per-mousemove native caret hits)
+
 ## Context
 
 Issues #14 and #19 both reported that clicking in live preview or reading mode selects nearby text instead of placing a caret. The earlier fixes kept CodeMirror's built-in mouse selection and corrected the result in a settlement step on `mouseup`. The symptom kept coming back in a weaker form: the wrong selection was still produced, only for a shorter time.
@@ -22,7 +24,7 @@ Settlement can only correct the final state, so any correction it makes has alre
 - Live preview installs its own `EditorView.mouseSelectionStyle` (`editor/wysiwyg/pointerSelectionStyle.ts`) for plain left-button presses that the decorations plugin already resolved to a caret candidate.
 - The style resolves the anchor exactly once, from the press candidate the plugin computed with the browser-native caret hit, and maps that anchor through document changes.
 - While the pointer stays inside the DPR-aware click slop (`isPrimaryPointerClick`), the style returns a collapsed cursor at that anchor, so no range ever enters editor state.
-- Once the pointer passes the slop, the head comes from the same browser-native hit function used for the anchor, falling back to the imprecise lookup so edge auto-scroll drags keep working.
+- Once the pointer passes the slop, the head comes from CodeMirror `posAtCoords` mapped from the press coordinates. Native `caretPositionFromPoint` stays on press and mouseup settlement only; it must not run on every drag `mousemove`.
 - The style returns `null` — leaving CodeMirror's built-in behavior in place — for double and triple clicks, inline-code chip presses that already `preventDefault`, and any press without a caret candidate.
 - Pointer settlement on `mouseup` stays as-is. It is now a confirmation of the same position rather than the only correction point.
 
@@ -38,7 +40,7 @@ Settlement can only correct the final state, so any correction it makes has alre
 - Single-click caret placement in live preview no longer depends on CodeMirror's coordinate mapping; it depends on the same browser-native caret hit the decorations plugin already trusted.
 - Word and line selection semantics are unchanged, because the style declines those gestures.
 - Changes to the click slop, the anchor resolution, or the plugin's candidate rules now affect what is painted during a press, not just the settled result.
-- The style runs one caret hit test per pointer event beyond the slop, which is the same order of work CodeMirror's own style performs.
+- The style uses one `posAtCoords` lookup per pointer event beyond the slop. Native caret hits stay off the drag-move path.
 
 ## Verification requirements
 

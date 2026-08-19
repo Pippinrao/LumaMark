@@ -6,7 +6,6 @@ import type {
 } from '@codemirror/view';
 import {
   isPrimaryPointerClick,
-  unclampedInlinePointerPosition,
 } from './inlinePointerSelection';
 
 export type PointerSelectionAnchor = {
@@ -69,8 +68,8 @@ function pointerHeadPosition(
     return anchorPosition;
   }
 
-  // Edge auto-scroll drags leave the rendered content, where only the
-  // imprecise lookup still yields a position.
-  return unclampedInlinePointerPosition(view, coordinates)
-    ?? view.posAtCoords(coordinates, false);
+  // After slop, map from cached coordinates. Native caretPositionFromPoint
+  // stays on press/mouseup settlement; per-mousemove hits are too expensive
+  // and disagree with hidden WYSIWYG delimiters.
+  return view.posAtCoords(coordinates, false) ?? anchorPosition;
 }

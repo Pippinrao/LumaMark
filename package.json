@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.3.31",
+  "version": "0.3.32",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -42,6 +42,7 @@
     "release:installed-math-caret-os": "node scripts/release/verify-installed-math-caret-os.mjs",
     "release:installed-plantuml-os": "node scripts/release/verify-installed-plantuml-os.mjs",
     "release:installed-window-chrome": "node scripts/release/verify-installed-window-chrome.mjs",
+    "release:installed-everyday-tables": "node scripts/release/verify-installed-everyday-tables.mjs",
     "release:installed-ux-stutter": "node scripts/release/verify-installed-ux-stutter.mjs",
     "release:installed-window-routing": "node scripts/release/verify-installed-second-instance-open.mjs",
     "release:packaged-parity-gaps": "pnpm release:packaged-code-block && node scripts/release/verify-packaged-argv-open.mjs && node scripts/release/verify-packaged-menu-cold-start.mjs && node scripts/release/verify-packaged-table-caret.mjs && node scripts/release/verify-packaged-media-caret.mjs",

@@ -1340,9 +1340,66 @@ describe('tablePreviewExtension', () => {
 
     expect(view.state.doc.toString()).toBe(doc);
     expect(undoDepth(view.state)).toBe(historyAfterLoad);
-    expect(parent.querySelectorAll('.tbl-table-widget')).toHaveLength(0);
+    expect(parent.querySelectorAll('.tbl-table-widget')).toHaveLength(2);
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain(
+      'TABLE_ACCEPTANCE_MARKER',
+    );
 
     view.destroy();
+    parent.remove();
+  });
+
+  it('mounts widgets for everyday GFM tables loaded through the editor API', async () => {
+    const doc = [
+      '# Everyday GFM',
+      '',
+      '| Name | Score |',
+      '| --- | --- |',
+      '| Alice | 1 |',
+      '| Bob | 2 |',
+      '',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '', parent });
+
+    editor.loadDocument(doc);
+    await settleTablePreview();
+
+    expect(editor.getDocumentText()).toBe(doc);
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain(
+      'Alice',
+    );
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('mounts widgets for alignment-colon GFM tables without rewriting source', async () => {
+    const doc = [
+      'before',
+      '',
+      '| Header | Value |',
+      '| :--- | ---: |',
+      '| x | longer value |',
+      '',
+      'after',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '', parent });
+
+    editor.loadDocument(doc);
+    await settleTablePreview();
+
+    expect(editor.getDocumentText()).toBe(doc);
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain(
+      'longer value',
+    );
+
+    editor.destroy();
     parent.remove();
   });
 
@@ -1426,7 +1483,10 @@ describe('tablePreviewExtension', () => {
     await settleTablePreview();
 
     expect(editor.getDocumentText()).toBe(doc);
-    expect(parent.querySelector('.tbl-table-widget')).toBeNull();
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain(
+      'longer value',
+    );
 
     editor.destroy();
     parent.remove();

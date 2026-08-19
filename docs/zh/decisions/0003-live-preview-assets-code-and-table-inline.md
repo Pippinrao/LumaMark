@@ -18,6 +18,8 @@
 
 更新：2026-08-13（阻止成熟表格组件被动规范化非规范 Markdown 源码）
 
+更新：2026-08-19（挂载日常 GFM 表格，且不在加载时改写源码）
+
 ## 背景
 
 V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同时继续遵守源码保真、成熟组件优先和 editor capability 边界。远程图片如果直接使用网络 URL，离线和跨平台稳定性较弱；如果自动改写 Markdown，又会破坏用户源码意图。代码块需要常见语言语法高亮，但不应替换 CodeMirror。表格交互已经由 `codemirror-markdown-tables` 承担，不能回退到自研整表编辑器。
@@ -39,7 +41,7 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 代码块语言高亮使用 CodeMirror 官方语言包：`@codemirror/language-data` 覆盖常见语言，`@codemirror/lang-javascript` 直接支持 `js/jsx/ts/tsx`。
 - 代码块整块预览只使用 CodeMirror 行级 decoration。禁止在通用 WYSIWYG 链路中对 `FencedCode` 施加跨多行 mark decoration，因为跨行 mark 上的 padding、border 或 line-height 会破坏光标定位、选区和背景对齐。
 - 表格仍以 `codemirror-markdown-tables` 为整表交互核心。inactive `.tbl-cell-view` 与激活后的 nested CodeMirror 都直接使用 CodeMirror/Lezer 的 syntax token DOM：定界符和链接目标仅以 CSS 隐藏，粗体、斜体、删除线、代码和链接标签在同一源码 DOM 上呈现。禁止再创建 sibling overlay、第二份 HTML 文本表面或手工坐标映射。
-- `codemirror-markdown-tables@1.0.0` 会在加载非规范表格时派发内部 `table.format` transaction。LumaMark 在 table capability 边界拒绝这种没有用户意图的被动格式化：非规范表格逐字保留源码并降级到普通源码表面；只有已经规范化的表格挂载成熟交互 widget。真实单元格编辑仍通过组件的 `table.edit` 路径提交最小文档 transaction。
+- `codemirror-markdown-tables@1.0.0` 会在 GFM 管道表格尚未补齐空白时试图派发内部 `table.format` 改写。LumaMark 通过补丁让合法 GFM 表格在不做该改写的情况下挂载成熟 widget，并仍在 table capability 边界丢弃任何剩余的 `table.format` 文档变更。因此日常 `| --- |` 与对齐 `| :--- | ---: |` 表格按表格显示，源码字节保持逐字不变。真实单元格编辑仍走 `table.edit`。
 - 组件管理的 `.tbl-cell` 不增加额外 padding；组件 cell view 与 nested editor 共享固定字号、字体族和 token CSS。隐藏 token 的规则必须同时覆盖 inactive view 与 nested editor，保证点击坐标、显示 caret 和源码 selection 使用同一布局。
 - 表格光标回归必须使用真实浏览器坐标验证：按可见字符 `Range` 计算点击点，断言激活后的 nested CodeMirror selection 和 root selection 都落在同一字符边界，并在输入后继续保持同一单元格。jsdom 不提供可靠的字体布局与原生 caret，不能替代这项 E2E。
 
@@ -87,7 +89,7 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - watcher revision 只影响运行时 resolver 与 widget identity；不会修改图片引用、dirty 状态或撤销历史。
 - 代码块预览不再把整段 fenced code 包成跨行 mark；视觉表面由 `.lm-md-code-block-line` 行级类承担，避免改变 CodeMirror 行盒模型。
 - 表格 inline 呈现复用 mature table widget 生成的源码 token DOM，不改写 `.tbl-cell-view.innerHTML`，也不维护额外渲染调度或 HTML 状态。
-- 当前源码保真守卫依赖组件内部 annotation 值 `table.format`；兼容 cast 只存在于 table capability 边界。每次升级组件必须重新验证非规范加载、source→live preview、撤销深度、规范表格 widget 和真实 cell edit。上游提供公开的 autoformat opt-out 后应移除该内部边界。
+- 当前源码保真守卫仍监视组件内部 annotation 值 `table.format`；兼容 cast 只存在于 table capability 边界。每次升级组件必须重新验证日常 GFM 加载、对齐表格、source→live preview、撤销深度、已补齐表格 widget 和真实 cell edit。上游提供仍能挂载 widget 的公开 autoformat opt-out 后应移除该内部边界。
 - 2026-08-04 的真实浏览器诊断先确认额外 padding、复合 `em` 和 hover 字体切换会令 overlay/source 漂移；进一步的格式化单元格用例证明 sibling overlay 即使纯文本几何对齐，仍会把可见偏移直接当作源码偏移。最终移除 overlay 后，粗体单元格点击、变宽中英混排点击、输入和源码 selection 共用同一 token 几何。
 
 ## 回滚或复审条件
@@ -100,4 +102,4 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 受控 resolver 所依赖的 `ureq::unversioned` 扩展 API 在后续 `ureq` 小版本升级时出现兼容性变化，或出现无法在不阻塞 command 线程的前提下保证取消与并发去重。
 - CodeMirror 语言包显著增加启动时间或包体积。
 - `codemirror-markdown-tables` 对内嵌语法、IME、撤销重做或复制粘贴的限制阻塞 V1 写作体验。
-- 上游若提供既保留原始空白又可挂载 widget 的公开 API，应替换当前非规范表格的 raw-source fallback；不得以静默规范化用户 Markdown 作为替代。
+- 若后续库版本再次拒绝在不改写源码的情况下挂载 widget，应恢复补丁（或改用上游 opt-out），而不是静默规范化用户 Markdown，或把合法 GFM 表格降级为管道文本。

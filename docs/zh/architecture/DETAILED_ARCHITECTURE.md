@@ -12,6 +12,8 @@
 
 更新：2026-08-16（Issue #11 MathJax 文档级 Worker 与 CHTML 数学渲染）
 
+更新：2026-08-19（日常 GFM 表格在不做加载时 format 的情况下挂载 widget）
+
 当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)，设置持久化与工作区/外部打开安全边界分别见 [ADR 0014](../decisions/0014-settings-persistence.md) 和 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
 
 ## 设计结论
@@ -155,7 +157,7 @@ Rust 保存：
 | 编辑器核心 | CodeMirror 6 | Milkdown/ProseMirror/Monaco | 选 CodeMirror 6。性能、源码保真和可视区渲染更符合目标。 |
 | Markdown 交互解析 | `@codemirror/lang-markdown` / Lezer | remark 作为热路径 parser | 编辑热路径选 CodeMirror/Lezer；remark 只用于导出或离线处理。 |
 | 保存转换 diff | `@codemirror/merge` | 自研 diff / 全文替换 | 只在稀疏、受控的 `prepareTextForSave` 转换后生成最小 CodeMirror changes，不进入普通输入热路径。目标文本精确，但极端输入下位置映射不能无条件视为精确；复审与 fallback 见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。 |
-| Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成、主题适配与源码保真边界。当前版本没有关闭被动 autoformat 的公开 API，因此非规范表格逐字保留并降级为 raw-source，规范表格才挂载 widget。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)与[ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)。 |
+| Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成、主题适配与源码保真边界。项目补丁让合法 GFM 表格在不做加载时 `table.format` 改写的情况下挂载 widget；仍会丢弃剩余 format 文档变更，源码保持逐字不变。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)与[ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)。 |
 | UI 基础组件 | Radix Primitives | Ariakit/Base UI/React Aria | 默认 Radix。若单个组件不满足，再按组件替换。 |
 | 视觉样式 | CSS variables + CSS Modules | Tailwind/shadcn/ui | 默认 CSS tokens + CSS Modules。暂不引入 shadcn 生成组件，避免基础组件变成自维护代码。 |
 | 图标 | lucide-react | Radix Icons | 选 lucide-react。图标覆盖更广。 |

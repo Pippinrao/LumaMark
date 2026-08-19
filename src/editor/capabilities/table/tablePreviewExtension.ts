@@ -198,10 +198,11 @@ function getRuntimeTableLibraryAnnotation(
   transaction: Transaction,
   matches: (value: unknown) => boolean,
 ): Annotation<unknown> | undefined {
-  // codemirror-markdown-tables@1.0.0 has no public autoformat opt-out. Keep
-  // this compatibility cast at the library boundary and review it whenever
-  // the dependency changes. The original annotation is preserved so the
-  // library observes its own format transaction without dispatching forever.
+  // codemirror-markdown-tables@1.0.0 still has no public autoformat opt-out.
+  // The patched library mounts valid GFM tables without a document-changing
+  // table.format rewrite. Keep dropping format document changes so a future
+  // upstream format dispatch cannot rewrite source; widgets no longer depend
+  // on that rewrite succeeding.
   const annotations = (
     transaction as unknown as {
       readonly annotations?: readonly { readonly value?: unknown }[];

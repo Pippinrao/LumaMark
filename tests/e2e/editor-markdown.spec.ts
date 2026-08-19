@@ -1705,6 +1705,36 @@ test('localizes the built-in search panel after an application language change',
   await expect(editor).toContainText('needle');
 });
 
+test('renders everyday unpadded GFM tables as widgets without rewriting source', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await openBlankDocument(page);
+
+  const editor = page.locator('.cm-content').first();
+  await installRootEditorViewTestBridge(editor);
+  const source = [
+    'intro',
+    '',
+    '| Name | Score |',
+    '| --- | --- |',
+    '| Alice | 1 |',
+    '',
+    'after',
+  ].join('\n');
+  await replaceEditorSource(page, source);
+  await page.locator('.cm-line', { hasText: 'after' }).click();
+
+  await expect(page.locator('.tbl-table-widget .tbl-table')).toBeVisible();
+  await expect(page.locator('.tbl-table-widget')).toContainText('Alice');
+  const documentText = await editor.evaluate((content) =>
+    (
+      content as RootEditorContentTestBridge
+    ).resolveRootEditorViewForTest().state.doc.toString(),
+  );
+  expect(documentText.replace(/\r\n/g, '\n')).toContain(source);
+});
+
 test('renders markdown tables through the mature component and keeps table menu commands thin', async ({
   context,
   page,

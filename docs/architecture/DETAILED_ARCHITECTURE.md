@@ -12,6 +12,8 @@ Updated: 2026-08-05 (desktop file association, single-instance forwarding, and p
 
 Updated: 2026-08-16 (Issue #11 MathJax document-level Worker and CHTML math rendering)
 
+Updated: 2026-08-19 (everyday GFM tables mount widgets without format-on-load)
+
 Current implementation order and exit gates live in the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). The current execution stage is the **Parity Reliability Foundation**, not historical V1 Alpha plans. Editor contracts and review conditions are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md). Settings persistence and workspace/external-open safety boundaries are in [ADR 0014](../decisions/0014-settings-persistence.md) and [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
 
 **Landed capabilities (partial; do not treat the whole Typora Parity milestone as complete):**
@@ -166,7 +168,7 @@ Not for the store:
 | Editor core | CodeMirror 6 | Milkdown/ProseMirror/Monaco | Choose CodeMirror 6. Performance, source fidelity, and viewport rendering better match goals. |
 | Markdown interactive parsing | `@codemirror/lang-markdown` / Lezer | remark as hot-path parser | Editing hot path chooses CodeMirror/Lezer; remark is only for export or offline processing. |
 | Save-transform diff | `@codemirror/merge` | Hand-rolled diff / full-text replace | Only after sparse, controlled `prepareTextForSave` transforms, produce minimal CodeMirror changes; never on the ordinary input hot path. Target text is exact, but position mapping under extreme inputs must not be treated as unconditionally exact; review and fallback are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md). |
-| Markdown table interaction | `codemirror-markdown-tables` | Hand-rolled TableWidget / Milkdown / Toast UI / ProseMirror tables | Choose `codemirror-markdown-tables`. Mature table widget, cell editing, row/column ops, copy/paste, and table autocompletion inside CodeMirror 6; LumaMark only does thin integration, theme adaptation, and source-fidelity boundaries. Current versions have no public API to disable passive autoformat, so non-canonical tables stay verbatim and degrade to raw-source; only canonical tables mount the widget. See [ADR 0002](../decisions/0002-codemirror-markdown-tables.md) and [ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md). |
+| Markdown table interaction | `codemirror-markdown-tables` | Hand-rolled TableWidget / Milkdown / Toast UI / ProseMirror tables | Choose `codemirror-markdown-tables`. Mature table widget, cell editing, row/column ops, copy/paste, and table autocompletion inside CodeMirror 6; LumaMark only does thin integration, theme adaptation, and source-fidelity boundaries. A project patch mounts valid GFM tables without a load-time `table.format` rewrite; remaining format document changes are dropped so source stays verbatim. See [ADR 0002](../decisions/0002-codemirror-markdown-tables.md) and [ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md). |
 | UI primitives | Radix Primitives | Ariakit/Base UI/React Aria | Default Radix. Replace per component if one does not fit. |
 | Visual styling | CSS variables + CSS Modules | Tailwind/shadcn/ui | Default CSS tokens + CSS Modules. Do not introduce shadcn-generated components yet, to avoid turning primitives into self-maintained code. |
 | Icons | lucide-react | Radix Icons | Choose lucide-react. Broader icon coverage. |

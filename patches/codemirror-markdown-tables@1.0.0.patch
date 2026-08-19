@@ -1,5 +1,5 @@
 diff --git a/dist/codemirror-markdown-tables.js b/dist/codemirror-markdown-tables.js
-index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..d552dff 100644
+index cc9e0e7..545c636 100644
 --- a/dist/codemirror-markdown-tables.js
 +++ b/dist/codemirror-markdown-tables.js
 @@ -4901,11 +4901,29 @@ function Jl(e) {
@@ -124,13 +124,10 @@ index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..d552dff 100644
                        onpaste: (B) => Vu(B, n)
                      });
                    }
-@@ -7637,16 +7683,11 @@ function as(e, t = []) {
-  const n = [];
-  ba(Hs(e), (r) => {
-    Ar(r) && n.push({ from: e.doc.lineAt(r.from).from, to: e.doc.lineAt(r.to).to });
-  });
-  const o = [], i = [];
-  for (const r of n) {
+@@ -7641,14 +7687,9 @@ function as(e, t = []) {
+   });
+   const o = [], i = [];
+   for (const r of n) {
 -    if (Aa(t, r, Mr)) {
 -      o.push(r);
 -      continue;
@@ -138,7 +135,9 @@ index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..d552dff 100644
 -    const l = mf(r, e);
 -    no(l) ? o.push(r) : i.push(...l);
 +    o.push(r);
-  }
+   }
 -  return { spans: o, formatting: i, complete: Bs(e) };
 +  return { spans: o, formatting: i, complete: !0 };
  }
+ function mf(e, t) {
+   return [...pf(e, t), ...vf(e, t)];

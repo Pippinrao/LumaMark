@@ -49,6 +49,7 @@ import {
   createPointerSelectionStyle,
   type PointerSelectionAnchor,
 } from './pointerSelectionStyle';
+import { previewSchedulerExtension, updateHasPreviewPass } from '../preview/previewScheduler';
 import './wysiwyg.css';
 
 export type { MarkdownDecorationRange } from '../markdown/markdownDecorationTypes';
@@ -1075,12 +1076,14 @@ export function selectMarkdownDecorationUpdateMode({
   compositionStarted,
   documentChanged = false,
   gestureActive = false,
+  previewPass = false,
   requiresRebuild,
   wasComposing,
 }: {
   readonly compositionStarted: boolean;
   readonly documentChanged?: boolean;
   readonly gestureActive?: boolean;
+  readonly previewPass?: boolean;
   readonly requiresRebuild: boolean;
   readonly wasComposing: boolean;
 }): MarkdownDecorationUpdateMode {
@@ -1094,7 +1097,7 @@ export function selectMarkdownDecorationUpdateMode({
     return 'keep';
   }
 
-  if (wasComposing || requiresRebuild) {
+  if (wasComposing || previewPass || requiresRebuild) {
     return 'rebuild';
   }
 
@@ -1148,10 +1151,10 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
         compositionStarted,
         documentChanged: update.docChanged,
         gestureActive: this.gestureActive,
+        previewPass: updateHasPreviewPass(update),
         requiresRebuild:
           pointerSettlement ||
           update.docChanged ||
-          update.viewportChanged ||
           update.startState.readOnly !== update.state.readOnly ||
           isEditorRenderLocked(update.startState) !==
             isEditorRenderLocked(update.state) ||
@@ -1494,6 +1497,7 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
 
 export function markdownWysiwygExtension(): Extension {
   return [
+    previewSchedulerExtension(),
     protectedSourceRangesExtension(),
     markdownDecorationsPlugin,
     pointerSelectionStyleExtension(),

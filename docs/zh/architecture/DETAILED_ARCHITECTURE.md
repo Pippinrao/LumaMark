@@ -14,6 +14,8 @@
 
 更新：2026-08-19（日常 GFM 表格在不做加载时 format 的情况下挂载 widget）
 
+更新：2026-08-19（preview scheduler：源码路径与延迟视口 decoration）
+
 当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)，设置持久化与工作区/外部打开安全边界分别见 [ADR 0014](../decisions/0014-settings-persistence.md) 和 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
 
 ## 设计结论
@@ -49,6 +51,7 @@ Tauri v2
 - Markdown 源文是唯一真实数据。
 - `DocumentSourceFormat` 在编辑器状态中映射 BOM、末尾换行与逐行换行格式；规范化 `Text` 不等于保存时全文件归一化。
 - 复杂块渲染异步、可取消、可缓存。
+- 视口驱动的实时预览 decoration 重建由 preview scheduler 合并；源码、光标和选区仍走同步 CodeMirror update。见 [ADR 0020](../decisions/0020-preview-scheduler.md)。
 - 基础组件成熟库优先，未经确认不自研。
 
 ## 分层架构

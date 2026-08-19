@@ -440,6 +440,29 @@ describe('markdown WYSIWYG extension', () => {
     ).toBe('rebuild');
   });
 
+  it('rebuilds from a scheduled preview pass instead of a viewport-only update', () => {
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        documentChanged: false,
+        gestureActive: false,
+        previewPass: false,
+        requiresRebuild: false,
+        wasComposing: false,
+      }),
+    ).toBe('keep');
+    expect(
+      selectMarkdownDecorationUpdateMode({
+        compositionStarted: false,
+        documentChanged: false,
+        gestureActive: false,
+        previewPass: true,
+        requiresRebuild: false,
+        wasComposing: false,
+      }),
+    ).toBe('rebuild');
+  });
+
   it('removes document gesture listeners when the editor is destroyed', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

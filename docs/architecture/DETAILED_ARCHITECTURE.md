@@ -14,6 +14,8 @@ Updated: 2026-08-16 (Issue #11 MathJax document-level Worker and CHTML math rend
 
 Updated: 2026-08-19 (everyday GFM tables mount widgets without format-on-load)
 
+Updated: 2026-08-19 (preview scheduler: source path vs deferred viewport decorations)
+
 Current implementation order and exit gates live in the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). The current execution stage is the **Parity Reliability Foundation**, not historical V1 Alpha plans. Editor contracts and review conditions are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md). Settings persistence and workspace/external-open safety boundaries are in [ADR 0014](../decisions/0014-settings-persistence.md) and [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
 
 **Landed capabilities (partial; do not treat the whole Typora Parity milestone as complete):**
@@ -60,6 +62,7 @@ Core principles:
 - Markdown source is the sole source of truth.
 - `DocumentSourceFormat` maps BOM, trailing newline, and per-line newline formats in editor state; normalized `Text` does not mean whole-file normalization on save.
 - Complex-block rendering is asynchronous, cancelable, and cacheable.
+- Viewport-driven live-preview decoration rebuilds coalesce through the preview scheduler; source, caret, and selection stay on the synchronous CodeMirror update. See [ADR 0020](../decisions/0020-preview-scheduler.md).
 - Basic components prefer mature libraries; do not hand-roll without confirmation.
 
 ## Layered Architecture

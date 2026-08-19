@@ -132,6 +132,10 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
           value.blocks,
         )
       ) {
+        if (contextChanged) {
+          syncLocalImageSources(previewContext, value.blocks);
+        }
+
         return {
           blocks: value.blocks,
           decorations: buildImageDecorations(

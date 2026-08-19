@@ -1190,6 +1190,42 @@ describe('editorApi', () => {
     parent.remove();
   });
 
+  it('syncs local image watch targets when only the document path changes', async () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const syncLocalSources = vi.fn().mockResolvedValue(undefined);
+    const imageAssetResolver = Object.assign(
+      async () =>
+        ({
+          kind: 'resolved',
+          src: 'asset://localhost/pic.png',
+        }) as const,
+      { syncLocalSources },
+    );
+    const editor = createEditorApi({
+      documentContext: {
+        imageAssetResolver,
+        path: null,
+      },
+      doc: '![Alt](./assets/pic.png)\n',
+      parent,
+    });
+
+    await Promise.resolve();
+    syncLocalSources.mockClear();
+
+    editor.setDocumentContext({ path: 'E:\\notes\\doc.md' });
+    await Promise.resolve();
+
+    expect(syncLocalSources).toHaveBeenCalledWith({
+      documentPath: 'E:\\notes\\doc.md',
+      sources: ['./assets/pic.png'],
+    });
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('updates live preview widgets when the current document path changes', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

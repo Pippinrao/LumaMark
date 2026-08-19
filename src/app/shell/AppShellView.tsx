@@ -8,6 +8,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { persistSidebarOpen, readPersistedSidebarOpen } from './panelLayoutStorage';
 import {
+  FILE_TREE_CONTENT_CHROME_WIDTH,
   sidebarPanelConstraints,
   sidebarWidthForContentWidth,
 } from './panelConstraints';
@@ -29,6 +30,7 @@ type AppShellViewProps = {
   onSidebarOpenChange: (open: boolean) => void;
   readingMode: boolean;
   readOnlyFlashing: boolean;
+  sidebarContentChromeWidth?: number;
   sidebarContentWidth: number;
   sidebarOpen: boolean;
   slots: ShellSlots;
@@ -46,6 +48,7 @@ export function AppShellView({
   onSidebarOpenChange,
   readingMode,
   readOnlyFlashing,
+  sidebarContentChromeWidth = FILE_TREE_CONTENT_CHROME_WIDTH,
   sidebarContentWidth,
   sidebarOpen,
   slots,
@@ -132,7 +135,10 @@ export function AppShellView({
     const frame = globalThis.requestAnimationFrame(() => {
       if (!sidebarWidthWasUserSetRef.current && sidebarOpen) {
         sidebarPanelRef.current?.resize(
-          sidebarWidthForContentWidth(sidebarContentWidth),
+          sidebarWidthForContentWidth(
+            sidebarContentWidth,
+            sidebarContentChromeWidth,
+          ),
         );
       }
     });
@@ -140,7 +146,7 @@ export function AppShellView({
     return () => {
       globalThis.cancelAnimationFrame(frame);
     };
-  }, [sidebarContentWidth, sidebarOpen, sidebarPanelRef]);
+  }, [sidebarContentChromeWidth, sidebarContentWidth, sidebarOpen, sidebarPanelRef]);
 
   return (
     <div

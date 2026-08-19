@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FILE_TREE_CONTENT_CHROME_WIDTH,
+  OUTLINE_CONTENT_CHROME_WIDTH,
   SIDEBAR_ADAPTIVE_MAX_WIDTH,
   SIDEBAR_ADAPTIVE_MIN_WIDTH,
   sidebarPanelConstraints,
@@ -30,11 +32,19 @@ describe('sidebarWidthForContentWidth', () => {
     expect(SIDEBAR_ADAPTIVE_MAX_WIDTH).toBe(480);
   });
 
-  it('adds room for the sidebar chrome around the measured content', () => {
-    const width = sidebarWidthForContentWidth(240);
+  it('adds file-tree chrome around the measured content by default', () => {
+    expect(FILE_TREE_CONTENT_CHROME_WIDTH).toBe(72);
+    expect(sidebarWidthForContentWidth(240)).toBe(240 + FILE_TREE_CONTENT_CHROME_WIDTH);
+  });
 
-    expect(width).toBeGreaterThan(240);
-    expect(width).toBeLessThan(SIDEBAR_ADAPTIVE_MAX_WIDTH);
+  it('uses a smaller outline chrome than the file-tree chevron and icon row', () => {
+    expect(OUTLINE_CONTENT_CHROME_WIDTH).toBeLessThan(FILE_TREE_CONTENT_CHROME_WIDTH);
+    expect(sidebarWidthForContentWidth(240, OUTLINE_CONTENT_CHROME_WIDTH)).toBe(
+      240 + OUTLINE_CONTENT_CHROME_WIDTH,
+    );
+    expect(
+      sidebarWidthForContentWidth(240, OUTLINE_CONTENT_CHROME_WIDTH),
+    ).toBeLessThan(sidebarWidthForContentWidth(240));
   });
 
   it('grows with the measured content between both bounds', () => {

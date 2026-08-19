@@ -12,6 +12,10 @@ import { AppDialogs } from '../shell/AppDialogs';
 import { EditorPane } from '../shell/EditorPane';
 import { TopChrome } from '../shell/TopChrome';
 import { WorkspaceSidebar } from '../shell/WorkspaceSidebar';
+import {
+  FILE_TREE_CONTENT_CHROME_WIDTH,
+  OUTLINE_CONTENT_CHROME_WIDTH,
+} from '../shell/panelConstraints';
 import { StartScreen } from '../../features/startup/StartScreen';
 import type { ShellSlots } from '../shell/shellTypes';
 import packageMetadata from '../../../package.json';
@@ -46,7 +50,7 @@ type AppShellModel = ReturnType<typeof useAppShellModel>;
 
 type AppShellSlotHandlers = {
   onReadOnlyEditAttempt: () => void;
-  onSidebarContentWidthChange: (contentWidth: number) => void;
+  onSidebarContentWidthChange: (contentWidth: number, chromeWidth?: number) => void;
 };
 
 export function useAppShellSlots(
@@ -294,7 +298,12 @@ export function useAppShellSlots(
             >
               <FileTree
                 loadingPaths={model.workspace.loadingPaths}
-                onContentWidthChange={onSidebarContentWidthChange}
+                onContentWidthChange={(contentWidth) => {
+                  onSidebarContentWidthChange(
+                    contentWidth,
+                    FILE_TREE_CONTENT_CHROME_WIDTH,
+                  );
+                }}
                 onLoadChildren={model.workspace.loadChildren}
                 onOpenFile={(path) => {
                   model.requestUnsavedAction(() => {
@@ -314,6 +323,12 @@ export function useAppShellSlots(
           outline={
             <OutlinePanel
               headings={model.headings}
+              onContentWidthChange={(contentWidth) => {
+                onSidebarContentWidthChange(
+                  contentWidth,
+                  OUTLINE_CONTENT_CHROME_WIDTH,
+                );
+              }}
               onSelectHeading={model.editor.selectHeading}
             />
           }

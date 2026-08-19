@@ -3,10 +3,14 @@ import { useAppShellSlots } from '../containers/useAppShellSlots';
 import { useAppShellModel } from '../controllers/useAppShellModel';
 import { ensureMenuDebugDomCapture } from '../../shared/debug/menuInteractionLog';
 import { AppShellView } from './AppShellView';
+import { FILE_TREE_CONTENT_CHROME_WIDTH } from './panelConstraints';
 
 export function AppShell() {
   const model = useAppShellModel();
   const [sidebarContentWidth, setSidebarContentWidth] = useState(0);
+  const [sidebarContentChromeWidth, setSidebarContentChromeWidth] = useState(
+    FILE_TREE_CONTENT_CHROME_WIDTH,
+  );
   const [readOnlyFlashing, setReadOnlyFlashing] = useState(false);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onReadOnlyEditAttempt = useCallback(() => {
@@ -19,12 +23,19 @@ export function AppShell() {
       flashTimerRef.current = null;
     }, 900);
   }, []);
+  const onSidebarContentWidthChange = useCallback(
+    (contentWidth: number, chromeWidth = FILE_TREE_CONTENT_CHROME_WIDTH) => {
+      setSidebarContentWidth(contentWidth);
+      setSidebarContentChromeWidth(chromeWidth);
+    },
+    [],
+  );
   const slotHandlers = useMemo(
     () => ({
       onReadOnlyEditAttempt,
-      onSidebarContentWidthChange: setSidebarContentWidth,
+      onSidebarContentWidthChange,
     }),
-    [onReadOnlyEditAttempt],
+    [onReadOnlyEditAttempt, onSidebarContentWidthChange],
   );
   const slots = useAppShellSlots(model, slotHandlers);
 
@@ -51,6 +62,7 @@ export function AppShell() {
       onSidebarOpenChange={model.setSidebarOpen}
       readingMode={model.editor.editorDisplayMode === 'reading'}
       readOnlyFlashing={readOnlyFlashing}
+      sidebarContentChromeWidth={sidebarContentChromeWidth}
       sidebarContentWidth={sidebarContentWidth}
       sidebarOpen={model.sidebarOpen}
       slots={slots}

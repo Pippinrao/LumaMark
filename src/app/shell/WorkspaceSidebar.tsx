@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { SidebarLabels } from './shellTypes';
 
@@ -13,9 +13,15 @@ export function WorkspaceSidebar({
   labels,
   outline,
 }: WorkspaceSidebarProps) {
+  const [tab, setTab] = useState('files');
+
   return (
     <aside className="lm-sidebar" aria-label={labels.sidebar}>
-      <Tabs.Root className="lm-sidebar-tabs" defaultValue="files">
+      <Tabs.Root
+        className="lm-sidebar-tabs"
+        onValueChange={setTab}
+        value={tab}
+      >
         <Tabs.List
           className="lm-sidebar-tabs-list"
           aria-label={labels.sidebar}
@@ -28,10 +34,10 @@ export function WorkspaceSidebar({
           </Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content className="lm-sidebar-tab-panel" value="files">
-          {fileTree}
+          {tab === 'files' ? fileTree : null}
         </Tabs.Content>
         <Tabs.Content className="lm-sidebar-tab-panel" value="outline">
-          {outline}
+          {tab === 'outline' ? outline : null}
         </Tabs.Content>
       </Tabs.Root>
     </aside>

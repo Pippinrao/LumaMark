@@ -1,10 +1,15 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
+import {
+  measureOutlineContentWidth,
+  measureOutlineLabel,
+} from './outlineContentWidth';
 import type { OutlineHeading } from './outlineParser';
 
 type OutlinePanelProps = {
   headings: readonly OutlineHeading[];
+  onContentWidthChange?: (contentWidth: number) => void;
   onSelectHeading: (heading: OutlineHeading) => void;
 };
 
@@ -17,6 +22,7 @@ const OUTLINE_INITIAL_RECT = {
 
 export function OutlinePanel({
   headings,
+  onContentWidthChange,
   onSelectHeading,
 }: OutlinePanelProps) {
   const { t } = useTranslation();
@@ -34,6 +40,16 @@ export function OutlinePanel({
     initialRect: OUTLINE_INITIAL_RECT,
     overscan: OUTLINE_OVERSCAN,
   });
+
+  useEffect(() => {
+    if (!onContentWidthChange) {
+      return;
+    }
+
+    onContentWidthChange(
+      measureOutlineContentWidth(headings, measureOutlineLabel),
+    );
+  }, [headings, onContentWidthChange]);
 
   return (
     <section className="lm-outline" aria-label={t('outline.title')}>

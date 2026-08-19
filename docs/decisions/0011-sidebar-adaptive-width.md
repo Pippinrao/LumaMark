@@ -17,8 +17,9 @@ There was already an “adaptive” path, but it only measured the currently ope
 - Lower the drag minimum to 120px. Continuing to drag left snaps closed to 0, equivalent to closing the sidebar.
 - The drag maximum is no longer a fixed pixel value; it is derived from the editor panel’s own 360px minimum width—window width minus editor minimum. The sidebar cannot consume the whole window.
 - Adaptive width is based on the longest item among currently expanded file-tree nodes, including indent depth, clamped to 200–480px. With no workspace open, compute from the recent-files list and current filename using the same clamp.
-- Width measurement uses canvas `measureText` from node data sources and does not read the DOM. The file tree is virtualized by `react-arborist`, so only visible nodes exist in the DOM and reading DOM would yield scroll-dependent results.
-- Recompute only when the file-tree structure changes: opening a workspace or folder, expanding or collapsing nodes, or file add/remove. Scrolling and switching to the outline tab do not recompute.
+- Switching to the outline tab remounts that panel and reports heading label width plus indent using the same 200–480px clamp, with outline-specific chrome (no file-tree chevron or icon). Switching back to Files remounts the file tree and reports that width again.
+- Width measurement uses canvas `measureText` from node data sources and does not read the DOM. The file tree is virtualized by `react-arborist`, so only visible nodes exist in the DOM and reading DOM would yield scroll-dependent results. Outline measurement walks the heading list, not the virtualized viewport.
+- Recompute when the file-tree structure changes: opening a workspace or folder, expanding or collapsing nodes, or file add/remove; when the outline heading list changes; and when the sidebar tab changes. Scrolling does not recompute.
 - Once the user manually drags the sidebar in the current session, adaptive yields and later structure changes no longer alter width. After restart, adaptive resumes.
 - Remove `localStorage` persistence of sidebar width. Persistence of sidebar open/closed state remains.
 
@@ -40,4 +41,4 @@ There was already an “adaptive” path, but it only measured the currently ope
 
 ## Rollback and revisit criteria
 
-If users report that non-persistent manual width is painful, reintroduce width persistence while keeping adaptive defaults, but also persist the “user has manually set” marker; otherwise the width-loss defect described here returns. If the sidebar later hosts more tabs with significantly different content widths, revisit whether “adapt only from the file tree” remains appropriate.
+If users report that non-persistent manual width is painful, reintroduce width persistence while keeping adaptive defaults, but also persist the “user has manually set” marker; otherwise the width-loss defect described here returns. Additional sidebar tabs should report their own content width and chrome on activation; they must not keep using a stale file-tree measurement.

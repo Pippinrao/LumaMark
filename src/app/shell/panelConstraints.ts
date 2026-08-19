@@ -8,9 +8,16 @@ export const SIDEBAR_ADAPTIVE_MAX_WIDTH = 480;
 
 // Chevron, file icon, row gaps and the section padding that sit around the
 // measured label text.
-const SIDEBAR_CONTENT_CHROME_WIDTH = 72;
+export const FILE_TREE_CONTENT_CHROME_WIDTH = 72;
 
-export function sidebarWidthForContentWidth(contentWidth: number): number {
+// Outline rows have no chevron or file icon. Keep tab-panel padding, the
+// item’s base padding, and list chrome only.
+export const OUTLINE_CONTENT_CHROME_WIDTH = 40;
+
+export function sidebarWidthForContentWidth(
+  contentWidth: number,
+  chromeWidth = FILE_TREE_CONTENT_CHROME_WIDTH,
+): number {
   if (!Number.isFinite(contentWidth) || contentWidth <= 0) {
     return SIDEBAR_ADAPTIVE_MIN_WIDTH;
   }
@@ -19,7 +26,7 @@ export function sidebarWidthForContentWidth(contentWidth: number): number {
     SIDEBAR_ADAPTIVE_MAX_WIDTH,
     Math.max(
       SIDEBAR_ADAPTIVE_MIN_WIDTH,
-      Math.round(contentWidth + SIDEBAR_CONTENT_CHROME_WIDTH),
+      Math.round(contentWidth + chromeWidth),
     ),
   );
 }

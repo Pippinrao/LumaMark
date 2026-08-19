@@ -72,6 +72,17 @@ describe('AppShellView sidebar sizing', () => {
     });
   });
 
+  it('adapts using outline chrome when the outline tab reports content width', async () => {
+    renderShell({
+      sidebarContentChromeWidth: 40,
+      sidebarContentWidth: 240,
+    });
+
+    await waitFor(() => {
+      expect(panelMocks.resize).toHaveBeenCalledWith(280);
+    });
+  });
+
   it('keeps a sparse file tree at the adaptive minimum', async () => {
     renderShell({ sidebarContentWidth: 40 });
 
@@ -99,6 +110,22 @@ describe('AppShellView sidebar sizing', () => {
     expect(panelMocks.resize).toHaveBeenCalledOnce();
   });
 
+  it('keeps the user-drag lock when the outline tab reports a different width', async () => {
+    const view = renderShell({ sidebarContentWidth: 100 });
+    await waitFor(() => expect(panelMocks.resize).toHaveBeenCalledOnce());
+
+    fireEvent.click(screen.getByTestId('manual-panel-resize'));
+    view.rerender(
+      createShell({
+        sidebarContentChromeWidth: 40,
+        sidebarContentWidth: 400,
+      }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 32));
+    expect(panelMocks.resize).toHaveBeenCalledOnce();
+  });
+
   it('does not persist the temporary focus-mode sidebar collapse', async () => {
     persistSidebarOpen(true);
     const view = render(createShell({}));
@@ -112,6 +139,7 @@ describe('AppShellView sidebar sizing', () => {
 
 type ShellOptions = {
   focusMode?: boolean;
+  sidebarContentChromeWidth?: number;
   sidebarContentWidth?: number;
   sidebarOpen?: boolean;
 };
@@ -122,6 +150,7 @@ function renderShell(options: ShellOptions) {
 
 function createShell({
   focusMode = false,
+  sidebarContentChromeWidth,
   sidebarContentWidth = 0,
   sidebarOpen = true,
 }: ShellOptions) {
@@ -136,6 +165,7 @@ function createShell({
       onSidebarOpenChange={vi.fn()}
       readingMode={false}
       readOnlyFlashing={false}
+      sidebarContentChromeWidth={sidebarContentChromeWidth}
       sidebarContentWidth={sidebarContentWidth}
       sidebarOpen={sidebarOpen}
       slots={{

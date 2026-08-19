@@ -15,9 +15,10 @@
 - 代码块围栏补齐预算校准日期：2026-08-13
 - 卡顿恢复混合文档校准日期：2026-08-18
 - 装机交互卡顿门禁日期：2026-08-19
+- 诚实混合文档 widget/longtask 门禁改写日期：2026-08-19
 - 平台：Windows，本地开发工作树
 - 命令：`pnpm perf:bench`（jsdom，串行）和 `pnpm release:installed-ux-stutter`（真实装机/WebView2 窗口）
-- 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、selection-only dispatch、显示模式往返、阅读外观 compartment dispatch 往返、代码块密集文档输入/激活/真实 Enter 围栏补齐，简单/复杂 Mermaid pending render 与 active-edit 输入 dispatch，1/5/10MB 文档统计调度，约 2–4KB 混合文档（数学 + PlantUML + Mermaid + 表格）尾部输入/选区/滚动/处理时间探测，以及装机同窗口小文件点击、标题栏拖动咬合、混合文档滚动和加载 long task 测量
+- 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、selection-only dispatch、显示模式往返、阅读外观 compartment dispatch 往返、代码块密集文档输入/激活/真实 Enter 围栏补齐，简单/复杂 Mermaid pending render 与 active-edit 输入 dispatch，1/5/10MB 文档统计调度，约 2–4KB 混合文档（数学 + PlantUML + Mermaid + 日常 GFM 表格 widget）尾部输入/选区/滚动/处理时间探测，以及装机同窗口小文件点击、标题栏拖动咬合、混合文档 widget 可见文件切换、手势期间 longtask 与拖拽选区采样
 - 运行口径：`pnpm test` 排除 `tests/perf/**`，性能基准必须通过 `pnpm perf:bench` 单独串行执行。大纲面板 benchmark 会先预热一次极小渲染。输入与默认编辑器创建固定采集 5 个样本、保留首样本并输出全部数值；默认 editor 首次输入、Mermaid 冷路径和 pending-render 的每个样本都使用独立 editor/activation/render 生命周期。既有主预算约束 P80（第 4 个有序样本，最多允许 1 次超过主预算），最大值按 `max(50 ms, 2 × 主预算)` 约束；默认编辑器创建还要求首样本和 P80 `< 300 ms`、最大值 `< 600 ms`，详细决策见 [ADR 0007](../decisions/0007-stable-performance-sampling.md)。代码块围栏补齐作为复杂编辑命令使用 P80 `< 50 ms`、最大值 `< 100 ms`，普通尾部输入仍保持 P80 `< 16 ms`、最大值 `< 50 ms`，边界见 [ADR 0013](../decisions/0013-code-block-completion-performance-budget.md)。Mermaid 1/5/10MB active-edit P80 预算仍保持 `< 16/50/100 ms`；pending-render 的 P80 与最大值都必须 `< 50 ms`。
 
 ## 自动化门禁
@@ -85,19 +86,20 @@
 
 ## 装机交互门禁
 
-`pnpm release:installed-ux-stutter` 测量真实 Windows 窗口（进程能抢到前景时用 OS 鼠标，否则用 WebView CDP 点击；Event Timing / 两帧滚动；`PerformanceObserver` long task）。必须打开 routing acceptance（`LUMAMARK_ROUTING_ACCEPTANCE_MODE=1`），以免第二次 argv 再拉起一个进程。
+`pnpm release:installed-ux-stutter` 测量真实 Windows 窗口。混合文档门禁必须先看到日常 GFM `.tbl-table-widget` 再计时。切到该混合文档的口径是 `pointerdown` → 表格 widget 可见。滚动在手势期间采样 `PerformanceObserver` longtask。`scrollTop += 280` 后两帧 rAF 时长只记录、不作通过/失败门禁。选区在按下 / 2px / 20px 拖拽期间采样。必须打开 routing acceptance（`LUMAMARK_ROUTING_ACCEPTANCE_MODE=1`），以免第二次 argv 再拉起一个进程。
 
-这些数字不能与 `pnpm perf:bench` 的 jsdom dispatch 互换。Vitest 里混合文档输入 P80 通过，不能证明装机同窗口点文件、标题栏拖动咬合、滚动帧或加载 long task。
+这些数字不能与 `pnpm perf:bench` 的 jsdom dispatch 互换。Vitest 里混合文档输入 P80 通过，不能证明装机同窗口点文件、标题栏拖动咬合、滚动 longtask 或 widget 可见的文件切换。
 
 | 路径 | 预算 | 当前结果 | 结论 |
 |---|---:|---:|---|
-| 同窗口点小文件（`pointerdown` → 目标正文可见） | P80 < 50 ms | P80 25.0 ms；样本 [28.1, 24.5, 22.5, 25.0, 23.9]；2026-08-19 本分支 release exe | 通过 |
-| 标题栏拖动首次 `GetWindowRect` 变化 | 鼠标开始移动后 < 50 ms | 跳过：开始菜单/搜索占前景（`foregroundTitle='开始'`）。空白条仍只用 native `.lm-titlebar-drag`；窗口能抢到前景时探针会记录首次位移 | 跳过 |
-| 约 2–4KB 混合文档滚动两帧 | P80 < 16 ms；P95 < 32 ms | P80 16.7 ms；P95 16.8 ms；两次预热滚动后样本约 16.6–16.8 ms。16.7 ms 是一帧 60 Hz vsync；门禁允许 1 ms 余量，避免量化帧误伤 | 通过 |
-| 混合文档加载/出图 long task（3 秒窗口） | < 50 ms | 0 ms（`PerformanceObserver` longtask） | 通过 |
-| 冷启动 argv → 正文可见 | 记录，不压到 50 ms | 本轮 933 ms（含 WebView 启动） | 已知限制 |
+| 同窗口点两行小文件（`pointerdown` → 目标正文可见） | 只记录；不是用户预算 | 此前玩具文件 P80 ~25 ms 不是混合文档 UX | 仅记录 |
+| 混合文档文件切换（`pointerdown` → 日常 `.tbl-table-widget` 可见） | P80 < 200 ms | 需要包含 Phase 1–4 的 exe；不得用 0.3.31 声称通过 | 待安装包重建 |
+| 标题栏拖动首次 `GetWindowRect` 变化 | 鼠标开始移动后 < 50 ms | 开始菜单/搜索占前景时跳过 | 跳过 |
+| 约 2–4KB 混合文档滚动手势期间 longtask | P95 < 50 ms；最大值 < 50 ms | 空闲 `scrollTop += 280` 后两帧 rAF ~16.7 ms 不是此门禁 | 待安装包重建 |
+| 混合文档按下 / 2px / 20px 选区采样 | 按下与 2px 折叠；20px 为区间 | 待安装包重建 | 待定 |
+| 冷启动 argv → 正文可见 | 记录，不压到 50 ms | 约 900–1100 ms（含 WebView 启动） | 已知限制 |
 
-要声称「装机包在这三条路径上不再卡」，必须对本分支对应 exe 跑绿 `pnpm release:installed-ux-stutter`。不得用 jsdom 混合文档 dispatch 通过当作该证据。系统开始菜单占前景时，标题栏拖动咬合会跳过（不是失败）；这不是生产缺陷。
+要声称「装机包在这些路径上不再卡」，必须对包含日常表格 widget 与 preview scheduler 的 exe 跑绿 `pnpm release:installed-ux-stutter`。不得用 jsdom 混合文档 dispatch 通过或两帧 rAF 16.7 ms 样本当作该证据。系统开始菜单占前景时，标题栏拖动咬合会跳过（不是失败）；这不是生产缺陷。
 
 ## 真实 Tauri WebView2 人机工学测量
 
@@ -118,7 +120,7 @@
 ## 已知限制
 
 - 自动化基线仍主要运行在 Vitest + jsdom；本轮补了真实 Windows Tauri WebView2 打开、尾部输入、撤销和小文档阅读外观两帧布局观测，但不能替代大文档宽度/字体重排、滚动 FPS、原生 IME 手感、屏幕阅读器和长时间编辑测试。
-- jsdom 的 `view.dispatch` / 合成滚动不是装机 INP、标题栏拖动咬合、WebView2 滚动帧或 `longtask` 时长。这三条交互路径用 `pnpm release:installed-ux-stutter` 测量。
+- jsdom 的 `view.dispatch` / 合成滚动不是装机 INP、标题栏拖动咬合、WebView2 滚动帧或 `longtask` 时长。这些交互路径用 `pnpm release:installed-ux-stutter` 测量。玩具文件同窗口点击约 25 ms，以及 `scrollTop += 280` 后两帧 rAF 约 16.7 ms，都不是用户卡顿证据。
 - 冷启动 argv 打开两行 Markdown 包含 WebView 启动（此前装机探测约 900–1100 ms），是明确的已知限制，不是同窗口点文件的 50 ms 预算。
 - 真实 WebView2 的 10MB 撤销 P95 为 155.90 ms，仍有可感知延迟；不得因自动化 dispatch 为 1.79 ms 就宣称大文档人机体验已经完全达标。
 - Web 构建 chunk 预算已自动化。后续若 Mermaid、KaTeX、Cytoscape 等依赖继续增长，应优先评估按图表类型懒加载或替换更细粒度入口，而不是提高预算。

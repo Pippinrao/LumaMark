@@ -15,9 +15,10 @@ This document records LumaMark V1 alpha performance gates and current measured r
 - Code-block fence completion budget calibration date: 2026-08-13
 - Stutter-recovery mixed-document calibration date: 2026-08-18
 - Installed UX stutter gate date: 2026-08-19
+- Honest mixed-document widget/longtask gate rewrite: 2026-08-19
 - Platform: Windows, local development worktree
 - Command: `pnpm perf:bench` (jsdom, serial) and `pnpm release:installed-ux-stutter` (live installed/WebView2 window)
-- Coverage: Markdown fixture reads, application file-action open, post-open debounced outline refresh, virtualized outline panel initial render, CodeMirror large-document initialization, tail input dispatch, selection-only dispatch, display-mode round-trip, reading-appearance compartment dispatch round-trip, dense code-block document input/activation/real Enter fence completion, simple/complex Mermaid pending render plus active-edit input dispatch, 1/5/10MB document-statistics scheduling, a ~2–4KB mixed document (math + PlantUML + Mermaid + table) tail-input/selection/scroll/processing probe, and installed same-window small-file click, titlebar drag engage, mixed-document scroll, and load long-task measurement
+- Coverage: Markdown fixture reads, application file-action open, post-open debounced outline refresh, virtualized outline panel initial render, CodeMirror large-document initialization, tail input dispatch, selection-only dispatch, display-mode round-trip, reading-appearance compartment dispatch round-trip, dense code-block document input/activation/real Enter fence completion, simple/complex Mermaid pending render plus active-edit input dispatch, 1/5/10MB document-statistics scheduling, a ~2–4KB mixed document (math + PlantUML + Mermaid + everyday GFM table widget) tail-input/selection/scroll/processing probe, and installed same-window small-file click, titlebar drag engage, mixed-document widget-visible file switch, gesture-time longtask, and drag-selection sampling
 - Run policy: `pnpm test` excludes `tests/perf/**`; performance benchmarks must run separately and serially via `pnpm perf:bench`. The outline panel benchmark warms up once with a tiny render first. Input and default editor creation always collect 5 samples, keep the first sample, and report all values; default editor first input, Mermaid cold paths, and pending-render each use an independent editor/activation/render lifecycle per sample. Existing primary budgets constrain P80 (the 4th ordered sample; at most 1 sample may exceed the primary budget); maxima are constrained by `max(50 ms, 2 × primary budget)`; default editor creation also requires first sample and P80 `< 300 ms` and maximum `< 600 ms`. See [ADR 0007](../decisions/0007-stable-performance-sampling.md) for the full decision. Code-block fence completion, as a complex editing command, uses P80 `< 50 ms` and maximum `< 100 ms`; ordinary tail input remains P80 `< 16 ms` and maximum `< 50 ms`; the boundary is in [ADR 0013](../decisions/0013-code-block-completion-performance-budget.md). Mermaid 1/5/10MB active-edit P80 budgets remain `< 16/50/100 ms`; pending-render P80 and maximum must both be `< 50 ms`.
 
 ## Automated Gates
@@ -85,19 +86,20 @@ This document records LumaMark V1 alpha performance gates and current measured r
 
 ## Installed UX interaction gates
 
-`pnpm release:installed-ux-stutter` measures a live Windows window (OS mouse when the process can take the foreground, otherwise WebView CDP click; Event Timing / two-frame scroll; `PerformanceObserver` long tasks). Routing acceptance must stay on (`LUMAMARK_ROUTING_ACCEPTANCE_MODE=1`) so a second argv does not spawn another process.
+`pnpm release:installed-ux-stutter` measures a live Windows window. Mixed-document gates require an everyday GFM `.tbl-table-widget` before timing. File-switch to that mixed document is `pointerdown` → table widget visible. Scroll samples `PerformanceObserver` longtask **during** the wheel/scroll gesture. Two-rAF duration after `scrollTop += 280` is recorded only and is not a pass/fail gate. Selection is sampled during press / 2px / 20px drag. Routing acceptance must stay on (`LUMAMARK_ROUTING_ACCEPTANCE_MODE=1`) so a second argv does not spawn another process.
 
-These numbers are not interchangeable with `pnpm perf:bench` jsdom dispatch. Passing mixed-doc input P80 in Vitest does not prove installed same-window file click, titlebar drag engage, scroll frames, or load long tasks.
+These numbers are not interchangeable with `pnpm perf:bench` jsdom dispatch. Passing mixed-doc input P80 in Vitest does not prove installed same-window file click, titlebar drag engage, scroll long tasks, or widget-visible file switch.
 
 | Path | Budget | Current result | Verdict |
 |---|---:|---:|---|
-| Same-window small-file click (`pointerdown` → target text visible) | P80 < 50 ms | P80 25.0 ms; samples [28.1, 24.5, 22.5, 25.0, 23.9]; 2026-08-19 this-branch release exe | Pass |
-| Titlebar drag first `GetWindowRect` change | < 50 ms after mouse motion | Skipped: Start/Search kept the foreground (`foregroundTitle='开始'`). Native `.lm-titlebar-drag` region is unchanged; the probe records first-move timing when the window can take focus | Skipped |
-| Mixed ~2–4KB doc scroll two frames | P80 < 16 ms; P95 < 32 ms | P80 16.7 ms; P95 16.8 ms; samples ~16.6–16.8 ms after two warmup scrolls. 16.7 ms is one 60 Hz vsync; the gate allows 1 ms slack so a quantized frame does not fail | Pass |
-| Mixed-doc load/render long task (3 s window) | < 50 ms | 0 ms (`PerformanceObserver` longtask) | Pass |
-| Cold argv → visible text | Recorded, not gated to 50 ms | 933 ms on this run (WebView boot) | Known limit |
+| Same-window two-line file click (`pointerdown` → target text visible) | Recorded; not the user budget | Prior P80 ~25 ms on toy files is not mixed-document UX | Recorded only |
+| Mixed doc file switch (`pointerdown` → everyday `.tbl-table-widget` visible) | P80 < 200 ms | Requires an exe that contains Phases 1–4; do not claim pass from 0.3.31 | Pending installed rebuild |
+| Titlebar drag first `GetWindowRect` change | < 50 ms after mouse motion | Skipped when Start/Search keeps the foreground | Skipped |
+| Mixed ~2–4KB doc scroll longtask during gesture | P95 < 50 ms; max < 50 ms | Two-rAF ~16.7 ms after idle `scrollTop += 280` is not this gate | Pending installed rebuild |
+| Mixed-doc press / 2px / 20px selection samples | Press and 2px collapsed; 20px range | Pending installed rebuild | Pending |
+| Cold argv → visible text | Recorded, not gated to 50 ms | ~900–1100 ms (WebView boot) | Known limit |
 
-Acceptance for “the installed package no longer stutters on these three paths” requires a green run of `pnpm release:installed-ux-stutter` against an exe that contains the corresponding source. Do not treat a jsdom mix-doc dispatch pass as that evidence. Titlebar drag engage is skipped (not failed) when the OS Start menu holds the foreground; that skip is not a production defect.
+Acceptance for “the installed package no longer stutters on these paths” requires a green run of `pnpm release:installed-ux-stutter` against an exe that contains everyday table widgets plus the preview scheduler. Do not treat a jsdom mix-doc dispatch pass or a two-rAF 16.7 ms sample as that evidence. Titlebar drag engage is skipped (not failed) when the OS Start menu holds the foreground; that skip is not a production defect.
 
 ## Real Tauri WebView2 Ergonomic Measurements
 
@@ -118,7 +120,7 @@ On the same development real WebView2 before the fix, 10MB tail keyboard input w
 ## Known Limitations
 
 - The automated baseline still primarily runs in Vitest + jsdom; this round added real Windows Tauri WebView2 observations for open, tail input, undo, and small-document reading-appearance two-frame layout, but that does not replace large-document width/font reflow, scroll FPS, native IME feel, screen readers, or long editing sessions.
-- jsdom `view.dispatch` / synthetic scroll is not installed INP, titlebar drag engage, WebView2 scroll frames, or `longtask` duration. Use `pnpm release:installed-ux-stutter` for those three interaction paths.
+- jsdom `view.dispatch` / synthetic scroll is not installed INP, titlebar drag engage, WebView2 scroll frames, or `longtask` duration. Use `pnpm release:installed-ux-stutter` for those interaction paths. Toy-file same-window click ~25 ms and two-rAF ~16.7 ms after `scrollTop += 280` are not user-stutter evidence.
 - Cold argv open of a two-line Markdown file includes WebView boot (~900–1100 ms in prior installed probes) and is an explicit known limitation; it is not the same-window 50 ms file-click budget.
 - Real WebView2 10MB undo P95 is 155.90 ms and still has perceptible delay; do not claim large-document human experience is fully meeting targets just because automated dispatch is 1.79 ms.
 - Web build chunk budgets are automated. If Mermaid, KaTeX, Cytoscape, and similar dependencies keep growing, prefer evaluating lazy load by diagram type or finer-grained entry replacement over raising the budget.

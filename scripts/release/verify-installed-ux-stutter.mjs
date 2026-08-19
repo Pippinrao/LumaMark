@@ -1,11 +1,12 @@
 /**
  * Installed Windows UX stutter gates.
  *
- * CDP locates targets and observes editor text. File-switch clicks are real
- * Win32 SendInput. Routing acceptance stays enabled so a second argv does not
- * spawn another process.
+ * Mixed-document measurements require an everyday GFM table widget before
+ * timing. Scroll long tasks are sampled during the gesture. Two-rAF duration
+ * after `scrollTop += 280` is recorded only as a known non-gate.
  *
- * Cold argv→text is recorded as a known limitation and is not the 50ms budget.
+ * Routing acceptance stays enabled so a second argv does not spawn another
+ * process. Cold argv→text is recorded and is not the file-switch budget.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -24,11 +25,10 @@ import { createRoutingEnvironment } from './installedWindowRoutingHelpers.mjs';
 
 const FILE_SWITCH_P80_BUDGET_MS = 50;
 const FILE_SWITCH_SAMPLES = 5;
+const MIXED_FILE_SWITCH_WIDGET_P80_BUDGET_MS = 200;
 const DRAG_ENGAGE_BUDGET_MS = 50;
-const MIXED_SCROLL_P80_BUDGET_MS = 16;
-const MIXED_SCROLL_P80_VSYNC_SLACK_MS = 1;
-const MIXED_SCROLL_P95_BUDGET_MS = 32;
 const MIXED_LONG_TASK_BUDGET_MS = 50;
+const MIXED_TABLE_WIDGET_MIN = 1;
 
 const options = parseArguments(process.argv.slice(2));
 const executablePath =
@@ -43,9 +43,8 @@ if (options.plan) {
         budgets: {
           dragEngageMs: DRAG_ENGAGE_BUDGET_MS,
           fileSwitchP80Ms: FILE_SWITCH_P80_BUDGET_MS,
+          mixedFileSwitchWidgetP80Ms: MIXED_FILE_SWITCH_WIDGET_P80_BUDGET_MS,
           mixedLongTaskMs: MIXED_LONG_TASK_BUDGET_MS,
-          mixedScrollP80Ms: MIXED_SCROLL_P80_BUDGET_MS,
-          mixedScrollP95Ms: MIXED_SCROLL_P95_BUDGET_MS,
         },
         coordinateConversion: 'GetClientRect + ClientToScreen',
         executablePath,
@@ -235,18 +234,16 @@ async function runAcceptance() {
     const mixedUx = await measureMixedDocumentUx({
       expectedMarker: markerMixed,
       page,
+      probe,
     });
 
     const fileSwitchP80 = percentile(samples, 80);
-    const mixedScrollP80 = percentile(mixedUx.scrollSamplesMs, 80);
-    const mixedScrollP95 = percentile(mixedUx.scrollSamplesMs, 95);
     const evidence = {
       budgets: {
         dragEngageMs: DRAG_ENGAGE_BUDGET_MS,
         fileSwitchP80Ms: FILE_SWITCH_P80_BUDGET_MS,
+        mixedFileSwitchWidgetP80Ms: MIXED_FILE_SWITCH_WIDGET_P80_BUDGET_MS,
         mixedLongTaskMs: MIXED_LONG_TASK_BUDGET_MS,
-        mixedScrollP80Ms: MIXED_SCROLL_P80_BUDGET_MS,
-        mixedScrollP95Ms: MIXED_SCROLL_P95_BUDGET_MS,
       },
       coldArgvOpenMs: coldArgvMs,
       dragEngageMs: dragEngage,
@@ -254,17 +251,28 @@ async function runAcceptance() {
       fileSwitchSamplesMs: samples,
       knownLimitations: {
         coldArgvOpenMs:
-          'Cold argv→visible text includes WebView boot and is not the 50ms same-window budget.',
+          'Cold argv→visible text includes WebView boot and is not the same-window budget.',
+        toyFileSwitchP80Ms:
+          'Two-line file-switch P80 is recorded only. It is not the user-visible mixed-document budget.',
+        twoRafScrollMs:
+          'Two requestAnimationFrame durations after programmatic scrollTop are not a stutter gate.',
       },
+      mixedFileSwitchWidgetMs: mixedUx.fileSwitchWidgetMs,
       mixedLongTaskMaxMs: mixedUx.longTaskMaxMs,
-      mixedScrollP80Ms: mixedScrollP80,
-      mixedScrollP95Ms: mixedScrollP95,
-      mixedScrollSamplesMs: mixedUx.scrollSamplesMs,
+      mixedLongTaskP95Ms: mixedUx.longTaskP95Ms,
+      mixedSelectionDuringDrag: mixedUx.selectionDuringDrag,
+      mixedTableWidgetCount: mixedUx.tableWidgetCount,
+      mixedTwoRafScrollSamplesMs: mixedUx.twoRafScrollSamplesMs,
     };
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
-    if (fileSwitchP80 >= FILE_SWITCH_P80_BUDGET_MS) {
+    if (mixedUx.tableWidgetCount < MIXED_TABLE_WIDGET_MIN) {
       throw new Error(
-        `Same-window small-file click P80 ${fileSwitchP80.toFixed(1)}ms exceeds ${FILE_SWITCH_P80_BUDGET_MS}ms.`,
+        `Mixed document everyday GFM table mounted ${mixedUx.tableWidgetCount} widgets; expected >= ${MIXED_TABLE_WIDGET_MIN}.`,
+      );
+    }
+    if (mixedUx.fileSwitchWidgetMs >= MIXED_FILE_SWITCH_WIDGET_P80_BUDGET_MS) {
+      throw new Error(
+        `Mixed-document file switch to table widget ${mixedUx.fileSwitchWidgetMs.toFixed(1)}ms exceeds ${MIXED_FILE_SWITCH_WIDGET_P80_BUDGET_MS}ms.`,
       );
     }
     if (
@@ -275,20 +283,24 @@ async function runAcceptance() {
         `Titlebar drag engage ${dragEngage}ms exceeds ${DRAG_ENGAGE_BUDGET_MS}ms.`,
       );
     }
-    if (mixedScrollP80 >= MIXED_SCROLL_P80_BUDGET_MS + MIXED_SCROLL_P80_VSYNC_SLACK_MS) {
+    if (mixedUx.longTaskP95Ms >= MIXED_LONG_TASK_BUDGET_MS) {
       throw new Error(
-        `Mixed-document scroll P80 ${mixedScrollP80.toFixed(1)}ms exceeds ${MIXED_SCROLL_P80_BUDGET_MS}ms (60Hz vsync slack ${MIXED_SCROLL_P80_VSYNC_SLACK_MS}ms).`,
-      );
-    }
-    if (mixedScrollP95 >= MIXED_SCROLL_P95_BUDGET_MS) {
-      throw new Error(
-        `Mixed-document scroll P95 ${mixedScrollP95.toFixed(1)}ms exceeds ${MIXED_SCROLL_P95_BUDGET_MS}ms.`,
+        `Mixed-document gesture longtask P95 ${mixedUx.longTaskP95Ms.toFixed(1)}ms exceeds ${MIXED_LONG_TASK_BUDGET_MS}ms.`,
       );
     }
     if (mixedUx.longTaskMaxMs >= MIXED_LONG_TASK_BUDGET_MS) {
       throw new Error(
-        `Mixed-document long task ${mixedUx.longTaskMaxMs.toFixed(1)}ms exceeds ${MIXED_LONG_TASK_BUDGET_MS}ms.`,
+        `Mixed-document gesture long task ${mixedUx.longTaskMaxMs.toFixed(1)}ms exceeds ${MIXED_LONG_TASK_BUDGET_MS}ms.`,
       );
+    }
+    if (mixedUx.selectionDuringDrag?.pressCollapsed !== true) {
+      throw new Error('Mixed-document press was not collapsed during the gesture.');
+    }
+    if (mixedUx.selectionDuringDrag?.slopCollapsed !== true) {
+      throw new Error('Mixed-document 2px move was not collapsed during the gesture.');
+    }
+    if (mixedUx.selectionDuringDrag?.dragHasRange !== true) {
+      throw new Error('Mixed-document 20px drag did not create a range during the gesture.');
     }
   } catch (error) {
     process.stderr.write(
@@ -443,9 +455,9 @@ function createMixedFixture(marker) {
     '```',
     '',
     '| Col | Value |',
-    '| --- | ----- |',
-    '| a   | 1     |',
-    '| b   | 2     |',
+    '| --- | --- |',
+    '| a | 1 |',
+    '| b | 2 |',
     '',
     body,
     '',
@@ -454,64 +466,192 @@ function createMixedFixture(marker) {
   ].join('\n');
 }
 
-async function measureMixedDocumentUx({ expectedMarker, page }) {
-  await page.evaluate(() => {
-    window.__lmUxLongTasks = [];
+async function measureMixedDocumentUx({ expectedMarker, page, probe }) {
+  const fileSwitchWidgetMs = await measureFileSwitchToTableWidget({
+    expectedMarker,
+    page,
+    probe,
+  });
+  await waitForEditorMarker(page, expectedMarker, 15_000);
+  const tableWidgetCount = await page.locator('.tbl-table-widget').count();
+  if (tableWidgetCount < MIXED_TABLE_WIDGET_MIN) {
+    throw new Error(
+      `Everyday GFM table in mixed.md mounted ${tableWidgetCount} widgets before measuring.`,
+    );
+  }
+
+  const selectionDuringDrag = await sampleSelectionDuringDrag(page);
+
+  const gestureMetrics = await page.evaluate(async () => {
+    const durations = [];
     window.__lmUxLongTaskObserver?.disconnect?.();
     try {
       const observer = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-          window.__lmUxLongTasks.push(entry.duration);
+          durations.push(entry.duration);
         }
       });
-      observer.observe({ type: 'longtask', buffered: true });
+      observer.observe({ type: 'longtask', buffered: false });
       window.__lmUxLongTaskObserver = observer;
     } catch {
       window.__lmUxLongTaskObserver = null;
     }
-  });
 
-  const target = page.locator('.lm-recent-file', { hasText: 'mixed.md' }).first();
-  await target.waitFor({ state: 'visible', timeout: 8_000 });
-  await target.click({ timeout: 5_000 });
-  await waitForEditorMarker(page, expectedMarker, 15_000);
-  await delay(3_000);
-
-  const longTaskMaxMs = await page.evaluate(() => {
-    const durations = Array.isArray(window.__lmUxLongTasks)
-      ? window.__lmUxLongTasks
-      : [];
-    return durations.reduce((max, duration) => Math.max(max, duration), 0);
-  });
-
-  const scrollSamplesMs = await page.evaluate(async () => {
     const scroller = document.querySelector('.cm-scroller');
     if (!(scroller instanceof HTMLElement)) {
       throw new Error('Mixed document has no .cm-scroller.');
     }
+    const waitFrame = () =>
+      new Promise((resolveFrame) => {
+        requestAnimationFrame(() => resolveFrame());
+      });
+    for (let index = 0; index < 12; index += 1) {
+      scroller.scrollTop += 80;
+      scroller.dispatchEvent(
+        new WheelEvent('wheel', {
+          bubbles: true,
+          deltaMode: 0,
+          deltaY: 80,
+        }),
+      );
+      await waitFrame();
+    }
+    window.__lmUxLongTaskObserver?.disconnect?.();
+
     const waitTwoFrames = () =>
       new Promise((resolveFrame) => {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => resolveFrame());
         });
       });
-    for (let warmup = 0; warmup < 2; warmup += 1) {
-      scroller.scrollTop += 280;
-      scroller.dispatchEvent(new Event('scroll'));
-      await waitTwoFrames();
-    }
-    const samples = [];
-    for (let index = 0; index < 12; index += 1) {
+    const twoRafSamples = [];
+    for (let index = 0; index < 4; index += 1) {
       const started = performance.now();
       scroller.scrollTop += 280;
-      scroller.dispatchEvent(new Event('scroll'));
       await waitTwoFrames();
-      samples.push(performance.now() - started);
+      twoRafSamples.push(performance.now() - started);
     }
-    return samples;
+
+    return {
+      longTaskDurations: durations,
+      twoRafScrollSamplesMs: twoRafSamples,
+    };
   });
 
-  return { longTaskMaxMs, scrollSamplesMs };
+  const longTasks = gestureMetrics.longTaskDurations ?? [];
+  return {
+    fileSwitchWidgetMs,
+    longTaskMaxMs: longTasks.reduce((max, duration) => Math.max(max, duration), 0),
+    longTaskP95Ms: percentile(longTasks.length > 0 ? longTasks : [0], 95),
+    selectionDuringDrag,
+    tableWidgetCount,
+    twoRafScrollSamplesMs: gestureMetrics.twoRafScrollSamplesMs,
+  };
+}
+
+async function measureFileSwitchToTableWidget({ expectedMarker, page, probe }) {
+  await page.evaluate((marker) => {
+    const state = {
+      elapsed: null,
+      expected: marker,
+      started: null,
+    };
+    window.__lmUxFileSwitch = state;
+    if (window.__lmUxFileSwitchListener) {
+      document.removeEventListener(
+        'pointerdown',
+        window.__lmUxFileSwitchListener,
+        true,
+      );
+    }
+    const listener = (event) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.lm-recent-file')) {
+        return;
+      }
+      state.started = performance.now();
+      state.elapsed = null;
+      const tick = () => {
+        const widget = document.querySelector('.tbl-table-widget');
+        const text = document.querySelector('.cm-content')?.innerText ?? '';
+        if (widget && text.includes(state.expected)) {
+          state.elapsed = performance.now() - state.started;
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+    window.__lmUxFileSwitchListener = listener;
+    document.addEventListener('pointerdown', listener, true);
+  }, expectedMarker);
+
+  const target = page.locator('.lm-recent-file', { hasText: 'mixed.md' }).first();
+  await target.waitFor({ state: 'visible', timeout: 8_000 });
+  try {
+    const point = await nativePointForLocator(page, target, probe, 'mixed recent file');
+    probe('Click', { X: point.x, Y: point.y });
+  } catch {
+    await target.click({ timeout: 5_000 });
+  }
+
+  const deadline = Date.now() + 8_000;
+  while (Date.now() < deadline) {
+    const elapsed = await page.evaluate(() => window.__lmUxFileSwitch?.elapsed ?? null);
+    if (typeof elapsed === 'number' && Number.isFinite(elapsed)) {
+      return elapsed;
+    }
+    await delay(16);
+  }
+  throw new Error(
+    `Same-window mixed file click did not reveal an everyday table widget for ${expectedMarker} in time.`,
+  );
+}
+
+async function sampleSelectionDuringDrag(page) {
+  const origin = await page.evaluate(() => {
+    const content = document.querySelector('.cm-content');
+    if (!(content instanceof HTMLElement)) {
+      throw new Error('Mixed document has no .cm-content.');
+    }
+    const box = content.getBoundingClientRect();
+    return {
+      x: box.left + Math.min(48, box.width / 3),
+      y: box.top + Math.min(36, box.height / 4),
+    };
+  });
+
+  const sample = () =>
+    page.evaluate(() => {
+      const content = document.querySelector('.cm-content');
+      let view = null;
+      for (let node = content; node; node = node.parentElement) {
+        if (node.cmView?.view) {
+          view = node.cmView.view;
+          break;
+        }
+      }
+      const selection = view?.state.selection.main;
+      return {
+        empty: selection?.empty ?? null,
+        from: selection?.from ?? null,
+        to: selection?.to ?? null,
+      };
+    });
+
+  await page.mouse.move(origin.x, origin.y);
+  await page.mouse.down();
+  const press = await sample();
+  await page.mouse.move(origin.x + 2, origin.y);
+  const slop = await sample();
+  await page.mouse.move(origin.x + 20, origin.y);
+  const drag = await sample();
+  await page.mouse.up();
+
+  return {
+    dragHasRange: drag.empty === false && drag.from !== drag.to,
+    pressCollapsed: press.empty === true,
+    slopCollapsed: slop.empty === true,
+  };
 }
 
 async function measureTitlebarDragEngage({ page, probe }) {

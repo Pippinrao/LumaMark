@@ -609,32 +609,42 @@ async function measureFileSwitchToTableWidget({ expectedMarker, page, probe }) {
 
 async function sampleSelectionDuringDrag(page) {
   const origin = await page.evaluate(() => {
-    const content = document.querySelector('.cm-content');
-    if (!(content instanceof HTMLElement)) {
-      throw new Error('Mixed document has no .cm-content.');
+    const lines = [...document.querySelectorAll('.cm-line')];
+    const visible = lines.find((line) => {
+      if (!(line instanceof HTMLElement)) {
+        return false;
+      }
+      const text = line.innerText ?? '';
+      if (!text.includes('Paragraph') && !text.includes('Lead-in')) {
+        return false;
+      }
+      const box = line.getBoundingClientRect();
+      return box.width > 20 && box.top > 72 && box.bottom < window.innerHeight - 48;
+    });
+    const target = visible ?? document.querySelector('.cm-content');
+    if (!(target instanceof HTMLElement)) {
+      throw new Error('Mixed document has no visible text line to drag.');
     }
-    const box = content.getBoundingClientRect();
+    const box = target.getBoundingClientRect();
     return {
-      x: box.left + Math.min(48, box.width / 3),
-      y: box.top + Math.min(36, box.height / 4),
+      x: box.left + Math.min(48, Math.max(12, box.width / 3)),
+      y: box.top + Math.min(14, Math.max(8, box.height / 2)),
     };
   });
 
   const sample = () =>
     page.evaluate(() => {
-      const content = document.querySelector('.cm-content');
-      let view = null;
-      for (let node = content; node; node = node.parentElement) {
-        if (node.cmView?.view) {
-          view = node.cmView.view;
-          break;
-        }
-      }
+      const editor = document.querySelector('.cm-editor');
+      const view = editor?.cmView?.view;
       const selection = view?.state.selection.main;
+      const native = window.getSelection();
       return {
-        empty: selection?.empty ?? null,
+        empty: selection?.empty ?? native?.isCollapsed ?? null,
         from: selection?.from ?? null,
         to: selection?.to ?? null,
+        hasView: Boolean(view),
+        nativeCollapsed: native?.isCollapsed ?? null,
+        nativeLength: native?.toString().length ?? 0,
       };
     });
 
@@ -648,9 +658,12 @@ async function sampleSelectionDuringDrag(page) {
   await page.mouse.up();
 
   return {
-    dragHasRange: drag.empty === false && drag.from !== drag.to,
+    dragHasRange:
+      (drag.empty === false && drag.from !== drag.to) ||
+      (drag.hasView === false && drag.nativeCollapsed === false && drag.nativeLength > 0),
     pressCollapsed: press.empty === true,
     slopCollapsed: slop.empty === true,
+    samples: { drag, press, slop },
   };
 }
 

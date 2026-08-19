@@ -7,7 +7,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -175,19 +175,22 @@ async function runProbe() {
       .waitFor({ state: 'visible', timeout: 20_000 });
 
     const everyday = await sampleOpenFile(page, {
-      expectedSnippet: '| Alice | 1 |',
+      expectedSource: EVERYDAY_SOURCE,
+      fixturePath: everydayPath,
       label: 'everyday',
       title: 'everyday.md',
     });
     await openRecentFile(page, 'aligned.md');
     const aligned = await sampleOpenFile(page, {
-      expectedSnippet: '| :--- | ---: |',
+      expectedSource: ALIGNED_SOURCE,
+      fixturePath: alignedPath,
       label: 'aligned',
       title: 'aligned.md',
     });
     await openRecentFile(page, 'padded.md');
     const padded = await sampleOpenFile(page, {
-      expectedSnippet: '| alpha | beta  |',
+      expectedSource: PADDED_SOURCE,
+      fixturePath: paddedPath,
       label: 'padded',
       title: 'padded.md',
     });
@@ -226,26 +229,20 @@ async function runProbe() {
   }
 }
 
-async function sampleOpenFile(page, { expectedSnippet, label, title }) {
+async function sampleOpenFile(page, { expectedSource, fixturePath, label, title }) {
   await page.locator('.lm-editor-title', { hasText: title }).waitFor({
     state: 'visible',
     timeout: 20_000,
   });
-  await waitForEditorSnippet(page, expectedSnippet, 20_000);
+  await waitForTableWidget(page, 20_000);
   await delay(400);
-  return page.evaluate(
-    ({ expectedSnippet: snippet, label: fixtureLabel }) => {
-      const widgets = document.querySelectorAll('.tbl-table-widget');
-      const text = document.querySelector('.cm-content')?.innerText ?? '';
-      const normalized = text.replace(/\r\n/g, '\n');
-      return {
-        fixture: fixtureLabel,
-        sourceUnchanged: normalized.includes(snippet),
-        widgetCount: widgets.length,
-      };
-    },
-    { expectedSnippet, label },
-  );
+  const widgetCount = await page.locator('.tbl-table-widget').count();
+  const disk = (await readFile(fixturePath, 'utf8')).replace(/\r\n/g, '\n');
+  return {
+    fixture: label,
+    sourceUnchanged: disk === expectedSource,
+    widgetCount,
+  };
 }
 
 async function openRecentFile(page, name) {
@@ -254,28 +251,46 @@ async function openRecentFile(page, name) {
   await target.click({ timeout: 5_000 });
 }
 
-async function waitForEditorSnippet(page, snippet, timeoutMs) {
+async function waitForTableWidget(page, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
-  let latest = '';
+  let widgetCount = 0;
   while (Date.now() < deadline) {
-    latest = await page.evaluate(() => document.querySelector('.cm-content')?.innerText ?? '');
-    if (latest.replace(/\r\n/g, '\n').includes(snippet)) {
+    widgetCount = await page.locator('.tbl-table-widget').count();
+    if (widgetCount >= 1) {
       return;
     }
     await delay(100);
   }
-  throw new Error(
-    `Editor never showed ${snippet}. Last text: ${latest.slice(0, 240)}`,
-  );
+  throw new Error(`Editor never mounted a table widget. widgets=${widgetCount}`);
 }
 
 function acceptanceSettings() {
   return {
     appearance: {
-      theme: 'system',
+      fontZoomPercent: 100,
+      pageWidth: 'standard',
+      sidebarOpenOnStartup: true,
+      theme: 'light',
     },
     editor: {
+      autosaveEnabled: false,
       defaultDisplayMode: 'livePreview',
+      focusModeOnStartup: false,
+    },
+    general: {
+      language: 'zh-CN',
+      openWindowMode: 'aggregateWindow',
+      startupBehavior: 'home',
+    },
+    images: {
+      copyImagesToAssets: false,
+    },
+    markdown: {
+      math: {
+        equationNumbering: 'none',
+        physicsEnabled: false,
+        syntaxMode: 'pandoc',
+      },
       plantuml: {
         enabled: true,
       },

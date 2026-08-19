@@ -1,4 +1,4 @@
-import { Compartment, EditorState, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, Facet, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { createLivePreviewExtensions } from '../capabilities';
 import type { EditorMediaPreviewRequestHandler } from './editorEvents';
@@ -55,7 +55,41 @@ export type EditorDocumentContext = {
 };
 
 export const editorDisplayModeCompartment = new Compartment();
+export const editorDocumentContextCompartment = new Compartment();
 export const editorReadOnlyCompartment = new Compartment();
+
+export const editorDocumentContextFacet = Facet.define<
+  EditorDocumentContext,
+  EditorDocumentContext | undefined
+>({
+  combine(values) {
+    return values.at(-1);
+  },
+});
+
+export function editorDocumentContextExtension(
+  context: EditorDocumentContext,
+): Extension {
+  return editorDocumentContextFacet.of(context);
+}
+
+export function readEditorDocumentContext(
+  state: EditorState,
+): EditorDocumentContext | undefined {
+  return state.facet(editorDocumentContextFacet);
+}
+
+export function livePreviewPluginsNeedRemount(
+  current: EditorDocumentContext,
+  next: EditorDocumentContext,
+): boolean {
+  return (
+    (current.plantuml?.enabled !== false) !==
+      (next.plantuml?.enabled !== false) ||
+    current.imageImportHandler !== next.imageImportHandler ||
+    current.imageImportErrorHandler !== next.imageImportErrorHandler
+  );
+}
 
 export function editorReadOnlyExtension(
   mode: EditorDisplayMode,

@@ -26,6 +26,9 @@ import {
   editorReadOnlyExtension,
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
+  editorDocumentContextCompartment,
+  editorDocumentContextExtension,
+  livePreviewPluginsNeedRemount,
   type EditorDocumentContext,
   type EditorDisplayMode,
 } from './editorDisplayMode';
@@ -360,19 +363,30 @@ export class CodeMirrorEditorApi implements EditorApi {
       return;
     }
 
+    const remountPreviewPlugins = livePreviewPluginsNeedRemount(
+      this.documentContext,
+      nextContext,
+    );
     this.documentContext = nextContext;
     this.editorView.dispatch({
       effects: [
-        editorDisplayModeCompartment.reconfigure(
-          editorDisplayModeExtension(
-            this.displayMode,
-            this.documentContext,
-            this.transitionLocked,
-          ),
+        editorDocumentContextCompartment.reconfigure(
+          editorDocumentContextExtension(nextContext),
         ),
-        editorReadOnlyCompartment.reconfigure(
-          editorReadOnlyExtension(this.displayMode, this.transitionLocked),
-        ),
+        ...(remountPreviewPlugins
+          ? [
+              editorDisplayModeCompartment.reconfigure(
+                editorDisplayModeExtension(
+                  this.displayMode,
+                  nextContext,
+                  this.transitionLocked,
+                ),
+              ),
+              editorReadOnlyCompartment.reconfigure(
+                editorReadOnlyExtension(this.displayMode, this.transitionLocked),
+              ),
+            ]
+          : []),
       ],
     });
   }

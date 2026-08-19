@@ -38,6 +38,8 @@ import {
 import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
+  editorDocumentContextCompartment,
+  editorDocumentContextExtension,
   editorReadOnlyCompartment,
   editorReadOnlyExtension,
   type EditorDocumentContext,
@@ -217,6 +219,9 @@ export function createEditorState(
       editorMathPreferencesField,
       documentSourceFormatExtension(parsedDocument.format),
       editorAppearanceCompartment.of(editorAppearanceExtension(appearance)),
+      editorDocumentContextCompartment.of(
+        editorDocumentContextExtension(documentContext),
+      ),
       editorDisplayModeCompartment.of(
         editorDisplayModeExtension(displayMode, documentContext),
       ),

@@ -24,6 +24,7 @@ import {
   type ImagePreviewContext,
 } from './ImageBlockWidget';
 import { isEditorRenderLocked } from '../../core/editorRenderLock';
+import { readEditorDocumentContext } from '../../core/editorDisplayMode';
 import './image.css';
 
 export { collectImageBlocksInRanges } from './imageBlockDetection';
@@ -50,13 +51,14 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
 
   return StateField.define<ImageDecorationState>({
     create(state) {
-      const blocks = discoverImageBlocks(state, context);
+      const previewContext = resolveImagePreviewContext(state, context);
+      const blocks = discoverImageBlocks(state, previewContext);
 
       return {
         blocks,
         decorations: buildImageDecorations(
           state,
-          context,
+          previewContext,
           blocks,
           geometryCache,
         ),
@@ -69,16 +71,24 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
       const renderLockChanged =
         isEditorRenderLocked(transaction.startState) !==
         isEditorRenderLocked(transaction.state);
+      const previewContext = resolveImagePreviewContext(
+        transaction.state,
+        context,
+      );
+      const contextChanged = imagePreviewContextChanged(
+        resolveImagePreviewContext(transaction.startState, context),
+        previewContext,
+      );
 
       if (transaction.docChanged) {
         if (changedRangesAffectImageBlocks(transaction)) {
-          const blocks = discoverImageBlocks(transaction.state, context);
+          const blocks = discoverImageBlocks(transaction.state, previewContext);
 
           return {
             blocks,
             decorations: buildImageDecorations(
               transaction.state,
-              context,
+              previewContext,
               blocks,
               geometryCache,
             ),
@@ -89,6 +99,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
         const shouldRebuildDecorations =
           shouldRefresh ||
           renderLockChanged ||
+          contextChanged ||
           imageBlockPositionsChanged(value.blocks, blocks) ||
           imageSelectionStateChanged(
             transaction.startState,
@@ -102,7 +113,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
           decorations: shouldRebuildDecorations
             ? buildImageDecorations(
                 transaction.state,
-                context,
+                previewContext,
                 blocks,
                 geometryCache,
               )
@@ -113,6 +124,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
       if (
         shouldRefresh ||
         renderLockChanged ||
+        contextChanged ||
         imageSelectionStateChanged(
           transaction.startState,
           value.blocks,
@@ -124,7 +136,7 @@ function imageDecorationsField(context: ImagePreviewContext): Extension {
           blocks: value.blocks,
           decorations: buildImageDecorations(
             transaction.state,
-            context,
+            previewContext,
             value.blocks,
             geometryCache,
           ),
@@ -225,4 +237,33 @@ function syncLocalImageSources(
 
 function isWatchableLocalImageSource(source: string): boolean {
   return !/^(?:https?:|data:|blob:|lumamark-draft:)/i.test(source);
+}
+
+function resolveImagePreviewContext(
+  state: EditorState,
+  fallback: ImagePreviewContext,
+): ImagePreviewContext {
+  const context = readEditorDocumentContext(state);
+  if (!context) {
+    return fallback;
+  }
+
+  return {
+    documentPath: context.path,
+    imageAssetResolver:
+      context.imageAssetResolver ?? fallback.imageAssetResolver,
+    onMediaPreviewRequest:
+      context.onMediaPreviewRequest ?? fallback.onMediaPreviewRequest,
+  };
+}
+
+function imagePreviewContextChanged(
+  current: ImagePreviewContext,
+  next: ImagePreviewContext,
+): boolean {
+  return (
+    current.documentPath !== next.documentPath ||
+    current.imageAssetResolver !== next.imageAssetResolver ||
+    current.onMediaPreviewRequest !== next.onMediaPreviewRequest
+  );
 }

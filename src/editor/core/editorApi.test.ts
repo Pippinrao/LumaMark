@@ -1149,6 +1149,47 @@ describe('editorApi', () => {
     parent.remove();
   });
 
+  it('keeps everyday table widgets mounted across path-only document context updates', async () => {
+    const doc = [
+      '# Everyday GFM',
+      '',
+      '| Name | Score |',
+      '| --- | --- |',
+      '| Alice | 1 |',
+      '',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({
+      doc: '',
+      parent,
+    });
+
+    editor.loadDocument(doc);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const widgetBefore = parent.querySelector('.tbl-table-widget');
+    expect(widgetBefore).not.toBeNull();
+    const previewExtensionBefore = editorDisplayModeCompartment.get(
+      editor.view.state,
+    );
+
+    editor.setDocumentContext({ path: 'E:\\notes\\everyday.md' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const widgetAfter = parent.querySelector('.tbl-table-widget');
+    expect(widgetAfter).toBe(widgetBefore);
+    expect(editorDisplayModeCompartment.get(editor.view.state)).toBe(
+      previewExtensionBefore,
+    );
+    expect(parent.querySelectorAll('.tbl-table-widget')).toHaveLength(1);
+    expect(editor.getDocumentText()).toBe(doc);
+
+    editor.destroy();
+    parent.remove();
+  });
+
   it('updates live preview widgets when the current document path changes', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

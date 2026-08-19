@@ -9,6 +9,7 @@ import type { ImageImportHandler } from '../../core/editorDisplayMode';
 import type { ImageImportErrorHandler } from '../../core/editorDisplayMode';
 import { isEditorRenderLocked } from '../../core/editorRenderLock';
 import { announceReadOnlyEditAttempt } from '../../core/readOnlyEditAttempt';
+import { readEditorDocumentContext } from '../../core/editorDisplayMode';
 
 type PendingImageImport = {
   from: number;
@@ -219,7 +220,12 @@ export function imageInputExtension(
         return true;
       }
 
-      void importFiles(view, files, handler, documentPath).catch(onError);
+      void importFiles(
+        view,
+        files,
+        handler,
+        readEditorDocumentContext(view.state)?.path ?? documentPath,
+      ).catch(onError);
       return true;
     },
     paste(event, view) {
@@ -234,7 +240,12 @@ export function imageInputExtension(
         return true;
       }
 
-      void importFiles(view, files, handler, documentPath).catch(onError);
+      void importFiles(
+        view,
+        files,
+        handler,
+        readEditorDocumentContext(view.state)?.path ?? documentPath,
+      ).catch(onError);
       return true;
     },
   })];

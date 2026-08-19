@@ -29,6 +29,7 @@ import {
   type MathWorkerLike,
 } from './mathRenderSession';
 import { resolveMathRefPosition } from './mathRefNavigation';
+import { readEditorDocumentContext } from '../../core/editorDisplayMode';
 import type {
   MathFormulaRenderResult,
   MathLayoutMetrics,
@@ -151,7 +152,10 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
       constructor(private readonly view: EditorView) {
         this.inventory = this.view.state.field(mathInventoryField);
         this.layoutMetrics = readLayoutMetrics(this.view);
-        this.styleElement.dataset.lmMathStyle = options.documentId;
+        this.styleElement.dataset.lmMathStyle = mathDocumentId(
+          this.view.state,
+          options.documentId,
+        );
         document.head.appendChild(this.styleElement);
         this.session = new MathRenderSession({
           createWorker: options.createWorker ?? (() => {
@@ -203,6 +207,13 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
         const preferencesChanged = update.transactions.some((transaction) =>
           transaction.effects.some((effect) => effect.is(setEditorMathPreferencesEffect)),
         );
+        const documentId = mathDocumentId(this.view.state, options.documentId);
+        if (this.styleElement.dataset.lmMathStyle !== documentId) {
+          this.styleElement.dataset.lmMathStyle = documentId;
+          this.inventory = this.view.state.field(mathInventoryField);
+          this.requestRender(this.inventory);
+          return;
+        }
         if (update.docChanged) {
           const nextInventory = this.view.state.field(mathInventoryField);
           if (
@@ -254,7 +265,7 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
           return;
         }
         this.session.request({
-          documentId: options.documentId,
+          documentId: mathDocumentId(this.view.state, options.documentId),
           formulas,
           layoutMetrics: this.layoutMetrics,
           preferences: {
@@ -521,6 +532,11 @@ export function shouldRebuildMathDecorations({
   renderChanged,
 }: MathDecorationUpdateFacts): boolean {
   return renderChanged || formulaSequenceChanged || activeChanged;
+}
+
+function mathDocumentId(state: EditorState, fallback: string): string {
+  const context = readEditorDocumentContext(state);
+  return context?.documentId ?? context?.path ?? fallback;
 }
 
 function readLayoutMetrics(view: EditorView): MathLayoutMetrics {

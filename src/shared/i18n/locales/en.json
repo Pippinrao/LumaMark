@@ -345,9 +345,13 @@
   "update.newVersion": "New version",
   "update.releaseNotes": "Release notes",
   "update.downloading": "Downloading update…",
+  "update.readyToInstall": "Version {{version}} finished downloading and is ready to install.",
   "update.installNow": "Update Now",
+  "update.installReady": "Install Now",
+  "update.installing": "Installing update…",
   "update.later": "Later",
   "update.checkFailed": "Failed to check for updates. Please try again later.",
-  "update.downloadFailed": "Failed to download or install the update. Portable builds may not support in-app updates.",
+  "update.downloadFailed": "Failed to download the update. Portable builds may not support in-app updates.",
+  "update.installFailed": "Failed to install the update. Portable builds may not support in-app updates.",
   "update.unsupported": "In-app updates are only available in the installed desktop app."
 }

@@ -6,7 +6,7 @@
 
 **Date:** 2026-08-09
 
-**Updated:** 2026-08-13 (Windows current-user manual system-proxy boundary)
+**Updated:** 2026-08-13 (Windows current-user manual system-proxy boundary); 2026-08-19 (background download and confirm-to-install)
 
 ## Purpose and scope
 
@@ -26,6 +26,14 @@ Adopt official `tauri-plugin-updater` + `@tauri-apps/plugin-updater`:
 4. The app layer wraps the plugin through `src/services/updater/`; UI lives in `src/features/updates/` and business components do not depend on the plugin object directly.
 5. Add tag-triggered `.github/workflows/windows-release-publish.yml`: verify tag matches version, signed-build NSIS, generate `latest.json`, and create the GitHub Release. NSIS produced by Windows CI must be signed with the same GitHub Secrets; locally unsigned installers are for local acceptance only and must not be official distribution or updater artifacts.
 6. On the Windows target, Cargo feature-union enables `system-proxy` for the `reqwest 0.13.4` actually used by the official updater; do not change `updaterService.ts`, UI, IPC, or the install flow.
+
+7. Download and install stay separate official plugin calls. "Update Now" starts `update.download()` in the background; the dialog may be dismissed while the download continues. Opening Check for Updates during download, ready-to-install, or installing reopens that state and does not start another check. When the download finishes, the dialog opens automatically so the user confirms before `update.install()`. Silent install remains rejected.
+
+### Install confirmation UX
+
+- Users must confirm before the installer runs; a finished download is not an install.
+- Progress belongs in the existing update dialog. Do not add a second progress surface or extra explanatory copy.
+- Checking for updates is a single in-flight task: overlapping checks during download or install are defects.
 
 ### Windows proxy support boundary
 

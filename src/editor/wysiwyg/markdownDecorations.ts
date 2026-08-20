@@ -1252,6 +1252,17 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
           };
           return true;
         }
+        if (event.detail === 2 && unclamped !== null) {
+          this.inlinePointerCandidate = {
+            from: 0,
+            intent: 'word',
+            persist: false,
+            position: unclamped,
+            to: view.state.doc.length,
+            x: event.clientX,
+            y: event.clientY,
+          };
+        }
         return false;
       }
 
@@ -1325,13 +1336,13 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
       if (
         !this.gestureActive ||
         this.pointerGestureEvent !== event ||
-        candidate === null ||
-        candidate.intent !== 'caret'
+        candidate === null
       ) {
         return null;
       }
 
       return {
+        kind: candidate.intent === 'word' ? 'word-or-drag' : 'caret',
         position: candidate.position,
         x: candidate.x,
         y: candidate.y,

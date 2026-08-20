@@ -197,4 +197,44 @@ describe('pointer selection style', () => {
       cleanup();
     }
   });
+
+  it('treats a double-click-timing drag as a character range after slop', () => {
+    const { cleanup, view } = mountEditor();
+    try {
+      const style = createPointerSelectionStyle(view, {
+        kind: 'word-or-drag',
+        position: 6,
+        x: 100,
+        y: 20,
+      });
+      const insideSlop = style.get(mouseEvent(102, 20), false, false);
+      const pastSlop = style.get(mouseEvent(120, 20), false, false);
+
+      expect(insideSlop.main.empty).toBe(false);
+      expect(insideSlop.main.from).toBeLessThan(insideSlop.main.to);
+      expect(pastSlop.main.anchor).toBe(6);
+      expect(pastSlop.main.head).toBe(16);
+      expect(pastSlop.main.empty).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('does not query caretPositionFromPoint on a double-click-timing drag move', () => {
+    const { cleanup, view } = mountEditor();
+    try {
+      const caretSpy = document.caretPositionFromPoint as ReturnType<typeof vi.fn>;
+      const style = createPointerSelectionStyle(view, {
+        kind: 'word-or-drag',
+        position: 6,
+        x: 100,
+        y: 20,
+      });
+      caretSpy.mockClear();
+      style.get(mouseEvent(120, 20), false, false);
+      expect(caretSpy).not.toHaveBeenCalled();
+    } finally {
+      cleanup();
+    }
+  });
 });

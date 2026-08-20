@@ -6,7 +6,7 @@
 
 **Date:** 2026-08-18
 
-Updated: 2026-08-19 (drag-move head uses `posAtCoords`, not per-mousemove native caret hits)
+Updated: 2026-08-20 (`detail === 2` drag stays a character range owned by the style)
 
 ## Context
 
@@ -21,12 +21,12 @@ Settlement can only correct the final state, so any correction it makes has alre
 
 ## Decision
 
-- Live preview installs its own `EditorView.mouseSelectionStyle` (`editor/wysiwyg/pointerSelectionStyle.ts`) for plain left-button presses that the decorations plugin already resolved to a caret candidate.
+- Live preview installs its own `EditorView.mouseSelectionStyle` (`editor/wysiwyg/pointerSelectionStyle.ts`) for plain left-button presses that the decorations plugin already resolved to a caret or word-or-drag candidate.
 - The style resolves the anchor exactly once, from the press candidate the plugin computed with the browser-native caret hit, and maps that anchor through document changes.
-- While the pointer stays inside the DPR-aware click slop (`isPrimaryPointerClick`), the style returns a collapsed cursor at that anchor, so no range ever enters editor state.
-- Once the pointer passes the slop, the head comes from CodeMirror `posAtCoords` mapped from the press coordinates. Native `caretPositionFromPoint` stays on press and mouseup settlement only; it must not run on every drag `mousemove`.
-- The style returns `null` — leaving CodeMirror's built-in behavior in place — for double and triple clicks, inline-code chip presses that already `preventDefault`, and any press without a caret candidate.
-- Pointer settlement on `mouseup` stays as-is. It is now a confirmation of the same position rather than the only correction point.
+- While the pointer stays inside the DPR-aware click slop (`isPrimaryPointerClick`), a caret candidate returns a collapsed cursor; a `word-or-drag` candidate (OS `detail === 2`) returns the word at the press anchor.
+- Once the pointer passes the slop, the head comes from CodeMirror `posAtCoords` mapped from the press coordinates, including for `detail === 2`. Native `caretPositionFromPoint` stays on press and mouseup settlement only; it must not run on every drag `mousemove`.
+- The style returns `null` — leaving CodeMirror's built-in behavior in place — for triple clicks, inline-code chip presses that already `preventDefault`, and any press without a candidate.
+- Pointer settlement on `mouseup` stays as-is for caret clicks. A `detail === 2` drag that already painted a character range must not be overwritten with a word selection.
 
 ## Alternatives considered
 
@@ -38,7 +38,7 @@ Settlement can only correct the final state, so any correction it makes has alre
 ## Consequences
 
 - Single-click caret placement in live preview no longer depends on CodeMirror's coordinate mapping; it depends on the same browser-native caret hit the decorations plugin already trusted.
-- Word and line selection semantics are unchanged, because the style declines those gestures.
+- Line selection stays with CodeMirror. Double-click-timing presses that resolve a candidate are owned by the style: inside slop → word; past slop → character drag from the press caret.
 - Changes to the click slop, the anchor resolution, or the plugin's candidate rules now affect what is painted during a press, not just the settled result.
 - The style uses one `posAtCoords` lookup per pointer event beyond the slop. Native caret hits stay off the drag-move path.
 
@@ -53,6 +53,6 @@ Settlement can only correct the final state, so any correction it makes has alre
 Revisit when any of the following occurs:
 
 - CodeMirror changes `mouseSelectionStyle` semantics or its built-in hit-testing so the two positions agree.
-- Word or line selection needs the same anchor treatment, which would mean the style must own those gestures too.
+- Word or line selection needs different ownership than “slop = word, past slop = character drag”.
 - Multi-cursor, rectangular selection, or a new pointer capability needs behavior the style declines today.
 - Installed-package acceptance shows a press position that the browser-native caret hit resolves incorrectly.

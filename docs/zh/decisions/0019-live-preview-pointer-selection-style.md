@@ -4,7 +4,7 @@
 
 - 状态：已采纳
 - 日期：2026-08-18（对应 issue #14、#19 的同一根因）
-- 更新：2026-08-19（越过容差后的拖拽 head 使用 `posAtCoords`，不再每帧调用原生 caret 命中）
+- 更新：2026-08-20（`detail === 2` 的拖选仍由自管 style 持有字符区间）
 
 ## 背景
 
@@ -19,12 +19,12 @@ Windows 安装包证据（WebView2、DPR 1.5、Win32 `SendInput`）与浏览器 
 
 ## 决策
 
-- 实时预览注册自己的 `EditorView.mouseSelectionStyle`（`editor/wysiwyg/pointerSelectionStyle.ts`），只接管装饰插件已解析为光标候选的普通左键按下。
+- 实时预览注册自己的 `EditorView.mouseSelectionStyle`（`editor/wysiwyg/pointerSelectionStyle.ts`），接管装饰插件已解析为光标或 word-or-drag 候选的普通左键按下。
 - style 只解析一次锚点：使用插件基于浏览器原生 caret 命中计算出的按下候选，并在文档变更时映射该锚点。
-- 指针停留在 DPR 感知的单击容差内（`isPrimaryPointerClick`）时，style 返回锚点处的折叠光标，任何选区都不会进入编辑器状态。
-- 指针越过容差后，head 使用 CodeMirror `posAtCoords` 从按下坐标映射。原生 `caretPositionFromPoint` 只用于按下和 `mouseup` 结算，不得在每次拖拽 `mousemove` 上运行。
-- 以下情况返回 `null`，保留 CodeMirror 内置行为：双击与三击、已经 `preventDefault` 的行内代码 chip 按下、没有光标候选的按下。
-- `mouseup` 的指针结算保持不变，它现在只是对同一位置的确认，而不再是唯一的纠正点。
+- 指针停留在 DPR 感知的单击容差内（`isPrimaryPointerClick`）时：光标候选返回折叠光标；`word-or-drag` 候选（系统 `detail === 2`）返回按下锚点处的词。
+- 指针越过容差后，head 使用 CodeMirror `posAtCoords` 从按下坐标映射，包括 `detail === 2`。原生 `caretPositionFromPoint` 只用于按下和 `mouseup` 结算，不得在每次拖拽 `mousemove` 上运行。
+- 以下情况返回 `null`，保留 CodeMirror 内置行为：三击、已经 `preventDefault` 的行内代码 chip 按下、没有候选的按下。
+- 单击的 `mouseup` 结算保持对同一位置的确认。已经画出字符拖选区间的 `detail === 2` 拖拽，不得再被结算成选词。
 
 ## 被否决的方案
 
@@ -36,7 +36,7 @@ Windows 安装包证据（WebView2、DPR 1.5、Win32 `SendInput`）与浏览器 
 ## 影响
 
 - 实时预览单击的光标落点不再依赖 CodeMirror 的坐标映射，而依赖装饰插件本就信任的浏览器原生 caret 命中。
-- 选词与选行语义不变，因为 style 不接管这些手势。
+- 选行仍由 CodeMirror 负责。系统标成 `detail === 2` 且能解析候选的按下由 style 持有：容差内选词，越过容差后从按下锚点做字符拖选。
 - 修改单击容差、锚点解析或插件候选规则，现在会影响按住期间绘制的内容，而不只是结算结果。
 - 越过容差后每个指针事件做一次 `posAtCoords` 查找。原生 caret 命中离开拖拽移动路径。
 
@@ -51,6 +51,6 @@ Windows 安装包证据（WebView2、DPR 1.5、Win32 `SendInput`）与浏览器 
 出现以下情况时重新评估：
 
 - CodeMirror 改变 `mouseSelectionStyle` 语义或其内置命中测试，使两次位置解析一致。
-- 选词或选行也需要同样的锚点处理，意味着 style 必须一并接管这些手势。
+- 选词／选行若不再适用「容差内选词、越过容差后字符拖选」，再重新评估接管范围。
 - 多光标、矩形选区或新的指针能力需要 style 当前拒绝接管的行为。
 - 安装包验收发现浏览器原生 caret 命中解析出的按下位置本身不正确。

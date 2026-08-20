@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  codemirror-markdown-tables@1.0.0: 6276885f56b667f0dc9abe30f03f78267a5a12ef036ce4208d59c7292b815fcc
+  codemirror-markdown-tables@1.0.0: 9e82f63ccd6aea8ad12e16b8725aa216e64656a809a6322cd2c49c40126837c3
 
 importers:
 
@@ -100,7 +100,7 @@ importers:
         version: 1.1.1(@types/react-dom@19.2.4(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       codemirror-markdown-tables:
         specifier: 1.0.0
-        version: 1.0.0(patch_hash=6276885f56b667f0dc9abe30f03f78267a5a12ef036ce4208d59c7292b815fcc)(@codemirror/autocomplete@6.20.3)(@codemirror/commands@6.10.4)(@codemirror/lang-markdown@6.5.2)(@codemirror/language@6.12.4)(@codemirror/state@6.7.0)(@codemirror/view@6.43.4)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)(@lezer/markdown@1.7.0)
+        version: 1.0.0(patch_hash=9e82f63ccd6aea8ad12e16b8725aa216e64656a809a6322cd2c49c40126837c3)(@codemirror/autocomplete@6.20.3)(@codemirror/commands@6.10.4)(@codemirror/lang-markdown@6.5.2)(@codemirror/language@6.12.4)(@codemirror/state@6.7.0)(@codemirror/view@6.43.4)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)(@lezer/markdown@1.7.0)
       dompurify:
         specifier: 3.4.11
         version: 3.4.11
@@ -4760,7 +4760,7 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
 
-  codemirror-markdown-tables@1.0.0(patch_hash=6276885f56b667f0dc9abe30f03f78267a5a12ef036ce4208d59c7292b815fcc)(@codemirror/autocomplete@6.20.3)(@codemirror/commands@6.10.4)(@codemirror/lang-markdown@6.5.2)(@codemirror/language@6.12.4)(@codemirror/state@6.7.0)(@codemirror/view@6.43.4)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)(@lezer/markdown@1.7.0):
+  codemirror-markdown-tables@1.0.0(patch_hash=9e82f63ccd6aea8ad12e16b8725aa216e64656a809a6322cd2c49c40126837c3)(@codemirror/autocomplete@6.20.3)(@codemirror/commands@6.10.4)(@codemirror/lang-markdown@6.5.2)(@codemirror/language@6.12.4)(@codemirror/state@6.7.0)(@codemirror/view@6.43.4)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)(@lezer/markdown@1.7.0):
     dependencies:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/commands': 6.10.4

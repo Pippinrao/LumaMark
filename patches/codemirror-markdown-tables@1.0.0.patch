@@ -2,6 +2,17 @@ diff --git a/dist/codemirror-markdown-tables.js b/dist/codemirror-markdown-table
 index cc9e0e7..545c636 100644
 --- a/dist/codemirror-markdown-tables.js
 +++ b/dist/codemirror-markdown-tables.js
+@@ -3298,8 +3298,8 @@ function zh({
+ }) {
+   const o = [];
+-  for (let i = t; i !== e; i = i.parentNode) {
++  for (let i = t; i && i !== e; i = i.parentNode) {
+     const r = [];
+-    for (let l = i.parentNode.firstChild; l !== i; l = l.nextSibling)
++    for (let l = i.parentNode?.firstChild; l && l !== i; l = l.nextSibling)
+       r.push(n?.(l) ?? l.textContent ?? "");
+     o.unshift(r.join(""));
+   }
 @@ -4901,11 +4901,29 @@ function Jl(e) {
    return !Gl(e);
  }

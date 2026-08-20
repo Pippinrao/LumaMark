@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url';
 import { createEditorState } from '../../core/createEditorState';
 import { createEditorApi } from '../../core/editorApi';
 import { CodeMirrorEditorApi } from '../../core/editorApi';
+import {
+  applyPendingTableClickToView,
+  rememberTablePointerClick,
+  takePendingTablePointerClick,
+} from './tableCellClickSync';
 
 if (!Range.prototype.getClientRects) {
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
@@ -1371,6 +1376,81 @@ describe('tablePreviewExtension', () => {
     expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain(
       'Alice',
     );
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('does not let the first nested editor consume the second cell click', async () => {
+    const doc = [
+      '# Everyday GFM',
+      '',
+      '| Name | Score |',
+      '| --- | --- |',
+      '| Alice | 1 |',
+      '| Bob | 2 |',
+      '',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '', parent });
+    editor.loadDocument(doc);
+    await settleTablePreview();
+
+    const aliceCell = [...parent.querySelectorAll<HTMLElement>('.tbl-data-cell')]
+      .find((cell) => cell.textContent?.includes('Alice'));
+    const aliceView = aliceCell?.querySelector<HTMLElement>('.tbl-cell-view');
+    if (!aliceView) {
+      throw new Error('Expected an everyday GFM Alice cell view.');
+    }
+
+    aliceView.dispatchEvent(
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: 24,
+        clientY: 10,
+      }),
+    );
+    const range = document.createRange();
+    range.selectNodeContents(aliceView);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+    await settleTablePreview();
+
+    const aliceEditorDom = aliceCell?.querySelector<HTMLElement>('.cm-editor');
+    const aliceEditor = aliceEditorDom
+      ? EditorView.findFromDOM(aliceEditorDom)
+      : null;
+    if (!aliceEditor) {
+      throw new Error('Expected Alice nested editor after activation.');
+    }
+
+    Object.defineProperty(aliceEditor.dom, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        bottom: 20,
+        height: 20,
+        left: 0,
+        right: 80,
+        toJSON: () => ({}),
+        top: 0,
+        width: 80,
+        x: 0,
+        y: 0,
+      }),
+    });
+
+    rememberTablePointerClick(48, 50);
+    expect(applyPendingTableClickToView(aliceEditor)).toBe(false);
+    expect(takePendingTablePointerClick()).toEqual({
+      at: expect.any(Number),
+      x: 48,
+      y: 50,
+    });
 
     editor.destroy();
     parent.remove();

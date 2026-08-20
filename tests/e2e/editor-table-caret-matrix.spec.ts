@@ -386,3 +386,49 @@ test('keeps left/center/right aligned glyph clicks near the caret', async ({
     );
   }
 });
+
+test('maps consecutive everyday GFM cell clicks without blurring first', async ({
+  page,
+}) => {
+  await openNewDocument(page);
+  const editor = page.locator('.cm-content').first();
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+A`);
+  await page.keyboard.insertText(
+    [
+      'before',
+      '',
+      '| Name | Score |',
+      '| --- | --- |',
+      '| Alice | 1 |',
+      '| Bob | 2 |',
+      '',
+      'after',
+    ].join('\n'),
+  );
+  await expect(page.locator('.tbl-table-widget')).toBeVisible();
+
+  const alice = dataCell(page, 0, 0);
+  const bob = dataCell(page, 1, 0);
+  const first = await clickGlyph(page, alice, 'i');
+  await expect.poll(async () => (await readNestedCaret(page)).text).toBe(
+    'Alice',
+  );
+  const firstCaret = await readNestedCaret(page);
+  expect(Math.abs(firstCaret.left - first.x)).toBeLessThanOrEqual(
+    Math.max(3, first.glyphWidth / 2 + 1),
+  );
+
+  await expect(bob.locator('.tbl-cell-view')).toBeVisible();
+  await page.evaluate(
+    () => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }),
+  );
+  const second = await clickGlyph(page, bob, 'B');
+  await expect.poll(async () => (await readNestedCaret(page)).text).toBe('Bob');
+  const secondCaret = await readNestedCaret(page);
+  expect(Math.abs(secondCaret.left - second.x)).toBeLessThanOrEqual(
+    Math.max(3, second.glyphWidth / 2 + 1),
+  );
+});

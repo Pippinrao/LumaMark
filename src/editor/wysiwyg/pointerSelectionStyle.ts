@@ -8,7 +8,10 @@ import {
   isPrimaryPointerClick,
 } from './inlinePointerSelection';
 
+export type PointerSelectionKind = 'caret' | 'word-or-drag';
+
 export type PointerSelectionAnchor = {
+  readonly kind?: PointerSelectionKind;
   readonly position: number;
   readonly x: number;
   readonly y: number;
@@ -31,10 +34,7 @@ export function createPointerSelectionStyle(
 
   return {
     get(event: MouseEvent, extend: boolean, multiple: boolean) {
-      const head = pointerHeadPosition(view, anchor, anchorPosition, event);
-      const range = head === anchorPosition
-        ? EditorSelection.cursor(anchorPosition)
-        : EditorSelection.range(anchorPosition, head);
+      const range = pointerSelectionRange(view, anchor, anchorPosition, event);
 
       if (extend) {
         return startSelection.replaceRange(
@@ -57,19 +57,24 @@ export function createPointerSelectionStyle(
   };
 }
 
-function pointerHeadPosition(
+function pointerSelectionRange(
   view: EditorView,
   anchor: PointerSelectionAnchor,
   anchorPosition: number,
   event: MouseEvent,
-): number {
+) {
   const coordinates = { x: event.clientX, y: event.clientY };
-  if (isPrimaryPointerClick(anchor, coordinates)) {
-    return anchorPosition;
+  const inSlop = isPrimaryPointerClick(anchor, coordinates);
+
+  if (anchor.kind === 'word-or-drag' && inSlop) {
+    return view.state.wordAt(anchorPosition) ?? EditorSelection.cursor(anchorPosition);
   }
 
-  // After slop, map from cached coordinates. Native caretPositionFromPoint
-  // stays on press/mouseup settlement; per-mousemove hits are too expensive
-  // and disagree with hidden WYSIWYG delimiters.
-  return view.posAtCoords(coordinates, false) ?? anchorPosition;
+  const head = inSlop
+    ? anchorPosition
+    : (view.posAtCoords(coordinates, false) ?? anchorPosition);
+
+  return head === anchorPosition
+    ? EditorSelection.cursor(anchorPosition)
+    : EditorSelection.range(anchorPosition, head);
 }

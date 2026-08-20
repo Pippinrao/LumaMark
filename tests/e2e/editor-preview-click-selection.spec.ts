@@ -170,3 +170,29 @@ test('a live-preview drag past the click slop still selects a range', async ({
   expect(released.selectedText).toBe(dragging.selectedText);
   expect(released.anchor).toBe(dragging.anchor);
 });
+
+test('a drag inside the double-click interval stays a character range', async ({
+  page,
+}) => {
+  const editor = await openNewDocument(page);
+  await editor.click();
+  await page.keyboard.press(`${primaryModifier}+A`);
+  await page.keyboard.insertText(source);
+  await afterLayout(page);
+
+  const start = await centerOfRenderedText(page, '第二段落普通文字');
+  await page.mouse.click(start.x, start.y);
+  await afterLayout(page);
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 20, start.y, { steps: 2 });
+  const dragging = await readSelection(editor);
+  await page.mouse.up();
+  await afterLayout(page);
+  const released = await readSelection(editor);
+
+  expect(dragging.selectedText.length).toBeGreaterThan(0);
+  expect(released.selectedText).toBe(dragging.selectedText);
+  expect(released.anchor).toBe(dragging.anchor);
+});

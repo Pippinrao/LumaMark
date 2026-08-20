@@ -39,6 +39,16 @@ describe('tableCellClickSync', () => {
         doc: { length: 11 },
         selection: { main: { empty: true, head: 0 } },
       },
+      dom: {
+        getBoundingClientRect: () => ({
+          left: 0,
+          top: 0,
+          right: 80,
+          bottom: 20,
+          width: 80,
+          height: 20,
+        }),
+      },
     };
 
     rememberTablePointerClick(40, 12);
@@ -50,5 +60,37 @@ describe('tableCellClickSync', () => {
         userEvent: 'select.pointer',
       }),
     );
+  });
+
+  it('does not consume a pending click whose coordinates miss this nested view', () => {
+    const dispatch = vi.fn();
+    const view = {
+      dispatch,
+      posAtCoords: vi.fn(() => 3),
+      state: {
+        doc: { length: 11 },
+        selection: { main: { empty: true, head: 0 } },
+      },
+      dom: {
+        getBoundingClientRect: () => ({
+          left: 0,
+          top: 0,
+          right: 40,
+          bottom: 20,
+          width: 40,
+          height: 20,
+        }),
+      },
+    };
+
+    rememberTablePointerClick(80, 12);
+    expect(applyPendingTableClickToView(view as never)).toBe(false);
+    expect(view.posAtCoords).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(takePendingTablePointerClick()).toEqual({
+      at: expect.any(Number),
+      x: 80,
+      y: 12,
+    });
   });
 });

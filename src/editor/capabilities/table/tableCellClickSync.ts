@@ -50,9 +50,22 @@ export function peekPendingTablePointerClick(
   return pendingTableClick;
 }
 
+function clientPointHitsView(
+  view: EditorViewType,
+  x: number,
+  y: number,
+): boolean {
+  const rect = view.dom.getBoundingClientRect();
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
 export function applyPendingTableClickToView(view: EditorViewType): boolean {
   const click = peekPendingTablePointerClick();
   if (!click) {
+    return false;
+  }
+
+  if (!clientPointHitsView(view, click.x, click.y)) {
     return false;
   }
 
@@ -117,9 +130,13 @@ export function tableCellClickSyncNestedExtension(): Extension {
   return ViewPlugin.fromClass(
     class {
       private applied = false;
+      private destroyed = false;
 
       constructor(private readonly view: EditorViewType) {
         queueMicrotask(() => {
+          this.applyIfNeeded();
+        });
+        requestAnimationFrame(() => {
           this.applyIfNeeded();
         });
       }
@@ -128,8 +145,12 @@ export function tableCellClickSyncNestedExtension(): Extension {
         this.applyIfNeeded();
       }
 
+      destroy(): void {
+        this.destroyed = true;
+      }
+
       private applyIfNeeded(): void {
-        if (this.applied) {
+        if (this.applied || this.destroyed) {
           return;
         }
 

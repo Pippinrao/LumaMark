@@ -29,9 +29,15 @@ Fixed `standard` (810px) page width compressed images, Mermaid, and PlantUML on 
 - New installs and untouched `standard` profiles get a wider prose column and breakout blocks.
 - A user who had deliberately chosen `standard` is indistinguishable from an untouched profile and is migrated; they can set Standard again.
 - Sidebar auto-fit remains independent (see ADR 0011). Adaptive page width does not change sidebar measurement.
+- Paper-width CSS must target only `.lm-codemirror > .cm-editor > .cm-scroller > .cm-content`. Nested table-cell editors inherit `.lm-codemirror` and must not receive the 96px gutter or paper padding.
+- The table library reuses one nested `EditorView` across cells. Consecutive clicks are remembered in the capture phase and replayed onto that view after layout; a one-shot “already applied” flag is not enough.
+- Library `contain: paint` / `overflow-x: auto` on `.tbl-table-widget` is overridden so breakout tables stay fully visible.
 
 ## Rollback or review conditions
 
 - Mixed-document input P80 exceeds the existing 8 ms gate, or installed UX-stutter scroll longtask P95/max exceeds 50 ms with adaptive as the default.
 - Table caret mapping below a table fails after a pane resize (height map missed the breakout).
+- Consecutive GFM cell clicks without blurring first miss the half-glyph caret budget.
 - MathJax is later proven cheap enough to join breakout; revisit the math exclusion then.
+
+Installed-package OS mouse gates (`pnpm release:packaged-table-caret`, `pnpm release:installed-media-caret-os`, `pnpm release:installed-ux-stutter`) remain required on Windows with adaptive as the default. A Linux agent run can only skip or fail those scripts; it must not close this review condition.

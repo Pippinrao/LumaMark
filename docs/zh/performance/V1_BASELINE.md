@@ -17,6 +17,7 @@
 - 装机交互卡顿门禁日期：2026-08-19
 - 诚实混合文档 widget/longtask 门禁改写日期：2026-08-19
 - 装机 0.3.42 UX 卡顿门禁通过日期：2026-08-21
+- 自适应文档宽度缩放增补日期：2026-08-21
 - 平台：Windows，本地开发工作树
 - 命令：`pnpm perf:bench`（jsdom，串行）和 `pnpm release:installed-ux-stutter`（真实装机/WebView2 窗口）
 - 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、selection-only dispatch、显示模式往返、阅读外观 compartment dispatch 往返、代码块密集文档输入/激活/真实 Enter 围栏补齐，简单/复杂 Mermaid pending render 与 active-edit 输入 dispatch，1/5/10MB 文档统计调度，约 2–4KB 混合文档（数学 + PlantUML + Mermaid + 日常 GFM 表格 widget）尾部输入/选区/滚动/处理时间探测，以及装机同窗口小文件点击、标题栏拖动咬合、混合文档 widget 可见文件切换、手势期间 longtask 与拖拽选区采样
@@ -71,6 +72,7 @@
 | 约 2–4KB 混合文档（数学 + PlantUML + Mermaid + 表格）尾部输入 dispatch | P80 < 8 ms；处理 P95 < 32 ms；最大值 < 32 ms | P80 2.01 ms；最大值 7.23 ms；样本 [7.23, 2.01, 1.68, 1.36, 1.72]；处理 P95 7.23 ms | 通过 |
 | 约 2–4KB 混合文档 selection-only dispatch | P80 < 8 ms；最大值 < 32 ms | P80 0.33 ms；最大值 0.62 ms；样本 [0.62, 0.33, 0.23, 0.25, 0.31] | 通过 |
 | 约 2–4KB 混合文档滚动两帧提交（jsdom 代理） | P80 < 16 ms | P80 0.03 ms；最大值 0.42 ms | 通过 |
+| 混合文档自适应宽度缩放重发布 | P80 < 16 ms；最大值 < 50 ms | 2026-08-21 单独 `pnpm perf:bench`：P80 0.04 ms；最大值 0.19 ms；样本 [0.19, 0.03, 0.04, 0.04, 0.03]。同轮混合文档尾部输入 P80 3.25 ms（预算 < 8 ms） | 通过 |
 | Web 首屏入口 JS chunk | < 120 KiB | 15.05 KiB | 通过 |
 | Web 任意 JS chunk | < 700 KiB | 最大 664.41 KiB，gzip 146.38 KiB，Mermaid 动态依赖 | 通过 |
 
@@ -80,6 +82,7 @@
 - 10MB 文件满足当前自动化 “不冻结” 门禁：可通过文件动作打开、完成 debounce 后大纲刷新、只初始渲染 23 / 7892 个大纲项、创建编辑器并完成一次尾部输入。
 - Mermaid 渲染通过 scheduler 异步执行；pending render 下普通与复杂输入均在 5 个独立 render 生命周期上执行 P80/最大值 `< 50 ms` 门禁。active-edit 冷路径在 5 个独立 activation 上执行 P80 `< 16 ms`、最大值 `< 50 ms` 门禁；同一文档内的 1/5/10MB 连续输入保持近似常数时间且 P80 分别通过 `< 16/50/100 ms` 预算。
 - 2026-08-18 卡顿恢复校准将打开后大纲刷新恢复为原始 `< 50/150/300 ms` 预算（本轮实测 10.13/25.56/52.40 ms），把 5/10MB 文档统计移出输入路径（调度 `< 2 ms`），并新增约 2–4KB 混合写作样本。该混合文档保持尾部输入 P80 `< 8 ms`、选区 P80 `< 8 ms`；Vitest + jsdom 的处理 P95 只是 INP 处理时间的代理（`< 32 ms`），不是真实 Chrome INP 测量。2026-08-19 的混合文档滚动代理为 P80 `< 16 ms`（实测 0.03 ms），同样不能替代装机 WebView2 滚动或 long task 证据。
+- 自适应页面宽度缩放（ADR 0021）会在混合越界文档上重发布 `--lm-editor-block-track-width`。2026-08-21 单独串行 `pnpm perf:bench` 实测 P80 0.04 ms / 最大值 0.19 ms，对照 16 ms 主预算。同轮混合文档尾部输入 P80 为 3.25 ms（预算 `< 8 ms`）。这不是装机 WebView2 缩放、表格光标或卡顿证据。
 - Parity Reliability 增补门禁证明：selection-only 更新不会修改文档，显示模式往返保持 selection；代码块密集文档的普通尾部输入和聚焦语言激活沿用 1MB 输入的 P80 `< 16 ms`、最大值 `< 50 ms` 严格预算。真实 Enter 围栏补齐同时执行语法确认、多段插入、selection、视口和高度映射更新，按 [ADR 0013](../decisions/0013-code-block-completion-performance-budget.md) 作为复杂编辑命令独立约束为 P80 `< 50 ms`、最大值 `< 100 ms`；复杂 Mermaid 长任务 pending 时主 `EditorApi` 文档立即接收输入，且不会为块外输入启动第二个渲染任务。
 - 阅读外观通过 CodeMirror compartment 与 CSS variable 往返重配置；Vitest + jsdom 中 1/5/10MB 文档的同步 dispatch 本机实测分别为 0.88/0.69/0.84 ms，并由 `< 50/75/100 ms` 自动化预算约束，过程不修改正文或 selection。该数值不包含浏览器样式计算、真实排版或绘制成本，不能用作“完成页面重排”的延迟声明。打包 WebView2 烟测会在切换宽度后等待两帧并读取 `.cm-content` 边界以强制观察真实布局，预算为 `< 500 ms`。
 - Web 构建已通过 `pnpm quality:web-build` 门禁：首屏入口从大 vendor 包中拆出，React、CodeMirror、UI 依赖和 Mermaid 重依赖分组加载。CodeMirror 启动核心与 Lezer 基础包保持为一个 600.41 KiB 的拓扑完整 chunk，代码语言包继续按需加载；禁止用任意 `maxSize` 再拆这个核心组，因为会破坏循环模块的初始化顺序并造成生产白屏。最大 chunk 是 Mermaid 动态渲染链路中的 `vscode-languageserver-types` / Langium 等上游解析依赖，不进入首屏入口。
@@ -101,6 +104,8 @@
 | 冷启动 argv → 正文可见 | 记录，不压到 50 ms | 装机 0.3.42：1379 ms（含 WebView 启动） | 已知限制 |
 
 装机 0.3.42 于 2026-08-21 对 `%LOCALAPPDATA%\LumaMark\lumamark.exe`（FileVersion 0.3.42）跑绿 `pnpm release:installed-ux-stutter`；该 exe 含日常表格 widget 与 preview scheduler。后续重建仍须跑此命令。不得用 jsdom 混合文档 dispatch 通过或两帧 rAF ~16.7 ms 样本当作该证据。系统开始菜单占前景时，标题栏拖动咬合会跳过（不是失败）；这不是生产缺陷。
+
+自适应页面宽度从 0.3.45 起成为默认。2026-08-21 的 Linux agent 运行跳过了 `pnpm release:packaged-table-caret`（仅 Windows WebView2），`pnpm release:installed-media-caret-os` / `pnpm release:installed-ux-stutter` 因需要交互式 Windows 桌面和真实安装的 `lumamark.exe` 而退出。这三项门禁仍须在自适应为默认的 Windows 装机构建上跑过；本基线不声称 0.3.45+ 已通过它们。
 
 ## 真实 Tauri WebView2 人机工学测量
 

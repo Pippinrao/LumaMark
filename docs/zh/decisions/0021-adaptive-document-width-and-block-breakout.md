@@ -29,9 +29,15 @@
 - 新安装以及从未改过、仍为 `standard` 的配置会得到更宽的正文列和越界宽块。
 - 曾明确选择 `standard` 的用户无法与从未改过的用户区分，因此会被迁移；他们可以再选回「标准」。
 - 侧栏自适应仍独立（见 ADR 0011）。自适应页面宽度不改变侧栏测量。
+- 纸张宽度 CSS 只能打在 `.lm-codemirror > .cm-editor > .cm-scroller > .cm-content`。嵌套表格单元格编辑器也在 `.lm-codemirror` 下，不得继承 96px gutter 或纸张 padding。
+- 表格库会在单元格之间复用同一个嵌套 `EditorView`。连续点击必须在捕获阶段记下坐标，并在布局后再映射到该视图；一次性 “已经 apply 过” 不够。
+- 覆盖库给 `.tbl-table-widget` 的 `contain: paint` / `overflow-x: auto`，越界表格保持完全可见。
 
 ## 回滚与复审条件
 
 - 混合文档输入 P80 超出既有 8 ms 门禁，或安装包 UX 卡顿门禁在自适应默认下滚动 longtask P95/max 超过 50 ms。
 - 窗格缩放后表格下方的点击→光标映射失败（高度图未跟上越界）。
+- 不先失焦的连续 GFM 单元格点击偏离半个字形预算。
 - 若后续证明 MathJax 足够便宜，可再评估是否让数学块加入越界。
+
+装机 OS 鼠标门禁（`pnpm release:packaged-table-caret`、`pnpm release:installed-media-caret-os`、`pnpm release:installed-ux-stutter`）在自适应为默认时仍须在 Windows 上跑过。Linux agent 只能跳过或失败这些脚本，不得视为已关闭该复审条件。

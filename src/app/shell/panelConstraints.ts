@@ -14,6 +14,9 @@ export const FILE_TREE_CONTENT_CHROME_WIDTH = 72;
 // item’s base padding, and list chrome only.
 export const OUTLINE_CONTENT_CHROME_WIDTH = 40;
 
+export type SidebarTab = 'files' | 'outline';
+export type SidebarUserSetWidths = Partial<Record<SidebarTab, number>>;
+
 export function sidebarWidthForContentWidth(
   contentWidth: number,
   chromeWidth = FILE_TREE_CONTENT_CHROME_WIDTH,
@@ -29,4 +32,38 @@ export function sidebarWidthForContentWidth(
       Math.round(contentWidth + chromeWidth),
     ),
   );
+}
+
+export function recordUserSidebarWidth(
+  userSetWidths: SidebarUserSetWidths,
+  tab: SidebarTab,
+  width: number,
+): SidebarUserSetWidths {
+  if (!Number.isFinite(width) || width <= 0) {
+    return userSetWidths;
+  }
+
+  return {
+    ...userSetWidths,
+    [tab]: Math.round(width),
+  };
+}
+
+export function resolveSidebarWidthForTab({
+  chromeWidth,
+  contentWidth,
+  tab,
+  userSetWidths,
+}: {
+  chromeWidth: number;
+  contentWidth: number;
+  tab: SidebarTab;
+  userSetWidths: SidebarUserSetWidths;
+}): number {
+  const userSetWidth = userSetWidths[tab];
+  if (typeof userSetWidth === 'number') {
+    return userSetWidth;
+  }
+
+  return sidebarWidthForContentWidth(contentWidth, chromeWidth);
 }

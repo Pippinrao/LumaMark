@@ -1,25 +1,39 @@
 import { useState, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
+import type { SidebarTab } from './panelConstraints';
 import type { SidebarLabels } from './shellTypes';
 
 type WorkspaceSidebarProps = {
   fileTree: ReactNode;
   labels: SidebarLabels;
+  onTabChange?: (tab: SidebarTab) => void;
   outline: ReactNode;
 };
+
+function isSidebarTab(value: string): value is SidebarTab {
+  return value === 'files' || value === 'outline';
+}
 
 export function WorkspaceSidebar({
   fileTree,
   labels,
+  onTabChange,
   outline,
 }: WorkspaceSidebarProps) {
-  const [tab, setTab] = useState('files');
+  const [tab, setTab] = useState<SidebarTab>('files');
 
   return (
     <aside className="lm-sidebar" aria-label={labels.sidebar}>
       <Tabs.Root
         className="lm-sidebar-tabs"
-        onValueChange={setTab}
+        onValueChange={(nextTab) => {
+          if (!isSidebarTab(nextTab)) {
+            return;
+          }
+
+          setTab(nextTab);
+          onTabChange?.(nextTab);
+        }}
         value={tab}
       >
         <Tabs.List

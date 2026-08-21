@@ -19,6 +19,7 @@ import {
 
 const panelMocks = vi.hoisted(() => ({
   expand: vi.fn(),
+  getSize: vi.fn(() => ({ asPercentage: 32, inPixels: 250 })),
   resize: vi.fn(),
 }));
 
@@ -52,6 +53,7 @@ vi.mock('react-resizable-panels', () => ({
     current: {
       collapse: vi.fn(),
       expand: panelMocks.expand,
+      getSize: panelMocks.getSize,
       resize: panelMocks.resize,
     },
   }),
@@ -99,19 +101,21 @@ describe('AppShellView sidebar sizing', () => {
     });
   });
 
-  it('stops adapting once the user has dragged the sidebar in this session', async () => {
-    const view = renderShell({ sidebarContentWidth: 100 });
+  it('stops adapting a tab once the user has dragged the sidebar on that tab', async () => {
+    const view = renderShell({ sidebarContentWidth: 100, sidebarTab: 'files' });
     await waitFor(() => expect(panelMocks.resize).toHaveBeenCalledOnce());
 
     fireEvent.click(screen.getByTestId('manual-panel-resize'));
-    view.rerender(createShell({ sidebarContentWidth: 900 }));
+    view.rerender(createShell({ sidebarContentWidth: 900, sidebarTab: 'files' }));
 
-    await new Promise((resolve) => setTimeout(resolve, 32));
-    expect(panelMocks.resize).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(panelMocks.resize).toHaveBeenCalledWith(250);
+    });
+    expect(panelMocks.resize).not.toHaveBeenCalledWith(480);
   });
 
-  it('keeps the user-drag lock when the outline tab reports a different width', async () => {
-    const view = renderShell({ sidebarContentWidth: 100 });
+  it('re-applies auto-fit when switching to a tab the user has not dragged', async () => {
+    const view = renderShell({ sidebarContentWidth: 100, sidebarTab: 'files' });
     await waitFor(() => expect(panelMocks.resize).toHaveBeenCalledOnce());
 
     fireEvent.click(screen.getByTestId('manual-panel-resize'));
@@ -119,11 +123,33 @@ describe('AppShellView sidebar sizing', () => {
       createShell({
         sidebarContentChromeWidth: 40,
         sidebarContentWidth: 400,
+        sidebarTab: 'outline',
       }),
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 32));
-    expect(panelMocks.resize).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(panelMocks.resize).toHaveBeenCalledWith(440);
+    });
+  });
+
+  it('restores the user-dragged width when switching back to that tab', async () => {
+    const view = renderShell({ sidebarContentWidth: 100, sidebarTab: 'files' });
+    await waitFor(() => expect(panelMocks.resize).toHaveBeenCalledWith(200));
+
+    fireEvent.click(screen.getByTestId('manual-panel-resize'));
+    view.rerender(
+      createShell({
+        sidebarContentChromeWidth: 40,
+        sidebarContentWidth: 400,
+        sidebarTab: 'outline',
+      }),
+    );
+    await waitFor(() => expect(panelMocks.resize).toHaveBeenCalledWith(440));
+
+    view.rerender(createShell({ sidebarContentWidth: 100, sidebarTab: 'files' }));
+    await waitFor(() => {
+      expect(panelMocks.resize).toHaveBeenCalledWith(250);
+    });
   });
 
   it('does not persist the temporary focus-mode sidebar collapse', async () => {
@@ -142,6 +168,7 @@ type ShellOptions = {
   sidebarContentChromeWidth?: number;
   sidebarContentWidth?: number;
   sidebarOpen?: boolean;
+  sidebarTab?: 'files' | 'outline';
 };
 
 function renderShell(options: ShellOptions) {
@@ -153,6 +180,7 @@ function createShell({
   sidebarContentChromeWidth,
   sidebarContentWidth = 0,
   sidebarOpen = true,
+  sidebarTab = 'files',
 }: ShellOptions) {
   return (
     <AppShellView
@@ -168,6 +196,7 @@ function createShell({
       sidebarContentChromeWidth={sidebarContentChromeWidth}
       sidebarContentWidth={sidebarContentWidth}
       sidebarOpen={sidebarOpen}
+      sidebarTab={sidebarTab}
       slots={{
         dialogs: null,
         editor: <div>Editor</div>,

@@ -80,34 +80,50 @@ async function readNestedCaret(page: Page): Promise<{
 }> {
   const editor = page.locator('.tbl-cell-editor .cm-content:visible');
   await expect(editor).toHaveCount(1);
-  return editor.evaluate((content) => {
-    type ViewBridge = {
-      coordsAtPos(pos: number, side?: -1 | 1): { left: number; top: number } | null;
-      state: {
-        doc: { toString(): string };
-        selection: { main: { head: number } };
-      };
-    };
-    const view = (content as HTMLElement & { cmTile: { view: ViewBridge } }).cmTile
-      .view;
-    const head = view.state.selection.main.head;
-    const caret =
-      view.coordsAtPos(head, -1) ??
-      view.coordsAtPos(head, 1) ??
-      view.coordsAtPos(head);
-    if (!caret) {
-      throw new Error('missing caret coords');
-    }
-    return {
-      head,
-      left: caret.left,
-      text: view.state.doc.toString(),
-      markDisplay: [...content.querySelectorAll('.lm-table-token-mark')].map(
-        (el) => getComputedStyle(el).display,
-      ),
-      contentPadding: getComputedStyle(content).padding,
-    };
-  });
+  let result: {
+    head: number;
+    left: number;
+    text: string;
+    markDisplay: string[];
+    contentPadding: string;
+  } | null = null;
+  await expect
+    .poll(async () => {
+      result = await editor.evaluate((content) => {
+        type ViewBridge = {
+          coordsAtPos(pos: number, side?: -1 | 1): { left: number; top: number } | null;
+          state: {
+            doc: { toString(): string };
+            selection: { main: { head: number } };
+          };
+        };
+        const view = (content as HTMLElement & { cmTile: { view: ViewBridge } }).cmTile
+          .view;
+        const head = view.state.selection.main.head;
+        const caret =
+          view.coordsAtPos(head, -1) ??
+          view.coordsAtPos(head, 1) ??
+          view.coordsAtPos(head);
+        if (!caret) {
+          return null;
+        }
+        return {
+          head,
+          left: caret.left,
+          text: view.state.doc.toString(),
+          markDisplay: [...content.querySelectorAll('.lm-table-token-mark')].map(
+            (el) => getComputedStyle(el).display,
+          ),
+          contentPadding: getComputedStyle(content).padding,
+        };
+      });
+      return result;
+    })
+    .not.toBeNull();
+  if (!result) {
+    throw new Error('missing caret coords');
+  }
+  return result;
 }
 
 async function readInactivePadding(cell: Locator): Promise<string> {

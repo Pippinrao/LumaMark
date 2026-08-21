@@ -309,6 +309,7 @@ test('uses real primary-modifier wheel input and exposes an accessible 100% rese
   page,
 }) => {
   await startDocument(page);
+  await choosePageWidth(page, '标准');
 
   const editor = page.locator('.cm-content');
   const scroller = page.locator('.cm-scroller');

@@ -46,9 +46,16 @@ describe('editor visual style contract', () => {
       'font-size: calc(16.5px * var(--lm-editor-font-scale, 1));',
     );
     expect(editorCss).toContain('line-height: 1.74;');
-    expect(editorCss).toContain(
+    const paperContent = cssDeclarationBlock(
+      editorCss,
+      '.lm-codemirror > .cm-editor > .cm-scroller > .cm-content',
+    );
+    expect(paperContent).toContain(
       'max-width: min(calc(100% - 96px), var(--lm-editor-page-width, 810px));',
     );
+    const nestedContent = cssDeclarationBlock(editorCss, '.lm-codemirror .cm-content');
+    expect(nestedContent).not.toContain('calc(100% - 96px)');
+    expect(nestedContent).not.toContain('padding: 64px 0 104px');
     expect(editorCss).toContain('--lm-editor-block-track-width');
     expect(editorCss).toContain('.lm-block-breakout');
     expect(editorCss).toContain('.lm-mermaid-preview');

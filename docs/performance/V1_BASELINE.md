@@ -16,6 +16,7 @@ This document records LumaMark V1 alpha performance gates and current measured r
 - Stutter-recovery mixed-document calibration date: 2026-08-18
 - Installed UX stutter gate date: 2026-08-19
 - Honest mixed-document widget/longtask gate rewrite: 2026-08-19
+- Installed 0.3.42 UX stutter pass: 2026-08-21
 - Platform: Windows, local development worktree
 - Command: `pnpm perf:bench` (jsdom, serial) and `pnpm release:installed-ux-stutter` (live installed/WebView2 window)
 - Coverage: Markdown fixture reads, application file-action open, post-open debounced outline refresh, virtualized outline panel initial render, CodeMirror large-document initialization, tail input dispatch, selection-only dispatch, display-mode round-trip, reading-appearance compartment dispatch round-trip, dense code-block document input/activation/real Enter fence completion, simple/complex Mermaid pending render plus active-edit input dispatch, 1/5/10MB document-statistics scheduling, a ~2–4KB mixed document (math + PlantUML + Mermaid + everyday GFM table widget) tail-input/selection/scroll/processing probe, and installed same-window small-file click, titlebar drag engage, mixed-document widget-visible file switch, gesture-time longtask, and drag-selection sampling
@@ -92,14 +93,14 @@ These numbers are not interchangeable with `pnpm perf:bench` jsdom dispatch. Pas
 
 | Path | Budget | Current result | Verdict |
 |---|---:|---:|---|
-| Same-window two-line file click (`pointerdown` → target text visible) | Recorded; not the user budget | Prior P80 ~25 ms on toy files is not mixed-document UX | Recorded only |
-| Mixed doc file switch (`pointerdown` → everyday `.tbl-table-widget` visible) | P80 < 200 ms | Requires an exe that contains Phases 1–4; do not claim pass from 0.3.31 | Pending installed rebuild |
-| Titlebar drag first `GetWindowRect` change | < 50 ms after mouse motion | Skipped when Start/Search keeps the foreground | Skipped |
-| Mixed ~2–4KB doc scroll longtask during gesture | P95 < 50 ms; max < 50 ms | Two-rAF ~16.7 ms after idle `scrollTop += 280` is not this gate | Pending installed rebuild |
-| Mixed-doc press / 2px / 20px selection samples | Press and 2px collapsed; 20px range | Pending installed rebuild | Pending |
-| Cold argv → visible text | Recorded, not gated to 50 ms | ~900–1100 ms (WebView boot) | Known limit |
+| Same-window two-line file click (`pointerdown` → target text visible) | Recorded; not the user budget | Installed 0.3.42 P80 19.3 ms (samples 24.6 / 18.7 / 16.9 / 19.3 / 18.2); still not the mixed-document budget | Recorded only |
+| Mixed doc file switch (`pointerdown` → everyday `.tbl-table-widget` visible) | P80 < 200 ms | Installed 0.3.42: 46.1 ms; 1 everyday `.tbl-table-widget` | Pass |
+| Titlebar drag first `GetWindowRect` change | < 50 ms after mouse motion | Installed 0.3.42: 46 ms | Pass |
+| Mixed ~2–4KB doc scroll longtask during gesture | P95 < 50 ms; max < 50 ms | Installed 0.3.42: P95 0 ms; max 0 ms (no longtask ≥ 50 ms during wheel/scroll). Two-rAF after idle `scrollTop += 280` was 16.1–16.8 ms and remains a non-gate | Pass |
+| Mixed-doc press / 2px / 20px selection samples | Press and 2px collapsed; 20px range | Installed 0.3.42: press collapsed; 2px collapsed; 20px range (native length 3) | Pass |
+| Cold argv → visible text | Recorded, not gated to 50 ms | Installed 0.3.42: 1379 ms (WebView boot) | Known limit |
 
-Acceptance for “the installed package no longer stutters on these paths” requires a green run of `pnpm release:installed-ux-stutter` against an exe that contains everyday table widgets plus the preview scheduler. Do not treat a jsdom mix-doc dispatch pass or a two-rAF 16.7 ms sample as that evidence. Titlebar drag engage is skipped (not failed) when the OS Start menu holds the foreground; that skip is not a production defect.
+Installed 0.3.42 passed `pnpm release:installed-ux-stutter` on 2026-08-21 against `%LOCALAPPDATA%\LumaMark\lumamark.exe` (FileVersion 0.3.42), which includes everyday table widgets and the preview scheduler. Keep this command as the interaction gate on later rebuilds. Do not treat a jsdom mix-doc dispatch pass or a two-rAF ~16.7 ms sample as that evidence. Titlebar drag engage is skipped (not failed) when the OS Start menu holds the foreground; that skip is not a production defect.
 
 ## Real Tauri WebView2 Ergonomic Measurements
 
@@ -121,7 +122,7 @@ On the same development real WebView2 before the fix, 10MB tail keyboard input w
 
 - The automated baseline still primarily runs in Vitest + jsdom; this round added real Windows Tauri WebView2 observations for open, tail input, undo, and small-document reading-appearance two-frame layout, but that does not replace large-document width/font reflow, scroll FPS, native IME feel, screen readers, or long editing sessions.
 - jsdom `view.dispatch` / synthetic scroll is not installed INP, titlebar drag engage, WebView2 scroll frames, or `longtask` duration. Use `pnpm release:installed-ux-stutter` for those interaction paths. Toy-file same-window click ~25 ms and two-rAF ~16.7 ms after `scrollTop += 280` are not user-stutter evidence.
-- Cold argv open of a two-line Markdown file includes WebView boot (~900–1100 ms in prior installed probes) and is an explicit known limitation; it is not the same-window 50 ms file-click budget.
+- Cold argv open of a two-line Markdown file includes WebView boot (1379 ms on installed 0.3.42; earlier probes ~900–1100 ms) and is an explicit known limitation; it is not the same-window 50 ms file-click budget.
 - Real WebView2 10MB undo P95 is 155.90 ms and still has perceptible delay; do not claim large-document human experience is fully meeting targets just because automated dispatch is 1.79 ms.
 - Web build chunk budgets are automated. If Mermaid, KaTeX, Cytoscape, and similar dependencies keep growing, prefer evaluating lazy load by diagram type or finer-grained entry replacement over raising the budget.
 - Performance numbers are affected by local CPU, disk cache, and dependency versions. If CI or other machines show regressions, treat the automated gates and a new baseline record as authoritative.

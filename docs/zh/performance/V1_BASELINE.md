@@ -16,6 +16,7 @@
 - 卡顿恢复混合文档校准日期：2026-08-18
 - 装机交互卡顿门禁日期：2026-08-19
 - 诚实混合文档 widget/longtask 门禁改写日期：2026-08-19
+- 装机 0.3.42 UX 卡顿门禁通过日期：2026-08-21
 - 平台：Windows，本地开发工作树
 - 命令：`pnpm perf:bench`（jsdom，串行）和 `pnpm release:installed-ux-stutter`（真实装机/WebView2 窗口）
 - 覆盖范围：Markdown fixture 读取、应用文件动作打开、打开后 debounce 大纲刷新、虚拟化大纲面板初始渲染、CodeMirror 大文档初始化、尾部输入 dispatch、selection-only dispatch、显示模式往返、阅读外观 compartment dispatch 往返、代码块密集文档输入/激活/真实 Enter 围栏补齐，简单/复杂 Mermaid pending render 与 active-edit 输入 dispatch，1/5/10MB 文档统计调度，约 2–4KB 混合文档（数学 + PlantUML + Mermaid + 日常 GFM 表格 widget）尾部输入/选区/滚动/处理时间探测，以及装机同窗口小文件点击、标题栏拖动咬合、混合文档 widget 可见文件切换、手势期间 longtask 与拖拽选区采样
@@ -92,14 +93,14 @@
 
 | 路径 | 预算 | 当前结果 | 结论 |
 |---|---:|---:|---|
-| 同窗口点两行小文件（`pointerdown` → 目标正文可见） | 只记录；不是用户预算 | 此前玩具文件 P80 ~25 ms 不是混合文档 UX | 仅记录 |
-| 混合文档文件切换（`pointerdown` → 日常 `.tbl-table-widget` 可见） | P80 < 200 ms | 需要包含 Phase 1–4 的 exe；不得用 0.3.31 声称通过 | 待安装包重建 |
-| 标题栏拖动首次 `GetWindowRect` 变化 | 鼠标开始移动后 < 50 ms | 开始菜单/搜索占前景时跳过 | 跳过 |
-| 约 2–4KB 混合文档滚动手势期间 longtask | P95 < 50 ms；最大值 < 50 ms | 空闲 `scrollTop += 280` 后两帧 rAF ~16.7 ms 不是此门禁 | 待安装包重建 |
-| 混合文档按下 / 2px / 20px 选区采样 | 按下与 2px 折叠；20px 为区间 | 待安装包重建 | 待定 |
-| 冷启动 argv → 正文可见 | 记录，不压到 50 ms | 约 900–1100 ms（含 WebView 启动） | 已知限制 |
+| 同窗口点两行小文件（`pointerdown` → 目标正文可见） | 只记录；不是用户预算 | 装机 0.3.42 P80 19.3 ms（样本 24.6 / 18.7 / 16.9 / 19.3 / 18.2）；仍不是混合文档预算 | 仅记录 |
+| 混合文档文件切换（`pointerdown` → 日常 `.tbl-table-widget` 可见） | P80 < 200 ms | 装机 0.3.42：46.1 ms；日常 `.tbl-table-widget` × 1 | 通过 |
+| 标题栏拖动首次 `GetWindowRect` 变化 | 鼠标开始移动后 < 50 ms | 装机 0.3.42：46 ms | 通过 |
+| 约 2–4KB 混合文档滚动手势期间 longtask | P95 < 50 ms；最大值 < 50 ms | 装机 0.3.42：P95 0 ms；最大值 0 ms（滚轮/滚动手势期间无 ≥ 50 ms longtask）。空闲 `scrollTop += 280` 后两帧 rAF 为 16.1–16.8 ms，仍不是门禁 | 通过 |
+| 混合文档按下 / 2px / 20px 选区采样 | 按下与 2px 折叠；20px 为区间 | 装机 0.3.42：按下折叠；2px 折叠；20px 为区间（native length 3） | 通过 |
+| 冷启动 argv → 正文可见 | 记录，不压到 50 ms | 装机 0.3.42：1379 ms（含 WebView 启动） | 已知限制 |
 
-要声称「装机包在这些路径上不再卡」，必须对包含日常表格 widget 与 preview scheduler 的 exe 跑绿 `pnpm release:installed-ux-stutter`。不得用 jsdom 混合文档 dispatch 通过或两帧 rAF 16.7 ms 样本当作该证据。系统开始菜单占前景时，标题栏拖动咬合会跳过（不是失败）；这不是生产缺陷。
+装机 0.3.42 于 2026-08-21 对 `%LOCALAPPDATA%\LumaMark\lumamark.exe`（FileVersion 0.3.42）跑绿 `pnpm release:installed-ux-stutter`；该 exe 含日常表格 widget 与 preview scheduler。后续重建仍须跑此命令。不得用 jsdom 混合文档 dispatch 通过或两帧 rAF ~16.7 ms 样本当作该证据。系统开始菜单占前景时，标题栏拖动咬合会跳过（不是失败）；这不是生产缺陷。
 
 ## 真实 Tauri WebView2 人机工学测量
 
@@ -121,7 +122,7 @@
 
 - 自动化基线仍主要运行在 Vitest + jsdom；本轮补了真实 Windows Tauri WebView2 打开、尾部输入、撤销和小文档阅读外观两帧布局观测，但不能替代大文档宽度/字体重排、滚动 FPS、原生 IME 手感、屏幕阅读器和长时间编辑测试。
 - jsdom 的 `view.dispatch` / 合成滚动不是装机 INP、标题栏拖动咬合、WebView2 滚动帧或 `longtask` 时长。这些交互路径用 `pnpm release:installed-ux-stutter` 测量。玩具文件同窗口点击约 25 ms，以及 `scrollTop += 280` 后两帧 rAF 约 16.7 ms，都不是用户卡顿证据。
-- 冷启动 argv 打开两行 Markdown 包含 WebView 启动（此前装机探测约 900–1100 ms），是明确的已知限制，不是同窗口点文件的 50 ms 预算。
+- 冷启动 argv 打开两行 Markdown 包含 WebView 启动（装机 0.3.42 为 1379 ms；此前探测约 900–1100 ms），是明确的已知限制，不是同窗口点文件的 50 ms 预算。
 - 真实 WebView2 的 10MB 撤销 P95 为 155.90 ms，仍有可感知延迟；不得因自动化 dispatch 为 1.79 ms 就宣称大文档人机体验已经完全达标。
 - Web 构建 chunk 预算已自动化。后续若 Mermaid、KaTeX、Cytoscape 等依赖继续增长，应优先评估按图表类型懒加载或替换更细粒度入口，而不是提高预算。
 - 性能数值会受本机 CPU、磁盘缓存和依赖版本影响。若 CI 或其他机器出现回归，应以自动化门禁和新基线记录为准。

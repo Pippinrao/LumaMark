@@ -1,5 +1,10 @@
-import { EditorSelection } from '@codemirror/state';
-import { EditorView, ViewPlugin, type EditorView as EditorViewType } from '@codemirror/view';
+import { EditorSelection, Transaction } from '@codemirror/state';
+import {
+  EditorView,
+  ViewPlugin,
+  type EditorView as EditorViewType,
+  type ViewUpdate,
+} from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import { announceReadOnlyEditAttempt } from '../../core/readOnlyEditAttempt';
 
@@ -59,6 +64,23 @@ export function peekPendingTablePointerClick(
   }
 
   return pendingTableClick;
+}
+
+export function discardPendingTableClickForUserEdit(
+  userEvent: string | undefined,
+): void {
+  if (!userEvent) {
+    return;
+  }
+
+  if (
+    userEvent === 'input' ||
+    userEvent.startsWith('input.') ||
+    userEvent === 'delete' ||
+    userEvent.startsWith('delete.')
+  ) {
+    pendingTableClick = null;
+  }
 }
 
 export type ClientPoint = {
@@ -341,6 +363,8 @@ export function tableCellClickSyncNestedExtension(): Extension {
   return ViewPlugin.fromClass(
     class {
       private lastAppliedAt = 0;
+      private lastPendingAt = 0;
+      private retries = 0;
       private destroyed = false;
       private scheduled = false;
       private readonly unsubscribe: () => void;
@@ -352,7 +376,13 @@ export function tableCellClickSyncNestedExtension(): Extension {
         this.scheduleApply();
       }
 
-      update(): void {
+      update(update: ViewUpdate): void {
+        for (const transaction of update.transactions) {
+          discardPendingTableClickForUserEdit(
+            transaction.annotation(Transaction.userEvent),
+          );
+        }
+
         const pending = peekPendingTablePointerClick();
         if (!pending || pending.at === this.lastAppliedAt) {
           return;
@@ -394,14 +424,22 @@ export function tableCellClickSyncNestedExtension(): Extension {
           return;
         }
 
+        if (pending.at !== this.lastPendingAt) {
+          this.lastPendingAt = pending.at;
+          this.retries = 0;
+        }
+
         if (applyPendingTableClickToView(this.view)) {
           this.lastAppliedAt = pending.at;
           return;
         }
 
-        requestAnimationFrame(() => {
-          this.applyIfNeeded();
-        });
+        this.retries += 1;
+        if (this.retries < 4) {
+          requestAnimationFrame(() => {
+            this.applyIfNeeded();
+          });
+        }
       }
     },
   );

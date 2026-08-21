@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openBlankDocument } from './support/openBlankDocument';
+import { seedBrowserPageWidth } from './support/seedBrowserAppearance';
 
 type HorizontalBounds = {
   left: number;
@@ -308,8 +309,8 @@ test('enforces real page-width caps and safe gutters across viewport sizes', asy
 test('uses real primary-modifier wheel input and exposes an accessible 100% reset', async ({
   page,
 }) => {
+  await seedBrowserPageWidth(page, 'narrow');
   await startDocument(page);
-  await choosePageWidth(page, '标准');
 
   const editor = page.locator('.cm-content');
   const scroller = page.locator('.cm-scroller');

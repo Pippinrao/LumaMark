@@ -1534,12 +1534,12 @@ mod tests {
     fn version_number_rejects_future_fractional_values_without_filesystem_mutation() {
         for (case, raw) in [
             (
-                "three-point-five",
-                &br#"{"version":3.5,"future":"preserve exactly"}"#[..],
-            ),
-            (
                 "four-point-five",
                 &br#"{"version":4.5,"future":"preserve exactly"}"#[..],
+            ),
+            (
+                "five-point-five",
+                &br#"{"version":5.5,"future":"preserve exactly"}"#[..],
             ),
         ] {
             let dir = unique_test_dir(case);
@@ -1580,12 +1580,15 @@ mod tests {
 
     #[test]
     fn version_number_accepts_current_decimal_and_exponent_forms_without_rewrite() {
-        for (case, version) in [("current-decimal", "2.0"), ("current-exponent", "2e0")] {
+        for (case, version) in [("current-decimal", "4.0"), ("current-exponent", "4e0")] {
             let dir = unique_test_dir(case);
             let path = settings_path(&dir);
             let raw = serde_json::to_string(&default_settings())
                 .expect("serialize defaults")
-                .replace("\"version\":2", &format!("\"version\":{version}"))
+                .replace(
+                    &format!("\"version\":{SETTINGS_VERSION}"),
+                    &format!("\"version\":{version}"),
+                )
                 .into_bytes();
             fs::write(&path, &raw).expect("write compatible settings");
 

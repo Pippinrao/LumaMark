@@ -47,7 +47,7 @@ describe('plantumlEngine', () => {
       'Worker',
       class {
         onmessage: ((event: MessageEvent) => void) | null = null;
-        addEventListener(_type: string, _listener: (event: MessageEvent) => void) {}
+        addEventListener() {}
         postMessage(message: unknown) {
           posted.push(message);
         }

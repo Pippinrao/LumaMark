@@ -238,7 +238,7 @@ test('recovers corrupt browser settings visibly without hiding the preserved con
         return raw ? JSON.parse(raw).version : null;
       }),
     )
-    .toBe(3);
+    .toBe(4);
 });
 
 test('applies editor defaults to new documents without rebuilding the ready editor', async ({
@@ -395,10 +395,10 @@ test('renders the approved Mica workspace and visual appearance choices', async 
   ).toHaveCount(1);
 
   const widthGroup = dialog.getByRole('radiogroup', { name: '页面宽度' });
-  const standardWidth = widthGroup.getByRole('radio', { name: '标准' });
-  await expect(standardWidth).toBeChecked();
+  const adaptiveWidth = widthGroup.getByRole('radio', { name: '自适应' });
+  await expect(adaptiveWidth).toBeChecked();
   await expect(
-    standardWidth.locator('[data-lm-settings-page-width-preview]'),
+    adaptiveWidth.locator('[data-lm-settings-page-width-preview]'),
   ).toHaveCount(1);
 });
 

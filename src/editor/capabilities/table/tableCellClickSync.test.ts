@@ -4,6 +4,7 @@ import {
   applyPendingTableClickToView,
   clampPointToRect,
   clearPendingTablePointerClick,
+  discardPendingTableClickForUserEdit,
   nearestRectIndex,
   rememberTablePointerClick,
   resolveTableBreakoutClickTarget,
@@ -35,6 +36,12 @@ describe('tableCellClickSync', () => {
     stop();
     rememberTablePointerClick(5, 9);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops a pending click after nested typing', () => {
+    rememberTablePointerClick(12, 8);
+    discardPendingTableClickForUserEdit('input.type');
+    expect(takePendingTablePointerClick()).toBeNull();
   });
 
   it('drops stale pending clicks', () => {

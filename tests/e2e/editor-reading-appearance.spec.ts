@@ -44,7 +44,7 @@ async function horizontalBounds(locator: Locator): Promise<HorizontalBounds> {
 
 async function choosePageWidth(
   page: Page,
-  label: '宽' | '标准' | '窄' | '适应窗口',
+  label: '自适应' | '宽' | '标准' | '窄' | '适应窗口',
 ): Promise<void> {
   await page.getByRole('menuitem', { name: '文件' }).click();
   await page.getByRole('menuitem', { name: '设置' }).click();
@@ -184,6 +184,15 @@ test('enforces real page-width caps and safe gutters across viewport sizes', asy
   const fluidScroller = await horizontalBounds(scroller);
   await assertContainedGeometry(
     fluidScroller.width - DESKTOP_SAFE_GUTTER_PX * 2,
+  );
+
+  await choosePageWidth(page, '自适应');
+  const adaptiveScroller = await horizontalBounds(scroller);
+  await assertContainedGeometry(
+    Math.min(
+      adaptiveScroller.width - DESKTOP_SAFE_GUTTER_PX * 2,
+      Math.max(720, Math.min(adaptiveScroller.width * 0.7, 1100)),
+    ),
   );
 
   await choosePageWidth(page, '宽');

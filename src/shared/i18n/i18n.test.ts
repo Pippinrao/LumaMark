@@ -104,6 +104,7 @@ const requiredCoreKeys = [
   'settings.appearance',
   'settings.startup',
   'settings.pageWidth',
+  'settings.pageWidthAdaptive',
   'settings.pageWidthNarrow',
   'settings.pageWidthStandard',
   'settings.pageWidthWide',

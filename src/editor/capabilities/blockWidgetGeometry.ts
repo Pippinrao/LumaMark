@@ -324,6 +324,17 @@ function resizeObserverHeight(
   return borderBox?.blockSize ?? null;
 }
 
+export function requestEditorContentMeasure<T>(
+  view: EditorView,
+  request?: {
+    key: unknown;
+    read: () => T;
+    write: (measurement: T) => void;
+  },
+): void {
+  requestMountedWidgetMeasure(view, request);
+}
+
 function requestMountedWidgetMeasure<T>(
   view: EditorView,
   request?: {

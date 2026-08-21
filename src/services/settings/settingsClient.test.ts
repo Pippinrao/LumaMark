@@ -52,7 +52,7 @@ describe('normalizeLumaMarkSettings', () => {
 
     expect(result.hadInvalidFields).toBe(true);
     expect(result.settings.appearance.fontZoomPercent).toBe(100);
-    expect(result.settings.appearance.pageWidth).toBe('standard');
+    expect(result.settings.appearance.pageWidth).toBe('adaptive');
     expect(result.settings.appearance.theme).toBe('light');
   });
 });
@@ -310,7 +310,7 @@ describe('settingsStore invalid values', () => {
 
     expect(store.getState().recoveryState).toEqual({ kind: 'invalidFields' });
     expect(store.getState().settings.appearance.fontZoomPercent).toBe(100);
-    expect(store.getState().settings.appearance.pageWidth).toBe('standard');
+    expect(store.getState().settings.appearance.pageWidth).toBe('adaptive');
   });
 });
 

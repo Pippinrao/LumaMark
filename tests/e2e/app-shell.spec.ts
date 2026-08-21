@@ -355,7 +355,7 @@ test('persists page width across reloads while resetting modified-wheel zoom', a
       getComputedStyle(element).getPropertyValue(propertyName).trim(), name);
 
   await expect.poll(() => readEditorVariable('--lm-editor-page-width')).toBe(
-    '810px',
+    'clamp(720px, 70%, 1100px)',
   );
   await expect.poll(() => readEditorVariable('--lm-editor-font-scale')).toBe('1');
 

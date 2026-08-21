@@ -378,7 +378,7 @@ label.lm-setting-label {
 }
 
 .lm-settings-radio-group-pageWidthCards {
-  grid-template-columns: repeat(4, minmax(72px, 1fr));
+  grid-template-columns: repeat(5, minmax(56px, 1fr));
 }
 
 .lm-settings-radio-group-themeCards .lm-settings-radio-option,
@@ -456,6 +456,10 @@ label.lm-setting-label {
   border-radius: 2px;
   background: var(--lm-settings-text-muted);
   opacity: 0.68;
+}
+
+.lm-settings-page-width-preview[data-preview='adaptive'] > span {
+  width: 22px;
 }
 
 .lm-settings-page-width-preview[data-preview='narrow'] > span {

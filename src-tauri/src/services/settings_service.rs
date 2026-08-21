@@ -12,7 +12,8 @@ use crate::errors::AppError;
 use crate::services::file_service::write_bytes_atomically;
 
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
-pub const SETTINGS_VERSION: u32 = 3;
+pub const SETTINGS_VERSION: u32 = 4;
+const PAGE_WIDTHS: &[&str] = &["adaptive", "narrow", "standard", "wide", "fluid"];
 const ACCEPTANCE_WRITE_BARRIER_TIMEOUT: Duration = Duration::from_secs(60);
 const ACCEPTANCE_WRITE_BARRIER_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const ACCEPTANCE_WRITE_BARRIER_ARM: &str = "arm";
@@ -123,7 +124,7 @@ pub fn default_settings() -> LumaMarkSettings {
     LumaMarkSettings {
         appearance: AppearanceSettings {
             font_zoom_percent: 100,
-            page_width: "standard".to_string(),
+            page_width: "adaptive".to_string(),
             sidebar_open_on_startup: true,
             theme: "light".to_string(),
         },
@@ -420,10 +421,13 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
     settings.appearance.page_width = read_enum_field(
         value.get("appearance"),
         "pageWidth",
-        &["narrow", "standard", "wide", "fluid"],
+        PAGE_WIDTHS,
         &defaults.appearance.page_width,
         &mut had_invalid_fields,
     );
+    if source_version < SETTINGS_VERSION && settings.appearance.page_width == "standard" {
+        settings.appearance.page_width = "adaptive".to_string();
+    }
     settings.appearance.font_zoom_percent = read_zoom_field(
         value.get("appearance"),
         "fontZoomPercent",
@@ -594,8 +598,8 @@ fn normalize_settings(mut settings: LumaMarkSettings) -> Result<LumaMarkSettings
     );
     settings.appearance.page_width = normalize_enum(
         &settings.appearance.page_width,
-        &["narrow", "standard", "wide", "fluid"],
-        "standard",
+        PAGE_WIDTHS,
+        "adaptive",
     );
     settings.appearance.font_zoom_percent =
         normalize_font_zoom(settings.appearance.font_zoom_percent, 100);
@@ -1108,11 +1112,11 @@ mod tests {
     }
 
     #[test]
-    fn defaults_match_the_v3_contract() {
+    fn defaults_match_the_v4_contract() {
         let value = serde_json::to_value(default_settings()).expect("serialize defaults");
 
-        assert_eq!(SETTINGS_VERSION, 3);
-        assert_eq!(value["version"], 3);
+        assert_eq!(SETTINGS_VERSION, 4);
+        assert_eq!(value["version"], 4);
         assert_eq!(value["appearance"]["fontZoomPercent"], 100);
         assert_eq!(value["editor"]["autosaveEnabled"], false);
         assert_eq!(value["updates"]["autoCheckOnStartup"], true);
@@ -1146,6 +1150,7 @@ mod tests {
         assert!(!parsed.had_invalid_fields);
         assert_eq!(parsed.settings.version, SETTINGS_VERSION);
         assert!(!parsed.settings.editor.autosave_enabled);
+        assert_eq!(parsed.settings.appearance.page_width, "adaptive");
         assert_eq!(parsed.settings.markdown.math.syntax_mode, "pandoc");
         assert_eq!(parsed.settings.markdown.math.equation_numbering, "none");
         assert!(!parsed.settings.markdown.math.physics_enabled);
@@ -1183,7 +1188,52 @@ mod tests {
         assert_eq!(parsed.settings.markdown.math.equation_numbering, "none");
         assert!(!parsed.settings.markdown.math.physics_enabled);
         assert!(parsed.settings.markdown.plantuml.enabled);
+        assert_eq!(parsed.settings.appearance.page_width, "adaptive");
         assert!(parsed.needs_writeback);
+    }
+
+    #[test]
+    fn v3_standard_page_width_migrates_to_adaptive_and_keeps_explicit_presets() {
+        let standard = serde_json::json!({
+            "appearance": {
+                "fontZoomPercent": 100,
+                "pageWidth": "standard",
+                "sidebarOpenOnStartup": true,
+                "theme": "light"
+            },
+            "editor": {
+                "autosaveEnabled": false,
+                "defaultDisplayMode": "livePreview",
+                "focusModeOnStartup": false
+            },
+            "general": {
+                "language": "zh-CN",
+                "openWindowMode": "multiWindow",
+                "startupBehavior": "home"
+            },
+            "images": { "copyImagesToAssets": false },
+            "updates": { "autoCheckOnStartup": true },
+            "version": 3
+        });
+        let parsed = parse_and_normalize_settings(&serde_json::to_vec(&standard).expect("serialize"))
+            .expect("v3 standard page width should migrate");
+        assert!(!parsed.had_invalid_fields);
+        assert_eq!(parsed.settings.appearance.page_width, "adaptive");
+
+        let mut wide = standard.clone();
+        wide["appearance"]["pageWidth"] = serde_json::json!("wide");
+        let wide_parsed = parse_and_normalize_settings(&serde_json::to_vec(&wide).expect("serialize"))
+            .expect("v3 wide page width should be kept");
+        assert_eq!(wide_parsed.settings.appearance.page_width, "wide");
+
+        let mut current_standard = standard.clone();
+        current_standard["version"] = serde_json::json!(SETTINGS_VERSION);
+        current_standard["appearance"]["pageWidth"] = serde_json::json!("standard");
+        let kept = parse_and_normalize_settings(
+            &serde_json::to_vec(&current_standard).expect("serialize"),
+        )
+        .expect("current standard page width should be kept");
+        assert_eq!(kept.settings.appearance.page_width, "standard");
     }
 
     #[test]
@@ -1264,7 +1314,7 @@ mod tests {
     #[test]
     fn defaults_enums_and_zoom_match_the_shared_contract_fixture() {
         let contract: Value = serde_json::from_str(include_str!(
-            "../../../tests/fixtures/settings-v3-contract.json"
+            "../../../tests/fixtures/settings-v4-contract.json"
         ))
         .expect("shared settings contract should be valid json");
         let defaults = serde_json::to_value(default_settings()).expect("serialize defaults");
@@ -1367,7 +1417,7 @@ mod tests {
         assert!(loaded.had_invalid_fields);
         assert!(!loaded.used_defaults_due_to_corruption);
         assert_eq!(value["appearance"]["fontZoomPercent"], 100);
-        assert_eq!(value["appearance"]["pageWidth"], "standard");
+        assert_eq!(value["appearance"]["pageWidth"], "adaptive");
         assert_eq!(value["general"]["openWindowMode"], "multiWindow");
         assert_eq!(value["updates"]["autoCheckOnStartup"], true);
         fs::remove_dir_all(dir).expect("cleanup");

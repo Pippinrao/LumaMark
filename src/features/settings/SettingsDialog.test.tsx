@@ -385,7 +385,7 @@ describe('SettingsDialog', () => {
 
     const widthGroup = screen.getByRole('radiogroup', { name: 'Page width' });
     const widthChoices = within(widthGroup).getAllByRole('radio');
-    expect(widthChoices).toHaveLength(4);
+    expect(widthChoices).toHaveLength(5);
     for (const choice of widthChoices) {
       expect(
         choice.querySelector('[data-lm-settings-page-width-preview]'),

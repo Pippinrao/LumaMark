@@ -47,8 +47,12 @@ describe('editor visual style contract', () => {
     );
     expect(editorCss).toContain('line-height: 1.74;');
     expect(editorCss).toContain(
-      'max-width: var(--lm-editor-page-width, 810px);',
+      'max-width: min(calc(100% - 96px), var(--lm-editor-page-width, 810px));',
     );
+    expect(editorCss).toContain('--lm-editor-block-track-width');
+    expect(editorCss).toContain('.lm-block-breakout');
+    expect(editorCss).toContain('.lm-mermaid-preview');
+    expect(editorCss).not.toContain('lm-math-block');
     expect(editorCss).toContain('font-feature-settings: "kern" 1');
     expect(editorCss).toContain('font-variant-east-asian: proportional-width;');
   });

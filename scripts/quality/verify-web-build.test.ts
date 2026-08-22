@@ -34,6 +34,7 @@ describe('verify-web-build', () => {
         '<script type="module" src="/assets/index.js"></script>',
         'utf8',
       );
+      await writePlantumlRenderFrame(distDirectory);
       await writeFile(path.join(assetsDirectory, 'index.js'), '0;', 'utf8');
       await Promise.all(
         Array.from({ length: 105 }, (_, index) =>
@@ -90,6 +91,7 @@ describe('verify-web-build', () => {
         '<script type="module" src="/assets/index.js"></script>',
         'utf8',
       );
+      await writePlantumlRenderFrame(distDirectory);
       await writeFile(path.join(assetsDirectory, 'index.js'), '0;', 'utf8');
       await Promise.all(
         Array.from({ length: 105 }, (_, index) =>
@@ -149,6 +151,7 @@ describe('verify-web-build', () => {
         '<script type="module" src="/assets/index.js"></script>',
         'utf8',
       );
+      await writePlantumlRenderFrame(distDirectory);
       await writeFile(path.join(assetsDirectory, 'index.js'), '0;', 'utf8');
       await Promise.all(
         Array.from({ length: 105 }, (_, index) =>
@@ -213,6 +216,7 @@ describe('verify-web-build', () => {
         '<script type="module" src="/assets/index.js"></script>',
         'utf8',
       );
+      await writePlantumlRenderFrame(distDirectory);
       await writeFile(path.join(assetsDirectory, 'index.js'), '0;', 'utf8');
       await Promise.all(
         Array.from({ length: 105 }, (_, index) =>
@@ -257,6 +261,7 @@ describe('verify-web-build', () => {
         '<script type="module" src="/assets/index.js"></script>',
         'utf8',
       );
+      await writePlantumlRenderFrame(distDirectory);
       await writeFile(path.join(assetsDirectory, 'index.js'), '0;', 'utf8');
       await Promise.all(
         Array.from({ length: 104 }, (_, index) =>
@@ -339,6 +344,7 @@ describe('verify-web-build', () => {
         '<script type="module" src="/assets/index.js"></script>',
         'utf8',
       );
+      await writePlantumlRenderFrame(distDirectory);
       await writeFile(path.join(assetsDirectory, 'index.js'), '0;', 'utf8');
       await writeFile(
         path.join(assetsDirectory, 'plantuml-core.js'),
@@ -385,7 +391,73 @@ describe('verify-web-build', () => {
     },
     10_000,
   );
+
+  it(
+    'rejects a web build without the bundled PlantUML renderer page',
+    async () => {
+      const repositoryRoot = process.cwd();
+      const temporaryDirectory = await mkdtemp(
+        path.join(os.tmpdir(), 'lumamark-web-build-plantuml-frame-'),
+      );
+      temporaryDirectories.push(temporaryDirectory);
+
+      const distDirectory = path.join(temporaryDirectory, 'dist');
+      const assetsDirectory = path.join(distDirectory, 'assets');
+      const fakeBinDirectory = path.join(temporaryDirectory, 'fake-bin');
+      await mkdir(assetsDirectory, { recursive: true });
+      await mkdir(fakeBinDirectory, { recursive: true });
+      await writeFile(
+        path.join(distDirectory, 'index.html'),
+        '<script type="module" src="/assets/index.js"></script>',
+        'utf8',
+      );
+      await writeFile(path.join(assetsDirectory, 'index.js'), '0;', 'utf8');
+      await Promise.all(
+        Array.from({ length: 105 }, (_, index) =>
+          writeFile(
+            path.join(assetsDirectory, `mjx-ncm-${index}.woff2`),
+            '',
+          ),
+        ),
+      );
+      await writeFile(
+        path.join(distDirectory, 'THIRD_PARTY_LICENSES.txt'),
+        [
+          '@mathjax/src 4.1.3',
+          '@mathjax/mathjax-newcm-font 4.1.3',
+          'mhchemparser 4.2.1',
+          'License: Apache-2.0',
+          'Canonical license SHA-256: CFC7749B96F63BD31C3C42B5C471BF756814053E847C10F3EB003417BC523D30',
+          'mhchemparser license SHA-256: B40930BBCF80744C86C46A12BC9DA056641D722716C378F5659B9E555EF833E1',
+          '                                 Apache License',
+          '                           Version 2.0, January 2004',
+        ].join('\n'),
+        'utf8',
+      );
+      await writeFakePnpm(fakeBinDirectory);
+
+      const result = await runVerifier(
+        repositoryRoot,
+        temporaryDirectory,
+        fakeBinDirectory,
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        '[quality:web-build] Missing dist/plantuml-render-frame.html.',
+      );
+    },
+    10_000,
+  );
 });
+
+async function writePlantumlRenderFrame(distDirectory: string) {
+  await writeFile(
+    path.join(distDirectory, 'plantuml-render-frame.html'),
+    '<script type="module" src="/assets/plantuml-render-frame.js"></script>',
+    'utf8',
+  );
+}
 
 async function writeFakePnpm(fakeBinDirectory: string, output = '') {
   if (process.platform === 'win32') {

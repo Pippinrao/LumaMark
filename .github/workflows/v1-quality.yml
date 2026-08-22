@@ -23,10 +23,10 @@ env:
   PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright
 
 jobs:
-  frontend-unit:
-    name: Frontend unit
+  frontend-static:
+    name: Frontend typecheck and lint
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -52,11 +52,60 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+  frontend-unit:
+    name: Frontend unit
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmmirror.com/
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Unit and integration tests
         run: pnpm test
 
       - name: Fixture round-trip tests
         run: pnpm test:fixtures
+
+      - name: Windows updater proxy dependency gate
+        run: pnpm quality:updater-proxy
+
+  frontend-corpus:
+    name: Markdown corpus
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmmirror.com/
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Download Markdown corpus
         run: pnpm download:markdown-corpus
@@ -64,8 +113,6 @@ jobs:
       - name: Markdown corpus parser tests
         run: pnpm test:markdown-corpus
 
-      - name: Windows updater proxy dependency gate
-        run: pnpm quality:updater-proxy
 
   rust-quality:
     name: Rust quality
@@ -103,10 +150,12 @@ jobs:
         timeout-minutes: 2
         run: pnpm test:live-assets
 
-  web-production:
-    name: Web build and production E2E
+  web-ux:
+    name: V1 UX prototype and screenshots
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -125,6 +174,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
@@ -142,20 +199,12 @@ jobs:
           path: test-results/v1-ux-screenshots/*.png
           if-no-files-found: error
 
-      - name: Web build chunk gate
-        run: pnpm quality:web-build
-
-      - name: Production bundle startup
-        run: pnpm exec playwright test --config playwright.production.config.ts
-
-  e2e:
-    name: E2E tests (${{ matrix.shard }}/3)
+  web-production:
+    name: Web build and production E2E
     runs-on: windows-latest
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
+    timeout-minutes: 30
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -175,17 +224,76 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium
+
+      - name: Web build chunk gate
+        run: pnpm quality:web-build
+
+      - name: Production bundle startup
+        run: pnpm exec playwright test --config playwright.production.config.ts
+
+  e2e:
+    name: E2E tests (${{ matrix.shard }}/6)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmmirror.com/
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
 
       - name: E2E tests
-        run: pnpm test:e2e -- --shard=${{ matrix.shard }}/3
+        # pnpm 11 forwards a literal `--` to Playwright, which then treats
+        # `--shard=` as a file path and runs the full suite on every VM.
+        run: pnpm test:e2e --shard=${{ matrix.shard }}/6
 
   perf:
     name: Performance benchmarks
     needs:
+      - frontend-static
       - frontend-unit
+      - frontend-corpus
       - rust-quality
+      - web-ux
       - e2e
       - web-production
     runs-on: windows-latest

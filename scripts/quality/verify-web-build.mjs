@@ -95,6 +95,7 @@ if (newcmFonts.length !== NEWCM_FONT_ASSET_COUNT) {
 }
 
 await verifyThirdPartyLicenseNotice(distDir);
+await verifyPlantumlRenderFrame(distDir);
 
 function run(command, args) {
   return new Promise((resolve) => {
@@ -178,6 +179,32 @@ async function verifyThirdPartyLicenseNotice(distDir) {
   ) {
     process.stderr.write(
       `\n[quality:web-build] dist/${THIRD_PARTY_LICENSE_FILE} is incomplete or invalid.\n`,
+    );
+    process.exit(1);
+  }
+}
+
+async function verifyPlantumlRenderFrame(distDir) {
+  const framePath = join(distDir, 'plantuml-render-frame.html');
+  let html;
+  try {
+    html = await readFile(framePath, 'utf8');
+  } catch (error) {
+    if (error && typeof error === 'object' && error.code === 'ENOENT') {
+      process.stderr.write(
+        '\n[quality:web-build] Missing dist/plantuml-render-frame.html.\n',
+      );
+      process.exit(1);
+    }
+    throw error;
+  }
+
+  if (
+    html.includes('/src/editor/capabilities/plantuml/') ||
+    !/<script[^>]+type="module"[^>]+src="\.?\/?assets\/[^"]+\.js"/u.test(html)
+  ) {
+    process.stderr.write(
+      '\n[quality:web-build] dist/plantuml-render-frame.html is not a bundled renderer page.\n',
     );
     process.exit(1);
   }

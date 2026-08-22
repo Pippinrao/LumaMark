@@ -42,18 +42,14 @@ describe('plantumlEngine', () => {
         onSuccess('<svg></svg>');
       },
     );
+    const { setPlantumlOffThreadAdapter } = await import('./plantumlOffThread');
     const posted: unknown[] = [];
-    vi.stubGlobal(
-      'Worker',
-      class {
-        onmessage: ((event: MessageEvent) => void) | null = null;
-        addEventListener() {}
-        postMessage(message: unknown) {
-          posted.push(message);
-        }
-        terminate() {}
+    setPlantumlOffThreadAdapter({
+      render(source) {
+        posted.push(source);
+        return new Promise(() => undefined);
       },
-    );
+    });
     vi.doMock('@plantuml/core', () => ({ renderToString }));
     stubVizGlobalLoad();
 
@@ -68,6 +64,7 @@ describe('plantumlEngine', () => {
     expect(renderToString).not.toHaveBeenCalled();
     expect(posted.length).toBeGreaterThan(0);
     pending.catch(() => undefined);
+    setPlantumlOffThreadAdapter(null);
   });
 
   it('keeps a failed engine promise sticky instead of injecting Graphviz again', async () => {

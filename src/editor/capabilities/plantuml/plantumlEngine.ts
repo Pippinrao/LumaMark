@@ -19,7 +19,7 @@ let renderQueue: Promise<void> = Promise.resolve();
 export { renderPlantuml } from './plantumlOffThread';
 
 /**
- * TeaVM render path. Call only from the PlantUML worker/iframe, where the
+ * TeaVM render path. Call only from the PlantUML iframe, where the
  * runtime's process-wide mutable state can stay serial and off the input stack.
  */
 export function renderPlantumlOnThread(
@@ -59,6 +59,10 @@ async function loadPlantumlEngine(): Promise<PlantumlCoreModule> {
 }
 
 function loadVizGlobalScript(): Promise<void> {
+  if (typeof (globalThis as { Viz?: unknown }).Viz !== 'undefined') {
+    return Promise.resolve();
+  }
+
   if (typeof document === 'undefined') {
     return import(/* @vite-ignore */ vizGlobalUrl).then(() => undefined);
   }

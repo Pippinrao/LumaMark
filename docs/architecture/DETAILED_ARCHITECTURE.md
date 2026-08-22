@@ -340,7 +340,7 @@ PlantUML capability split requirements:
 
 - Primary implementation lives in `editor/capabilities/plantuml/`; it must not reuse Mermaid business types or cache entries, but scheduling/geometry/reading-lock contracts align with Mermaid.
 - `createPlantumlCapability.ts` only assembles the public capability; `plantumlPreviewExtension.ts` only assembles the extension, theme observer, and decoration field.
-- `plantumlEngine.ts` owns TeaVM engine lazy load, sticky failure, and serial queue; `plantumlRenderAdapter.ts` owns `dompurify` SVG sanitization.
+- `plantumlEngine.ts` owns TeaVM engine lazy load, sticky failure, and serial queue; `createPlantumlRenderPort.ts` hosts that engine in a hidden same-origin iframe (not a module Worker) because `viz-global.js` and TeaVM need a document; `plantumlRenderAdapter.ts` owns `dompurify` SVG sanitization.
 - Reading mode must not create Edit/Delete; Expand still emits already-rendered SVG through `EditorMediaPreviewRequestHandler`.
 - The switch is canonical `markdown.plantuml.enabled`, default on. Version, safety, and rollback follow [ADR 0018](../decisions/0018-plantuml-local-rendering.md).
 

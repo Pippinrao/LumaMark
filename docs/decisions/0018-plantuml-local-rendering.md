@@ -14,7 +14,8 @@ LumaMark needs PlantUML diagram preview. The official PlantUML renderer is Java-
 
 Adopt official `@plantuml/core` (TeaVM-compiled engine, MIT, pinned 1.2026.6) for **local rendering inside the WebView**:
 
-- Lazy-load `plantuml.js` and `viz-global.js`: inject the Graphviz script and dynamically `import('@plantuml/core')` only when the first ` ```plantuml ` block appears.
+- Lazy-load `plantuml.js` and `viz-global.js` in a **hidden same-origin iframe**: `viz-global.js` is a classic UMD script and TeaVM calls `document.getElementById()`, so a module Worker cannot host the engine. This matches the official `@plantuml/core` iframe worker PoC.
+- Inject the Graphviz script and dynamically `import('@plantuml/core')` only when the first ` ```plantuml ` block appears (inside that iframe).
 - `renderToString(lines, onSuccess, onError, { dark: true })` follows `document.documentElement`’s `data-theme`.
 - Engine failure promises stay sticky to avoid re-injecting a broken Graphviz script.
 - The TeaVM runtime has process-level mutable state, so render calls are queued serially.
@@ -28,7 +29,7 @@ Adopt official `@plantuml/core` (TeaVM-compiled engine, MIT, pinned 1.2026.6) fo
 - **Bundle `plantuml.jar` + JVM:** large install size, slow cold start, complex cross-platform JVM management.
 - **Remote servers (official PlantUML / Kroki):** need network, leak privacy, unavailable offline, and conflict with CSP `connect-src`.
 - **Independent `plantumlSettingsStore` / localStorage:** conflicts with canonical settings and corruption-recovery contracts.
-- **Third-party Rust implementations:** incomplete syntax coverage; not drop-in.
+- **Module Web Worker:** `viz-global.js` is a classic UMD script (`this` is undefined under `import()`), and TeaVM writes SVG through the DOM. Official guidance uses hidden iframes for this reason.
 
 ## Consequences
 

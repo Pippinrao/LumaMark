@@ -329,7 +329,7 @@ PlantUML capability 拆分要求：
 
 - 主体实现位于 `editor/capabilities/plantuml/`，不复用 Mermaid 的业务类型或缓存条目，但调度/几何/阅读锁合同与 Mermaid 对齐。
 - `createPlantumlCapability.ts` 只组装 public capability；`plantumlPreviewExtension.ts` 只组装 extension、theme observer 与 decoration field。
-- `plantumlEngine.ts` 负责 TeaVM 引擎懒加载、失败 sticky 与串行队列；`plantumlRenderAdapter.ts` 负责 `dompurify` SVG 消毒。
+- `plantumlEngine.ts` 负责 TeaVM 引擎懒加载、失败 sticky 与串行队列；`createPlantumlRenderPort.ts` 把该引擎放进同源隐藏 iframe（不是模块 Worker），因为 `viz-global.js` 与 TeaVM 需要 document；`plantumlRenderAdapter.ts` 负责 `dompurify` SVG 消毒。
 - 阅读模式不得创建 Edit/Delete；Expand 仍通过 `EditorMediaPreviewRequestHandler` 抛出已渲染 SVG。
 - 开关为 canonical `markdown.plantuml.enabled`，默认开启。版本、安全和回滚以 [ADR 0018](../decisions/0018-plantuml-local-rendering.md) 为准。
 

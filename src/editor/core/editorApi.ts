@@ -326,7 +326,7 @@ export class CodeMirrorEditorApi implements EditorApi {
   setAppearance(appearance: EditorAppearance): void {
     if (
       appearance.fontZoomPercent === this.appearance.fontZoomPercent &&
-      appearance.pageWidthPx === this.appearance.pageWidthPx
+      appearance.pageWidthCss === this.appearance.pageWidthCss
     ) {
       return;
     }

@@ -1099,7 +1099,7 @@ describe('editorApi', () => {
     const editor = createEditorApi({
       appearance: {
         fontZoomPercent: 100,
-        pageWidthPx: 810,
+        pageWidthCss: '810px',
       },
       doc: '# Initial\n',
       parent,
@@ -1114,7 +1114,7 @@ describe('editorApi', () => {
 
     editor.setAppearance({
       fontZoomPercent: 120,
-      pageWidthPx: 1040,
+      pageWidthCss: '1040px',
     });
 
     expect(editor.getSerializedDocumentText()).toBe(sourceBeforeAppearanceChange);

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 
 import type { EditorZoomDirection } from '../../editor/core/editorAppearance';
 import {
-  getPageWidthPixels,
+  getPageWidthCss,
   useReadingAppearanceStore,
 } from '../../features/reading-appearance/readingAppearanceStore';
 import { useSettingsStore } from '../../features/settings/settingsStore';
@@ -21,7 +21,7 @@ export function useReadingAppearanceModel(focusEditor: () => void) {
   const appearance = useMemo(
     () => ({
       fontZoomPercent,
-      pageWidthPx: getPageWidthPixels(pageWidth),
+      pageWidthCss: getPageWidthCss(pageWidth),
     }),
     [fontZoomPercent, pageWidth],
   );

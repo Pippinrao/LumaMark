@@ -86,8 +86,8 @@ describe('editor interaction latency baseline', () => {
           performance.now() - modeStartedAt;
         const appearanceStartedAt = performance.now();
 
-        editor.setAppearance({ fontZoomPercent: 110, pageWidthPx: 1040 });
-        editor.setAppearance({ fontZoomPercent: 100, pageWidthPx: 810 });
+        editor.setAppearance({ fontZoomPercent: 110, pageWidthCss: '1040px' });
+        editor.setAppearance({ fontZoomPercent: 100, pageWidthCss: '810px' });
 
         const appearanceDispatchRoundTripDurationMs =
           performance.now() - appearanceStartedAt;

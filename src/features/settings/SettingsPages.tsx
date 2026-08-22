@@ -231,6 +231,7 @@ export function AppearanceSettingsPage({
             label={t('settings.pageWidth')}
             onValueChange={onPageWidthChange}
             options={[
+              { label: t('settings.pageWidthAdaptive'), value: 'adaptive' },
               { label: t('settings.pageWidthNarrow'), value: 'narrow' },
               { label: t('settings.pageWidthStandard'), value: 'standard' },
               { label: t('settings.pageWidthWide'), value: 'wide' },

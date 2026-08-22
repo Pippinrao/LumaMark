@@ -35,6 +35,7 @@ import {
   type EditorAppearance,
   type EditorZoomRequestedHandler,
 } from './editorAppearance';
+import { editorAvailableWidthExtension } from './editorAvailableWidth';
 import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
@@ -219,6 +220,7 @@ export function createEditorState(
       editorMathPreferencesField,
       documentSourceFormatExtension(parsedDocument.format),
       editorAppearanceCompartment.of(editorAppearanceExtension(appearance)),
+      editorAvailableWidthExtension,
       editorDocumentContextCompartment.of(
         editorDocumentContextExtension(documentContext),
       ),

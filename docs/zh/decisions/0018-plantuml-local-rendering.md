@@ -14,7 +14,8 @@
 
 采用官方 `@plantuml/core`（TeaVM 编译引擎，MIT，固定 1.2026.6）在 **WebView 内本地渲染**：
 
-- `plantuml.js` 与 `viz-global.js` 懒加载：首个 ` ```plantuml ` 块出现时才注入 Graphviz 脚本并动态 `import('@plantuml/core')`。
+- `plantuml.js` 与 `viz-global.js` 在**同源隐藏 iframe** 中懒加载：`viz-global.js` 是经典 UMD 脚本，TeaVM 会调用 `document.getElementById()`，模块 Worker 无法承载该引擎。这与官方 `@plantuml/core` 的 iframe worker PoC 一致。
+- 仅在首个 ` ```plantuml ` 块出现时（在该 iframe 内）注入 Graphviz 脚本并动态 `import('@plantuml/core')`。
 - `renderToString(lines, onSuccess, onError, { dark: true })` 跟随 `document.documentElement` 的 `data-theme`。
 - 引擎失败 promise 保持 sticky，避免重复注入损坏的 Graphviz 脚本。
 - TeaVM 运行时有进程级可变状态，因此渲染调用串行排队。
@@ -28,7 +29,7 @@
 - **打包 `plantuml.jar` + JVM**：安装体积大、冷启动慢、跨平台 JVM 管理复杂。
 - **远程服务器（PlantUML 官方 / Kroki）**：需网络、有隐私泄露、离线不可用，且与 CSP `connect-src` 冲突。
 - **独立 `plantumlSettingsStore` / localStorage**：与 canonical settings 和损坏恢复合同冲突。
-- **第三方 Rust 实现**：语法覆盖不完整，不是 drop-in。
+- **模块 Web Worker：** `viz-global.js` 是经典 UMD 脚本（`import()` 下 `this` 为 undefined），TeaVM 通过 DOM 写入 SVG。官方指引因此使用隐藏 iframe。
 
 ## 影响
 

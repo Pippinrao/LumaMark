@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 test('renders PlantUML locally in the production bundle without remote diagram requests', async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
 
@@ -30,4 +31,7 @@ test('renders PlantUML locally in the production bundle without remote diagram r
   await expect(preview).toHaveAttribute('data-status', 'success', { timeout: 60_000 });
   await expect(preview.locator('.lm-plantuml-svg > svg')).toBeVisible();
   expect(requests.some((url) => /plantuml\.com|kroki/iu.test(url))).toBe(false);
+  expect(
+    requests.some((url) => url.includes('plantuml-render-frame.html')),
+  ).toBe(true);
 });

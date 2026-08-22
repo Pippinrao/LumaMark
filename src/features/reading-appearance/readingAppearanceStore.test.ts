@@ -9,7 +9,7 @@ import {
   MIN_FONT_ZOOM_PERCENT,
   PAGE_WIDTHS,
   createReadingAppearanceStore,
-  getPageWidthPixels,
+  getPageWidthCss,
 } from './readingAppearanceStore';
 
 function createMemoryStorage(initialValue: string | null = null): PreferenceStorage {
@@ -28,7 +28,13 @@ function createMemoryStorage(initialValue: string | null = null): PreferenceStor
 
 describe('readingAppearanceStore', () => {
   it('maps every user-facing width preset to an editor boundary', () => {
-    expect(PAGE_WIDTHS.map(getPageWidthPixels)).toEqual([680, 810, 1040, null]);
+    expect(PAGE_WIDTHS.map(getPageWidthCss)).toEqual([
+      'clamp(720px, 70%, 1100px)',
+      '680px',
+      '810px',
+      '1040px',
+      '100%',
+    ]);
   });
 
   it('restores the page width but resets font zoom for a new app session', () => {

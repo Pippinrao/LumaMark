@@ -28,6 +28,13 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 7000,
     rolldownOptions: {
+      input: {
+        index: path.resolve(configDir, 'index.html'),
+        'plantuml-render-frame': path.resolve(
+          configDir,
+          'plantuml-render-frame.html',
+        ),
+      },
       // MathJax NewCM WOFF2 + lazy PlantUML TeaVM copy time trips Rolldown's
       // vite:asset PLUGIN_TIMINGS diagnostic. quality:web-build still fails
       // any PLUGIN_TIMINGS that names a different plugin.

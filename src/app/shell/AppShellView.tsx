@@ -9,8 +9,11 @@ import { X } from 'lucide-react';
 import { persistSidebarOpen, readPersistedSidebarOpen } from './panelLayoutStorage';
 import {
   FILE_TREE_CONTENT_CHROME_WIDTH,
+  recordUserSidebarWidth,
+  resolveSidebarWidthForTab,
   sidebarPanelConstraints,
-  sidebarWidthForContentWidth,
+  type SidebarTab,
+  type SidebarUserSetWidths,
 } from './panelConstraints';
 import { StatusBar } from './StatusBar';
 import type { ShellSlots, StatusBarLabels } from './shellTypes';
@@ -33,6 +36,7 @@ type AppShellViewProps = {
   sidebarContentChromeWidth?: number;
   sidebarContentWidth: number;
   sidebarOpen: boolean;
+  sidebarTab?: SidebarTab;
   slots: ShellSlots;
   statusLabels: StatusBarLabels;
   workspaceName?: string;
@@ -51,6 +55,7 @@ export function AppShellView({
   sidebarContentChromeWidth = FILE_TREE_CONTENT_CHROME_WIDTH,
   sidebarContentWidth,
   sidebarOpen,
+  sidebarTab = 'files',
   slots,
   statusLabels,
   workspaceName,
@@ -58,7 +63,7 @@ export function AppShellView({
   const sidebarPanelRef = usePanelRef();
   const sidebarContentRef = useRef<HTMLDivElement>(null);
   const sidebarHadFocusRef = useRef(false);
-  const sidebarWidthWasUserSetRef = useRef(false);
+  const userSetWidthsRef = useRef<SidebarUserSetWidths>({});
   const [restoredSidebarOpen] = useState(
     () => readPersistedSidebarOpen() ?? DEFAULT_LAYOUT.sidebar > 0,
   );
@@ -77,9 +82,16 @@ export function AppShellView({
     _nextLayout: unknown,
     meta: { isUserInteraction: boolean },
   ) => {
-    if (meta.isUserInteraction) {
-      sidebarWidthWasUserSetRef.current = true;
+    if (!meta.isUserInteraction) {
+      return;
     }
+
+    const draggedWidth = sidebarPanelRef.current?.getSize().inPixels ?? 0;
+    userSetWidthsRef.current = recordUserSidebarWidth(
+      userSetWidthsRef.current,
+      sidebarTab,
+      draggedWidth,
+    );
   };
 
   useLayoutEffect(() => {
@@ -128,25 +140,33 @@ export function AppShellView({
   }, [focusMode, sidebarOpen]);
 
   useLayoutEffect(() => {
-    if (!sidebarOpen || sidebarWidthWasUserSetRef.current) {
+    if (!sidebarOpen) {
       return;
     }
 
+    const nextWidth = resolveSidebarWidthForTab({
+      chromeWidth: sidebarContentChromeWidth,
+      contentWidth: sidebarContentWidth,
+      tab: sidebarTab,
+      userSetWidths: userSetWidthsRef.current,
+    });
+
     const frame = globalThis.requestAnimationFrame(() => {
-      if (!sidebarWidthWasUserSetRef.current && sidebarOpen) {
-        sidebarPanelRef.current?.resize(
-          sidebarWidthForContentWidth(
-            sidebarContentWidth,
-            sidebarContentChromeWidth,
-          ),
-        );
+      if (sidebarOpen) {
+        sidebarPanelRef.current?.resize(nextWidth);
       }
     });
 
     return () => {
       globalThis.cancelAnimationFrame(frame);
     };
-  }, [sidebarContentChromeWidth, sidebarContentWidth, sidebarOpen, sidebarPanelRef]);
+  }, [
+    sidebarContentChromeWidth,
+    sidebarContentWidth,
+    sidebarOpen,
+    sidebarPanelRef,
+    sidebarTab,
+  ]);
 
   return (
     <div

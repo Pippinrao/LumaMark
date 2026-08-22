@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openBlankDocument } from './support/openBlankDocument';
+import { seedBrowserPageWidth } from './support/seedBrowserAppearance';
 import {
   installRootEditorViewTestBridge,
   type RootEditorContentTestBridge,
@@ -392,6 +393,7 @@ function expectFocusedCodeBlockVisualContract(
 test('renders syntax-highlighted code blocks with stable inset geometry in both themes', async ({
   page,
 }) => {
+  await seedBrowserPageWidth(page, 'standard');
   await page.setViewportSize(visualViewport);
   await openNewDocument(page);
   await replaceEditorSource(
@@ -481,6 +483,7 @@ test('renders syntax-highlighted code blocks with stable inset geometry in both 
 test('keeps a non-empty code selection visible above the opaque code surface', async ({
   page,
 }) => {
+  await seedBrowserPageWidth(page, 'standard');
   await page.setViewportSize(visualViewport);
   await openNewDocument(page);
   const source = [

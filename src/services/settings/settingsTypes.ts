@@ -1,5 +1,5 @@
 export type SettingsTheme = 'dark' | 'light' | 'system';
-export type SettingsPageWidth = 'fluid' | 'narrow' | 'standard' | 'wide';
+export type SettingsPageWidth = 'adaptive' | 'fluid' | 'narrow' | 'standard' | 'wide';
 export type SettingsLanguage = 'en' | 'zh-CN';
 export type SettingsOpenWindowMode = 'aggregateWindow' | 'multiWindow';
 export type SettingsStartupBehavior = 'home' | 'restoreLastSession';
@@ -44,7 +44,7 @@ export type LumaMarkSettings = {
   updates: {
     autoCheckOnStartup: boolean;
   };
-  version: 3;
+  version: 4;
 };
 
 export type SettingsLoadResult = {
@@ -55,7 +55,7 @@ export type SettingsLoadResult = {
   usedDefaultsDueToCorruption: boolean;
 };
 
-export const SETTINGS_VERSION = 3 as const;
+export const SETTINGS_VERSION = 4 as const;
 export const MIN_SETTINGS_FONT_ZOOM_PERCENT = 50;
 export const MAX_SETTINGS_FONT_ZOOM_PERCENT = 250;
 export const SETTINGS_FONT_ZOOM_STEP_PERCENT = 10;
@@ -63,7 +63,7 @@ export const SETTINGS_FONT_ZOOM_STEP_PERCENT = 10;
 export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
   appearance: {
     fontZoomPercent: 100,
-    pageWidth: 'standard',
+    pageWidth: 'adaptive',
     sidebarOpenOnStartup: true,
     theme: 'light',
   },
@@ -97,6 +97,7 @@ export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
 };
 
 const PAGE_WIDTHS: readonly SettingsPageWidth[] = [
+  'adaptive',
   'narrow',
   'standard',
   'wide',
@@ -197,6 +198,12 @@ export function normalizeLumaMarkSettings(
     PAGE_WIDTHS,
     defaults.appearance.pageWidth,
   );
+  const migratedPageWidth =
+    sourceVersion.value < SETTINGS_VERSION &&
+    !pageWidth.invalid &&
+    pageWidth.value === 'standard'
+      ? 'adaptive'
+      : pageWidth.value;
   const language = normalizeEnum(
     general.language,
     ['zh-CN', 'en'] as const,
@@ -298,7 +305,7 @@ export function normalizeLumaMarkSettings(
     settings: {
       appearance: {
         fontZoomPercent: fontZoom.value,
-        pageWidth: pageWidth.value,
+        pageWidth: migratedPageWidth,
         sidebarOpenOnStartup: sidebarOpenOnStartup.value,
         theme: theme.value,
       },

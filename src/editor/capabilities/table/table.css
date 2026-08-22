@@ -3,8 +3,12 @@
  * padding: 16px and we previously added margin 22/28 — both create visual
  * gaps that look selectable but map clicks into the first/last table row.
  * Spacing comes from real markdown blank lines (clickable cm-lines) only.
+ * Higher specificity than the library's `contain: paint` and `overflow-x: auto`,
+ * which otherwise clip breakout tables and desync click→caret mapping.
  */
-.cm-content .tbl-table-widget {
+.cm-editor .cm-content .tbl-table-widget {
+  contain: none;
+  overflow: visible;
   margin: 0;
   padding: 0;
 }

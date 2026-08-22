@@ -80,34 +80,50 @@ async function readNestedCaret(page: Page): Promise<{
 }> {
   const editor = page.locator('.tbl-cell-editor .cm-content:visible');
   await expect(editor).toHaveCount(1);
-  return editor.evaluate((content) => {
-    type ViewBridge = {
-      coordsAtPos(pos: number, side?: -1 | 1): { left: number; top: number } | null;
-      state: {
-        doc: { toString(): string };
-        selection: { main: { head: number } };
-      };
-    };
-    const view = (content as HTMLElement & { cmTile: { view: ViewBridge } }).cmTile
-      .view;
-    const head = view.state.selection.main.head;
-    const caret =
-      view.coordsAtPos(head, -1) ??
-      view.coordsAtPos(head, 1) ??
-      view.coordsAtPos(head);
-    if (!caret) {
-      throw new Error('missing caret coords');
-    }
-    return {
-      head,
-      left: caret.left,
-      text: view.state.doc.toString(),
-      markDisplay: [...content.querySelectorAll('.lm-table-token-mark')].map(
-        (el) => getComputedStyle(el).display,
-      ),
-      contentPadding: getComputedStyle(content).padding,
-    };
-  });
+  let result: {
+    head: number;
+    left: number;
+    text: string;
+    markDisplay: string[];
+    contentPadding: string;
+  } | null = null;
+  await expect
+    .poll(async () => {
+      result = await editor.evaluate((content) => {
+        type ViewBridge = {
+          coordsAtPos(pos: number, side?: -1 | 1): { left: number; top: number } | null;
+          state: {
+            doc: { toString(): string };
+            selection: { main: { head: number } };
+          };
+        };
+        const view = (content as HTMLElement & { cmTile: { view: ViewBridge } }).cmTile
+          .view;
+        const head = view.state.selection.main.head;
+        const caret =
+          view.coordsAtPos(head, -1) ??
+          view.coordsAtPos(head, 1) ??
+          view.coordsAtPos(head);
+        if (!caret) {
+          return null;
+        }
+        return {
+          head,
+          left: caret.left,
+          text: view.state.doc.toString(),
+          markDisplay: [...content.querySelectorAll('.lm-table-token-mark')].map(
+            (el) => getComputedStyle(el).display,
+          ),
+          contentPadding: getComputedStyle(content).padding,
+        };
+      });
+      return result;
+    })
+    .not.toBeNull();
+  if (!result) {
+    throw new Error('missing caret coords');
+  }
+  return result;
 }
 
 async function readInactivePadding(cell: Locator): Promise<string> {
@@ -431,4 +447,77 @@ test('maps consecutive everyday GFM cell clicks without blurring first', async (
   expect(Math.abs(secondCaret.left - second.x)).toBeLessThanOrEqual(
     Math.max(3, second.glyphWidth / 2 + 1),
   );
+});
+
+test('maps a click in the breakout gutter beside a narrow table into the table', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1800, height: 900 });
+  await openNewDocument(page);
+  await replaceEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| A | B |',
+      '| --- | --- |',
+      '| hi | there |',
+      '',
+      'after',
+    ].join('\n'),
+  );
+
+  const point = await page.evaluate(() => {
+    const widget = document.querySelector('.tbl-table-widget');
+    const table = document.querySelector('.tbl-table');
+    if (!widget || !table) {
+      throw new Error('missing breakout table geometry');
+    }
+    const widgetBox = widget.getBoundingClientRect();
+    const tableBox = table.getBoundingClientRect();
+    const gutter = widgetBox.right - tableBox.right;
+    if (gutter < 16) {
+      throw new Error(`expected a breakout gutter, received ${gutter}`);
+    }
+    return {
+      x: tableBox.right + Math.min(24, gutter / 2),
+      y: tableBox.top + tableBox.height / 2,
+    };
+  });
+
+  await page.mouse.click(point.x, point.y);
+  await expect(page.locator('.tbl-cell-editor .cm-content:visible')).toHaveCount(1);
+  await expect(page.locator('.cm-line', { hasText: 'after!' })).toHaveCount(0);
+});
+
+test('keeps the line below a table clickable after the editor pane resizes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1800, height: 900 });
+  await openNewDocument(page);
+  await replaceEditorSource(
+    page,
+    [
+      'before',
+      '',
+      '| A | B |',
+      '| --- | --- |',
+      '| hello | world |',
+      '',
+      'after',
+    ].join('\n'),
+  );
+
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.evaluate(
+    () => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }),
+  );
+
+  const after = page.locator('.cm-line', { hasText: 'after' });
+  await after.click();
+  await expect(page.locator('.tbl-cell-editor .cm-content:visible')).toHaveCount(0);
+  await page.keyboard.type('!');
+  await expect(page.locator('.cm-line', { hasText: 'after!' })).toBeVisible();
 });

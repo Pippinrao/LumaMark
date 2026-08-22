@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
 
 describe('WorkspaceSidebar tabs', () => {
@@ -26,5 +26,25 @@ describe('WorkspaceSidebar tabs', () => {
 
     expect(screen.getByTestId('outline-body')).toBeInTheDocument();
     expect(screen.queryByTestId('files-body')).not.toBeInTheDocument();
+  });
+
+  it('reports the selected tab when switching between files and outline', () => {
+    const onTabChange = vi.fn();
+    render(
+      <WorkspaceSidebar
+        fileTree={<div data-testid="files-body">files</div>}
+        labels={{
+          files: 'Files',
+          outline: 'Outline',
+          sidebar: 'Sidebar',
+        }}
+        onTabChange={onTabChange}
+        outline={<div data-testid="outline-body">outline</div>}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Outline' }));
+
+    expect(onTabChange).toHaveBeenCalledWith('outline');
   });
 });

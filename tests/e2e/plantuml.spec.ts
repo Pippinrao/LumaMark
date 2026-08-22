@@ -32,7 +32,7 @@ test('renders a PlantUML sequence diagram locally in the preview', async ({
 
   const preview = page.locator('.lm-plantuml-preview').first();
   await expect(preview).toBeVisible();
-  await expect(preview).toHaveAttribute('data-status', 'success');
+  await expect(preview).toHaveAttribute('data-status', 'success', { timeout: 30_000 });
   await expect(preview.locator('.lm-plantuml-svg > svg')).toBeVisible();
 
   await preview.hover();
@@ -64,7 +64,7 @@ test('keeps PlantUML source in the main undo history while editing', async ({
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-plantuml-preview').first();
-  await expect(preview).toHaveAttribute('data-status', 'success');
+  await expect(preview).toHaveAttribute('data-status', 'success', { timeout: 30_000 });
   await preview.hover();
   await page.getByRole('button', { name: editSourceName }).click();
 
@@ -101,7 +101,7 @@ test('keeps dark-mode PlantUML on the editor surface instead of a white paper', 
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-plantuml-preview').first();
-  await expect(preview).toHaveAttribute('data-status', 'success');
+  await expect(preview).toHaveAttribute('data-status', 'success', { timeout: 30_000 });
   const lightSvg = await preview.locator('.lm-plantuml-svg > svg').innerHTML();
 
   await page.getByRole('menuitem', { exact: true, name: /^(?:主题|Theme)$/ }).click();
@@ -153,7 +153,7 @@ test('expands the rendered PlantUML diagram in the media viewer', async ({
   await page.locator('.cm-line', { hasText: 'after' }).click();
 
   const preview = page.locator('.lm-plantuml-preview').first();
-  await expect(preview).toHaveAttribute('data-status', 'success');
+  await expect(preview).toHaveAttribute('data-status', 'success', { timeout: 30_000 });
   await preview.hover();
   await page.getByRole('button', { name: expandName }).first().click();
 

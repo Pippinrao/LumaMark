@@ -15,6 +15,7 @@ import { WorkspaceSidebar } from '../shell/WorkspaceSidebar';
 import {
   FILE_TREE_CONTENT_CHROME_WIDTH,
   OUTLINE_CONTENT_CHROME_WIDTH,
+  type SidebarTab,
 } from '../shell/panelConstraints';
 import { StartScreen } from '../../features/startup/StartScreen';
 import type { ShellSlots } from '../shell/shellTypes';
@@ -51,13 +52,15 @@ type AppShellModel = ReturnType<typeof useAppShellModel>;
 type AppShellSlotHandlers = {
   onReadOnlyEditAttempt: () => void;
   onSidebarContentWidthChange: (contentWidth: number, chromeWidth?: number) => void;
+  onSidebarTabChange: (tab: SidebarTab) => void;
 };
 
 export function useAppShellSlots(
   model: AppShellModel,
   handlers: AppShellSlotHandlers,
 ): ShellSlots {
-  const { onReadOnlyEditAttempt, onSidebarContentWidthChange } = handlers;
+  const { onReadOnlyEditAttempt, onSidebarContentWidthChange, onSidebarTabChange } =
+    handlers;
 
   return useMemo(
     () => ({
@@ -320,6 +323,7 @@ export function useAppShellSlots(
             </FileTreeContextMenuHost>
           }
           labels={model.labels.sidebar}
+          onTabChange={onSidebarTabChange}
           outline={
             <OutlinePanel
               headings={model.headings}
@@ -357,6 +361,6 @@ export function useAppShellSlots(
         />
       ),
     }),
-    [model, onReadOnlyEditAttempt, onSidebarContentWidthChange],
+    [model, onReadOnlyEditAttempt, onSidebarContentWidthChange, onSidebarTabChange],
   );
 }

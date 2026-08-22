@@ -1,4 +1,4 @@
-import { createPlantumlRenderWorker } from './createPlantumlRenderWorker';
+import { createPlantumlRenderPort } from './createPlantumlRenderPort';
 import type { PlantumlRenderOptions } from './plantumlEngine';
 
 type SchedulerLike = {
@@ -41,7 +41,7 @@ export function getPlantumlOffThreadAdapter(): PlantumlOffThreadAdapter {
   if (adapter) {
     return adapter;
   }
-  defaultAdapter ??= createWorkerPlantumlAdapter();
+  defaultAdapter ??= createIframePlantumlAdapter();
   return defaultAdapter;
 }
 
@@ -52,7 +52,7 @@ export function renderPlantuml(
   return getPlantumlOffThreadAdapter().render(source, options);
 }
 
-function createWorkerPlantumlAdapter(): PlantumlOffThreadAdapter {
+function createIframePlantumlAdapter(): PlantumlOffThreadAdapter {
   const pending = new Map<
     number,
     {
@@ -60,8 +60,8 @@ function createWorkerPlantumlAdapter(): PlantumlOffThreadAdapter {
       resolve: (svg: string) => void;
     }
   >();
-  const worker = createPlantumlRenderWorker();
-  worker.addEventListener('message', (event: MessageEvent) => {
+  const port = createPlantumlRenderPort();
+  port.addEventListener('message', (event: MessageEvent) => {
     const data = event.data as { error?: string; id?: number; svg?: string };
     if (typeof data?.id !== 'number') {
       return;
@@ -83,7 +83,7 @@ function createWorkerPlantumlAdapter(): PlantumlOffThreadAdapter {
       const id = nextRequestId++;
       return new Promise<string>((resolve, reject) => {
         pending.set(id, { reject, resolve });
-        worker.postMessage({
+        port.postMessage({
           dark: options.dark === true,
           id,
           source,

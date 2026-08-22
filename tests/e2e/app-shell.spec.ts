@@ -243,6 +243,35 @@ for (const viewport of [
   });
 }
 
+test('adapts sidebar width when switching to the outline tab with long headings', async ({
+  page,
+}) => {
+  await page.setViewportSize({ height: 1080, width: 1920 });
+  await page.goto('/');
+  await openBlankDocument(page);
+
+  const sidebar = page.locator('.lm-sidebar-panel');
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeGreaterThanOrEqual(199);
+
+  const filesWidth = (await sidebar.boundingBox())?.width ?? 0;
+  const longHeading = `Outline width ${'Heading'.repeat(24)}`;
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.insertText(`# ${longHeading}\n\nParagraph\n`);
+
+  await page.getByRole('tab', { name: '大纲' }).click();
+  await expect(page.locator('.lm-outline-item')).toContainText('Outline width');
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(filesWidth + 24);
+
+  const outlineWidth = (await sidebar.boundingBox())?.width ?? 0;
+  expect(outlineWidth).toBeGreaterThanOrEqual(199);
+  expect(outlineWidth).toBeLessThanOrEqual(481);
+});
+
 test('lets dragging take the sidebar below the former 240 pixel floor', async ({
   page,
 }) => {
@@ -326,7 +355,7 @@ test('persists page width across reloads while resetting modified-wheel zoom', a
       getComputedStyle(element).getPropertyValue(propertyName).trim(), name);
 
   await expect.poll(() => readEditorVariable('--lm-editor-page-width')).toBe(
-    '810px',
+    'clamp(720px, 70%, 1100px)',
   );
   await expect.poll(() => readEditorVariable('--lm-editor-font-scale')).toBe('1');
 

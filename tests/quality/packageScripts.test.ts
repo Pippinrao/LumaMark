@@ -490,6 +490,8 @@ describe('package quality scripts', () => {
     expect(workflow).toContain('shard: [1, 2, 3, 4, 5, 6]');
     expect(workflow).toContain('pnpm test:e2e --shard=${{ matrix.shard }}/6');
     expect(workflow).not.toContain('test:e2e -- --shard');
+    expect(workflow).not.toContain('runner.temp');
+    expect(workflow).toContain('PLAYWRIGHT_BROWSERS_PATH: .ms-playwright');
     const viteConfig = await readFile(join(process.cwd(), 'vite.config.ts'), 'utf8');
     expect(viteConfig).toContain('plantuml-render-frame.html');
     const playwrightConfig = await readFile(

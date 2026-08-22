@@ -154,8 +154,10 @@ jobs:
     name: V1 UX prototype and screenshots
     runs-on: windows-latest
     timeout-minutes: 20
+    # Job-level env cannot use the `runner` context (GitHub rejects the
+    # workflow before any job starts). Keep this path workspace-relative.
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+      PLAYWRIGHT_BROWSERS_PATH: .ms-playwright
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -178,7 +180,7 @@ jobs:
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/ms-playwright
+          path: .ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
@@ -204,7 +206,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+      PLAYWRIGHT_BROWSERS_PATH: .ms-playwright
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -227,7 +229,7 @@ jobs:
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/ms-playwright
+          path: .ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
@@ -246,7 +248,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 40
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+      PLAYWRIGHT_BROWSERS_PATH: .ms-playwright
     strategy:
       fail-fast: false
       matrix:
@@ -273,7 +275,7 @@ jobs:
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/ms-playwright
+          path: .ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-playwright-

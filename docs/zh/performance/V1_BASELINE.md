@@ -66,9 +66,9 @@
 | 1MB 文档 Mermaid active-edit 输入 dispatch | P80 < 16 ms；最大值 < 50 ms | P80 2.23 ms；中位数 2.12 ms；最大值 2.44 ms；样本 [2.44, 2.23, 2.12, 2.06, 1.86] | 通过 |
 | 5MB 文档 Mermaid active-edit 输入 dispatch | P80 < 50 ms；最大值 < 100 ms | P80 2.02 ms；中位数 1.94 ms；最大值 7.35 ms；样本 [2.02, 1.84, 1.94, 1.75, 7.35] | 通过 |
 | 10MB 文档 Mermaid active-edit 输入 dispatch | P80 < 100 ms；最大值 < 200 ms | P80 1.63 ms；中位数 1.62 ms；最大值 1.74 ms；样本 [1.74, 1.61, 1.63, 1.62, 1.62] | 通过 |
-| 1MB 文档统计（同步计数） | P80 < 16 ms | P80 8.25 ms；样本 [8.25, 5.62, 4.73] | 通过 |
-| 5MB 文档统计调度（输入路径） | P80 < 2 ms | P80 0.19 ms；样本 [0.19, 0.01, 0.01] | 通过 |
-| 10MB 文档统计调度（输入路径） | P80 < 2 ms | P80 0.04 ms；样本 [0.04, 0.00, 0.00] | 通过 |
+| 1MB 文档统计（同步计数） | P80 < 16 ms；最大值 < 50 ms | 2026-08-22 单独 `pnpm perf:bench`：P80 9.44 ms；最大值 12.53 ms；样本 [12.53, 9.44, 6.66, 6.67, 6.73]。n=3 时 P80 等于最大值，Windows CI 因首样本 19.34 ms 失败（热样本 12.53 / 10.27）。 | 通过 |
+| 5MB 文档统计调度（输入路径） | P80 < 2 ms；最大值 < 50 ms | 2026-08-22 单独 `pnpm perf:bench`：P80 0.09 ms；最大值 0.18 ms；样本 [0.18, 0.02, 0.02, 0.01, 0.09] | 通过 |
+| 10MB 文档统计调度（输入路径） | P80 < 2 ms；最大值 < 50 ms | 2026-08-22 单独 `pnpm perf:bench`：P80 0.01 ms；最大值 0.03 ms；样本 [0.03, 0.01, 0.01, 0.00, 0.00] | 通过 |
 | 约 2–4KB 混合文档（数学 + PlantUML + Mermaid + 表格）尾部输入 dispatch | P80 < 8 ms；处理 P95 < 32 ms；最大值 < 32 ms | P80 2.01 ms；最大值 7.23 ms；样本 [7.23, 2.01, 1.68, 1.36, 1.72]；处理 P95 7.23 ms | 通过 |
 | 约 2–4KB 混合文档 selection-only dispatch | P80 < 8 ms；最大值 < 32 ms | P80 0.33 ms；最大值 0.62 ms；样本 [0.62, 0.33, 0.23, 0.25, 0.31] | 通过 |
 | 约 2–4KB 混合文档滚动两帧提交（jsdom 代理） | P80 < 16 ms | P80 0.03 ms；最大值 0.42 ms | 通过 |
@@ -83,6 +83,7 @@
 - Mermaid 渲染通过 scheduler 异步执行；pending render 下普通与复杂输入均在 5 个独立 render 生命周期上执行 P80/最大值 `< 50 ms` 门禁。active-edit 冷路径在 5 个独立 activation 上执行 P80 `< 16 ms`、最大值 `< 50 ms` 门禁；同一文档内的 1/5/10MB 连续输入保持近似常数时间且 P80 分别通过 `< 16/50/100 ms` 预算。
 - 2026-08-18 卡顿恢复校准将打开后大纲刷新恢复为原始 `< 50/150/300 ms` 预算（本轮实测 10.13/25.56/52.40 ms），把 5/10MB 文档统计移出输入路径（调度 `< 2 ms`），并新增约 2–4KB 混合写作样本。该混合文档保持尾部输入 P80 `< 8 ms`、选区 P80 `< 8 ms`；Vitest + jsdom 的处理 P95 只是 INP 处理时间的代理（`< 32 ms`），不是真实 Chrome INP 测量。2026-08-19 的混合文档滚动代理为 P80 `< 16 ms`（实测 0.03 ms），同样不能替代装机 WebView2 滚动或 long task 证据。
 - 自适应页面宽度缩放（ADR 0021）会在混合越界文档上重发布 `--lm-editor-block-track-width`。2026-08-21 单独串行 `pnpm perf:bench` 实测 P80 0.04 ms / 最大值 0.19 ms，对照 16 ms 主预算。同轮混合文档尾部输入 P80 为 3.25 ms（预算 `< 8 ms`）。这不是装机 WebView2 缩放、表格光标或卡顿证据。
+- 1MB 文档统计同步计数现按 ADR 0007 使用 5 样本 P80 和 50 ms 硬上限。只采 3 个样本时 P80 等于最大值，因此 Windows 上一次 JIT/GC 抖动（19.34 ms）会打爆 16 ms 主预算，而两个热样本仍是 12.53 / 10.27 ms。16 ms P80 预算未放宽。
 - Parity Reliability 增补门禁证明：selection-only 更新不会修改文档，显示模式往返保持 selection；代码块密集文档的普通尾部输入和聚焦语言激活沿用 1MB 输入的 P80 `< 16 ms`、最大值 `< 50 ms` 严格预算。真实 Enter 围栏补齐同时执行语法确认、多段插入、selection、视口和高度映射更新，按 [ADR 0013](../decisions/0013-code-block-completion-performance-budget.md) 作为复杂编辑命令独立约束为 P80 `< 50 ms`、最大值 `< 100 ms`；复杂 Mermaid 长任务 pending 时主 `EditorApi` 文档立即接收输入，且不会为块外输入启动第二个渲染任务。
 - 阅读外观通过 CodeMirror compartment 与 CSS variable 往返重配置；Vitest + jsdom 中 1/5/10MB 文档的同步 dispatch 本机实测分别为 0.88/0.69/0.84 ms，并由 `< 50/75/100 ms` 自动化预算约束，过程不修改正文或 selection。该数值不包含浏览器样式计算、真实排版或绘制成本，不能用作“完成页面重排”的延迟声明。打包 WebView2 烟测会在切换宽度后等待两帧并读取 `.cm-content` 边界以强制观察真实布局，预算为 `< 500 ms`。
 - Web 构建已通过 `pnpm quality:web-build` 门禁：首屏入口从大 vendor 包中拆出，React、CodeMirror、UI 依赖和 Mermaid 重依赖分组加载。CodeMirror 启动核心与 Lezer 基础包保持为一个 600.41 KiB 的拓扑完整 chunk，代码语言包继续按需加载；禁止用任意 `maxSize` 再拆这个核心组，因为会破坏循环模块的初始化顺序并造成生产白屏。最大 chunk 是 Mermaid 动态渲染链路中的 `vscode-languageserver-types` / Langium 等上游解析依赖，不进入首屏入口。

@@ -17,7 +17,7 @@
 - 由 CodeMirror view plugin 观察 `view.scrollDOM`，把 `clientWidth - gutter` 量化为整数 px，写入 `--lm-editor-block-track-width`，仅在值变化时写入。
 - 表格、Mermaid、PlantUML、图片使用该轨道（较窄时居中）。数学公式与围栏代码仍留在正文列，因为 MathJax CHTML 会在内容宽度变化时重新渲染。
 - 后续轨道宽度变化后强制 CodeMirror `mustMeasureContent`，以便未注册进 `blockWidgetGeometry` 的表格 widget 刷新高度图。编辑器构造时的首次发布不整页重测：CodeMirror 第一次布局已经会测量 widget。ResizeObserver 回调合并到同一帧，避免打开多表格文件时叠满重测。
-- `.tbl-table-widget` 用 `max-content` 加轨道 `min-width` 包住表格，并保留库的 `contain: paint`。不要把 widget 强行拉到轨道宽再关掉 paint containment；那会让多表格文件打开卡住，即使页面宽度不是自适应。
+- `.tbl-table-widget` 使用写作轨道宽，并设 `min-width: min-content`，保留库的 `contain: paint`。长单元格文本仍在轨道处折行。无法再压缩的宽表会撑开 widget，paint containment 就不会裁切。不要改成 `width: max-content`（单元格不再折行），也不要关闭 paint containment（即使页面宽度不是自适应，打开多表格也会卡住）。
 
 ## 被否决方案
 
@@ -32,7 +32,7 @@
 - 侧栏自适应仍独立（见 ADR 0011）。自适应页面宽度不改变侧栏测量。
 - 纸张宽度 CSS 只能打在 `.lm-codemirror > .cm-editor > .cm-scroller > .cm-content`。嵌套表格单元格编辑器也在 `.lm-codemirror` 下，不得继承 96px gutter 或纸张 padding。
 - 表格库会在单元格之间复用同一个嵌套 `EditorView`。连续点击必须在捕获阶段记下坐标，并在布局后再映射到该视图；一次性 “已经 apply 过” 不够。
-- 表格 widget 按内容包住表格（`width: max-content; min-width: 轨道`），从而可以保留库的 `contain: paint`。只覆盖内层 `overflow-x: auto`；不再关闭 paint containment。
+- 表格 widget 使用写作轨道宽（`width: 轨道; min-width: min-content`），从而可以保留库的 `contain: paint`。只覆盖内层 `overflow-x: auto`；不再关闭 paint containment。
 
 ## 回滚与复审条件
 

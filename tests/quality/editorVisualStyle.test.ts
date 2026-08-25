@@ -79,12 +79,10 @@ describe('editor visual style contract', () => {
     );
 
     expect(tableWidget).toContain(
-      'min-width: var(--lm-editor-block-track-width, 100%);',
+      'width: var(--lm-editor-block-track-width, 100%);',
     );
-    expect(tableWidget).toContain('width: max-content;');
-    expect(tableWidget).not.toMatch(
-      /^\s*width:\s*var\(--lm-editor-block-track-width/m,
-    );
+    expect(tableWidget).toContain('min-width: min-content;');
+    expect(tableWidget).not.toContain('width: max-content;');
     const breakoutList = editorCss.match(
       /\.lm-codemirror \.cm-content :is\(([\s\S]*?)\)\s*\{/,
     )?.[1];

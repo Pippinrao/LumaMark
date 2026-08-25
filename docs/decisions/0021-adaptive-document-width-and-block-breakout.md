@@ -17,7 +17,7 @@ Fixed `standard` (810px) page width compressed images, Mermaid, and PlantUML on 
 - Publish `--lm-editor-block-track-width` from a CodeMirror view plugin that observes `view.scrollDOM`, quantizes `clientWidth - gutter` to integer px, and writes the variable only when it changes.
 - Let tables, Mermaid, PlantUML, and images use that track (centered if narrower). Math and fenced code stay on the prose column because MathJax CHTML re-renders on content-width change.
 - After a later track-width change, force CodeMirror `mustMeasureContent` so table widgets (which are not in `blockWidgetGeometry`) refresh the height map. The first publish during editor construction does not remasure: CodeMirror’s first layout already measures widgets. ResizeObserver callbacks are coalesced to one animation frame so opening a many-table file cannot stack full remasures.
-- Size `.tbl-table-widget` to `max-content` with `min-width` of the track, and keep library `contain: paint`. Do not force the widget to the track width and then disable paint containment; that made multi-table file open stall even when page width was not Adaptive.
+- Size `.tbl-table-widget` to the writing track with `min-width: min-content`, and keep library `contain: paint`. Long cell text still wraps at the track. Unwrappable wide tables grow the widget so paint containment cannot clip them. Do not force `width: max-content` (cells stop wrapping) or disable paint containment (multi-table open stalls even when page width is not Adaptive).
 
 ## Alternatives considered
 
@@ -32,7 +32,7 @@ Fixed `standard` (810px) page width compressed images, Mermaid, and PlantUML on 
 - Sidebar auto-fit remains independent (see ADR 0011). Adaptive page width does not change sidebar measurement.
 - Paper-width CSS must target only `.lm-codemirror > .cm-editor > .cm-scroller > .cm-content`. Nested table-cell editors inherit `.lm-codemirror` and must not receive the 96px gutter or paper padding.
 - The table library reuses one nested `EditorView` across cells. Consecutive clicks are remembered in the capture phase and replayed onto that view after layout; a one-shot “already applied” flag is not enough.
-- Table widgets wrap their content (`width: max-content; min-width: track`) so library `contain: paint` can stay on. Only inner `overflow-x: auto` is overridden; paint containment is not disabled.
+- Table widgets use the writing track (`width: track; min-width: min-content`) so library `contain: paint` can stay on. Only inner `overflow-x: auto` is overridden; paint containment is not disabled.
 
 ## Rollback or review conditions
 

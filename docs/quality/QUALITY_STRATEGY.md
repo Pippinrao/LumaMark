@@ -149,7 +149,7 @@ A task is done only when:
 
 The repository must maintain `.github/workflows/v1-quality.yml`, which automatically runs V1 quality gates on push and pull request to the default branch `main` (and the legacy `v1-implementation`), and supports manual trigger via `workflow_dispatch`.
 
-The gate uses parallel Windows jobs: frontend unit/lint/typecheck, Rust check/test plus the live remote-image gate, web build with production startup and UX screenshots, and Playwright E2E split across shards. Live-asset and screenshot steps stay in jobs that already need Node or Rust so GitHub Actions marketplace downloads are not stampeded at t=0. Playwright keeps one worker per runner so MathJax and Mermaid do not contend for CPU; parallelism comes from separate VMs. Performance benchmarks must run only after those jobs succeed, and must not overlap E2E, build, typecheck, or lint.
+The gate uses parallel Windows jobs: typecheck/lint, frontend unit tests, Markdown corpus, Rust check/test plus the live remote-image gate, V1 UX prototype and screenshots, web build with production startup, and Playwright E2E split across six shards. Live-asset and screenshot steps stay in jobs that already need Node or Rust so GitHub Actions marketplace downloads are not stampeded at t=0. Playwright keeps one worker per runner so MathJax and Mermaid do not contend for CPU; parallelism comes from separate VMs. Do not write `pnpm test:e2e -- --shard=`; pnpm 11 forwards the literal `--` and Playwright then ignores sharding and runs the full suite on every VM. Performance benchmarks must run only after those jobs succeed, and must not overlap E2E, build, typecheck, or lint.
 
 That gate must at least cover:
 

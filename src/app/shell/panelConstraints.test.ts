@@ -4,6 +4,8 @@ import {
   OUTLINE_CONTENT_CHROME_WIDTH,
   SIDEBAR_ADAPTIVE_MAX_WIDTH,
   SIDEBAR_ADAPTIVE_MIN_WIDTH,
+  recordUserSidebarWidth,
+  resolveSidebarWidthForTab,
   sidebarPanelConstraints,
   sidebarWidthForContentWidth,
 } from './panelConstraints';
@@ -58,5 +60,61 @@ describe('sidebarWidthForContentWidth', () => {
     expect(sidebarWidthForContentWidth(Number.NaN)).toBe(
       SIDEBAR_ADAPTIVE_MIN_WIDTH,
     );
+  });
+});
+
+describe('resolveSidebarWidthForTab', () => {
+  it('uses content-adaptive width when the tab has not been dragged', () => {
+    expect(
+      resolveSidebarWidthForTab({
+        chromeWidth: FILE_TREE_CONTENT_CHROME_WIDTH,
+        contentWidth: 260,
+        tab: 'files',
+        userSetWidths: {},
+      }),
+    ).toBe(332);
+  });
+
+  it('keeps a stored user width for the dragged tab and auto-fits the other', () => {
+    const userSetWidths = recordUserSidebarWidth({}, 'files', 250);
+
+    expect(
+      resolveSidebarWidthForTab({
+        chromeWidth: FILE_TREE_CONTENT_CHROME_WIDTH,
+        contentWidth: 900,
+        tab: 'files',
+        userSetWidths,
+      }),
+    ).toBe(250);
+    expect(
+      resolveSidebarWidthForTab({
+        chromeWidth: OUTLINE_CONTENT_CHROME_WIDTH,
+        contentWidth: 400,
+        tab: 'outline',
+        userSetWidths,
+      }),
+    ).toBe(440);
+  });
+
+  it('restores the stored files width after the outline tab auto-fits', () => {
+    let userSetWidths = recordUserSidebarWidth({}, 'files', 250);
+    userSetWidths = recordUserSidebarWidth(userSetWidths, 'outline', 360);
+
+    expect(
+      resolveSidebarWidthForTab({
+        chromeWidth: FILE_TREE_CONTENT_CHROME_WIDTH,
+        contentWidth: 100,
+        tab: 'files',
+        userSetWidths,
+      }),
+    ).toBe(250);
+    expect(
+      resolveSidebarWidthForTab({
+        chromeWidth: OUTLINE_CONTENT_CHROME_WIDTH,
+        contentWidth: 80,
+        tab: 'outline',
+        userSetWidths,
+      }),
+    ).toBe(360);
   });
 });

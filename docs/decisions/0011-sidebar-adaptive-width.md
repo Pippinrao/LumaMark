@@ -20,7 +20,7 @@ There was already an “adaptive” path, but it only measured the currently ope
 - Switching to the outline tab remounts that panel and reports heading label width plus indent using the same 200–480px clamp, with outline-specific chrome (no file-tree chevron or icon). Switching back to Files remounts the file tree and reports that width again.
 - Width measurement uses canvas `measureText` from node data sources and does not read the DOM. The file tree is virtualized by `react-arborist`, so only visible nodes exist in the DOM and reading DOM would yield scroll-dependent results. Outline measurement walks the heading list, not the virtualized viewport.
 - Recompute when the file-tree structure changes: opening a workspace or folder, expanding or collapsing nodes, or file add/remove; when the outline heading list changes; and when the sidebar tab changes. Scrolling does not recompute.
-- Once the user manually drags the sidebar in the current session, adaptive yields and later structure changes no longer alter width. After restart, adaptive resumes.
+- Manual drag locks adaptive width for the current sidebar tab only and stores that pixel width for the rest of the session. Switching to a tab the user has not dragged re-applies auto-fit. Switching back restores the stored user width for the dragged tab. After restart, adaptive resumes for every tab.
 - Remove `localStorage` persistence of sidebar width. Persistence of sidebar open/closed state remains.
 
 ## Alternatives considered

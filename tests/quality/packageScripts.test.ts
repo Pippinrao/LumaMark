@@ -487,8 +487,13 @@ describe('package quality scripts', () => {
 
     expect(workflow).toContain('name: V1 Quality Gate');
     expect(workflow).toContain('runs-on: windows-latest');
-    expect(workflow).toContain('shard: [1, 2, 3]');
-    expect(workflow).toContain('--shard=${{ matrix.shard }}/3');
+    expect(workflow).toContain('shard: [1, 2, 3, 4, 5, 6]');
+    expect(workflow).toContain('pnpm test:e2e --shard=${{ matrix.shard }}/6');
+    expect(workflow).not.toContain('test:e2e -- --shard');
+    expect(workflow).not.toContain('runner.temp');
+    expect(workflow).toContain('PLAYWRIGHT_BROWSERS_PATH: .ms-playwright');
+    const viteConfig = await readFile(join(process.cwd(), 'vite.config.ts'), 'utf8');
+    expect(viteConfig).toContain('plantuml-render-frame.html');
     const playwrightConfig = await readFile(
       join(process.cwd(), 'playwright.config.ts'),
       'utf8',
@@ -508,6 +513,7 @@ describe('package quality scripts', () => {
     expect(workflow).toContain('pnpm test:fixtures');
     expect(workflow).toContain('pnpm download:markdown-corpus');
     expect(workflow).toContain('pnpm test:markdown-corpus');
+    expect(workflow).toContain('name: V1 UX prototype and screenshots');
     expect(workflow).toContain('pnpm quality:v1-ux-prototype');
     expect(workflow).toContain('pnpm quality:v1-ux-screenshots');
     expect(workflow).toContain('actions/upload-artifact@v7');
@@ -530,7 +536,7 @@ describe('package quality scripts', () => {
     );
     expect(workflow).toContain('pnpm perf:bench');
     expect(workflow).toMatch(
-      /perf:[\s\S]*needs:[\s\S]*frontend-unit[\s\S]*e2e[\s\S]*web-production/,
+      /perf:[\s\S]*needs:[\s\S]*frontend-static[\s\S]*frontend-unit[\s\S]*frontend-corpus[\s\S]*web-ux[\s\S]*e2e[\s\S]*web-production/,
     );
     expect(workflow.indexOf('pnpm perf:bench')).toBeGreaterThan(
       workflow.indexOf('pnpm quality:web-build'),

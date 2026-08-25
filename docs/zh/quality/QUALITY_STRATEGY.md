@@ -149,7 +149,7 @@ AI agent 必须遵守：
 
 仓库必须维护 `.github/workflows/v1-quality.yml`，在默认分支 `main`（以及遗留的 `v1-implementation`）的 push 和 pull request 上自动运行 V1 质量门禁，并支持 `workflow_dispatch` 手动触发。
 
-该门禁拆成并行 Windows job：前端单元/lint/typecheck、Rust check/test 并跑远程图片 live gate、Web 构建/生产启动并采集 UX 截图、按 shard 切分的 Playwright E2E。live-asset 与截图步骤放进已经需要 Node 或 Rust 的 job，避免 t=0 同时拉取 GitHub Actions marketplace。同一 runner 上的 Playwright 仍保持 1 个 worker，避免 MathJax/Mermaid 抢 CPU；并行来自不同虚拟机上的 shard。性能基准必须在上述 job 全部成功后单独执行，不得与 E2E、构建、typecheck 或 lint 并行。
+该门禁拆成并行 Windows job：typecheck/lint、前端单元测试、Markdown corpus、Rust check/test 并跑远程图片 live gate、V1 UX 原型与截图、Web 构建/生产启动、按六个 shard 切分的 Playwright E2E。live-asset 与截图步骤放进已经需要 Node 或 Rust 的 job，避免 t=0 同时拉取 GitHub Actions marketplace。同一 runner 上的 Playwright 仍保持 1 个 worker，避免 MathJax/Mermaid 抢 CPU；并行来自不同虚拟机上的 shard。不要写成 `pnpm test:e2e -- --shard=`：pnpm 11 会把字面量 `--` 转给 Playwright，导致分片失效、每台虚拟机都跑全量套件。性能基准必须在上述 job 全部成功后单独执行，不得与 E2E、构建、typecheck 或 lint 并行。
 
 该门禁至少覆盖：
 

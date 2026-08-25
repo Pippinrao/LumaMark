@@ -35,4 +35,11 @@ describe('performance sample summaries', () => {
     expect(summary.median).toBe(1);
     expect(summary.p80).toBe(49);
   });
+
+  it('treats P80 of three samples as the maximum, so stats gates must use five', () => {
+    const summary = summarizeLatencySamples([19.34, 12.53, 10.27]);
+
+    expect(summary.p80).toBe(19.34);
+    expect(summary.p80).toBe(summary.maximum);
+  });
 });

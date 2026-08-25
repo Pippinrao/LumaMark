@@ -5,20 +5,24 @@ import {
   type PreferenceStorage,
 } from '../../services/preferences/browserPreferenceStorage';
 
-export const PAGE_WIDTHS = ['narrow', 'standard', 'wide', 'fluid'] as const;
+import { ADAPTIVE_PAGE_WIDTH_CSS } from '../../editor/core/editorAppearance';
+
+export const PAGE_WIDTHS = ['adaptive', 'narrow', 'standard', 'wide', 'fluid'] as const;
 export type EditorPageWidth = (typeof PAGE_WIDTHS)[number];
 
-export const DEFAULT_PAGE_WIDTH: EditorPageWidth = 'standard';
+export const DEFAULT_PAGE_WIDTH: EditorPageWidth = 'adaptive';
+export { ADAPTIVE_PAGE_WIDTH_CSS };
 export const DEFAULT_FONT_ZOOM_PERCENT = 100;
 export const MIN_FONT_ZOOM_PERCENT = 50;
 export const MAX_FONT_ZOOM_PERCENT = 250;
 export const FONT_ZOOM_STEP_PERCENT = 10;
 
-const PAGE_WIDTH_PIXELS: Record<EditorPageWidth, number | null> = {
-  fluid: null,
-  narrow: 680,
-  standard: 810,
-  wide: 1040,
+const PAGE_WIDTH_CSS: Record<EditorPageWidth, string> = {
+  adaptive: ADAPTIVE_PAGE_WIDTH_CSS,
+  fluid: '100%',
+  narrow: '680px',
+  standard: '810px',
+  wide: '1040px',
 };
 
 const READING_APPEARANCE_STORAGE_KEY = 'lumamark.reading-appearance.v1';
@@ -44,8 +48,8 @@ export function isEditorPageWidth(value: unknown): value is EditorPageWidth {
   return PAGE_WIDTHS.some((pageWidth) => pageWidth === value);
 }
 
-export function getPageWidthPixels(pageWidth: EditorPageWidth): number | null {
-  return PAGE_WIDTH_PIXELS[pageWidth];
+export function getPageWidthCss(pageWidth: EditorPageWidth): string {
+  return PAGE_WIDTH_CSS[pageWidth];
 }
 
 function loadPageWidth(storage: PreferenceStorage): LoadedPageWidth {

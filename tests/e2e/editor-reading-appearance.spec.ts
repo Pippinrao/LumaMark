@@ -1,5 +1,9 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openBlankDocument } from './support/openBlankDocument';
+import {
+  seedBrowserPageWidth,
+  waitForEditorPageWidthCss,
+} from './support/seedBrowserAppearance';
 
 type HorizontalBounds = {
   left: number;
@@ -44,7 +48,7 @@ async function horizontalBounds(locator: Locator): Promise<HorizontalBounds> {
 
 async function choosePageWidth(
   page: Page,
-  label: '宽' | '标准' | '窄' | '适应窗口',
+  label: '自适应' | '宽' | '标准' | '窄' | '适应窗口',
 ): Promise<void> {
   await page.getByRole('menuitem', { name: '文件' }).click();
   await page.getByRole('menuitem', { name: '设置' }).click();
@@ -186,6 +190,15 @@ test('enforces real page-width caps and safe gutters across viewport sizes', asy
     fluidScroller.width - DESKTOP_SAFE_GUTTER_PX * 2,
   );
 
+  await choosePageWidth(page, '自适应');
+  const adaptiveScroller = await horizontalBounds(scroller);
+  await assertContainedGeometry(
+    Math.min(
+      adaptiveScroller.width - DESKTOP_SAFE_GUTTER_PX * 2,
+      Math.max(720, Math.min(adaptiveScroller.width * 0.7, 1100)),
+    ),
+  );
+
   await choosePageWidth(page, '宽');
   await page.reload();
   await expectContentWidth(page, 1040);
@@ -299,7 +312,13 @@ test('enforces real page-width caps and safe gutters across viewport sizes', asy
 test('uses real primary-modifier wheel input and exposes an accessible 100% reset', async ({
   page,
 }) => {
+  // Adaptive at Desktop Chrome (~1280px) with a sidebar resolves near 720px.
+  // That extra wrap plus a 10% zoom makes the first-visible-line heuristic
+  // jump even when CodeMirror's scroll snapshot keeps the document position.
+  // Standard 810px is the geometry this test passed on before adaptive.
+  await seedBrowserPageWidth(page, 'standard');
   await startDocument(page);
+  await waitForEditorPageWidthCss(page, 'standard');
 
   const editor = page.locator('.cm-content');
   const scroller = page.locator('.cm-scroller');
@@ -318,6 +337,27 @@ test('uses real primary-modifier wheel input and exposes an accessible 100% rese
     element.scrollTop = 640;
   });
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  // If the first visible line is clipped by only a few pixels, a 10% zoom can
+  // hide it and make the next paragraph the new viewport anchor.
+  const clippedTop = await scroller.evaluate((element) => {
+    const scrollerBounds = element.getBoundingClientRect();
+    const firstVisibleLine = [
+      ...element.querySelectorAll<HTMLElement>('.cm-line'),
+    ].find((line) => line.getBoundingClientRect().bottom > scrollerBounds.top);
+
+    if (!firstVisibleLine) {
+      return true;
+    }
+
+    const top =
+      firstVisibleLine.getBoundingClientRect().top - scrollerBounds.top;
+    return top > -1 && top < 8;
+  });
+  if (clippedTop) {
+    await scroller.evaluate((element) => {
+      element.scrollTop += 24;
+    });
+  }
 
   const scrollerBox = await scroller.boundingBox();
   if (!scrollerBox) {

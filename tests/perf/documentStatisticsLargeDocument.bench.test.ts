@@ -8,6 +8,7 @@ import {
 import { largeMarkdownFixturePaths } from '../fixtures/fixturePaths';
 import {
   formatLatencySamples,
+  inputHardLimitMs,
   measureLatencySamples,
 } from './performanceSamples';
 
@@ -28,15 +29,18 @@ describe('large Markdown document statistics baseline', () => {
       const doc = Text.of(source.split('\n'));
       getDocumentStatisticsFromText(Text.of(['warmup']));
 
+      // ADR 0007: five samples, keep the first, P80 is the 4th ordered value.
       const samples = measureLatencySamples(() => {
         getDocumentStatisticsFromText(doc);
-      }, 3);
+      });
+      const budgetMs = syncStatisticsBudgetsMs[name];
 
       process.stdout.write(
-        `[perf:document-statistics] ${name}: p80 ${samples.p80.toFixed(2)} ms, samples ${formatLatencySamples(samples)}\n`,
+        `[perf:document-statistics] ${name}: p80 ${samples.p80.toFixed(2)} ms; max ${samples.maximum.toFixed(2)} ms; samples ${formatLatencySamples(samples)}\n`,
       );
 
-      expect(samples.p80).toBeLessThan(syncStatisticsBudgetsMs[name]);
+      expect(samples.p80).toBeLessThan(budgetMs);
+      expect(samples.maximum).toBeLessThan(inputHardLimitMs(budgetMs));
     },
   );
 
@@ -58,13 +62,15 @@ describe('large Markdown document statistics baseline', () => {
         running.push(
           scheduleDocumentStatisticsFromText(doc, () => undefined),
         );
-      }, 3);
+      });
+      const budgetMs = scheduleStatisticsBudgetsMs[name];
 
       process.stdout.write(
-        `[perf:document-statistics] ${name}: schedule p80 ${samples.p80.toFixed(2)} ms, samples ${formatLatencySamples(samples)}\n`,
+        `[perf:document-statistics] ${name}: schedule p80 ${samples.p80.toFixed(2)} ms; max ${samples.maximum.toFixed(2)} ms; samples ${formatLatencySamples(samples)}\n`,
       );
 
-      expect(samples.p80).toBeLessThan(scheduleStatisticsBudgetsMs[name]);
+      expect(samples.p80).toBeLessThan(budgetMs);
+      expect(samples.maximum).toBeLessThan(inputHardLimitMs(budgetMs));
 
       const completed = await new Promise<typeof expected>((resolve) => {
         scheduleDocumentStatisticsFromText(doc, resolve);

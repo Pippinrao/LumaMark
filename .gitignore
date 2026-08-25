@@ -26,6 +26,7 @@ tests/fixtures/markdown/.lumamark/
 .worktrees/
 worktrees/
 .pnpm-store/
+.ms-playwright/
 .claude/
 .codex/
 .cursor/

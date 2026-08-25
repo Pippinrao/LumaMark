@@ -116,6 +116,7 @@ Initial targets:
 - Open a 1MB file in under 300ms.
 - Open a 5MB file in under 1s.
 - A 10MB file remains editable without freezing.
+- Open a 32-table everyday GFM document in under 300ms (Adaptive or Standard).
 - Input latency preferably under 16ms.
 - Scrolling near 60 FPS.
 - Mermaid rendering must not block input.

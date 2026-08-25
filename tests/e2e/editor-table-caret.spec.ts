@@ -673,6 +673,8 @@ test('resets the vertical goal x after editing the clamped cell', async ({
   page,
 }) => {
   await openNewDocument(page);
+  // Wide glyphs keep the Q-vs-edited x delta above 8px on Windows CI fonts.
+  // A run of `i` measured only 7.5px there and failed the threshold.
   await replaceEditorSource(
     page,
     [
@@ -680,9 +682,9 @@ test('resets the vertical goal x after editing the clamped cell', async ({
       '',
       '| Content | Other |',
       '| ------- | ----- |',
-      '| iiiiiiQ | one   |',
-      '| i       | two   |',
-      '| iiiiiiZ | three |',
+      '| mmmmmmQ | one   |',
+      '| m       | two   |',
+      '| mmmmmmZ | three |',
       '',
       'after',
     ].join('\n'),
@@ -693,11 +695,11 @@ test('resets the vertical goal x after editing the clamped cell', async ({
   await page.keyboard.press('ArrowDown');
   await page.keyboard.insertText('X');
   const edited = await readSelectionSnapshot(page);
-  expect(edited.nested).toMatchObject({ text: 'iX', head: 2 });
+  expect(edited.nested).toMatchObject({ text: 'mX', head: 2 });
 
   await page.keyboard.press('ArrowDown');
   const below = await readSelectionSnapshot(page);
-  expect(below.nested.text).toBe('iiiiiiZ');
+  expect(below.nested.text).toBe('mmmmmmZ');
   expect(
     Math.abs(
       (below.nested.caretRect?.left ?? 0) -

@@ -85,4 +85,29 @@ describe('editorAvailableWidth', () => {
     expect(view.requestMeasure).not.toHaveBeenCalled();
     expect(view.viewState.mustMeasureContent).toBe(false);
   });
+
+  it('can publish the first track width without forcing a full content remasure', () => {
+    const view = {
+      dom: document.createElement('div'),
+      requestMeasure: vi.fn(),
+      scrollDOM: document.createElement('div'),
+      viewState: { mustMeasureContent: false as boolean | 'refresh' },
+    };
+    Object.defineProperty(view.scrollDOM, 'clientWidth', { value: 1000 });
+    Object.defineProperty(view.dom, 'ownerDocument', {
+      value: { defaultView: { innerWidth: 1920 } },
+    });
+
+    const first = syncEditorAvailableWidth(
+      view as unknown as EditorView,
+      null,
+      { refreshHeightMap: false },
+    );
+    expect(first).toBe(904);
+    expect(view.dom.style.getPropertyValue(EDITOR_BLOCK_TRACK_WIDTH_VAR)).toBe(
+      '904px',
+    );
+    expect(view.requestMeasure).not.toHaveBeenCalled();
+    expect(view.viewState.mustMeasureContent).toBe(false);
+  });
 });

@@ -130,7 +130,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     // Full AppShell + CodeMirror + Radix suites exceed the 5s default when the
-    // Windows quality gate runs every file in parallel.
+    // Windows quality gate runs every file in parallel. findBy/waitFor still
+    // need their own CI budget; see src/test/testingLibraryConfig.ts.
     testTimeout: process.env.CI ? 15_000 : 5_000,
     exclude: [
       ...configDefaults.exclude,
@@ -145,7 +146,10 @@ export default defineConfig({
       '**/tests/production-e2e/**',
     ],
     globals: false,
-    setupFiles: ['src/test/browserApiStubs.ts'],
+    setupFiles: [
+      'src/test/browserApiStubs.ts',
+      'src/test/testingLibraryConfig.ts',
+    ],
     server: {
       deps: {
         inline: [

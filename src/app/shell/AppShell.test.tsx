@@ -614,6 +614,9 @@ describe('AppShell', () => {
       );
 
       await openFileFromMenu();
+      // Preload the lazy dialog chunk so the first expand does not race a cold
+      // dynamic import of react-zoom-pan-pinch against findBy on Windows CI.
+      await import('../../features/media-viewer/MediaViewerDialog');
       const image = await waitFor(() => {
         const candidate = screen
           .getByTestId('editor-host')
@@ -622,9 +625,13 @@ describe('AppShell', () => {
         return candidate;
       });
       fireEvent.load(image as HTMLImageElement);
-      const expand = screen.getByRole('button', { name: '展开查看' });
-      expand.focus();
-      fireEvent.click(expand);
+      const expand = await screen.findByRole('button', { name: '展开查看' });
+      await act(async () => {
+        expand.focus();
+        // Native click matches the image widget unit path; fireEvent.click can
+        // miss addEventListener handlers on detached widget DOM.
+        expand.click();
+      });
 
       const dialog = await screen.findByRole('dialog', { name: '图片查看器' });
       expect(within(dialog).getByRole('img', { name: 'Pixel' })).toBeVisible();

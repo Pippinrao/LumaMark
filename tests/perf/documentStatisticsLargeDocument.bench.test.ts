@@ -27,7 +27,9 @@ describe('large Markdown document statistics baseline', () => {
     async ({ name, path }) => {
       const source = await readFile(path, 'utf8');
       const doc = Text.of(source.split('\n'));
-      getDocumentStatisticsFromText(Text.of(['warmup']));
+      // Warm the 1MB count path. A toy one-line Text does not JIT this work, so
+      // Windows CI still bills the first measured sample as a 16ms miss.
+      getDocumentStatisticsFromText(doc);
 
       // ADR 0007: five samples, keep the first, P80 is the 4th ordered value.
       const samples = measureLatencySamples(() => {

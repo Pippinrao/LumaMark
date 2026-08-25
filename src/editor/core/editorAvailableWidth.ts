@@ -41,9 +41,14 @@ function viewportWidthFor(view: EditorView): number {
   return view.dom.ownerDocument.defaultView?.innerWidth ?? EDITOR_MOBILE_MAX_WIDTH_PX + 1;
 }
 
+export type SyncEditorAvailableWidthOptions = {
+  refreshHeightMap?: boolean;
+};
+
 export function syncEditorAvailableWidth(
   view: EditorView,
   previousWidth: number | null,
+  options: SyncEditorAvailableWidthOptions = {},
 ): number | null {
   const nextWidth = quantizedBlockTrackWidth(
     view.scrollDOM.clientWidth,
@@ -59,30 +64,60 @@ export function syncEditorAvailableWidth(
   }
 
   publishBlockTrackWidth(view.dom, nextWidth);
-  requestEditorContentMeasure(view);
+  if (options.refreshHeightMap !== false) {
+    requestEditorContentMeasure(view);
+  }
   return nextWidth;
 }
 
 export const editorAvailableWidthExtension = ViewPlugin.fromClass(
   class EditorAvailableWidthPlugin {
+    private frame: number | null = null;
     private previousWidth: number | null = null;
     private readonly observer: ResizeObserver | null;
 
     constructor(private readonly view: EditorView) {
-      this.previousWidth = syncEditorAvailableWidth(view, null);
+      this.previousWidth = syncEditorAvailableWidth(view, null, {
+        refreshHeightMap: false,
+      });
       this.observer = typeof ResizeObserver === 'undefined'
         ? null
         : new ResizeObserver(() => {
-            this.previousWidth = syncEditorAvailableWidth(
-              this.view,
-              this.previousWidth,
-            );
+            this.scheduleSync();
           });
       this.observer?.observe(view.scrollDOM);
     }
 
     destroy(): void {
+      const win = this.view.dom.ownerDocument.defaultView;
+      if (this.frame !== null && win) {
+        win.cancelAnimationFrame(this.frame);
+        this.frame = null;
+      }
       this.observer?.disconnect();
+    }
+
+    private scheduleSync(): void {
+      if (this.frame !== null) {
+        return;
+      }
+
+      const win = this.view.dom.ownerDocument.defaultView;
+      if (!win) {
+        this.previousWidth = syncEditorAvailableWidth(
+          this.view,
+          this.previousWidth,
+        );
+        return;
+      }
+
+      this.frame = win.requestAnimationFrame(() => {
+        this.frame = null;
+        this.previousWidth = syncEditorAvailableWidth(
+          this.view,
+          this.previousWidth,
+        );
+      });
     }
   },
 );

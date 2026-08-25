@@ -79,7 +79,6 @@
 
 .lm-codemirror .cm-content :is(
   .lm-block-breakout,
-  .tbl-table-widget,
   .lm-mermaid-preview,
   .lm-plantuml-preview,
   .lm-image-preview
@@ -91,9 +90,22 @@
   );
 }
 
+/*
+ * Tables must wrap their content. A forced track width plus contain:paint
+ * clips wide tables; contain:none then makes every table participate in
+ * document layout on open. Size to max-content with a track min-width so
+ * library paint containment can stay on and wide tables remain fully visible.
+ */
 .lm-codemirror .cm-content .tbl-table-widget {
+  box-sizing: border-box;
   display: flex;
   justify-content: center;
+  width: max-content;
+  min-width: var(--lm-editor-block-track-width, 100%);
+  max-width: none;
+  margin-inline: calc(
+    (100% - var(--lm-editor-block-track-width, 100%)) / 2
+  );
 }
 
 .lm-codemirror .cm-line {

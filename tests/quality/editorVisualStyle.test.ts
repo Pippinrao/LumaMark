@@ -64,6 +64,36 @@ describe('editor visual style contract', () => {
     expect(editorCss).toContain('font-variant-east-asian: proportional-width;');
   });
 
+  it('sizes table widgets to their content so paint containment can stay on', async () => {
+    const editorCss = await readCss('src', 'editor', 'core', 'editor.css');
+    const tableCss = await readCss(
+      'src',
+      'editor',
+      'capabilities',
+      'table',
+      'table.css',
+    );
+    const tableWidget = cssDeclarationBlock(
+      editorCss,
+      '.lm-codemirror .cm-content .tbl-table-widget',
+    );
+
+    expect(tableWidget).toContain(
+      'min-width: var(--lm-editor-block-track-width, 100%);',
+    );
+    expect(tableWidget).toContain('width: max-content;');
+    expect(tableWidget).not.toMatch(
+      /^\s*width:\s*var\(--lm-editor-block-track-width/m,
+    );
+    const breakoutList = editorCss.match(
+      /\.lm-codemirror \.cm-content :is\(([\s\S]*?)\)\s*\{/,
+    )?.[1];
+    expect(breakoutList).toBeDefined();
+    expect(breakoutList).not.toContain('.tbl-table-widget');
+    expect(tableCss).not.toContain('contain: none');
+    expect(tableCss).toContain('overflow: visible');
+  });
+
   it('styles Markdown blocks with document-grade rhythm and surfaces', async () => {
     const wysiwygCss = await readCss('src', 'editor', 'wysiwyg', 'wysiwyg.css');
     const mermaidCss = await readCss(

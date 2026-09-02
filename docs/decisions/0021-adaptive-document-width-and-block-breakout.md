@@ -14,6 +14,7 @@ Fixed `standard` (810px) page width compressed images, Mermaid, and PlantUML on 
 
 - Add an `adaptive` page-width preset: the prose column is `clamp(720px, 70%, 1100px)`, still wrapped by the existing safe-gutter `min()`.
 - Make `adaptive` the new default. Settings schema version 4 rewrites a previous `standard` value to `adaptive` on upgrade. Explicit `narrow`, `wide`, `fluid`, and a later explicit `standard` are kept.
+- The default page width is no longer `adaptive`. ADR 0022 made `fluid` (fit window) the default; settings schema version 5 rewrites a previous `adaptive` value to `fluid`. The `adaptive` preset itself remains available with this CSS.
 - Publish `--lm-editor-block-track-width` from a CodeMirror view plugin that observes `view.scrollDOM`, quantizes `clientWidth - gutter` to integer px, and writes the variable only when it changes.
 - Let tables, Mermaid, PlantUML, and images use that track (centered if narrower). Math and fenced code stay on the prose column because MathJax CHTML re-renders on content-width change.
 - After a later track-width change, force CodeMirror `mustMeasureContent` so table widgets (which are not in `blockWidgetGeometry`) refresh the height map. The first publish during editor construction does not remasure: CodeMirror’s first layout already measures widgets. ResizeObserver callbacks are coalesced to one animation frame so opening a many-table file cannot stack full remasures.

@@ -20,6 +20,7 @@ import {
 import { Strikethrough } from '@lezer/markdown';
 import { markdownSyntaxHighlighting } from '../../markdown/markdownLanguage';
 import { isEditorRenderLocked } from '../../core/editorRenderLock';
+import { selectionCaretVisibilityExtension } from '../../wysiwyg/selectionCaretVisibility';
 import {
   tableCellClickSyncNestedExtension,
   tableCellClickSyncRootExtension,
@@ -58,6 +59,7 @@ export function tablePreviewExtension(renderLocked: boolean): Extension {
       extensions: [
         EditorView.lineWrapping,
         markdownSyntaxHighlighting(),
+        selectionCaretVisibilityExtension,
         tableCellEditingExtension(),
         tableCellRenderLockNestedExtension(renderLockScope),
         tableCellClickSyncNestedExtension(),

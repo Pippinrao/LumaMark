@@ -44,7 +44,7 @@ export type LumaMarkSettings = {
   updates: {
     autoCheckOnStartup: boolean;
   };
-  version: 4;
+  version: 5;
 };
 
 export type SettingsLoadResult = {
@@ -55,7 +55,7 @@ export type SettingsLoadResult = {
   usedDefaultsDueToCorruption: boolean;
 };
 
-export const SETTINGS_VERSION = 4 as const;
+export const SETTINGS_VERSION = 5 as const;
 export const MIN_SETTINGS_FONT_ZOOM_PERCENT = 50;
 export const MAX_SETTINGS_FONT_ZOOM_PERCENT = 250;
 export const SETTINGS_FONT_ZOOM_STEP_PERCENT = 10;
@@ -63,7 +63,7 @@ export const SETTINGS_FONT_ZOOM_STEP_PERCENT = 10;
 export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
   appearance: {
     fontZoomPercent: 100,
-    pageWidth: 'adaptive',
+    pageWidth: 'fluid',
     sidebarOpenOnStartup: true,
     theme: 'light',
   },
@@ -176,7 +176,7 @@ export function normalizeLumaMarkSettings(
     !isRecord(value.editor) ||
     !isRecord(value.general) ||
     !isRecord(value.images) ||
-    (sourceVersion.value >= SETTINGS_VERSION && !isRecord(value.updates)) ||
+    (sourceVersion.value >= 4 && !isRecord(value.updates)) ||
     (value.markdown !== undefined && !isRecord(value.markdown)) ||
     (isRecord(value.markdown) &&
       value.markdown.math !== undefined &&
@@ -199,11 +199,17 @@ export function normalizeLumaMarkSettings(
     defaults.appearance.pageWidth,
   );
   const migratedPageWidth =
-    sourceVersion.value < SETTINGS_VERSION &&
+    sourceVersion.value < 4 &&
     !pageWidth.invalid &&
     pageWidth.value === 'standard'
       ? 'adaptive'
       : pageWidth.value;
+  const currentPageWidth =
+    sourceVersion.value < 5 &&
+    !pageWidth.invalid &&
+    migratedPageWidth === 'adaptive'
+      ? 'fluid'
+      : migratedPageWidth;
   const language = normalizeEnum(
     general.language,
     ['zh-CN', 'en'] as const,
@@ -234,7 +240,7 @@ export function normalizeLumaMarkSettings(
     defaults.editor.focusModeOnStartup,
   );
   const autosaveEnabled =
-    sourceVersion.value < SETTINGS_VERSION && editor.autosaveEnabled === undefined
+    sourceVersion.value < 4 && editor.autosaveEnabled === undefined
       ? { invalid: false, value: defaults.editor.autosaveEnabled }
       : normalizeBoolean(
           editor.autosaveEnabled,
@@ -245,7 +251,7 @@ export function normalizeLumaMarkSettings(
     defaults.images.copyImagesToAssets,
   );
   const autoCheckOnStartup =
-    sourceVersion.value < SETTINGS_VERSION && value.updates === undefined
+    sourceVersion.value < 4 && value.updates === undefined
       ? { invalid: false, value: defaults.updates.autoCheckOnStartup }
       : normalizeBoolean(
           updates.autoCheckOnStartup,
@@ -305,7 +311,7 @@ export function normalizeLumaMarkSettings(
     settings: {
       appearance: {
         fontZoomPercent: fontZoom.value,
-        pageWidth: migratedPageWidth,
+        pageWidth: currentPageWidth,
         sidebarOpenOnStartup: sidebarOpenOnStartup.value,
         theme: theme.value,
       },

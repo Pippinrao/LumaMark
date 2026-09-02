@@ -60,6 +60,40 @@ describe('legacy settings migration', () => {
     expect(storage.getItem(UPDATE_PREFERENCES_STORAGE_KEY)).not.toBeNull();
   });
 
+  it('maps a legacy adaptive page width to the current fluid default', () => {
+    const { storage } = createMemoryStorage({
+      'lumamark.reading-appearance.v1': JSON.stringify({
+        state: { pageWidth: 'adaptive' },
+        version: 1,
+      }),
+    });
+
+    const result = migrateLegacyLocalStorageSettings(
+      storage,
+      createDefaultLumaMarkSettings(),
+    );
+
+    expect(result.migrated).toBe(true);
+    expect(result.settings.appearance.pageWidth).toBe('fluid');
+  });
+
+  it('keeps an explicit legacy fluid, narrow, or wide page width', () => {
+    const { storage } = createMemoryStorage({
+      'lumamark.reading-appearance.v1': JSON.stringify({
+        state: { pageWidth: 'wide' },
+        version: 1,
+      }),
+    });
+
+    const result = migrateLegacyLocalStorageSettings(
+      storage,
+      createDefaultLumaMarkSettings(),
+    );
+
+    expect(result.migrated).toBe(true);
+    expect(result.settings.appearance.pageWidth).toBe('wide');
+  });
+
   it('writes the marker only through the explicit completion operation', () => {
     const { storage } = createMemoryStorage();
 

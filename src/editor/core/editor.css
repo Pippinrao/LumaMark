@@ -56,7 +56,8 @@
 
 /* Reading mode keeps selection and keyboard navigation; hide the caret so
    the surface does not look editable. */
-.lm-codemirror .lm-editor-reading-mode .cm-content {
+.lm-codemirror .lm-editor-reading-mode .cm-content,
+.lm-codemirror .cm-content.lm-editor-selection-caret-hidden {
   caret-color: transparent;
 }
 

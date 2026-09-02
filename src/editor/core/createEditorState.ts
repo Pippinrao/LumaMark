@@ -36,6 +36,7 @@ import {
   type EditorZoomRequestedHandler,
 } from './editorAppearance';
 import { editorAvailableWidthExtension } from './editorAvailableWidth';
+import { selectionCaretVisibilityExtension } from '../wysiwyg/selectionCaretVisibility';
 import {
   editorDisplayModeCompartment,
   editorDisplayModeExtension,
@@ -221,6 +222,7 @@ export function createEditorState(
       documentSourceFormatExtension(parsedDocument.format),
       editorAppearanceCompartment.of(editorAppearanceExtension(appearance)),
       editorAvailableWidthExtension,
+      selectionCaretVisibilityExtension,
       editorDocumentContextCompartment.of(
         editorDocumentContextExtension(documentContext),
       ),

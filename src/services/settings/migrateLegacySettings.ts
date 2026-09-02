@@ -65,10 +65,12 @@ export function migrateLegacyLocalStorageSettings(
   if (
     pageWidth === 'narrow' ||
     pageWidth === 'wide' ||
-    pageWidth === 'fluid' ||
-    pageWidth === 'adaptive'
+    pageWidth === 'fluid'
   ) {
     settings.appearance.pageWidth = pageWidth as SettingsPageWidth;
+    changed = true;
+  } else if (pageWidth === 'adaptive') {
+    settings.appearance.pageWidth = 'fluid';
     changed = true;
   }
 

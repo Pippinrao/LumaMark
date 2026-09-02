@@ -284,7 +284,7 @@
   "settings.clearRecentFilesDescription": "Remove the list without deleting files from disk.",
   "settings.autoCheckUpdatesDescription": "Check automatically after LumaMark starts.",
   "settings.themeDescription": "Use a light, dark, or system-matched appearance.",
-  "settings.pageWidthDescription": "Set the width of the writing canvas. Adaptive scales the text column and lets wide blocks use the editor.",
+  "settings.pageWidthDescription": "Set the width of the writing canvas. Fit window uses the editor area minus a safe gutter, and wide tables and diagrams still use the available editor width.",
   "settings.fontZoom": "Font zoom (%)",
   "settings.fontZoomDescription": "Scale editor text without changing the document.",
   "settings.fontZoomDecrease": "Decrease font zoom",

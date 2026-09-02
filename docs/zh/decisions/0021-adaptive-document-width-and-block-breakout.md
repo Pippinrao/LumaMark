@@ -14,6 +14,7 @@
 
 - 新增 `adaptive` 页面宽度：正文列为 `clamp(720px, 70%, 1100px)`，仍套在现有安全 gutter 的 `min()` 里。
 - 将其设为新默认。设置 schema 第 4 版会在升级时把旧的 `standard` 改写为 `adaptive`。明确选过的 `narrow`、`wide`、`fluid`，以及之后再次明确选择的 `standard` 予以保留。
+- 默认页面宽度已不再是 `adaptive`。ADR 0022 把 `fluid`（适应窗口）设为默认；设置 schema 第 5 版会把旧的 `adaptive` 改写为 `fluid`。`adaptive` 预设本身仍可用，CSS 不变。
 - 由 CodeMirror view plugin 观察 `view.scrollDOM`，把 `clientWidth - gutter` 量化为整数 px，写入 `--lm-editor-block-track-width`，仅在值变化时写入。
 - 表格、Mermaid、PlantUML、图片使用该轨道（较窄时居中）。数学公式与围栏代码仍留在正文列，因为 MathJax CHTML 会在内容宽度变化时重新渲染。
 - 后续轨道宽度变化后强制 CodeMirror `mustMeasureContent`，以便未注册进 `blockWidgetGeometry` 的表格 widget 刷新高度图。编辑器构造时的首次发布不整页重测：CodeMirror 第一次布局已经会测量 widget。ResizeObserver 回调合并到同一帧，避免打开多表格文件时叠满重测。

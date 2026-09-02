@@ -395,10 +395,10 @@ test('renders the approved Mica workspace and visual appearance choices', async 
   ).toHaveCount(1);
 
   const widthGroup = dialog.getByRole('radiogroup', { name: '页面宽度' });
-  const adaptiveWidth = widthGroup.getByRole('radio', { name: '自适应' });
-  await expect(adaptiveWidth).toBeChecked();
+  const fluidWidth = widthGroup.getByRole('radio', { name: '适应窗口' });
+  await expect(fluidWidth).toBeChecked();
   await expect(
-    adaptiveWidth.locator('[data-lm-settings-page-width-preview]'),
+    fluidWidth.locator('[data-lm-settings-page-width-preview]'),
   ).toHaveCount(1);
 });
 

@@ -1,0 +1,52 @@
+{
+  "version": 5,
+  "defaults": {
+    "appearance": {
+      "fontZoomPercent": 100,
+      "pageWidth": "fluid",
+      "sidebarOpenOnStartup": true,
+      "theme": "light"
+    },
+    "editor": {
+      "autosaveEnabled": false,
+      "defaultDisplayMode": "livePreview",
+      "focusModeOnStartup": false
+    },
+    "general": {
+      "language": "zh-CN",
+      "openWindowMode": "multiWindow",
+      "startupBehavior": "home"
+    },
+    "images": {
+      "copyImagesToAssets": false
+    },
+    "markdown": {
+      "math": {
+        "equationNumbering": "none",
+        "physicsEnabled": false,
+        "syntaxMode": "pandoc"
+      },
+      "plantuml": {
+        "enabled": true
+      }
+    },
+    "updates": {
+      "autoCheckOnStartup": true
+    },
+    "version": 5
+  },
+  "allowedEnums": {
+    "appearance.pageWidth": ["adaptive", "narrow", "standard", "wide", "fluid"],
+    "appearance.theme": ["light", "dark", "system"],
+    "editor.defaultDisplayMode": ["livePreview", "reading", "source"],
+    "general.language": ["zh-CN", "en"],
+    "general.openWindowMode": ["multiWindow", "aggregateWindow"],
+    "general.startupBehavior": ["home", "restoreLastSession"]
+  },
+  "fontZoom": {
+    "default": 100,
+    "min": 50,
+    "max": 250,
+    "step": 10
+  }
+}

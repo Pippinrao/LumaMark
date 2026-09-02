@@ -27,6 +27,11 @@ function createMemoryStorage(initialValue: string | null = null): PreferenceStor
 }
 
 describe('readingAppearanceStore', () => {
+  it('defaults the writing canvas to fit the window', () => {
+    expect(DEFAULT_PAGE_WIDTH).toBe('fluid');
+    expect(getPageWidthCss(DEFAULT_PAGE_WIDTH)).toBe('100%');
+  });
+
   it('maps every user-facing width preset to an editor boundary', () => {
     expect(PAGE_WIDTHS.map(getPageWidthCss)).toEqual([
       'clamp(720px, 70%, 1100px)',

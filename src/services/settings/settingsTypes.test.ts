@@ -8,7 +8,7 @@ import {
   SETTINGS_FONT_ZOOM_STEP_PERCENT,
   SETTINGS_VERSION,
 } from './settingsTypes';
-import settingsContract from '../../../tests/fixtures/settings-v4-contract.json';
+import settingsContract from '../../../tests/fixtures/settings-v5-contract.json';
 
 function createRawSettings(version: number | undefined = SETTINGS_VERSION) {
   const value: Record<string, unknown> = {
@@ -19,7 +19,7 @@ function createRawSettings(version: number | undefined = SETTINGS_VERSION) {
       theme: 'light',
     },
     editor: {
-      ...(version === undefined || version >= SETTINGS_VERSION
+      ...(version === undefined || version >= 4
         ? { autosaveEnabled: false }
         : {}),
       defaultDisplayMode: 'livePreview',
@@ -41,13 +41,13 @@ function createRawSettings(version: number | undefined = SETTINGS_VERSION) {
   return value;
 }
 
-describe('settings v4 contract', () => {
-  it('defines one complete v4 default document', () => {
-    expect(SETTINGS_VERSION).toBe(4);
+describe('settings v5 contract', () => {
+  it('defines one complete v5 default document', () => {
+    expect(SETTINGS_VERSION).toBe(5);
     expect(createDefaultLumaMarkSettings()).toEqual({
       appearance: {
         fontZoomPercent: 100,
-        pageWidth: 'adaptive',
+        pageWidth: 'fluid',
         sidebarOpenOnStartup: true,
         theme: 'light',
       },
@@ -73,7 +73,7 @@ describe('settings v4 contract', () => {
         },
       },
       updates: { autoCheckOnStartup: true },
-      version: 4,
+      version: 5,
     });
   });
 
@@ -183,7 +183,7 @@ describe('settings v4 contract', () => {
 
     expect(result.hadInvalidFields).toBe(true);
     expect(result.settings.appearance).toMatchObject({
-      pageWidth: 'adaptive',
+      pageWidth: 'fluid',
       sidebarOpenOnStartup: true,
       theme: 'light',
     });
@@ -215,7 +215,7 @@ describe('settings v4 contract', () => {
   );
 
   it.each(['missing', 0, 1, 2, 3] as const)(
-    'migrates settings version %s to v4 and supplies updater and autosave defaults',
+    'migrates settings version %s to v5 and supplies updater and autosave defaults',
     (version) => {
       const raw = createRawSettings(version === 'missing' ? 0 : version);
       if (version === 'missing') {
@@ -227,17 +227,17 @@ describe('settings v4 contract', () => {
       const result = normalizeLumaMarkSettings(raw);
 
       expect(result.hadInvalidFields).toBe(false);
-      expect(result.settings.version).toBe(4);
+      expect(result.settings.version).toBe(5);
       expect(result.settings.updates.autoCheckOnStartup).toBe(true);
       expect(result.settings.editor.autosaveEnabled).toBe(false);
-      expect(result.settings.appearance.pageWidth).toBe('adaptive');
+      expect(result.settings.appearance.pageWidth).toBe('fluid');
     },
   );
 
-  it('rewrites a v3 standard page width to adaptive and keeps explicit presets', () => {
+  it('rewrites a v3 standard page width to fluid and keeps explicit presets', () => {
     const standard = normalizeLumaMarkSettings(createRawSettings(3));
     expect(standard.hadInvalidFields).toBe(false);
-    expect(standard.settings.appearance.pageWidth).toBe('adaptive');
+    expect(standard.settings.appearance.pageWidth).toBe('fluid');
 
     const wideRaw = createRawSettings(3);
     (wideRaw.appearance as Record<string, unknown>).pageWidth = 'wide';
@@ -251,6 +251,21 @@ describe('settings v4 contract', () => {
     const kept = normalizeLumaMarkSettings(currentStandard);
     expect(kept.hadInvalidFields).toBe(false);
     expect(kept.settings.appearance.pageWidth).toBe('standard');
+  });
+
+  it('rewrites a v4 adaptive page width to fluid and keeps an explicit current adaptive', () => {
+    const v4Adaptive = createRawSettings(4);
+    (v4Adaptive.appearance as Record<string, unknown>).pageWidth = 'adaptive';
+    const migrated = normalizeLumaMarkSettings(v4Adaptive);
+    expect(migrated.hadInvalidFields).toBe(false);
+    expect(migrated.settings.appearance.pageWidth).toBe('fluid');
+
+    const currentAdaptive = createRawSettings(5);
+    (currentAdaptive.appearance as Record<string, unknown>).pageWidth =
+      'adaptive';
+    const kept = normalizeLumaMarkSettings(currentAdaptive);
+    expect(kept.hadInvalidFields).toBe(false);
+    expect(kept.settings.appearance.pageWidth).toBe('adaptive');
   });
 
   it('rejects a future version instead of silently downgrading it', () => {
@@ -294,11 +309,11 @@ describe('settings v4 contract', () => {
   });
 });
 
-describe('settings v4 autosave preference', () => {
-  it('defaults autosave to off in the canonical v4 document', () => {
-    expect(SETTINGS_VERSION).toBe(4);
+describe('settings autosave preference', () => {
+  it('defaults autosave to off in the canonical document', () => {
+    expect(SETTINGS_VERSION).toBe(5);
     expect(createDefaultLumaMarkSettings().editor.autosaveEnabled).toBe(false);
-    expect(createDefaultLumaMarkSettings().version).toBe(4);
+    expect(createDefaultLumaMarkSettings().version).toBe(5);
   });
 
   it('migrates a valid v2 document without marking autosave missing as invalid', () => {
@@ -307,9 +322,9 @@ describe('settings v4 autosave preference', () => {
     const result = normalizeLumaMarkSettings(raw);
 
     expect(result.hadInvalidFields).toBe(false);
-    expect(result.settings.version).toBe(4);
+    expect(result.settings.version).toBe(5);
     expect(result.settings.editor.autosaveEnabled).toBe(false);
-    expect(result.settings.appearance.pageWidth).toBe('adaptive');
+    expect(result.settings.appearance.pageWidth).toBe('fluid');
   });
 
   it('preserves an explicit autosave opt-in', () => {

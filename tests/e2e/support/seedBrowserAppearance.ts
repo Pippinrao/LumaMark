@@ -12,7 +12,7 @@ const PAGE_WIDTH_CSS: Record<SeededPageWidth, string> = {
 
 /**
  * Persist a complete, valid settings document before the first navigation so
- * visual and scroll tests do not depend on the adaptive default, and so the
+ * visual and scroll tests do not depend on the fluid default, and so the
  * loader does not treat the seed as invalid-field recovery.
  */
 export async function seedBrowserPageWidth(
@@ -50,7 +50,7 @@ export async function seedBrowserPageWidth(
             plantuml: { enabled: true },
           },
           updates: { autoCheckOnStartup: true },
-          version: 4,
+          version: 5,
         }),
       );
       window.localStorage.setItem(

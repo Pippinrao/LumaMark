@@ -35,6 +35,7 @@ import type {
   MathLayoutMetrics,
 } from './mathWorkerProtocol';
 import { applyPreloadedNewcmFontUrls, preloadBundledNewcmFonts } from './mathjaxFontAssets';
+import { quantizeLayoutMetrics } from './mathLayoutMetrics';
 import './math.css';
 
 export type MathPreviewDisplayMode = 'livePreview' | 'reading';
@@ -151,7 +152,7 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
 
       constructor(private readonly view: EditorView) {
         this.inventory = this.view.state.field(mathInventoryField);
-        this.layoutMetrics = readLayoutMetrics(this.view);
+        this.layoutMetrics = quantizeLayoutMetrics(readLayoutMetrics(this.view));
         this.styleElement.dataset.lmMathStyle = mathDocumentId(
           this.view.state,
           options.documentId,
@@ -281,10 +282,18 @@ function mathRenderPlugin(options: MathPreviewExtensionOptions): Extension {
         }
         this.resizeRenderFrame = requestAnimationFrame(() => {
           this.resizeRenderFrame = null;
-          if (!this.destroyed) {
-            this.layoutMetrics = readLayoutMetrics(this.view);
-          this.requestRender();
+          if (this.destroyed) {
+            return;
           }
+          const nextMetrics = quantizeLayoutMetrics(
+            readLayoutMetrics(this.view),
+            this.layoutMetrics,
+          );
+          if (nextMetrics === this.layoutMetrics) {
+            return;
+          }
+          this.layoutMetrics = nextMetrics;
+          this.requestRender();
         });
       }
     },

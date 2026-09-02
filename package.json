@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.3.57",
+  "version": "0.3.58",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -39,6 +39,8 @@
     "release:installed-reading-mode-os": "node scripts/release/verify-installed-reading-mode-os.mjs",
     "release:installed-inline-code-caret-os": "node scripts/release/verify-installed-inline-code-caret-os.mjs",
     "release:installed-preview-click-selection-os": "node scripts/release/verify-installed-preview-click-selection-os.mjs",
+    "release:installed-selection-caret-os": "node scripts/release/verify-installed-selection-caret-os.mjs",
+    "release:installed-idle-memory": "node scripts/release/verify-installed-idle-memory.mjs",
     "release:installed-math-caret-os": "node scripts/release/verify-installed-math-caret-os.mjs",
     "release:installed-plantuml-os": "node scripts/release/verify-installed-plantuml-os.mjs",
     "release:installed-window-chrome": "node scripts/release/verify-installed-window-chrome.mjs",

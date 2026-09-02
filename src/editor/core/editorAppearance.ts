@@ -13,7 +13,7 @@ export const ADAPTIVE_PAGE_WIDTH_CSS = 'clamp(720px, 70%, 1100px)';
 
 export const DEFAULT_EDITOR_APPEARANCE: EditorAppearance = {
   fontZoomPercent: 100,
-  pageWidthCss: ADAPTIVE_PAGE_WIDTH_CSS,
+  pageWidthCss: '100%',
 };
 
 export const editorAppearanceCompartment = new Compartment();

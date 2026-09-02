@@ -87,7 +87,7 @@ Only list items with real execution paths. Parentheses show control type and def
 | Item | Control | Default | Data field | Notes |
 |---|---|---|---|---|
 | Theme | Visual RadioGroup: `light` / `dark` / `system` | `light` | `appearance.theme` | Show three compact previews; shared with top-bar theme menu; `system` resolves dynamically via `prefers-color-scheme`; neither first frame nor runtime system switches rewrite the stored preference |
-| Page width | Visual RadioGroup: `narrow` / `standard` / `wide` / `fluid` | `standard` | `appearance.pageWidth` | Express width with measure graphics; pixel mapping stays the existing 680 / 810 / 1040 / null |
+| Page width | Visual RadioGroup: `adaptive` / `narrow` / `standard` / `wide` / `fluid` | `fluid` | `appearance.pageWidth` | Express width with measure graphics; mapping is clamp(720px, 70%, 1100px) / 680 / 810 / 1040 / 100%. Current default is `fluid` (fit window); see ADR 0022. |
 | Font zoom | number + stepper, 50–250, step 10 | `100` | `appearance.fontZoomPercent` | Do not use a continuous slider, to avoid drag-driven high-frequency shell re-renders; Ctrl+wheel and “Reset zoom” remain available |
 | Expand sidebar on startup | Radix Switch | `true` | `appearance.sidebarOpenOnStartup` | Affects startup default only; runtime sidebar open/closed remains session state |
 
@@ -114,7 +114,7 @@ Not hosted on the settings page.
 export type LumaMarkSettings = {
   appearance: {
     fontZoomPercent: number;
-    pageWidth: 'fluid' | 'narrow' | 'standard' | 'wide';
+    pageWidth: 'adaptive' | 'fluid' | 'narrow' | 'standard' | 'wide';
     sidebarOpenOnStartup: boolean;
     theme: 'dark' | 'light' | 'system';
   };
@@ -184,7 +184,7 @@ Rules:
 10. When reading versionless, v0, or v1 files, Rust persists canonical v2 via the same atomic write path before returning; normal version migration must not be presented as field corruption. After read failure for a future version or any file that cannot be safely read, the frontend blocks subsequent settings writes for that session and discards the pending-write queue, so defaults cannot overwrite an unknown document.
 11. The frontend exposes only structured lifecycle: `loadState` distinguishes ready / read failed / unsupported; `recoveryState` distinguishes field recovery vs corruption recovery (including backup path); `writeState` distinguishes pending / saving / failed. UI maps stable codes to localized, actionable copy and does not show raw English Rust messages.
 12. Write failure keeps the current canonical snapshot; `retryPendingWrites` retries the same snapshot; later new changes still merge on a serial queue. The app-level close coordinator synchronously intercepts Tauri close requests and waits for `flushPendingWrites` success before `destroy`; on failure the window stays open with a retryable tip. Title-bar X, Alt+F4, and system close share this contract.
-13. TypeScript and Rust defaults and validators are cross-checked automatically via `tests/fixtures/settings-v2-contract.json`; field additions or enum extensions must update the fixture and both sides’ tests.
+13. TypeScript and Rust defaults and validators are cross-checked automatically via `tests/fixtures/settings-v5-contract.json`; field additions or enum extensions must update the fixture and both sides’ tests.
 
 Old key mapping:
 

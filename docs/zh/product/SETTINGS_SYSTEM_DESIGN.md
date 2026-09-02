@@ -87,7 +87,7 @@
 | 项 | 控件 | 默认 | 数据字段 | 说明 |
 |---|---|---|---|---|
 | 主题 | 视觉 RadioGroup：`light` / `dark` / `system` | `light` | `appearance.theme` | 显示三个紧凑预览；与顶栏主题菜单共用；`system` 由 `prefers-color-scheme` 动态解析，首帧与运行期系统切换都不改写所存偏好 |
-| 页面宽度 | 视觉 RadioGroup：`narrow` / `standard` / `wide` / `fluid` | `standard` | `appearance.pageWidth` | 用版心图形表达宽度，像素映射保持现有 680 / 810 / 1040 / null |
+| 页面宽度 | 视觉 RadioGroup：`adaptive` / `narrow` / `standard` / `wide` / `fluid` | `fluid` | `appearance.pageWidth` | 用版心图形表达宽度；映射为 clamp(720px, 70%, 1100px) / 680 / 810 / 1040 / 100%。当前默认是 `fluid`（适应窗口），见 ADR 0022。 |
 | 字体缩放 | number + stepper，50–250，步进 10 | `100` | `appearance.fontZoomPercent` | 不用连续 slider，避免拖拽让整个 shell 高频重渲染；Ctrl+滚轮与「重置缩放」继续可用 |
 | 启动时展开侧栏 | Radix Switch | `true` | `appearance.sidebarOpenOnStartup` | 仅影响启动默认值；运行时侧栏开合仍是会话状态 |
 
@@ -114,7 +114,7 @@
 export type LumaMarkSettings = {
   appearance: {
     fontZoomPercent: number;
-    pageWidth: 'fluid' | 'narrow' | 'standard' | 'wide';
+    pageWidth: 'adaptive' | 'fluid' | 'narrow' | 'standard' | 'wide';
     sidebarOpenOnStartup: boolean;
     theme: 'dark' | 'light' | 'system';
   };
@@ -184,7 +184,7 @@ SettingsDialog
 10. 读取无版本、v0 或 v1 文件时，Rust 在返回前用同一原子写路径持久写回 canonical v2；正常版本迁移不冒充字段损坏。读取未来版本或其他无法安全读取的文件失败后，前端阻断该会话后续 settings 写入并丢弃待写队列，避免以默认值覆盖未知文档。
 11. 前端只暴露结构化生命周期：`loadState` 区分 ready/read failed/unsupported，`recoveryState` 区分字段恢复与损坏恢复（含备份路径），`writeState` 区分 pending/saving/failed。UI 按稳定 code 映射本地化、可行动文案，不展示 Rust 英文原文。
 12. 写失败保留当前 canonical 快照；`retryPendingWrites` 重试同一快照，后续新变更仍按串行队列合并。应用级 close coordinator 同步拦截 Tauri close request，等待 `flushPendingWrites` 成功后才 `destroy`；失败保持窗口并打开可重试提示。标题栏 X、Alt+F4 与系统关闭共用该合同。
-13. TS 与 Rust 的默认值和校验器通过 `tests/fixtures/settings-v2-contract.json` 做跨语言自动核对，字段新增或枚举扩展必须同步更新夹具与两侧测试。
+13. TS 与 Rust 的默认值和校验器通过 `tests/fixtures/settings-v5-contract.json` 做跨语言自动核对，字段新增或枚举扩展必须同步更新夹具与两侧测试。
 
 旧 key 映射：
 

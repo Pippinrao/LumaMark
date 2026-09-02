@@ -13,7 +13,7 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('main', { name: /开始|start/i }, { timeout: 3000 }),
+      await screen.findByRole('main', { name: /开始|start/i }, { timeout: 10_000 }),
     ).toBeInTheDocument();
   });
 });

@@ -119,7 +119,8 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 | [ADR 0018：PlantUML 官方 TeaVM 本地渲染](decisions/0018-plantuml-local-rendering.md) | 决策 | 本地 PlantUML 引擎、canonical 设置、阅读锁、暗色、懒加载 chunk 与安装包验收 | PlantUML 引擎、设置字段、渲染锁或安装包验收变化 |
 | [ADR 0019：实时预览指针选区 style](decisions/0019-live-preview-pointer-selection-style.md) | 决策 | 自定义 `mouseSelectionStyle` 所有权、按下锚点、单击容差与安装包指针验收 | 指针选区所有权、单击容差、锚点解析或指针验收变化 |
 | [ADR 0020：Preview scheduler](decisions/0020-preview-scheduler.md) | 决策 | 源码/光标保持同步；视口 WYSIWYG 重建合并到一帧 preview pass | Preview 调度、视口 decoration 重建时机或安装包卡顿证据变化 |
-| [ADR 0021：自适应文档宽度与宽块越界](decisions/0021-adaptive-document-width-and-block-breakout.md) | 决策 | 自适应正文列、设置 v4 迁移，以及表格/Mermaid/PlantUML/图片越界轨道 | 页面宽度默认值、块级 widget 宽度，或窗格缩放后的高度图刷新 |
+| [ADR 0021：自适应文档宽度与宽块越界](decisions/0021-adaptive-document-width-and-block-breakout.md) | 决策 | 自适应正文列、设置 v4 的 `standard`→`adaptive` 改写，以及表格/Mermaid/PlantUML/图片越界轨道。默认页面宽度后来被 ADR 0022 取代。 | 块级 widget 宽度、窗格缩放后的高度图刷新，或自适应预设 CSS |
+| [ADR 0022：默认页面宽度改为适应窗口（fluid）](decisions/0022-default-full-width-page.md) | 决策 | 默认 `pageWidth` 为 `fluid`；设置 v5 把旧的 `adaptive` 改写为 `fluid`；自适应预设仍可选 | 页面宽度默认值、设置 schema 版本，或 fluid/adaptive 迁移 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果、已知限制与装机交互卡顿门禁 | 性能预算、基准命令、装机交互门禁或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |

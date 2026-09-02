@@ -10,7 +10,7 @@ import { ADAPTIVE_PAGE_WIDTH_CSS } from '../../editor/core/editorAppearance';
 export const PAGE_WIDTHS = ['adaptive', 'narrow', 'standard', 'wide', 'fluid'] as const;
 export type EditorPageWidth = (typeof PAGE_WIDTHS)[number];
 
-export const DEFAULT_PAGE_WIDTH: EditorPageWidth = 'adaptive';
+export const DEFAULT_PAGE_WIDTH: EditorPageWidth = 'fluid';
 export { ADAPTIVE_PAGE_WIDTH_CSS };
 export const DEFAULT_FONT_ZOOM_PERCENT = 100;
 export const MIN_FONT_ZOOM_PERCENT = 50;

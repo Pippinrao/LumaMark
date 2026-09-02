@@ -12,7 +12,7 @@ use crate::errors::AppError;
 use crate::services::file_service::write_bytes_atomically;
 
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
-pub const SETTINGS_VERSION: u32 = 4;
+pub const SETTINGS_VERSION: u32 = 5;
 const PAGE_WIDTHS: &[&str] = &["adaptive", "narrow", "standard", "wide", "fluid"];
 const ACCEPTANCE_WRITE_BARRIER_TIMEOUT: Duration = Duration::from_secs(60);
 const ACCEPTANCE_WRITE_BARRIER_POLL_INTERVAL: Duration = Duration::from_millis(10);
@@ -124,7 +124,7 @@ pub fn default_settings() -> LumaMarkSettings {
     LumaMarkSettings {
         appearance: AppearanceSettings {
             font_zoom_percent: 100,
-            page_width: "adaptive".to_string(),
+            page_width: "fluid".to_string(),
             sidebar_open_on_startup: true,
             theme: "light".to_string(),
         },
@@ -425,8 +425,11 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         &defaults.appearance.page_width,
         &mut had_invalid_fields,
     );
-    if source_version < SETTINGS_VERSION && settings.appearance.page_width == "standard" {
+    if source_version < 4 && settings.appearance.page_width == "standard" {
         settings.appearance.page_width = "adaptive".to_string();
+    }
+    if source_version < 5 && settings.appearance.page_width == "adaptive" {
+        settings.appearance.page_width = "fluid".to_string();
     }
     settings.appearance.font_zoom_percent = read_zoom_field(
         value.get("appearance"),
@@ -459,7 +462,7 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
             .and_then(Value::as_object)
             .map(|editor| editor.get("autosaveEnabled").is_none())
             .unwrap_or(true);
-        if source_version < SETTINGS_VERSION && autosave_missing {
+        if source_version < 4 && autosave_missing {
             defaults.editor.autosave_enabled
         } else {
             read_bool_field(
@@ -559,7 +562,7 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         );
     }
     settings.updates.auto_check_on_startup =
-        if source_version < SETTINGS_VERSION && value.get("updates").is_none() {
+        if source_version < 4 && value.get("updates").is_none() {
             defaults.updates.auto_check_on_startup
         } else {
             read_bool_field(
@@ -599,7 +602,7 @@ fn normalize_settings(mut settings: LumaMarkSettings) -> Result<LumaMarkSettings
     settings.appearance.page_width = normalize_enum(
         &settings.appearance.page_width,
         PAGE_WIDTHS,
-        "adaptive",
+        "fluid",
     );
     settings.appearance.font_zoom_percent =
         normalize_font_zoom(settings.appearance.font_zoom_percent, 100);
@@ -1112,12 +1115,13 @@ mod tests {
     }
 
     #[test]
-    fn defaults_match_the_v4_contract() {
+    fn defaults_match_the_v5_contract() {
         let value = serde_json::to_value(default_settings()).expect("serialize defaults");
 
-        assert_eq!(SETTINGS_VERSION, 4);
-        assert_eq!(value["version"], 4);
+        assert_eq!(SETTINGS_VERSION, 5);
+        assert_eq!(value["version"], 5);
         assert_eq!(value["appearance"]["fontZoomPercent"], 100);
+        assert_eq!(value["appearance"]["pageWidth"], "fluid");
         assert_eq!(value["editor"]["autosaveEnabled"], false);
         assert_eq!(value["updates"]["autoCheckOnStartup"], true);
     }
@@ -1150,7 +1154,7 @@ mod tests {
         assert!(!parsed.had_invalid_fields);
         assert_eq!(parsed.settings.version, SETTINGS_VERSION);
         assert!(!parsed.settings.editor.autosave_enabled);
-        assert_eq!(parsed.settings.appearance.page_width, "adaptive");
+        assert_eq!(parsed.settings.appearance.page_width, "fluid");
         assert_eq!(parsed.settings.markdown.math.syntax_mode, "pandoc");
         assert_eq!(parsed.settings.markdown.math.equation_numbering, "none");
         assert!(!parsed.settings.markdown.math.physics_enabled);
@@ -1188,12 +1192,12 @@ mod tests {
         assert_eq!(parsed.settings.markdown.math.equation_numbering, "none");
         assert!(!parsed.settings.markdown.math.physics_enabled);
         assert!(parsed.settings.markdown.plantuml.enabled);
-        assert_eq!(parsed.settings.appearance.page_width, "adaptive");
+        assert_eq!(parsed.settings.appearance.page_width, "fluid");
         assert!(parsed.needs_writeback);
     }
 
     #[test]
-    fn v3_standard_page_width_migrates_to_adaptive_and_keeps_explicit_presets() {
+    fn v3_standard_page_width_migrates_to_fluid_and_keeps_explicit_presets() {
         let standard = serde_json::json!({
             "appearance": {
                 "fontZoomPercent": 100,
@@ -1218,7 +1222,7 @@ mod tests {
         let parsed = parse_and_normalize_settings(&serde_json::to_vec(&standard).expect("serialize"))
             .expect("v3 standard page width should migrate");
         assert!(!parsed.had_invalid_fields);
-        assert_eq!(parsed.settings.appearance.page_width, "adaptive");
+        assert_eq!(parsed.settings.appearance.page_width, "fluid");
 
         let mut wide = standard.clone();
         wide["appearance"]["pageWidth"] = serde_json::json!("wide");
@@ -1227,13 +1231,51 @@ mod tests {
         assert_eq!(wide_parsed.settings.appearance.page_width, "wide");
 
         let mut current_standard = standard.clone();
-        current_standard["version"] = serde_json::json!(SETTINGS_VERSION);
+        current_standard["version"] = serde_json::json!(4);
         current_standard["appearance"]["pageWidth"] = serde_json::json!("standard");
         let kept = parse_and_normalize_settings(
             &serde_json::to_vec(&current_standard).expect("serialize"),
         )
         .expect("current standard page width should be kept");
         assert_eq!(kept.settings.appearance.page_width, "standard");
+    }
+
+    #[test]
+    fn v4_adaptive_page_width_migrates_to_fluid_and_keeps_explicit_current_adaptive() {
+        let v4_adaptive = serde_json::json!({
+            "appearance": {
+                "fontZoomPercent": 100,
+                "pageWidth": "adaptive",
+                "sidebarOpenOnStartup": true,
+                "theme": "light"
+            },
+            "editor": {
+                "autosaveEnabled": false,
+                "defaultDisplayMode": "livePreview",
+                "focusModeOnStartup": false
+            },
+            "general": {
+                "language": "zh-CN",
+                "openWindowMode": "multiWindow",
+                "startupBehavior": "home"
+            },
+            "images": { "copyImagesToAssets": false },
+            "updates": { "autoCheckOnStartup": true },
+            "version": 4
+        });
+        let parsed = parse_and_normalize_settings(&serde_json::to_vec(&v4_adaptive).expect("serialize"))
+            .expect("v4 adaptive page width should migrate");
+        assert!(!parsed.had_invalid_fields);
+        assert_eq!(parsed.settings.appearance.page_width, "fluid");
+
+        let mut current_adaptive = v4_adaptive.clone();
+        current_adaptive["version"] = serde_json::json!(5);
+        current_adaptive["appearance"]["pageWidth"] = serde_json::json!("adaptive");
+        let kept = parse_and_normalize_settings(
+            &serde_json::to_vec(&current_adaptive).expect("serialize"),
+        )
+        .expect("current adaptive page width should be kept");
+        assert_eq!(kept.settings.appearance.page_width, "adaptive");
     }
 
     #[test]
@@ -1314,7 +1356,7 @@ mod tests {
     #[test]
     fn defaults_enums_and_zoom_match_the_shared_contract_fixture() {
         let contract: Value = serde_json::from_str(include_str!(
-            "../../../tests/fixtures/settings-v4-contract.json"
+            "../../../tests/fixtures/settings-v5-contract.json"
         ))
         .expect("shared settings contract should be valid json");
         let defaults = serde_json::to_value(default_settings()).expect("serialize defaults");
@@ -1417,7 +1459,7 @@ mod tests {
         assert!(loaded.had_invalid_fields);
         assert!(!loaded.used_defaults_due_to_corruption);
         assert_eq!(value["appearance"]["fontZoomPercent"], 100);
-        assert_eq!(value["appearance"]["pageWidth"], "adaptive");
+        assert_eq!(value["appearance"]["pageWidth"], "fluid");
         assert_eq!(value["general"]["openWindowMode"], "multiWindow");
         assert_eq!(value["updates"]["autoCheckOnStartup"], true);
         fs::remove_dir_all(dir).expect("cleanup");
@@ -1534,12 +1576,12 @@ mod tests {
     fn version_number_rejects_future_fractional_values_without_filesystem_mutation() {
         for (case, raw) in [
             (
-                "four-point-five",
-                &br#"{"version":4.5,"future":"preserve exactly"}"#[..],
-            ),
-            (
                 "five-point-five",
                 &br#"{"version":5.5,"future":"preserve exactly"}"#[..],
+            ),
+            (
+                "six-point-five",
+                &br#"{"version":6.5,"future":"preserve exactly"}"#[..],
             ),
         ] {
             let dir = unique_test_dir(case);
@@ -1580,7 +1622,7 @@ mod tests {
 
     #[test]
     fn version_number_accepts_current_decimal_and_exponent_forms_without_rewrite() {
-        for (case, version) in [("current-decimal", "4.0"), ("current-exponent", "4e0")] {
+        for (case, version) in [("current-decimal", "5.0"), ("current-exponent", "5e0")] {
             let dir = unique_test_dir(case);
             let path = settings_path(&dir);
             let raw = serde_json::to_string(&default_settings())

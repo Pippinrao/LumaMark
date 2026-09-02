@@ -21,16 +21,19 @@ describe('many-table file open baseline', () => {
     document.body.replaceChildren();
   });
 
-  it.each(['adaptive', 'standard'] as const)(
+  it.each(['adaptive', 'standard', 'fluid'] as const)(
     'opens %s-width documents with 32 everyday tables without freezing',
     (pageWidth) => {
       const doc = createManyTablesDocument();
       const appearance =
-        pageWidth === 'adaptive'
+        pageWidth === 'fluid'
           ? DEFAULT_EDITOR_APPEARANCE
           : {
               ...DEFAULT_EDITOR_APPEARANCE,
-              pageWidthCss: '810px',
+              pageWidthCss:
+                pageWidth === 'adaptive'
+                  ? 'clamp(720px, 70%, 1100px)'
+                  : '810px',
             };
       const values: number[] = [];
 

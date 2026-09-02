@@ -18,7 +18,7 @@ async function openNewDocument(page: Page): Promise<void> {
 }
 
 test.describe('many-table file open', () => {
-  for (const pageWidth of ['adaptive', 'standard'] as const) {
+  for (const pageWidth of ['adaptive', 'standard', 'fluid'] as const) {
     test(`loads ${MANY_TABLES_OPEN_COUNT} tables at ${pageWidth} width without a long main-thread stall`, async ({
       page,
     }) => {

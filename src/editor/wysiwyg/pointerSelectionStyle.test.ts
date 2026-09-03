@@ -356,6 +356,104 @@ describe('pointer selection style', () => {
     },
   );
 
+  it('exposes dragRangeCommitted as false initially and true after a non-empty range', () => {
+    const { cleanup, view } = mountEditor();
+
+    try {
+      const style = createPointerSelectionStyle(view, {
+        position: 6,
+        x: 100,
+        y: 20,
+      });
+
+      expect(style.dragRangeCommitted).toBe(false);
+
+      // Still in slop — collapsed range, not committed
+      style.get(mouseEvent(102, 20), false, false);
+      expect(style.dragRangeCommitted).toBe(false);
+
+      // Past slop — non-empty range, committed
+      style.get(mouseEvent(120, 20), false, false);
+      expect(style.dragRangeCommitted).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('rejects a line change when Y movement is below half a line height', () => {
+    const multiLineDoc = 'line one\nline two\nline three';
+    const { cleanup, view } = mountEditor({
+      doc: multiLineDoc,
+      locate: 'line one',
+      posAtCoords: (coords) => {
+        // Y < 30 → line 1, 30–60 → line 2, > 60 → line 3
+        const lineOffset = Math.round(coords.x - 100);
+        if (coords.y < 30) return Math.max(0, Math.min(8, lineOffset));
+        if (coords.y < 60) return 9 + Math.max(0, Math.min(8, lineOffset));
+        return 18 + Math.max(0, Math.min(10, lineOffset));
+      },
+    });
+
+    try {
+      Object.defineProperty(view, 'defaultLineHeight', {
+        configurable: true,
+        value: 60, // half = 30
+      });
+
+      const style = createPointerSelectionStyle(view, {
+        position: 4,
+        x: 104,
+        y: 10, // start on line 1
+      });
+
+      // Drag right past slop on line 1
+      const onLine1 = style.get(mouseEvent(110, 10), false, false);
+      expect(onLine1.main.head).toBe(8);
+
+      // Move to y=31 (line 2 boundary), |31-10|=21 < 30 → reject
+      const tinyYMove = style.get(mouseEvent(110, 31), false, false);
+      expect(tinyYMove.main.head).toBe(8); // should stay on line 1
+
+      // Move to y=45, |45-10|=35 >= 30 → accept line change
+      const bigYMove = style.get(mouseEvent(110, 45), false, false);
+      expect(bigYMove.main.head).toBe(17); // pos on line 2
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('uses posAtCoords with precise=true so inter-line gaps return null', () => {
+    const multiLineDoc = 'line one\nline two';
+    const { cleanup, view } = mountEditor({
+      doc: multiLineDoc,
+      locate: 'line one',
+      posAtCoords: () => {
+        return null; // simulate inter-line gap
+      },
+    });
+
+    try {
+      Object.defineProperty(view, 'defaultLineHeight', {
+        configurable: true,
+        value: 40,
+      });
+
+      const style = createPointerSelectionStyle(view, {
+        position: 4,
+        x: 104,
+        y: 20,
+      });
+
+      // First drag past slop — posAtCoords returns null
+      const result = style.get(mouseEvent(120, 20), false, false);
+      // Should retain lastHead (anchor position 4)
+      expect(result.main.head).toBe(4);
+      expect(result.main.empty).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
   it('still shrinks the range when the pointer reverses toward the press', () => {
     const hits = new Map<number, number | null>([
       [120, 16],

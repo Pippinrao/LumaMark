@@ -1112,6 +1112,7 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
     private destroyed = false;
     private gestureActive = false;
     private gestureCleanup: (() => void) | null = null;
+    private activePointerStyle: { dragRangeCommitted: boolean } | null = null;
     private inlinePointerCandidate: InlinePointerCandidate | null = null;
     private lastInlinePointerCandidate: SettledInlinePointerCandidate | null = null;
     private pointerGestureEvent: MouseEvent | null = null;
@@ -1349,6 +1350,10 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
       };
     }
 
+    setActivePointerStyle(style: { dragRangeCommitted: boolean } | null): void {
+      this.activePointerStyle = style;
+    }
+
     private beginGesture(view: EditorView): void {
       this.cleanupGestureListeners();
       this.gestureActive = true;
@@ -1401,10 +1406,20 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
       }
 
       this.gestureActive = false;
+      const dragCommitted = this.activePointerStyle?.dragRangeCommitted === true;
       this.cleanupGestureListeners();
       const candidate = this.inlinePointerCandidate;
       this.inlinePointerCandidate = null;
       this.pointerGestureEvent = null;
+
+      if (dragCommitted) {
+        view.dispatch({
+          annotations: Transaction.addToHistory.of(false),
+          effects: settlePointerMarkdownDecorations.of(null),
+        });
+        return;
+      }
+
       const isPrimaryClick =
         candidate !== null &&
         event !== null &&
@@ -1475,6 +1490,7 @@ export const markdownDecorationsPlugin = ViewPlugin.fromClass(
     private cleanupGestureListeners(): void {
       this.gestureCleanup?.();
       this.gestureCleanup = null;
+      this.activePointerStyle = null;
     }
 
     destroy(): void {
@@ -1523,7 +1539,10 @@ function pointerSelectionStyleExtension(): Extension {
       .plugin(markdownDecorationsPlugin)
       ?.pointerSelectionAnchor(event);
 
-    return anchor ? createPointerSelectionStyle(view, anchor) : null;
+    if (!anchor) return null;
+    const style = createPointerSelectionStyle(view, anchor);
+    view.plugin(markdownDecorationsPlugin)?.setActivePointerStyle(style);
+    return style;
   });
 }
 

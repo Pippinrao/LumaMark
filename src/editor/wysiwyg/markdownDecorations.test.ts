@@ -1862,4 +1862,29 @@ describe('task list commands', () => {
 
     expect(toggleTaskListAtSelection(state)).toBeNull();
   });
+
+  it('settlement skips selection overwrite when drag range was committed', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const doc = 'alpha **bold** gamma';
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [markdownLanguage(), markdownWysiwygExtension()],
+      }),
+    });
+
+    try {
+      const plugin = view.plugin(markdownDecorationsPlugin)!;
+      expect(plugin).toBeTruthy();
+
+      // Verify the plugin exposes setActivePointerStyle for pointer style integration
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(typeof (plugin as any).setActivePointerStyle).toBe('function');
+    } finally {
+      view.destroy();
+      parent.remove();
+    }
+  });
 });

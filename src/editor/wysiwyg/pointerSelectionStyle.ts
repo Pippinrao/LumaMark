@@ -28,24 +28,39 @@ export type PointerSelectionAnchor = {
 export function createPointerSelectionStyle(
   view: EditorView,
   anchor: PointerSelectionAnchor,
-): MouseSelectionStyle {
+): MouseSelectionStyle & { dragRangeCommitted: boolean } {
   let anchorPosition = anchor.position;
   let lastHead = anchor.position;
   let lastPointerX = anchor.x;
+  let lastPointerY = anchor.y;
+  let lineEntryY = anchor.y;
   let startSelection = view.state.selection;
+  let committed = false;
 
   return {
+    get dragRangeCommitted() {
+      return committed;
+    },
     get(event: MouseEvent, extend: boolean, multiple: boolean) {
-      const range = pointerSelectionRange(
+      const result = pointerSelectionRange(
         view,
         anchor,
         anchorPosition,
         lastHead,
         lastPointerX,
+        lastPointerY,
+        lineEntryY,
         event,
       );
-      lastHead = range.head;
+      lastHead = result.range.head;
       lastPointerX = event.clientX;
+      lastPointerY = event.clientY;
+      lineEntryY = result.newLineEntryY;
+      const range = result.range;
+
+      if (!committed && !range.empty) {
+        committed = true;
+      }
 
       if (extend) {
         return startSelection.replaceRange(
@@ -75,32 +90,51 @@ function pointerSelectionRange(
   anchorPosition: number,
   lastHead: number,
   lastPointerX: number,
+  lastPointerY: number,
+  lineEntryY: number,
   event: MouseEvent,
-) {
+): { range: ReturnType<typeof EditorSelection.cursor>; newLineEntryY: number } {
   const coordinates = { x: event.clientX, y: event.clientY };
   const inSlop = isPrimaryPointerClick(anchor, coordinates);
 
   if (anchor.kind === 'word-or-drag' && inSlop) {
-    return view.state.wordAt(anchorPosition) ?? EditorSelection.cursor(anchorPosition);
+    return {
+      range: view.state.wordAt(anchorPosition) ?? EditorSelection.cursor(anchorPosition),
+      newLineEntryY: lineEntryY,
+    };
   }
 
   if (inSlop) {
-    return EditorSelection.cursor(anchorPosition);
+    return { range: EditorSelection.cursor(anchorPosition), newLineEntryY: lineEntryY };
   }
 
-  const mapped = view.posAtCoords(coordinates, false);
-  const head = stabilizeDragHead(mapped, lastHead, lastPointerX, event.clientX);
+  // Pass precise=true so inter-line gaps return null instead of snapping.
+  // CM6 types `precise` as `false` but the runtime accepts `true`.
+  const mapped = (view.posAtCoords as (coords: {x: number; y: number}, precise?: boolean) => number | null)(coordinates, true);
+  const head = stabilizeDragHead(
+    view, mapped, lastHead, lastPointerX, event.clientX,
+    event.clientY, lineEntryY,
+  );
 
-  return head === anchorPosition
+  const newLineEntryY = head !== lastHead
+    ? event.clientY
+    : lineEntryY;
+
+  const range = head === anchorPosition
     ? EditorSelection.cursor(anchorPosition)
     : EditorSelection.range(anchorPosition, head);
+
+  return { range, newLineEntryY };
 }
 
 function stabilizeDragHead(
+  view: EditorView,
   mapped: number | null,
   lastHead: number,
   lastPointerX: number,
   pointerX: number,
+  pointerY: number,
+  lineEntryY: number,
 ): number {
   if (mapped === null) {
     return lastHead;
@@ -110,6 +144,19 @@ function stabilizeDragHead(
   const headDelta = mapped - lastHead;
   if (pointerDelta * headDelta < 0) {
     return lastHead;
+  }
+
+  // Y hysteresis: reject line changes when vertical movement is too small.
+  const docLen = view.state.doc.length;
+  const clampedMapped = Math.max(0, Math.min(docLen, mapped));
+  const clampedLast = Math.max(0, Math.min(docLen, lastHead));
+  const mappedLine = view.state.doc.lineAt(clampedMapped).number;
+  const lastLine = view.state.doc.lineAt(clampedLast).number;
+  if (mappedLine !== lastLine) {
+    const yTravel = Math.abs(pointerY - lineEntryY);
+    if (yTravel < view.defaultLineHeight / 2) {
+      return lastHead;
+    }
   }
 
   return mapped;

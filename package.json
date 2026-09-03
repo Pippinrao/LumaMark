@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.3.59",
+  "version": "0.3.60",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",

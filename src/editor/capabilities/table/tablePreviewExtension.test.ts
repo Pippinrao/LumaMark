@@ -1795,4 +1795,314 @@ describe('tablePreviewExtension', () => {
     view.destroy();
     parent.remove();
   });
+
+  // ── Issue #34 table render matrix ──────────────────────────────────
+
+  it('does not render a table widget inside a blockquote (library limitation)', async () => {
+    const doc = [
+      '> | A | B |',
+      '> | --- | --- |',
+      '> | 1 | 2 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    // codemirror-markdown-tables does not parse tables inside blockquotes
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).toBeNull();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table immediately after a heading with no blank line', async () => {
+    const doc = [
+      '# Heading',
+      '| A | B |',
+      '| --- | --- |',
+      '| 1 | 2 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('1');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table immediately after a paragraph with no blank line', async () => {
+    const doc = [
+      'Some paragraph text.',
+      '| A | B |',
+      '| --- | --- |',
+      '| 1 | 2 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('1');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders two consecutive tables separated by one blank line', async () => {
+    const doc = [
+      '| A | B |',
+      '| --- | --- |',
+      '| 1 | 2 |',
+      '',
+      '| C | D |',
+      '| --- | --- |',
+      '| 3 | 4 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    const tables = parent.querySelectorAll('.tbl-table-widget .tbl-table');
+    expect(tables.length).toBe(2);
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('1');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with all-empty cells', async () => {
+    const doc = [
+      '| | |',
+      '| --- | --- |',
+      '| | |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a single-column table', async () => {
+    const doc = [
+      '| A |',
+      '| --- |',
+      '| 1 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('1');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with trailing whitespace and inconsistent padding', async () => {
+    const doc = [
+      '|A|  B  |',
+      '|---|---|',
+      '|1 | 2  |  ',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('1');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('does not render a table widget inside a list item (GFM limitation)', async () => {
+    const doc = [
+      '- item',
+      '  | A | B |',
+      '  | --- | --- |',
+      '  | 1 | 2 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).toBeNull();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a wide table with 8+ columns', async () => {
+    const doc = [
+      '| A | B | C | D | E | F | G | H |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- |',
+      '| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    const headerCells = parent.querySelectorAll('.tbl-table-widget .tbl-header-cell');
+    expect(headerCells.length).toBe(8);
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with mixed inline: bold + link + code in same cell', async () => {
+    const doc = [
+      '| Mixed |',
+      '| --- |',
+      '| **bold** [link](http://x) `code` |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('bold');
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('code');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with center-aligned column', async () => {
+    const doc = [
+      '| Left | Center | Right |',
+      '| :--- | :---: | ---: |',
+      '| a | b | c |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('b');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with italic text in cells', async () => {
+    const doc = [
+      '| Style |',
+      '| --- |',
+      '| *italic* |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('italic');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with inline math in cells', async () => {
+    const doc = [
+      '| Formula |',
+      '| --- |',
+      '| $x^2$ |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with escaped pipe in cell', async () => {
+    const doc = [
+      '| Content |',
+      '| --- |',
+      '| one \\| two |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table as the first line of the document', async () => {
+    const doc = [
+      '| A | B |',
+      '| --- | --- |',
+      '| 1 | 2 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('1');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table as the last line without trailing newline', async () => {
+    const doc = 'before\n\n| A | B |\n| --- | --- |\n| 1 | 2 |';
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('1');
+
+    editor.destroy();
+    parent.remove();
+  });
+
+  it('renders a table with CJK content in cells', async () => {
+    const doc = [
+      '| 名前 | 点数 |',
+      '| --- | --- |',
+      '| 太郎 | 100 |',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc, parent });
+    await settleTablePreview();
+
+    expect(parent.querySelector('.tbl-table-widget .tbl-table')).not.toBeNull();
+    expect(parent.querySelector('.tbl-table-widget')?.textContent).toContain('太郎');
+
+    editor.destroy();
+    parent.remove();
+  });
 });

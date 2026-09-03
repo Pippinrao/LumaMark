@@ -68,4 +68,28 @@ describe('selection caret visibility', () => {
       false,
     );
   });
+
+  it('hides the caret on every non-empty range even when selection flickers', () => {
+    const view = mount('hello world');
+
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+    expect(view.contentDOM.classList.contains(SELECTION_CARET_HIDDEN_CLASS)).toBe(
+      false,
+    );
+
+    view.dispatch({ selection: EditorSelection.range(0, 5) });
+    expect(view.contentDOM.classList.contains(SELECTION_CARET_HIDDEN_CLASS)).toBe(
+      true,
+    );
+
+    view.dispatch({ selection: EditorSelection.cursor(5) });
+    expect(view.contentDOM.classList.contains(SELECTION_CARET_HIDDEN_CLASS)).toBe(
+      false,
+    );
+
+    view.dispatch({ selection: EditorSelection.range(0, 8) });
+    expect(view.contentDOM.classList.contains(SELECTION_CARET_HIDDEN_CLASS)).toBe(
+      true,
+    );
+  });
 });

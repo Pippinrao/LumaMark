@@ -6,7 +6,7 @@
 
 **Date:** 2026-08-18
 
-Updated: 2026-08-20 (`detail === 2` drag stays a character range owned by the style)
+Updated: 2026-09-03 (drag head stays on last valid hit when `posAtCoords` is null or jumps against pointer travel)
 
 ## Context
 
@@ -24,7 +24,7 @@ Settlement can only correct the final state, so any correction it makes has alre
 - Live preview installs its own `EditorView.mouseSelectionStyle` (`editor/wysiwyg/pointerSelectionStyle.ts`) for plain left-button presses that the decorations plugin already resolved to a caret or word-or-drag candidate.
 - The style resolves the anchor exactly once, from the press candidate the plugin computed with the browser-native caret hit, and maps that anchor through document changes.
 - While the pointer stays inside the DPR-aware click slop (`isPrimaryPointerClick`), a caret candidate returns a collapsed cursor; a `word-or-drag` candidate (OS `detail === 2`) returns the word at the press anchor.
-- Once the pointer passes the slop, the head comes from CodeMirror `posAtCoords` mapped from the press coordinates, including for `detail === 2`. Native `caretPositionFromPoint` stays on press and mouseup settlement only; it must not run on every drag `mousemove`.
+- Once the pointer passes the slop, the head comes from CodeMirror `posAtCoords` mapped from the press coordinates, including for `detail === 2`. A `null` hit (widget interior) keeps the last valid head instead of collapsing back to the press anchor. A hit that moves opposite the pointer keeps the last head so hidden delimiters cannot flicker the range. Native `caretPositionFromPoint` stays on press and mouseup settlement only; it must not run on every drag `mousemove`.
 - The style returns `null` — leaving CodeMirror's built-in behavior in place — for triple clicks, inline-code chip presses that already `preventDefault`, and any press without a candidate.
 - Pointer settlement on `mouseup` stays as-is for caret clicks. A `detail === 2` drag that already painted a character range must not be overwritten with a word selection.
 
@@ -44,9 +44,10 @@ Settlement can only correct the final state, so any correction it makes has alre
 
 ## Verification requirements
 
-- Unit tests cover slop behavior at several device pixel ratios, drag extension past the slop, and anchor mapping through document changes.
-- Browser E2E asserts a collapsed selection at press, after a one-to-three pixel move, and after release for headings, bold, links, plain paragraphs, and list items, and asserts that a real drag still selects a range.
+- Unit tests cover slop behavior at several device pixel ratios, drag extension past the slop, last-head retention when `posAtCoords` is null or jumps backward against pointer travel, reverse drags that still shrink the range, and anchor mapping through document changes.
+- Browser E2E asserts a collapsed selection at press, after a one-to-three pixel move, and after release for headings, bold, links, plain paragraphs, and list items, and asserts that a real drag still selects a range. A drag-across matrix (bold, italic, strikethrough, inline code, inline math, links, mixed inline, image, Mermaid, fenced code, display math) samples during the press and fails if the range collapses or the native caret reappears after slop.
 - `pnpm release:installed-preview-click-selection-os` drives Win32 `SendInput` press-move-release against the installed binary and fails if any sample taken during the press shows a range or if the caret moves between press and release.
+- `pnpm release:installed-selection-caret-os` drives the same drag-across matrix with Win32 `SendInput` and fails if a held range collapses, if `caret-color` is opaque during the hold, or if collapsing the range does not restore a visible caret.
 
 ## Revisit and rollback criteria
 

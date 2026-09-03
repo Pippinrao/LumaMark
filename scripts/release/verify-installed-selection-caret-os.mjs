@@ -21,11 +21,111 @@ import {
   reserveDebugPort,
 } from './packagedWebviewHarness.mjs';
 
-const SOURCE = '前缀文本 第二段落普通文字 后缀文字';
-const TARGET = '第二段落普通文字';
+const TINY_SVG =
+  'data:image/svg+xml;charset=utf-8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="#247c5a"/></svg>',
+  );
 const HIDDEN_CLASS = 'lm-editor-selection-caret-hidden';
+const SCENARIOS = [
+  {
+    id: 'plain',
+    source: '前缀文本 第二段落普通文字 后缀文字',
+    startText: '第二段落普通文字',
+    endText: '第二段落普通文字',
+  },
+  {
+    id: 'bold',
+    source: '前缀文本 **加粗内容** 后缀文字',
+    startText: '前缀文本',
+    endText: '后缀文字',
+  },
+  {
+    id: 'italic',
+    source: '前缀文本 *斜体内容* 后缀文字',
+    startText: '前缀文本',
+    endText: '后缀文字',
+  },
+  {
+    id: 'strikethrough',
+    source: '前缀文本 ~~删除内容~~ 后缀文字',
+    startText: '前缀文本',
+    endText: '后缀文字',
+  },
+  {
+    id: 'inline-code',
+    source: '前缀文本 `行内代码` 后缀文字',
+    startText: '前缀文本',
+    endText: '后缀文字',
+  },
+  {
+    id: 'inline-math',
+    source: '前缀文本 $E=mc^2$ 后缀文字',
+    startText: '前缀文本',
+    endText: '后缀文字',
+    readySelector: '.lm-math-inline-render',
+  },
+  {
+    id: 'link',
+    source: '前缀文本 [链接文本](https://example.com) 后缀文字',
+    startText: '前缀文本',
+    endText: '后缀文字',
+  },
+  {
+    id: 'mixed-inline',
+    source: '前缀文本 **粗体字** *斜体字* ~~删除字~~ `代码字` $x$ 后缀文字',
+    startText: '前缀文本',
+    endText: '后缀文字',
+  },
+  {
+    id: 'image',
+    source: ['上方文字', '', `![fixture](${TINY_SVG})`, '', '下方文字'].join('\n'),
+    startText: '上方文字',
+    endText: '下方文字',
+    readySelector: '.lm-image-preview img',
+  },
+  {
+    id: 'mermaid',
+    source: [
+      '上方文字',
+      '',
+      '```mermaid',
+      'flowchart LR',
+      '  A-->B',
+      '```',
+      '',
+      '下方文字',
+    ].join('\n'),
+    startText: '上方文字',
+    endText: '下方文字',
+    readySelector: '.lm-mermaid-svg > svg',
+  },
+  {
+    id: 'code-block',
+    source: [
+      '上方文字',
+      '',
+      '```ts',
+      'const value = 1',
+      '```',
+      '',
+      '下方文字',
+    ].join('\n'),
+    startText: '上方文字',
+    endText: '下方文字',
+    readySelector: '.lm-md-code-block-line',
+  },
+  {
+    id: 'display-math',
+    source: ['上方文字', '', '$$', 'E = mc^2', '$$', '', '下方文字'].join('\n'),
+    startText: '上方文字',
+    endText: '下方文字',
+    readySelector: '.lm-math-block-render',
+  },
+];
 const ASSERTIONS = [
   'native drag paints a range while the button is held',
+  'the held range never collapses while the button is down',
   'caret-color is transparent during the held range and after release',
   'collapsing the range restores a visible caret',
 ];
@@ -46,8 +146,7 @@ if (options.plan) {
         coordinateConversion: 'GetClientRect + ClientToScreen',
         executablePath,
         inputApi: 'SendInput',
-        source: SOURCE,
-        target: TARGET,
+        scenarios: SCENARIOS.map((scenario) => scenario.id),
       },
       null,
       2,
@@ -88,7 +187,7 @@ async function runAcceptance() {
     executablePath: absoluteExecutablePath,
     inputApi: 'SendInput',
     pid: null,
-    source: SOURCE,
+    scenarios: SCENARIOS.map((scenario) => scenario.id),
   };
 
   try {
@@ -102,7 +201,7 @@ async function runAcceptance() {
       join(tmpdir(), 'lumamark-menu-context-os-selection-caret-'),
     );
     const documentPath = join(tempDirectory, 'selection-caret-os.md');
-    await writeFile(documentPath, SOURCE, 'utf8');
+    await writeFile(documentPath, SCENARIOS[0].source, 'utf8');
 
     app = spawn(absoluteExecutablePath, [documentPath], {
       cwd: dirname(absoluteExecutablePath),
@@ -141,13 +240,11 @@ async function runAcceptance() {
         const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
         return view?.state.doc.toString() === source;
       },
-      SOURCE,
+      SCENARIOS[0].source,
       { timeout: 20_000 },
     );
 
     await installPressObserver(page);
-    const start = await readTextPoint(page, TARGET, 0.15);
-    const end = await readTextPoint(page, TARGET, 0.85);
     const runNativeProbe = (action, values = {}) =>
       invokeNativeProbe({
         action,
@@ -155,69 +252,38 @@ async function runAcceptance() {
         probePath,
         values,
       });
-    const nativeStart = await toNativePoint(page, runNativeProbe, start, app.pid);
-    const nativeEnd = await toNativePoint(page, runNativeProbe, end, app.pid);
-    const nativeResult = runNativeProbe('Drag', {
-      EndX: nativeEnd.x,
-      EndY: nativeEnd.y,
-      X: nativeStart.x,
-      Y: nativeStart.y,
-    });
-    assertExactChild(nativeResult, app.pid);
-
-    const samples = await readPressSamples(page);
-    const held = samples.filter(
-      (sample) => sample.type === 'mousemove' && sample.selectedText.length > 0,
-    );
-    const released = await readCaretObservation(page);
-    if (held.length === 0) {
-      throw new Error(`Native drag never painted a range: ${JSON.stringify(samples)}`);
+    const scenarioResults = [];
+    const failures = [];
+    for (const scenario of SCENARIOS) {
+      try {
+        scenarioResults.push(
+          await runScenario({
+            expectedPid: app.pid,
+            page,
+            runNativeProbe,
+            scenario,
+          }),
+        );
+      } catch (error) {
+        failures.push({
+          error: error instanceof Error ? error.message : String(error),
+          id: scenario.id,
+        });
+      }
     }
-    const opaqueHeld = held.filter((sample) => !isTransparentCaret(sample.caretColor));
-    if (opaqueHeld.length > 0 || !held.every((sample) => sample.hiddenClass)) {
+    if (failures.length > 0) {
       throw new Error(
-        `Native drag kept a visible caret: ${JSON.stringify({ held, opaqueHeld })}`,
+        `Selection-caret matrix failed: ${JSON.stringify({ failures, scenarioResults })}`,
       );
-    }
-    if (
-      released.selectedText.length === 0 ||
-      !released.hiddenClass ||
-      !isTransparentCaret(released.caretColor)
-    ) {
-      throw new Error(`Caret still visible after release: ${JSON.stringify(released)}`);
-    }
-
-    runNativeProbe('Click', {
-      X: nativeEnd.x,
-      Y: nativeEnd.y,
-    });
-    await page.waitForFunction(
-      () => {
-        const content = document.querySelector('.lm-editor-live-preview-mode .cm-content');
-        const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
-        return view?.state.selection.main.empty === true;
-      },
-      null,
-      { timeout: 5_000 },
-    );
-    const collapsed = await readCaretObservation(page);
-    if (
-      collapsed.selectedText.length > 0 ||
-      collapsed.hiddenClass ||
-      isTransparentCaret(collapsed.caretColor)
-    ) {
-      throw new Error(`Caret stayed hidden after collapse: ${JSON.stringify(collapsed)}`);
     }
 
     evidence.assertions = {
       collapsedRestoredCaret: true,
       heldRangeHiddenCaret: true,
+      heldRangeNeverCollapsed: true,
       releasedRangeHiddenCaret: true,
     };
-    evidence.collapsed = collapsed;
-    evidence.held = held;
-    evidence.nativeResult = nativeResult;
-    evidence.released = released;
+    evidence.scenarioResults = scenarioResults;
     evidence.passed = true;
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
   } catch (error) {
@@ -248,6 +314,131 @@ async function runAcceptance() {
   }
 }
 
+async function runScenario({ expectedPid, page, runNativeProbe, scenario }) {
+  await replaceDocument(page, scenario.source);
+  if (scenario.readySelector) {
+    await page.waitForSelector(scenario.readySelector, { timeout: 15_000 });
+  }
+  await resetPressSamples(page);
+  const start = await readTextPoint(page, scenario.startText, 0.15);
+  const end = await readTextPoint(page, scenario.endText, 0.85);
+  const nativeStart = await toNativePoint(page, runNativeProbe, start, expectedPid);
+  const nativeEnd = await toNativePoint(page, runNativeProbe, end, expectedPid);
+  const nativeResult = runNativeProbe('Drag', {
+    EndX: nativeEnd.x,
+    EndY: nativeEnd.y,
+    X: nativeStart.x,
+    Y: nativeStart.y,
+  });
+  assertExactChild(nativeResult, expectedPid);
+
+  const samples = await readPressSamples(page);
+  const firstHeldIndex = samples.findIndex(
+    (sample) => sample.type === 'mousemove' && sample.selectedText.length > 0,
+  );
+  if (firstHeldIndex < 0) {
+    throw new Error(
+      `${scenario.id}: native drag never painted a range: ${JSON.stringify(samples)}`,
+    );
+  }
+  const mouseupIndex = samples.findIndex((sample) => sample.type === 'mouseup');
+  const held = samples.slice(
+    firstHeldIndex,
+    mouseupIndex < 0 ? samples.length : mouseupIndex + 1,
+  );
+  const collapsedDuringHold = held.filter((sample) => sample.collapsed);
+  if (collapsedDuringHold.length > 0) {
+    throw new Error(
+      `${scenario.id}: range collapsed during hold: ${JSON.stringify({
+        collapsedDuringHold,
+        held,
+      })}`,
+    );
+  }
+  const opaqueHeld = held.filter((sample) => !isTransparentCaret(sample.caretColor));
+  if (opaqueHeld.length > 0 || !held.every((sample) => sample.hiddenClass)) {
+    throw new Error(
+      `${scenario.id}: native drag kept a visible caret: ${JSON.stringify({
+        held,
+        opaqueHeld,
+      })}`,
+    );
+  }
+  const released = await readCaretObservation(page);
+  if (
+    released.selectedText.length === 0 ||
+    !released.hiddenClass ||
+    !isTransparentCaret(released.caretColor)
+  ) {
+    throw new Error(
+      `${scenario.id}: caret still visible after release: ${JSON.stringify(released)}`,
+    );
+  }
+
+  runNativeProbe('Click', {
+    X: nativeEnd.x,
+    Y: nativeEnd.y,
+  });
+  await page.waitForFunction(
+    () => {
+      const content = document.querySelector('.lm-editor-live-preview-mode .cm-content');
+      const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
+      return view?.state.selection.main.empty === true;
+    },
+    null,
+    { timeout: 5_000 },
+  );
+  const collapsed = await readCaretObservation(page);
+  if (
+    collapsed.selectedText.length > 0 ||
+    collapsed.hiddenClass ||
+    isTransparentCaret(collapsed.caretColor)
+  ) {
+    throw new Error(
+      `${scenario.id}: caret stayed hidden after collapse: ${JSON.stringify(collapsed)}`,
+    );
+  }
+
+  return {
+    collapsed,
+    heldCount: held.length,
+    id: scenario.id,
+    nativeResult,
+    released,
+  };
+}
+
+async function replaceDocument(page, source) {
+  await page.evaluate((nextSource) => {
+    const content = document.querySelector('.lm-editor-live-preview-mode .cm-content');
+    const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
+    if (!view) {
+      throw new Error('Unable to resolve live-preview EditorView.');
+    }
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: nextSource },
+      selection: { anchor: nextSource.length },
+    });
+  }, source);
+  await page.waitForFunction(
+    (nextSource) => {
+      const content = document.querySelector('.lm-editor-live-preview-mode .cm-content');
+      const view = content?.cmTile?.root?.view ?? content?.cmTile?.view;
+      return view?.state.doc.toString() === nextSource;
+    },
+    source,
+    { timeout: 10_000 },
+  );
+}
+
+async function resetPressSamples(page) {
+  await page.evaluate(() => {
+    if (window.__lumamarkSelectionCaretSamples) {
+      window.__lumamarkSelectionCaretSamples.length = 0;
+    }
+  });
+}
+
 async function installPressObserver(page) {
   await page.evaluate((hiddenClass) => {
     const samples = [];
@@ -261,6 +452,9 @@ async function installPressObserver(page) {
       const selection = view.state.selection.main;
       samples.push({
         caretColor: getComputedStyle(content).caretColor,
+        collapsed: selection.empty,
+        from: selection.from,
+        head: selection.head,
         hiddenClass: content.classList.contains(hiddenClass),
         selectedText: view.state.sliceDoc(selection.from, selection.to),
         type,

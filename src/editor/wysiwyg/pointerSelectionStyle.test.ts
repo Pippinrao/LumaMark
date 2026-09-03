@@ -22,18 +22,23 @@ function findTextNode(root: ParentNode, text: string): Text {
   throw new Error(`Unable to locate rendered text: ${text}`);
 }
 
-function mountEditor(): {
+function mountEditor(options: {
+  doc?: string;
+  locate?: string;
+  posAtCoords?: (coords: { x: number; y: number }) => number | null;
+} = {}): {
   cleanup: () => void;
   updates: ViewUpdate[];
   view: EditorView;
 } {
+  const doc = options.doc ?? source;
   const parent = document.createElement('div');
   document.body.appendChild(parent);
   const updates: ViewUpdate[] = [];
   const view = new EditorView({
     parent,
     state: EditorState.create({
-      doc: source,
+      doc,
       extensions: [
         markdownLanguage(),
         markdownWysiwygExtension(),
@@ -43,13 +48,13 @@ function mountEditor(): {
       ],
     }),
   });
-  const textNode = findTextNode(parent, 'alpha beta gamma');
+  const textNode = findTextNode(parent, options.locate ?? doc);
   // One CSS pixel per character keeps the pointer arithmetic readable.
   Object.defineProperty(document, 'caretPositionFromPoint', {
     configurable: true,
     value: vi.fn((x: number) => ({
       getClientRect: () => new DOMRect(),
-      offset: Math.max(0, Math.min(source.length, Math.round(x - 100) + 6)),
+      offset: Math.max(0, Math.min(doc.length, Math.round(x - 100) + 6)),
       offsetNode: textNode,
     })),
   });
@@ -57,10 +62,13 @@ function mountEditor(): {
     if (!coords) {
       return null;
     }
+    if (options.posAtCoords) {
+      return options.posAtCoords(coords);
+    }
 
     return Math.max(
       0,
-      Math.min(source.length, Math.round(coords.x - 100) + 6),
+      Math.min(doc.length, Math.round(coords.x - 100) + 6),
     );
   });
 
@@ -233,6 +241,143 @@ describe('pointer selection style', () => {
       caretSpy.mockClear();
       style.get(mouseEvent(120, 20), false, false);
       expect(caretSpy).not.toHaveBeenCalled();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('keeps the last expanded head when posAtCoords returns null over a widget', () => {
+    const hits = new Map<number, number | null>([
+      [120, 16],
+      [140, null],
+      [160, 24],
+    ]);
+    const { cleanup, view } = mountEditor({
+      posAtCoords: (coords) => hits.get(coords.x) ?? null,
+    });
+
+    try {
+      const style = createPointerSelectionStyle(view, {
+        position: 6,
+        x: 100,
+        y: 20,
+      });
+      const expanded = style.get(mouseEvent(120, 20), false, false);
+      const overWidget = style.get(mouseEvent(140, 20), false, false);
+      const afterWidget = style.get(mouseEvent(160, 20), false, false);
+
+      expect(expanded.main.empty).toBe(false);
+      expect(expanded.main.anchor).toBe(6);
+      expect(expanded.main.head).toBe(16);
+      expect(overWidget.main.empty).toBe(false);
+      expect(overWidget.main.anchor).toBe(6);
+      expect(overWidget.main.head).toBe(16);
+      expect(afterWidget.main.empty).toBe(false);
+      expect(afterWidget.main.anchor).toBe(6);
+      expect(afterWidget.main.head).toBe(24);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('does not jump the head backward onto a hidden delimiter during a forward drag', () => {
+    const hits = new Map<number, number | null>([
+      [120, 16],
+      [130, 8],
+      [140, 20],
+    ]);
+    const { cleanup, view } = mountEditor({
+      doc: 'prefix **bold** suffix',
+      locate: 'bold',
+      posAtCoords: (coords) => hits.get(coords.x) ?? null,
+    });
+
+    try {
+      const style = createPointerSelectionStyle(view, {
+        position: 6,
+        x: 100,
+        y: 20,
+      });
+      const expanded = style.get(mouseEvent(120, 20), false, false);
+      const overDelimiter = style.get(mouseEvent(130, 20), false, false);
+      const afterMark = style.get(mouseEvent(140, 20), false, false);
+      const heads = [expanded, overDelimiter, afterMark].map(
+        (selection) => selection.main.head,
+      );
+
+      expect(expanded.main.empty).toBe(false);
+      expect(overDelimiter.main.empty).toBe(false);
+      expect(overDelimiter.main.anchor).toBe(6);
+      expect(overDelimiter.main.head).toBe(16);
+      expect(afterMark.main.head).toBe(20);
+      expect(heads).toEqual([16, 16, 20]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it.each([
+    ['bold', 'prefix **加粗内容** suffix', '加粗内容'],
+    ['italic', 'prefix *斜体内容* suffix', '斜体内容'],
+    ['strikethrough', 'prefix ~~删除内容~~ suffix', '删除内容'],
+    ['inline-code', 'prefix `行内代码` suffix', '行内代码'],
+    ['inline-math', 'prefix $E=mc^2$ suffix', 'E=mc^2'],
+    ['link', 'prefix [链接文本](https://example.com) suffix', '链接文本'],
+  ] as const)(
+    'keeps a forward drag across %s from collapsing when a hit returns null',
+    (_label, doc, locate) => {
+      const hits = new Map<number, number | null>([
+        [120, 18],
+        [132, null],
+        [148, 28],
+      ]);
+      const { cleanup, view } = mountEditor({
+        doc,
+        locate,
+        posAtCoords: (coords) => hits.get(coords.x) ?? null,
+      });
+
+      try {
+        const style = createPointerSelectionStyle(view, {
+          position: 7,
+          x: 100,
+          y: 20,
+        });
+        const samples = [120, 132, 148].map((x) =>
+          style.get(mouseEvent(x, 20), false, false).main,
+        );
+
+        expect(samples.every((range) => !range.empty)).toBe(true);
+        expect(samples.every((range) => range.anchor === 7)).toBe(true);
+        expect(samples.map((range) => range.head)).toEqual([18, 18, 28]);
+      } finally {
+        cleanup();
+      }
+    },
+  );
+
+  it('still shrinks the range when the pointer reverses toward the press', () => {
+    const hits = new Map<number, number | null>([
+      [120, 16],
+      [110, 12],
+    ]);
+    const { cleanup, view } = mountEditor({
+      posAtCoords: (coords) => hits.get(coords.x) ?? null,
+    });
+
+    try {
+      const style = createPointerSelectionStyle(view, {
+        position: 6,
+        x: 100,
+        y: 20,
+      });
+      const expanded = style.get(mouseEvent(120, 20), false, false);
+      const reversed = style.get(mouseEvent(110, 20), false, false);
+
+      expect(expanded.main.head).toBe(16);
+      expect(reversed.main.empty).toBe(false);
+      expect(reversed.main.anchor).toBe(6);
+      expect(reversed.main.head).toBe(12);
     } finally {
       cleanup();
     }

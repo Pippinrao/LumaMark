@@ -30,11 +30,22 @@ export function createPointerSelectionStyle(
   anchor: PointerSelectionAnchor,
 ): MouseSelectionStyle {
   let anchorPosition = anchor.position;
+  let lastHead = anchor.position;
+  let lastPointerX = anchor.x;
   let startSelection = view.state.selection;
 
   return {
     get(event: MouseEvent, extend: boolean, multiple: boolean) {
-      const range = pointerSelectionRange(view, anchor, anchorPosition, event);
+      const range = pointerSelectionRange(
+        view,
+        anchor,
+        anchorPosition,
+        lastHead,
+        lastPointerX,
+        event,
+      );
+      lastHead = range.head;
+      lastPointerX = event.clientX;
 
       if (extend) {
         return startSelection.replaceRange(
@@ -51,6 +62,7 @@ export function createPointerSelectionStyle(
     update(update: ViewUpdate) {
       if (update.docChanged) {
         anchorPosition = update.changes.mapPos(anchorPosition);
+        lastHead = update.changes.mapPos(lastHead);
         startSelection = startSelection.map(update.changes);
       }
     },
@@ -61,6 +73,8 @@ function pointerSelectionRange(
   view: EditorView,
   anchor: PointerSelectionAnchor,
   anchorPosition: number,
+  lastHead: number,
+  lastPointerX: number,
   event: MouseEvent,
 ) {
   const coordinates = { x: event.clientX, y: event.clientY };
@@ -70,11 +84,33 @@ function pointerSelectionRange(
     return view.state.wordAt(anchorPosition) ?? EditorSelection.cursor(anchorPosition);
   }
 
-  const head = inSlop
-    ? anchorPosition
-    : (view.posAtCoords(coordinates, false) ?? anchorPosition);
+  if (inSlop) {
+    return EditorSelection.cursor(anchorPosition);
+  }
+
+  const mapped = view.posAtCoords(coordinates, false);
+  const head = stabilizeDragHead(mapped, lastHead, lastPointerX, event.clientX);
 
   return head === anchorPosition
     ? EditorSelection.cursor(anchorPosition)
     : EditorSelection.range(anchorPosition, head);
+}
+
+function stabilizeDragHead(
+  mapped: number | null,
+  lastHead: number,
+  lastPointerX: number,
+  pointerX: number,
+): number {
+  if (mapped === null) {
+    return lastHead;
+  }
+
+  const pointerDelta = pointerX - lastPointerX;
+  const headDelta = mapped - lastHead;
+  if (pointerDelta * headDelta < 0) {
+    return lastHead;
+  }
+
+  return mapped;
 }

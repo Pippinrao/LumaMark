@@ -4,7 +4,7 @@
 
 - 状态：已采纳
 - 日期：2026-08-18（对应 issue #14、#19 的同一根因）
-- 更新：2026-08-20（`detail === 2` 的拖选仍由自管 style 持有字符区间）
+- 更新：2026-09-03（`posAtCoords` 为 null 或与指针方向相反时，拖拽 head 保持上一有效位置）
 
 ## 背景
 
@@ -22,7 +22,7 @@ Windows 安装包证据（WebView2、DPR 1.5、Win32 `SendInput`）与浏览器 
 - 实时预览注册自己的 `EditorView.mouseSelectionStyle`（`editor/wysiwyg/pointerSelectionStyle.ts`），接管装饰插件已解析为光标或 word-or-drag 候选的普通左键按下。
 - style 只解析一次锚点：使用插件基于浏览器原生 caret 命中计算出的按下候选，并在文档变更时映射该锚点。
 - 指针停留在 DPR 感知的单击容差内（`isPrimaryPointerClick`）时：光标候选返回折叠光标；`word-or-drag` 候选（系统 `detail === 2`）返回按下锚点处的词。
-- 指针越过容差后，head 使用 CodeMirror `posAtCoords` 从按下坐标映射，包括 `detail === 2`。原生 `caretPositionFromPoint` 只用于按下和 `mouseup` 结算，不得在每次拖拽 `mousemove` 上运行。
+- 指针越过容差后，head 使用 CodeMirror `posAtCoords` 从按下坐标映射，包括 `detail === 2`。命中为 `null`（widget 内部）时保持上一有效 head，而不是塌回按下锚点。命中方向与指针移动相反时也保持上一 head，避免隐藏定界符让选区闪烁。原生 `caretPositionFromPoint` 只用于按下和 `mouseup` 结算，不得在每次拖拽 `mousemove` 上运行。
 - 以下情况返回 `null`，保留 CodeMirror 内置行为：三击、已经 `preventDefault` 的行内代码 chip 按下、没有候选的按下。
 - 单击的 `mouseup` 结算保持对同一位置的确认。已经画出字符拖选区间的 `detail === 2` 拖拽，不得再被结算成选词。
 
@@ -42,9 +42,10 @@ Windows 安装包证据（WebView2、DPR 1.5、Win32 `SendInput`）与浏览器 
 
 ## 验证要求
 
-- 单元测试覆盖多种设备像素比下的容差行为、越过容差后的拖拽扩展、以及锚点随文档变更的映射。
-- 浏览器 E2E 针对标题、加粗、链接、普通段落与列表项，断言按下、移动一到三像素、抬起三个时刻都是折叠选区，并断言真实拖拽仍然产生区间选区。
+- 单元测试覆盖多种设备像素比下的容差行为、越过容差后的拖拽扩展、`posAtCoords` 为 null 或与指针反向跳动时保持上一 head、反向拖拽仍可收缩选区、以及锚点随文档变更的映射。
+- 浏览器 E2E 针对标题、加粗、链接、普通段落与列表项，断言按下、移动一到三像素、抬起三个时刻都是折叠选区，并断言真实拖拽仍然产生区间选区。拖过矩阵（加粗、斜体、删除线、行内代码、行内公式、链接、混合行内、图片、Mermaid、围栏代码、块级公式）在按住期间采样；选区塌缩或原生光标在越过容差后重现即失败。
 - `pnpm release:installed-preview-click-selection-os` 对安装包用 Win32 `SendInput` 执行按下—移动—抬起；只要按住期间任一采样出现区间，或光标在按下与抬起之间移动，即判失败。
+- `pnpm release:installed-selection-caret-os` 用同一套拖过矩阵做 Win32 `SendInput` 验收；按住期间选区塌缩、`caret-color` 不透明、或折叠后光标未恢复，即判失败。
 
 ## 重新评估与回滚条件
 

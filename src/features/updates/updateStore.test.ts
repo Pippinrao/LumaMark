@@ -33,7 +33,7 @@ describe('update store', () => {
     });
   });
 
-  it('keeps automatic check failures silent until a manual check opens the dialog', async () => {
+  it('opens the dialog when an automatic check fails so network errors stay visible', async () => {
     const check = vi.fn(async (): Promise<UpdateCheckOutcome> => ({
       kind: 'failed',
       code: 'update.checkFailed',
@@ -45,13 +45,6 @@ describe('update store', () => {
     });
 
     await store.getState().checkForUpdates();
-    expect(store.getState()).toMatchObject({
-      dialogOpen: false,
-      status: 'idle',
-      errorCode: 'update.checkFailed',
-    });
-
-    await store.getState().checkForUpdates({ openDialog: true });
     expect(store.getState()).toMatchObject({
       dialogOpen: true,
       status: 'error',

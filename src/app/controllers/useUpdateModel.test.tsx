@@ -50,7 +50,7 @@ describe('useUpdateModel settings integration', () => {
     ).toBe(true);
   });
 
-  it('does not auto-check until settings hydration succeeds', async () => {
+  it('does not auto-check until settings hydration settles', async () => {
     const settings = createDefaultLumaMarkSettings();
     settings.updates.autoCheckOnStartup = true;
     useSettingsStore.setState({
@@ -67,6 +67,25 @@ describe('useUpdateModel settings integration', () => {
     act(() => {
       useSettingsStore.setState({ loadState: { status: 'ready' } });
     });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    expect(updaterMocks.checkForUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto-checks after unsupported settings versions fall back to defaults', async () => {
+    const settings = createDefaultLumaMarkSettings();
+    settings.updates.autoCheckOnStartup = true;
+    useSettingsStore.setState({
+      loadState: {
+        code: 'settings.unsupported_version',
+        status: 'unsupportedVersion',
+      },
+      settings,
+    });
+
+    renderHook(() => useUpdateModel());
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });

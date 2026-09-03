@@ -4,9 +4,22 @@ import packageMetadata from '../../../package.json';
 import { logMenuInteraction } from '../../shared/debug/menuInteractionLog';
 import { createUpdateStore } from '../../features/updates/updateStore';
 import { patchSettings } from './applySettings';
-import { useSettingsStore } from '../../features/settings/settingsStore';
+import {
+  type SettingsLoadState,
+  useSettingsStore,
+} from '../../features/settings/settingsStore';
 
 const AUTO_CHECK_DELAY_MS = 5_000;
+
+function isSettingsLoadSettled(
+  status: SettingsLoadState['status'],
+): boolean {
+  return (
+    status === 'ready' ||
+    status === 'readFailed' ||
+    status === 'unsupportedVersion'
+  );
+}
 
 export function useUpdateModel() {
   const store = useMemo(
@@ -19,9 +32,10 @@ export function useUpdateModel() {
   const autoCheckOnStartup = useSettingsStore(
     (state) => state.settings.updates.autoCheckOnStartup,
   );
-  const settingsHydrated = useSettingsStore(
-    (state) => state.loadState.status === 'ready',
+  const settingsLoadStatus = useSettingsStore(
+    (state) => state.loadState.status,
   );
+  const settingsLoadSettled = isSettingsLoadSettled(settingsLoadStatus);
   const setAutoCheckOnStartup = useCallback((next: boolean) => {
     patchSettings((current) => ({
       ...current,
@@ -34,7 +48,7 @@ export function useUpdateModel() {
   useEffect(() => {
     if (
       autoCheckStartedRef.current ||
-      !settingsHydrated ||
+      !settingsLoadSettled ||
       !autoCheckOnStartup ||
       !isTauri()
     ) {
@@ -59,7 +73,7 @@ export function useUpdateModel() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [autoCheckOnStartup, settingsHydrated, store]);
+  }, [autoCheckOnStartup, settingsLoadSettled, store]);
 
   return {
     autoCheckOnStartup,

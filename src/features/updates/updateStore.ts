@@ -252,10 +252,10 @@ function applyCheckOutcome(
       return;
     case 'failed':
       set({
-        dialogOpen: openDialog,
+        dialogOpen: true,
         errorCode: outcome.code,
         errorMessage: outcome.message,
-        status: openDialog ? 'error' : 'idle',
+        status: 'error',
       });
       return;
   }

@@ -237,11 +237,14 @@ test('reopens a recent file from the files sidebar', async ({ page }) => {
   await runFileMenuAction(page, 'openFile');
   const editor = page.locator('.cm-content');
   await expect(editor).toContainText('Recent document');
+  await expect(page.getByRole('tab', { name: /^(?:Outline|大纲)$/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: /^(?:Files|文件)$/ }).click();
   await expect(page.getByTestId('single-file-sidebar')).toContainText('recent.md');
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'recent.md' })).toBeVisible();
   await openBlankDocument(page);
+  await page.getByRole('tab', { name: /^(?:Files|文件)$/ }).click();
 
   await editor.click();
   await page.keyboard.press('Control+A');

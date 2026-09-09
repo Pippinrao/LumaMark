@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { openBlankDocument } from './support/openBlankDocument';
+import { SETTINGS_VERSION } from '../../src/services/settings/settingsTypes';
 
 const reportDirectory = resolve('artifacts/settings-report');
 
@@ -238,7 +239,7 @@ test('recovers corrupt browser settings visibly without hiding the preserved con
         return raw ? JSON.parse(raw).version : null;
       }),
     )
-    .toBe(4);
+    .toBe(SETTINGS_VERSION);
 });
 
 test('applies editor defaults to new documents without rebuilding the ready editor', async ({

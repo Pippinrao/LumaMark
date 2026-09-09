@@ -8,6 +8,7 @@ type WorkspaceSidebarProps = {
   labels: SidebarLabels;
   onTabChange?: (tab: SidebarTab) => void;
   outline: ReactNode;
+  tab?: SidebarTab;
 };
 
 function isSidebarTab(value: string): value is SidebarTab {
@@ -19,8 +20,10 @@ export function WorkspaceSidebar({
   labels,
   onTabChange,
   outline,
+  tab: controlledTab,
 }: WorkspaceSidebarProps) {
-  const [tab, setTab] = useState<SidebarTab>('files');
+  const [localTab, setTab] = useState<SidebarTab>('files');
+  const tab = controlledTab ?? localTab;
 
   return (
     <aside className="lm-sidebar" aria-label={labels.sidebar}>

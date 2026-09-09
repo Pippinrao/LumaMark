@@ -26,7 +26,7 @@ LumaMark 过去只在打开文件时读取磁盘。其他程序修改 Markdown �
 - `file-watch://changed` 的 `kind: image` 事件已接到 app 层 `refreshLocalImage({ path, revision })`，随后依次更新同源 revision store、失效 resolver path、调用 `EditorDocumentPort.refreshImages(path)` 并派发 image capability refresh effect。
 - resolver 与 revision store 使用同一 `normalizeLocalPathKey`；重新解析后的 asset URL 携带同源 `lmv=<revision>`。图片 widget identity 包含 source revision，因此命中图片替换 DOM，其他 widget 保持等价复用，Markdown 正文、dirty 和 undo 不变。
 - 前端用单调 watch revision 丢弃旧事件；文档读回再用 generation、request id 与当前 path 三重校验隔离迟到结果。图片 target 同步使用串行 queue + generation，切换文档时清空旧授权/失效集合，旧 target 更新不能覆盖新引用集合。
-- 浏览器单元/集成测试验证 event→resolver→editor effect、cache-busting 和迟到结果丢弃；Rust 测试验证真实 watcher、原子替换与 fingerprint。browser mock 仍不能替代 Windows Tauri 的真实图片替换实测，退出边界见 [当前执行计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+- 浏览器单元/集成测试验证 event→resolver→editor effect、cache-busting 和迟到结果丢弃；Rust 测试验证真实 watcher、原子替换与 fingerprint。browser mock 仍不能替代 Windows Tauri 的真实图片替换实测，退出边界见 [当前执行计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)。
 
 ## 被否决方案
 

@@ -6,6 +6,12 @@
 
 ## 文档治理原则
 
+Agent 使用：[CLI 与 MCP 使用说明](release/AGENT_TOOLS.md) 负责安装、命令、配置与故障处理，接口或分发变化时更新。
+
+Agent 架构：[ADR 0023：CLI 与 MCP](decisions/0023-agent-cli-and-mcp.md) 负责服务架构、结果结构和能力边界，接口或分发变化时同步更新。
+
+当前执行草稿：[Agent 工具与文档布局计划](superpowers/plans/2026-09-09-agent-tools-and-document-layout.md)。
+
 - 文档要少而准，不为临时想法创建长期文档。
 - 同一主题只能有一个主事实来源。
 - 近期计划可以细，远期计划保持大纲和决策门。
@@ -28,8 +34,6 @@ docs/
 ├─ zh/                       # 项目文档的完整中文镜像（本文件所在目录）
 ├─ superpowers/              # 非权威的 agent 规划草稿（specs/plans）
 ├─ product/                  # 产品定位、版本范围、PRD、竞品策略
-│  ├─ typora-baseline/       # Typora 公开行为基线（专题事实与对齐表）
-│  └─ typora-competitive-analysis/ # LumaMark 快照与专题差距分析
 ├─ architecture/             # 架构原则、模块边界、技术选型
 ├─ decisions/                # 重大决策记录
 ├─ quality/                  # 测试、性能、质量策略
@@ -53,7 +57,7 @@ docs/
 1. [项目章程](product/PROJECT_CHARTER.md)
 2. [产品定位与策略](product/PRODUCT_STRATEGY.md)
 3. [演进计划](roadmap/EVOLUTION_PLAN.md)
-4. [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
+4. [编辑器可靠性实施计划](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)
 5. [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md)
 6. [质量策略](quality/QUALITY_STRATEGY.md)
 7. [Agent 工作契约](../../AGENTS.zh.md)
@@ -70,7 +74,7 @@ docs/
 
 ## 当前状态
 
-Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是 **Parity Reliability Foundation**：在叠加更多专题能力之前，先收敛源码保真、输入法、撤销、焦点和 active-save 可靠性。范围、顺序与退出门禁仅以 [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。
+Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是 **Parity Reliability Foundation**：在叠加更多专题能力之前，先收敛源码保真、输入法、撤销、焦点和 active-save 可靠性。范围、顺序与退出门禁仅以 [编辑器可靠性实施计划](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md) 为准。
 
 已落地能力（高层索引；合同与验收见链接的中文文档）：
 
@@ -92,11 +96,8 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 | [V1 产品需求](product/V1_PRODUCT_REQUIREMENTS.md) | 历史产品基线 | Foundation / MarkText+ 的 V1 功能范围和验收口径 | 原则上冻结，仅修正链接或历史状态说明 |
 | [V1 版本设计](product/V1_VERSION_DESIGN.md) | 历史产品基线 | Foundation / MarkText+ 的 Alpha 产品、交互和架构切片记录；不作为当前执行计划 | 原则上冻结，仅修正链接或历史状态说明 |
 | [V1 UX 设计](product/V1_UX_DESIGN.md) | 历史 UX 基线 | Alpha 默认布局、视觉方向、高保真原型和 UX 验收记录 | 稳定视觉原则或历史状态说明变化 |
-| [菜单系统设计](product/MENU_SYSTEM_DESIGN.md) | 产品 UX | 顶栏菜单、右键菜单与命令面板共用的视觉、信息结构、命令合同、上下文命中、Typora 快捷键映射和验收标准 | 菜单/右键结构、快捷键、相关 capability 状态或菜单技术方案变化 |
+| [菜单系统设计](product/MENU_SYSTEM_DESIGN.md) | 产品 UX | 顶栏菜单、右键菜单与命令面板共用的视觉、信息结构、命令合同、上下文命中、快捷键映射和验收标准 | 菜单/右键结构、快捷键、相关 capability 状态或菜单技术方案变化 |
 | [设置系统设计](product/SETTINGS_SYSTEM_DESIGN.md) | 产品 UX | 设置对话框分区、schema、持久化与迁移合同、设置与会话状态边界、测试与验收 | 设置分区/字段、持久化后端、迁移策略或设置门禁变化 |
-| [竞品策略与历史债务](product/COMPETITOR_STRATEGY.md) | 产品 | Typora、MarkText 等竞品策略和避坑 | 竞品判断或避坑策略变化 |
-| [Typora 行为基线](product/typora-baseline/README.md) | 产品 | Typora 公开写作行为事实、出处与 LumaMark 对齐表 | Typora 版本复核、基线专题增补或对齐决策变化 |
-| [Typora 专题竞争分析](product/typora-competitive-analysis/README.md) | 产品 | 18 份专题报告的目录导航、职责边界、状态词表和维护门禁 | 相关实现证据、Typora 基线或专题结构变化后 |
 | [架构策略](architecture/ARCHITECTURE_STRATEGY.md) | 架构 | 高层架构原则和反模式 | 架构原则变化 |
 | [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md) | 架构 | 模块边界、数据流、技术选型 | 默认架构或主要依赖变化 |
 | [ADR 0001：V1 应用外壳成熟组件选型](decisions/0001-task8-ui-components.md) | 决策 | Task 8 UI 基础组件选择和复审条件 | 文件树、分栏、命令面板、dialog 基础组件变化 |
@@ -125,7 +126,7 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果、已知限制与装机交互卡顿门禁 | 性能预算、基准命令、装机交互门禁或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |
 | [演进计划](roadmap/EVOLUTION_PLAN.md) | 路线 | 近细远粗的阶段计划 | 近期阶段目标或退出条件变化 |
-| [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) | 当前执行路线 | Parity Reliability Foundation 的实施顺序、合同、证据与退出门禁 | 当前里程碑范围、顺序或门禁变化 |
+| [编辑器可靠性实施计划](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md) | 当前执行路线 | Parity Reliability Foundation 的实施顺序、合同、证据与退出门禁 | 当前里程碑范围、顺序或门禁变化 |
 | [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md) | 历史路线基线 | Foundation / MarkText+ 的 Alpha 任务拆解；保留原始 checkbox，不代表当前完成状态 | 原则上冻结，仅修正链接或历史状态说明 |
 
 ## 事实来源约定
@@ -136,9 +137,8 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 - Alpha 前台 UX 历史基线见 [V1 UX 设计](product/V1_UX_DESIGN.md)；当前交互实施范围以当前执行计划和详细架构为准。
 - 当前详细架构以 [详细架构设计与技术选型](architecture/DETAILED_ARCHITECTURE.md) 为准。
 - 当前阶段定位与 Now/Next/Later 以 [演进计划](roadmap/EVOLUTION_PLAN.md) 为准。
-- 当前可执行范围、顺序和退出门禁以 [Typora Parity 核心体验改进计划](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。
+- 当前可执行范围、顺序和退出门禁以 [编辑器可靠性实施计划](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md) 为准。
 - [V1 产品需求](product/V1_PRODUCT_REQUIREMENTS.md)、[V1 UX 设计](product/V1_UX_DESIGN.md)、[V1 版本设计](product/V1_VERSION_DESIGN.md) 与 [V1 落地实施计划](roadmap/V1_IMPLEMENTATION_PLAN.md) 只作为历史 Alpha 基线，不用于推断当前实现状态。
-- Typora 公开行为细节以 [Typora 行为基线](product/typora-baseline/README.md) 为准；专题实现快照以 [Typora 专题竞争分析](product/typora-competitive-analysis/README.md) 为准；LumaMark 当前实施范围仍以当前执行计划为准。
 - `docs/superpowers/` 是非权威的规划草稿，不得覆盖上述事实来源。
 
 如果文档之间出现冲突，先按上述事实来源判断，再更新过期文档。

@@ -83,7 +83,7 @@ Tauri 桌面壳
 - 适合大文档。
 - 支持增量解析。
 - 支持 decorations/widgets。
-- 可实现 Typora-like 的 Markdown 视觉层。
+- 可实现 WYSIWYG 的 Markdown 视觉层。
 - Markdown 源文可以保持为主数据。
 
 负责：

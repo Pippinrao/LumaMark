@@ -8,7 +8,7 @@ Updated: 2026-08-04 (pin 1.0.0 and patch vertical caret column retention)
 
 ## Context
 
-V1 live-preview tables need a mature Typora-like writing experience: normal display by default, structured editing on click, stable row/column operations, copy/paste that preserves Markdown source, and no hiding of source in source mode. Project rules prefer mature components. The existing custom `TableWidget` already shows excessive UI noise, focus-state issues, nested editing friction, and high maintenance cost for row/column operations.
+V1 live-preview tables need a mature WYSIWYG writing experience: normal display by default, structured editing on click, stable row/column operations, copy/paste that preserves Markdown source, and no hiding of source in source mode. Project rules prefer mature components. The existing custom `TableWidget` already shows excessive UI noise, focus-state issues, nested editing friction, and high maintenance cost for row/column operations.
 
 ## Decision
 

@@ -10,7 +10,7 @@
 
 Foundation and MarkText+ already established CodeMirror as the primary editor, a file loop, and multiple Markdown capabilities, but reliability behavior had been scattered across decorations, save callers, and complex blocks. Continuing to add per-syntax active-line special cases, string round-trips, or nested editors would amplify risk to IME, selection, undo, active-save, and source fidelity.
 
-Current implementation scope is in the [Typora Parity core experience improvement plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+Current implementation scope is in the [Editor Reliability core experience improvement plan](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 ## Decision
 

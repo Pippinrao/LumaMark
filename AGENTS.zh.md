@@ -14,7 +14,7 @@ LumaMark 是一个高性能、现代化、跨平台的所见即所得 Markdown �
 
 产品路线：
 
-- 先复刻成熟的 Typora-like 写作体验。
+- 先复刻成熟的 WYSIWYG 写作体验。
 - 再在性能、现代工作流、可扩展性和平台集成上创新。
 - 优先做好 Windows 体验，同时从架构上天然支持 macOS 和 Linux。
 - 从第一天开始把中文和英文作为一等 UI 语言。
@@ -23,9 +23,9 @@ LumaMark 是一个高性能、现代化、跨平台的所见即所得 Markdown �
 
 - 应用名：`LumaMark`
 - 仓库和包名：`lumamark`
-- 产品定位：高性能 Typora-like Markdown 编辑器
+- 产品定位：高性能 WYSIWYG Markdown 编辑器
 
-Typora 只能作为公开体验基线参考。不要复制 Typora 的专有素材、品牌元素或私有实现细节。
+以独立定义的写作流程为产品依据，不复制第三方专有素材、品牌元素或私有实现细节。
 
 ## 版本号管理
 
@@ -43,7 +43,7 @@ LumaMark 的版本号固定使用 `a.b.c` 格式，三个部分均为非负整�
 1. 性能是核心产品能力，不是后期优化项。
 2. Markdown 源文件是唯一真实数据。
 3. 所见即所得行为不能破坏用户的格式、空白、换行和源码意图。
-4. 第一版布局应尽量贴近成熟的 Typora-like 范式：安静的中央编辑区、可选侧边栏、尽量少的视觉噪音。
+4. 第一版布局应尽量贴近成熟的 WYSIWYG 范式：安静的中央编辑区、可选侧边栏、尽量少的视觉噪音。
 5. 为长时间写作设计：界面克制、交互可预测、滚动稳定、输入快速。
 6. 优先选择成熟、可靠、朴素的基础设施，不追求聪明但脆弱的自研系统。
 7. 所有用户可见文案都必须可本地化。禁止在 i18n 层之外硬编码 UI 文案。
@@ -161,7 +161,7 @@ agent 必须优先选择成熟、维护活跃、文档完善的组件。
 
 自定义代码只应该用于 LumaMark 的差异化能力：
 
-- 基于编辑器核心实现 Typora-like Markdown 所见即所得体验
+- 基于编辑器核心实现 WYSIWYG Markdown 所见即所得体验
 - Markdown 源码保真
 - 大文档流畅性
 - 异步预览和渲染调度
@@ -347,7 +347,7 @@ LumaMark 必须控制文档数量和职责边界。文档是为了降低沟通�
 1. `AGENTS.md`（中文镜像：`AGENTS.zh.md`）：工作规则、工程纪律、文档治理。
 2. `DEVELOPMENT_PROCESS.md`（中文镜像：`DEVELOPMENT_PROCESS.zh.md`）：开发流程、测试、验证和完成定义。
 3. `docs/product/PROJECT_CHARTER.md`：项目愿景和长期定位。
-4. `docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md`：当前实施范围、顺序和退出门禁。
+4. `docs/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md`：当前实施范围、顺序和退出门禁。
 5. `docs/architecture/DETAILED_ARCHITECTURE.md`：当前详细架构和技术选型。
 6. `docs/roadmap/EVOLUTION_PLAN.md`：阶段和演进计划。
 

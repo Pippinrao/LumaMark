@@ -3,9 +3,7 @@
  * padding: 16px and we previously added margin 22/28 — both create visual
  * gaps that look selectable but map clicks into the first/last table row.
  * Spacing comes from real markdown blank lines (clickable cm-lines) only.
- * Keep library paint containment. Widget width is the writing track, with
- * min-width: min-content so unwrappable tables grow the widget instead of
- * overflowing it. contain:paint then cannot clip breakout tables.
+ * Keep library paint containment and fit the selected page with cell wrapping.
  * Override overflow-x:auto so there is no inner scrollbar.
  */
 .cm-editor .cm-content .tbl-table-widget {
@@ -17,15 +15,19 @@
 /* Do not clip or scroll the table; wide content should remain fully visible. */
 .cm-content .tbl-table-wrapper {
   overflow: visible;
+  width: 100%;
+  min-width: 0;
 }
 
 .cm-content .tbl-table-widget .tbl-table {
+  width: 100%;
+  table-layout: fixed;
   border-radius: var(--lm-radius-1);
   box-shadow: 0 0 0 1px var(--lm-color-border-subtle);
 }
 
 .cm-content .tbl-table-widget .tbl-cell {
-  min-width: 4.25rem;
+  min-width: 0;
   position: relative;
 }
 
@@ -47,6 +49,12 @@
 
 .cm-content .tbl-table-widget .tbl-cell-editor .cm-line {
   padding: 0;
+}
+
+.cm-content .tbl-table-widget .tbl-cell-view,
+.cm-content .tbl-table-widget .tbl-cell-editor .cm-line {
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 /*

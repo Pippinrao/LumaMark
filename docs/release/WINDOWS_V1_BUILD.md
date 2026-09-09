@@ -191,7 +191,7 @@ Final release artifacts:
 |---|---|---:|---|
 | NSIS installer | `LumaMark_0.2.1_x64-setup.exe` | 4,656,736 bytes | `6a003c9e3c798e991a820a345c0a5d5cecab6992a75e5498aebdeae6c4337efb` |
 
-This version restructured application menus into Typora-like File, Edit, Paragraph, Format, View, Theme, Language, and Help groups, completed executable commands, disabled states, nested menus, keyboard navigation, menu shortcuts, the About dialog, and Chinese/English copy, and updated competitive analysis plus visual verification screenshots.
+This version restructured application menus into WYSIWYG File, Edit, Paragraph, Format, View, Theme, Language, and Help groups, completed executable commands, disabled states, nested menus, keyboard navigation, menu shortcuts, the About dialog, and Chinese/English copy, and updated competitive analysis plus visual verification screenshots.
 
 Fresh automation verification:
 

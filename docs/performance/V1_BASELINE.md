@@ -130,6 +130,8 @@ On the same development real WebView2 before the fix, 10MB tail keyboard input w
 
 ## Known Limitations
 
+For the 2026-09-09 page-bound table change, an isolated `pnpm perf:bench` run passed all 43 tests (13 files). The 32-table open P80 values were 68.59 ms (Adaptive), 60.28 ms (Standard), and 78.47 ms (Fluid), below the 300 ms gate. Mixed-document input P80 was 1.75 ms against 8 ms. These are the existing Vitest/jsdom measurements, not installed pointer or scroll-frame evidence. The separate CLI/MCP host is lazy and outside app startup/input paths; its real-engine integration suite includes fresh browser-page jobs and bounded timeouts.
+
 - The automated baseline still primarily runs in Vitest + jsdom; this round added real Windows Tauri WebView2 observations for open, tail input, undo, and small-document reading-appearance two-frame layout, but that does not replace large-document width/font reflow, scroll FPS, native IME feel, screen readers, or long editing sessions.
 - jsdom `view.dispatch` / synthetic scroll is not installed INP, titlebar drag engage, WebView2 scroll frames, or `longtask` duration. Use `pnpm release:installed-ux-stutter` for those interaction paths. Toy-file same-window click ~25 ms and two-rAF ~16.7 ms after `scrollTop += 280` are not user-stutter evidence.
 - Cold argv open of a two-line Markdown file includes WebView boot (1379 ms on installed 0.3.42; earlier probes ~900–1100 ms) and is an explicit known limitation; it is not the same-window 50 ms file-click budget.

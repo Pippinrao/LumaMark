@@ -118,7 +118,7 @@ test('opens on an accessible start screen with primary actions', async ({ page }
   await expect(page.locator('.cm-content')).toHaveCount(1);
 });
 
-test('uses Typora-like two-pane shell with file and outline tabs in the left sidebar', async ({
+test('uses WYSIWYG two-pane shell with file and outline tabs in the left sidebar', async ({
   page,
 }) => {
   await page.goto('/');
@@ -171,6 +171,8 @@ test('gives the active file or outline tab a distinct surface in both themes', a
   const outlineTab = page.getByRole('tab', { name: '大纲' });
   const tabTrack = page.locator('.lm-sidebar-tabs-list');
 
+  await expect(outlineTab).toHaveAttribute('data-state', 'active');
+  await fileTab.click();
   await expect(fileTab).toHaveAttribute('data-state', 'active');
   await expect(outlineTab).toHaveAttribute('data-state', 'inactive');
   await expectDistinctActiveTab(fileTab, outlineTab, tabTrack);
@@ -191,6 +193,7 @@ test('matches the high fidelity editor gutter and sidebar sizing contract', asyn
 }) => {
   await page.goto('/');
   await openBlankDocument(page);
+  await page.getByRole('tab', { name: '文件' }).click();
 
   const sidebarBox = await page.locator('.lm-sidebar').boundingBox();
   const paperBox = await page.locator('.lm-editor-paper').boundingBox();
@@ -223,7 +226,8 @@ test('matches the high fidelity editor gutter and sidebar sizing contract', asyn
         (editorPaneBox.x + editorPaneBox.width),
     ),
   ).toBeLessThanOrEqual(2);
-  expect(contentBox.width).toBeLessThanOrEqual(860);
+  const scrollerClientWidth = await page.locator('.cm-scroller').evaluate((element) => element.clientWidth);
+  expect(contentBox.width).toBeCloseTo(scrollerClientWidth - 96, 0);
   expect(contentBox.x - editorPaneBox.x).toBeGreaterThanOrEqual(48);
   expect(editorPaneBox.x + editorPaneBox.width - (contentBox.x + contentBox.width)).toBeGreaterThanOrEqual(48);
 });
@@ -355,7 +359,7 @@ test('persists page width across reloads while resetting modified-wheel zoom', a
       getComputedStyle(element).getPropertyValue(propertyName).trim(), name);
 
   await expect.poll(() => readEditorVariable('--lm-editor-page-width')).toBe(
-    'clamp(720px, 70%, 1100px)',
+    '100%',
   );
   await expect.poll(() => readEditorVariable('--lm-editor-font-scale')).toBe('1');
 

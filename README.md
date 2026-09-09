@@ -4,13 +4,13 @@
 
 LumaMark is a high-performance, modern, cross-platform WYSIWYG Markdown editor.
 
-Project vision: first surpass MarkText quickly, then match Typora’s core writing experience, and ultimately become the world’s leading WYSIWYG Markdown editor.
+Project vision: build a reliable daily writing experience, then advance performance, source fidelity, and modern Markdown workflows.
 
 ## Project direction
 
 LumaMark’s path is “replicate first, then innovate”:
 
-1. Phase one aligns with mature Typora-like writing experience and layout patterns.
+1. Phase one aligns with mature WYSIWYG writing experience and layout patterns.
 2. Phase two surpasses existing products in fluidity, source fidelity, large documents, modern UI, multilingual support, and workspace experience.
 3. Phase three forms differentiated capabilities and becomes a high-performance Markdown writing workbench.
 
@@ -26,8 +26,10 @@ LumaMark’s path is “replicate first, then innovate”:
 
 ## Documentation entry points
 
+- [CLI and MCP User Guide](docs/release/AGENT_TOOLS.md)
+
 - [Project documentation map](docs/README.md)
-- [Current Typora Parity implementation plan](docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
+- [Current Editor Reliability implementation plan](docs/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)
 - [Agent working contract](AGENTS.md)
 - [AI development process](DEVELOPMENT_PROCESS.md)
 
@@ -46,7 +48,7 @@ Documentation is **English by default** under `docs/**`, with a full Chinese mir
 
 ## Current status
 
-Foundation and MarkText+ form an Alpha technical baseline. The project is now in **Parity Reliability Foundation**, prioritizing source fidelity, IME, undo, focus, and active-save reliability. Scope and exit gates are defined by the [Typora Parity core experience plan](docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+Foundation and MarkText+ form an Alpha technical baseline. The project is now in **Parity Reliability Foundation**, prioritizing source fidelity, IME, undo, focus, and active-save reliability. Scope and exit gates are defined by the [Editor reliability implementation plan](docs/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 Landed capabilities (high level; details in linked docs):
 

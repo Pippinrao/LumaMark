@@ -2,11 +2,11 @@
 
 # V1 产品需求
 
-> **历史状态（Alpha 基线）：** 本文保留 Foundation / MarkText+ 阶段的 V1 范围与验收口径，不再作为当前执行计划，也不据后续实现追溯改写完成状态。当前范围、顺序和退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+> **历史状态（Alpha 基线）：** 本文保留 Foundation / MarkText+ 阶段的 V1 范围与验收口径，不再作为当前执行计划，也不据后续实现追溯改写完成状态。当前范围、顺序和退出门禁见 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)。
 
 ## V1 目标
 
-V1 的目标是做出一个可日常使用的 Typora-like Markdown 编辑器。
+V1 的目标是做出一个可日常使用的 WYSIWYG Markdown 编辑器。
 
 V1 不追求功能最多，而追求核心写作路径稳定、流畅、可信。
 
@@ -84,7 +84,7 @@ V1 的 WYSIWYG 策略：
 
 ### UI 和布局
 
-V1 布局先对齐 Typora-like 文件管理模式，具体 UX 以 [V1 UX 设计](V1_UX_DESIGN.md) 为准：
+V1 布局先对齐 WYSIWYG 文件管理模式，具体 UX 以 [V1 UX 设计](V1_UX_DESIGN.md) 为准：
 
 - 顶部是文件、编辑、段落、格式、视图、主题、帮助菜单栏。
 - 左侧为文件树和大纲 tab，可切换、可折叠、可调整宽度。

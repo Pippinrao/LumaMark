@@ -16,7 +16,6 @@ artifacts/installed-menu-context-os/**/result.json
 artifacts/installed-menu-context-os/**/runner-outcome.json
 artifacts/installed-menu-context-os/**/*.log
 artifacts/installed-window-routing/**/result.json
-artifacts/typora-observe/__pycache__/
 tests/fixtures/markdown/.lumamark/
 .env
 .env.*

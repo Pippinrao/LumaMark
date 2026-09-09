@@ -12,7 +12,7 @@
 
 ## 背景
 
-本决策落地前，`src-tauri` 仅注册 `tauri-plugin-dialog` 与 `tauri-plugin-single-instance`；`capabilities/default.json` 只授予 `core:*` 窗口权限与 `dialog:default`。当时已注册的 19 个 command 没有打开外部 URL、reveal in explorer、新建/重命名/删除文件的能力。因此 Typora 基线中已核实的链接右键「打开链接」与文件树资源管理动作无法实现。编辑器侧已有 `deriveEditorInteractionContext` 可识别 Link/Image，缺口在平台能力而非语法树。
+本决策落地前，`src-tauri` 仅注册 `tauri-plugin-dialog` 与 `tauri-plugin-single-instance`；`capabilities/default.json` 只授予 `core:*` 窗口权限与 `dialog:default`。当时已注册的 19 个 command 没有打开外部 URL、reveal in explorer、新建/重命名/删除文件的能力。因此 链接右键「打开链接」与文件树资源管理动作无法实现。编辑器侧已有 `deriveEditorInteractionContext` 可识别 Link/Image，缺口在平台能力而非语法树。
 
 ## 决策
 

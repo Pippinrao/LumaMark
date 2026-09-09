@@ -25,7 +25,6 @@ Image blocks and Mermaid blocks need expand-to-view outside the editor, with zoo
 - **Custom pointer/wheel transform engine:** would require owning bounds, touch, wheel, animation, and cross-browser behavior; violates mature-components-first.
 - **Mount a fullscreen layer directly inside a CodeMirror Widget:** couples app-level modal, focus, and i18n lifecycle to decoration DOM and makes sessions easier to lose on Widget rebuild.
 - **Use the browser Fullscreen API:** enters OS fullscreen permission and window-level Esc semantics; this need uses an in-app viewport Dialog for more predictable, consistent Tauri cross-platform behavior.
-- **Clone Typora’s proprietary viewer:** public experience goals only; do not copy proprietary assets or private implementation.
 
 ## Consequences
 

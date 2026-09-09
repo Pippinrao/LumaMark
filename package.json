@@ -1,6 +1,6 @@
 {
   "name": "lumamark",
-  "version": "0.3.62",
+  "version": "0.3.63",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -10,9 +10,12 @@
     "build:nsis": "tauri build --bundles nsis",
     "dev:web": "vite --host 127.0.0.1",
     "build:web": "vite build && node scripts/quality/generate-third-party-licenses.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tools/automation/tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run --exclude tests/perf/**",
+    "test:automation": "node --test --test-concurrency=1 tools/automation/tests/*.test.ts",
+    "cli": "node tools/automation/cli.ts",
+    "mcp": "node tools/automation/cli.ts mcp",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:production": "pnpm quality:web-build && playwright test --config playwright.production.config.ts",
@@ -100,6 +103,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@playwright/test": "^1.61.1",
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^6.9.1",
@@ -115,6 +119,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.1",
     "vite": "^8.1.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "zod": "^4.4.3"
   }
 }

@@ -53,13 +53,14 @@ type AppShellSlotHandlers = {
   onReadOnlyEditAttempt: () => void;
   onSidebarContentWidthChange: (contentWidth: number, chromeWidth?: number) => void;
   onSidebarTabChange: (tab: SidebarTab) => void;
+  sidebarTab: SidebarTab;
 };
 
 export function useAppShellSlots(
   model: AppShellModel,
   handlers: AppShellSlotHandlers,
 ): ShellSlots {
-  const { onReadOnlyEditAttempt, onSidebarContentWidthChange, onSidebarTabChange } =
+  const { onReadOnlyEditAttempt, onSidebarContentWidthChange, onSidebarTabChange, sidebarTab } =
     handlers;
 
   return useMemo(
@@ -294,6 +295,7 @@ export function useAppShellSlots(
       ),
       sidebar: (
         <WorkspaceSidebar
+          tab={sidebarTab}
           fileTree={
             <FileTreeContextMenuHost
               getContextMenuNodes={model.fileTree.getContextMenuNodes}
@@ -361,6 +363,6 @@ export function useAppShellSlots(
         />
       ),
     }),
-    [model, onReadOnlyEditAttempt, onSidebarContentWidthChange, onSidebarTabChange],
+    [model, onReadOnlyEditAttempt, onSidebarContentWidthChange, onSidebarTabChange, sidebarTab],
   );
 }

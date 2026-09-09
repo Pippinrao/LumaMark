@@ -40,4 +40,4 @@
 - 恢复路径影响 CodeMirror 的 IME、撤销重做、选区稳定性或启动性能。
 - 浏览器存储或后续草稿 schema 无法逐字保存 `DocumentSourceFormat` 所表达的格式意图。
 
-当前恢复草稿的门禁与 active-save 共同纳入 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+当前恢复草稿的门禁与 active-save 共同纳入 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)。

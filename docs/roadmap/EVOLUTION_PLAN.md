@@ -6,13 +6,13 @@
 
 LumaMark plans with a near-fine / far-coarse approach.
 
-- **Near term, detailed:** The current Parity Reliability Foundation is written to be executable and verifiable in the sole [current execution plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
-- **Mid term, directional:** Typora Migration Completeness keeps dependency order and capability boundaries, without locking implementation tasks before it enters Now.
+- **Near term, detailed:** The current Parity Reliability Foundation is written to be executable and verifiable in the sole [current execution plan](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
+- **Mid term, directional:** Editing Workflow Completeness keeps dependency order and capability boundaries, without locking implementation tasks before it enters Now.
 - **Far term, flexible:** World-Class and ecosystem directions keep themes only, without over-specific commitments.
 
 The reason is simple: real judgment for an editor product comes from prototypes, performance data, and user trials. Over-detailed far-term plans create false certainty and more rework.
 
-Foundation and MarkText+ have formed an Alpha technical baseline. Their historical scope remains in [V1 Version Design](../product/V1_VERSION_DESIGN.md) and [V1 Implementation Plan](V1_IMPLEMENTATION_PLAN.md). Those documents are a historical Alpha baseline only—not the current execution source. This document maintains stage positioning and Now / Next / Later only; it does not copy current implementation detail. The current sole execution source is [TYPORA_PARITY_IMPLEMENTATION_PLAN.md](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+Foundation and MarkText+ have formed an Alpha technical baseline. Their historical scope remains in [V1 Version Design](../product/V1_VERSION_DESIGN.md) and [V1 Implementation Plan](V1_IMPLEMENTATION_PLAN.md). Those documents are a historical Alpha baseline only—not the current execution source. This document maintains stage positioning and Now / Next / Later only; it does not copy current implementation detail. The current sole execution source is [EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 ## Overall path
 
@@ -20,7 +20,7 @@ LumaMark’s evolution path has four levels:
 
 1. **Foundation:** Establish architecture, quality, and verification foundations.
 2. **MarkText+:** Quickly surpass MarkText and form a trialable Alpha.
-3. **Typora Parity:** Match Typora’s core day-to-day experience.
+3. **Editor Reliability:** Provide reliable core day-to-day editing.
 4. **World-Class:** Choose innovation directions from real feedback and aim for a world-class WYSIWYG Markdown editor.
 
 Path principles:
@@ -83,7 +83,7 @@ Editing loop:
 - Recent files.
 - Dirty-state indication.
 
-Basic Typora-like editing:
+Basic WYSIWYG editing:
 
 - Headings.
 - Bold.
@@ -98,7 +98,7 @@ Basic Typora-like editing:
 
 App shell:
 
-- Typora-like basic layout.
+- WYSIWYG basic layout.
 - Central editing area.
 - Optional file tree.
 - Outline.
@@ -138,7 +138,7 @@ Quality and performance:
 
 ### Stage exit criteria
 
-The historical stage definition required the following before entering detailed Typora Parity planning. Moving into reliability convergence now does not retroactively claim every item complete; missing evidence is absorbed into the current plan:
+The historical stage definition required the following before entering detailed Editor Reliability planning. Moving into reliability convergence now does not retroactively claim every item complete; missing evidence is absorbed into the current plan:
 
 - MarkText+ core paths are automated-verified.
 - Performance baseline data is stable.
@@ -146,11 +146,11 @@ The historical stage definition required the following before entering detailed 
 - Mermaid async-rendering strategy is verified.
 - At least one round of real self-use or trial feedback is collected.
 
-## Stage 2: Typora Parity
+## Stage 2: Editor Reliability
 
-Goal: Match Typora’s core day-to-day writing experience.
+Goal: Provide reliable core day-to-day writing.
 
-**Status: current stage.** The first sub-stage is Parity Reliability Foundation: unify source fidelity, focus, input, and undo contracts first, then extend those contracts across representative Markdown behaviors. Full scope, order, and exit gates are maintained only in the [current execution plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+**Status: current stage.** The first sub-stage is Parity Reliability Foundation: unify source fidelity, focus, input, and undo contracts first, then extend those contracts across representative Markdown behaviors. Full scope, order, and exit gates are maintained only in the [current execution plan](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 ### Directional scope
 
@@ -163,14 +163,14 @@ Priority directions:
 
 ### Planning principles
 
-- Add only the core capabilities needed for day-to-day Typora migration.
+- Add only the core capabilities needed for day-to-day writing and migration.
 - Every capability must define acceptance samples and automated tests first.
 - Any capability that can affect the editing hot path must prototype performance first.
 - Do not sacrifice input fluency to chase a feature checklist.
 
 ### Stage success criteria
 
-- Typora users can complete a primary migration.
+- Users of other Markdown editors can complete a primary migration.
 - Common Markdown writing actions feel natural.
 - Images, tables, links, and math have no obvious day-to-day gaps.
 - Saves still produce no unrelated diffs.
@@ -179,7 +179,7 @@ Priority directions:
 
 ### Landed capabilities
 
-These capabilities have landed and are available, but they do **not** mean the whole Typora Parity milestone is complete. Remaining Parity Reliability Foundation work and Migration Completeness remain open under the [current execution plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+These capabilities have landed and are available, but they do **not** mean the whole Editor Reliability milestone is complete. Remaining Parity Reliability Foundation work and Migration Completeness remain open under the [current execution plan](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 - Settings persistence: [ADR 0014](../decisions/0014-settings-persistence.md) + [Settings System Design](../product/SETTINGS_SYSTEM_DESIGN.md)
 - Menu system: [Menu System Design](../product/MENU_SYSTEM_DESIGN.md)
@@ -190,7 +190,7 @@ These capabilities have landed and are available, but they do **not** mean the w
 
 ## Stage 3: World-Class
 
-Goal: Surpass Typora and form LumaMark’s own moat.
+Goal: Develop differentiated LumaMark capabilities.
 
 This stage keeps innovation themes only and does not pre-commit specific features. Real directions must come from performance data, user feedback, and product judgment from the prior stages.
 
@@ -241,9 +241,9 @@ Before entering any of these directions, re-evaluate:
 - Validate the contracts with representative slices: paragraphs, inline spans, lists/quotes, code blocks/headings/horizontal rules, and Mermaid.
 - Complete real save-and-reopen, Windows Chinese IME, accessibility, independent performance gates, and self-use feedback.
 
-Detailed tasks, order, and exit evidence are in [Typora Parity Core Experience Improvement Plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md); core architecture contracts are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md).
+Detailed tasks, order, and exit evidence are in [Editor Reliability Implementation Plan](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md); core architecture contracts are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md).
 
-See also [Landed capabilities](#landed-capabilities) under Stage 2: landed work is available, but the Typora Parity milestone as a whole is not claimed complete.
+See also [Landed capabilities](#landed-capabilities) under Stage 2: landed work is available, but the Editor Reliability milestone as a whole is not claimed complete.
 
 ### Next
 
@@ -266,7 +266,7 @@ The GitHub NSIS updater has already landed via [ADR 0012](../decisions/0012-gith
 
 ### Historical Alpha baseline
 
-Original definitions for M0 runnable skeleton, M1 editable Markdown, and M2 day-to-day trialable Alpha remain in the historical [V1 Implementation Plan](V1_IMPLEMENTATION_PLAN.md). Those historical checkboxes must not be used to infer current completion status. They are historical Alpha baseline only; current execution is governed solely by [TYPORA_PARITY_IMPLEMENTATION_PLAN.md](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+Original definitions for M0 runnable skeleton, M1 editable Markdown, and M2 day-to-day trialable Alpha remain in the historical [V1 Implementation Plan](V1_IMPLEMENTATION_PLAN.md). Those historical checkboxes must not be used to infer current completion status. They are historical Alpha baseline only; current execution is governed solely by [EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 ### Current: Parity Reliability Foundation
 
@@ -279,7 +279,7 @@ Original definitions for M0 runnable skeleton, M1 editable Markdown, and M2 day-
 
 ### Editor WYSIWYG difficulty
 
-Risk: Typora-like behavior has many details; IME, undo, selection, paste, and other edge cases are easy to miss.
+Risk: WYSIWYG behavior has many details; IME, undo, selection, paste, and other edge cases are easy to miss.
 
 Response:
 

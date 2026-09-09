@@ -2,7 +2,7 @@
 
 ﻿# LumaMark 菜单系统设计
 
-> 本文定义 LumaMark **顶栏菜单、编辑器/文件树右键菜单与命令面板** 共用的产品结构、视觉方向、命令合同、Typora 基线映射与验收标准。它面向菜单实现者、测试人员和后续 Markdown capability 维护者；当前实施顺序仍以 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。设置页不在本文范围，见 [设置系统设计](SETTINGS_SYSTEM_DESIGN.md)。外部打开与文件变更依赖见 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
+> 本文定义 LumaMark **顶栏菜单、编辑器/文件树右键菜单与命令面板** 共用的产品结构、视觉方向、命令合同、快捷键映射与验收标准。它面向菜单实现者、测试人员和后续 Markdown capability 维护者；当前实施顺序仍以 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md) 为准。设置页不在本文范围，见 [设置系统设计](SETTINGS_SYSTEM_DESIGN.md)。外部打开与文件变更依赖见 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
 
 ## 用途与范围
 
@@ -13,7 +13,7 @@
 - **编辑区、文件树等上下文菜单（右键）**。
 - 菜单、**右键**、快捷键和命令面板共用同一命令事实源。
 - 分隔线、子菜单、checkbox、radio、图标、快捷键列和禁用态。
-- 已有 Markdown capability 的准确接线与 Typora 已核实快捷键。
+- 已有 Markdown capability 的准确接线与统一编辑器快捷键。
 - Web Playwright、生产 Web E2E 和 Windows Tauri 实机截图验收。
 - 菜单与右键覆盖矩阵，明确已接入能力与尚未实现的专题能力。
 
@@ -21,7 +21,7 @@
 
 - 不在本轮实现数学、脚注、TOC、Callout、YAML Front Matter 或受限 HTML capability。
 - 不为未实现能力添加“即将推出”、永久禁用或点击无反应的虚假菜单项。
-- 不复制 Typora 品牌、图标、主题素材或未公开实现。
+- 不复制第三方品牌、图标、主题素材或未公开实现。
 - 不将 Markdown 全文、编辑器高频状态或平台细节放入 React store。
 - 不替换 CodeMirror、Radix Menubar / Context Menu、命令面板或 Tauri 架构。
 - 不单独维护第二套右键命令注册表或第二份菜单设计文档。
@@ -29,17 +29,7 @@
 
 ## 事实来源
 
-Typora 行为只取自 [Typora 行为基线](typora-baseline/README.md)；LumaMark 当前状态只取自 [Typora 专题竞争分析](typora-competitive-analysis/README.md) 和当前代码、测试。证据不足的 Typora 菜单路径或键位不会被写成已确认事实。
-
-本设计重点复核了：
-
-- [Live Preview 横切模型](typora-baseline/00-live-preview-model.md)：源码模式 `Ctrl+/`、复制为 Markdown `Ctrl+Shift+C`、粘贴为纯文本 `Ctrl+Shift+V`。
-- [标题](typora-baseline/02-headings.md)：标题 1–6 使用 `Ctrl+1…6`。
-- [图片](typora-baseline/07-images.md)：插入本地图片使用 `Ctrl+Shift+I`，入口位于 Format → Image。
-- [代码块](typora-baseline/08-code-blocks.md)：插入代码围栏使用 `Ctrl+Shift+K`。
-- [表格](typora-baseline/10-tables.md)：插表 `Ctrl+T`、选行 `Ctrl+L`、选单元格 `Ctrl+E`、删行 `Ctrl+Shift+Backspace`。
-- [数学](typora-baseline/09-math.md)：数学块使用 `Ctrl+Shift+M`，但 LumaMark 当前未实现数学 capability。
-- [Mermaid](typora-baseline/11-mermaid-and-diagrams.md)、[脚注](typora-baseline/12-footnotes.md)、[分割线](typora-baseline/13-horizontal-rules.md) 与 [TOC](typora-baseline/15-toc.md)：没有已核实的专用默认快捷键。
+命令行为以统一注册表、编辑器合同、当前代码和回归测试为准。
 
 ## 改造前问题与根因
 
@@ -103,7 +93,7 @@ app/shell 菜单 / ContextMenuSurface 渲染
 1. 顶栏或右键菜单打开不得清空 CodeMirror selection。
 2. 格式、段落、撤销、重做和查找等**顶栏**动作对菜单打开前的 selection 执行。
 3. **右键目标专属命令**的作用点是右键命中位置（文档坐标或树节点），不是当前光标位置；「复制链接地址」必须复制命中链接的 URL，图片删除与表格复制/删除必须携带命中 range。普通剪切、复制、粘贴与全选仍按打开菜单前保留的 selection/cursor 执行。
-4. **LumaMark 显式定义：** 右键落在当前选区外时，**不移动光标、不折叠选区**；菜单关闭后 selection 保持打开前状态。目标专属命令使用命中位置而非 `selection.main`，普通剪贴板命令不把右键位置冒充新光标。该行为写入测试并锁定（Typora 基线此处未核实）。
+4. **LumaMark 显式定义：** 右键落在当前选区外时，**不移动光标、不折叠选区**；菜单关闭后 selection 保持打开前状态。目标专属命令使用命中位置而非 `selection.main`，普通剪贴板命令不把右键位置冒充新光标。该行为写入测试并锁定。
 5. 编辑器动作完成后恢复编辑器焦点；打开文件选择器、设置、关于、工作区选择器、系统 opener 或二次确认对话框的动作不强制抢回焦点。
 6. 格式与段落动作产生最小 CodeMirror transaction，并保留单次撤销语义。打开右键菜单与只读动作（复制链接、复制路径）的 transaction 必须 `docChanged === false`。
 7. action 的成功副作用或失败提示必须可观察，不能静默执行破坏性 fallback。依赖特定命中目标的上下文动作（链接、图片、表格）在不适用时**隐藏不显示**；普通剪切、复制、粘贴、全选等稳定编辑入口保留在菜单中，并按只读态、选区与纯文本剪贴板端口可用性显示 disabled。桌面端口使用官方 Tauri clipboard-manager；原生失败不得回退 WebView navigator。
@@ -137,7 +127,7 @@ app/shell 菜单 / ContextMenuSurface 渲染
 - 查找
 - 命令面板
 
-表格复制和删除不再常驻编辑菜单。相关动作只在真实表格上下文中出现；“删除整张表”必须与 Typora 的“删除表格行”区分。
+表格复制和删除不再常驻编辑菜单。相关动作只在真实表格上下文中出现；“删除整张表”必须与 “删除表格行”区分。
 
 ### 段落
 
@@ -146,7 +136,7 @@ app/shell 菜单 / ContextMenuSurface 渲染
 - 块子菜单：引用、代码块
 - 插入子菜单：表格、分割线
 
-普通段落作为 LumaMark 的明确归一化命令，不冒充 Typora 已核实的独立菜单入口。它只移除当前 ATX heading marker，不重排段落内容。
+普通段落作为 LumaMark 的明确归一化命令。它只移除当前 ATX heading marker，不重排段落内容。
 
 ### 格式
 
@@ -189,14 +179,14 @@ app/shell 菜单 / ContextMenuSurface 渲染
 | 新建 / 打开 / 保存 / 另存为 | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | 显示并复用现有全局快捷键 |
 | 剪切 / 复制 / 粘贴 / 全选 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` / `Ctrl+A` | 顶栏、右键、快捷键共用 EditorCommandPort 与实时可用性判定；app 注入 `services/clipboard` 的纯文本端口，桌面走官方 Tauri plugin、浏览器走 navigator adapter；异步剪贴板完成前校验原选区，失败不误删文本。平台边界见 [ADR 0016](../decisions/0016-tauri-text-clipboard-adapter.md) |
 | 命令面板 | `Ctrl+K` | 显示并复用现有全局快捷键 |
-| 标题 1–6 | `Ctrl+1…6` | 与 Typora 基线一致；复用 CodeMirror keymap |
-| 加粗 / 斜体 | `Ctrl+B` / `Ctrl+I` | 显示现有 LumaMark 键位，不声明为本地基线已核实的 Typora 键位 |
-| 图片 | `Ctrl+Shift+I` | 对齐 Typora；菜单、命令面板和快捷键调用真实本地图片流程 |
-| 代码块 | `Ctrl+Shift+K` | 对齐 Typora；三个入口调用同一 command |
-| 表格 | `Ctrl+T` | 对齐 Typora；当前 `Ctrl+Alt+T` 在迁移期兼容，菜单只显示 `Ctrl+T` |
-| 删除整张表 | 独立 LumaMark 键位 | 不复用 Typora `Ctrl+Shift+Backspace`，避免把删行冒充删表 |
-| 显示模式循环 | `Ctrl+/` | 键位与 Typora 基线一致，但循环实时预览 → 源码 → 阅读；三个 radio 状态同步，菜单不把该键标注为只属于源码模式 |
-| 侧边栏 / 专注模式 | 现有 LumaMark 键位 | 在菜单显示，但不声明为 Typora 基线键位 |
+| 标题 1–6 | `Ctrl+1…6` | 复用统一 CodeMirror keymap |
+| 加粗 / 斜体 | `Ctrl+B` / `Ctrl+I` | 显示现有 LumaMark 键位 |
+| 图片 | `Ctrl+Shift+I` | 菜单、命令面板和快捷键调用真实本地图片流程 |
+| 代码块 | `Ctrl+Shift+K` | 三个入口调用同一 command |
+| 表格 | `Ctrl+T` | 当前 `Ctrl+Alt+T` 在迁移期兼容，菜单只显示 `Ctrl+T` |
+| 删除整张表 | 独立 LumaMark 键位 | 区分删除表格行与删除整张表的命令 |
+| 显示模式循环 | `Ctrl+/` | 循环实时预览 → 源码 → 阅读；三个 radio 状态同步，菜单不把该键标注为只属于源码模式 |
+| 侧边栏 / 专注模式 | 现有 LumaMark 键位 | 在菜单显示当前键位 |
 
 `Ctrl+Shift+C` 复制为 Markdown、`Ctrl+Shift+V` 粘贴为纯文本、表格选行/选单元格/删行和数学块属于已知差距。本轮不注册空动作；它们保留在覆盖矩阵中，由对应 capability 和剪贴板合同实现后接入。
 
@@ -248,7 +238,6 @@ ContextMenuSurface（Radix）→ exhaustive typed invocation dispatcher
 - 打开链接（协议白名单；相对路径走应用内打开）
 - 复制链接地址
 
-Typora 基线中这两项为已核实（observed）事实，优先实现。
 
 ### 图片
 
@@ -290,26 +279,26 @@ Typora 基线中这两项为已核实（observed）事实，优先实现。
 - reveal：有工作区时沿用上述 managed-session 边界；standalone 文档仅以“现存文档的 canonical 实际父目录”为可信内置前端 fallback，不宣称抵御 compromised WebView，详细边界见 ADR 0015。
 - 重名不覆盖；删除默认进回收站。
 
-## 竞品菜单覆盖矩阵
+## 菜单能力覆盖矩阵
 
-| 能力 | Typora 基线 | LumaMark 本轮状态 | 菜单策略 |
-|---|---|---|---|
-| 标题、列表、引用、代码块、分割线 | 已有公开输入或菜单/快捷键证据 | 已接入真实命令；代码块 `Ctrl+Shift+K` 已补齐 | 保持单一 command port；不夸大专题边界体验 |
-| 本地图片 | Format → Image，`Ctrl+Shift+I` | 真实多选文件入口和快捷键已接入既有导入 pipeline | 取消不改文档；错误沿用文件通知合同 |
-| GFM 表格插入 | `Ctrl+T` | `Ctrl+T` 已接入，旧 `Ctrl+Alt+T` 迁移期兼容 | 顶部菜单只显示标准键位 |
-| 表格行列与选择 | 工具栏/上下文菜单及专用键 | 证据不足或未实现 | 不生成虚假顶部入口；保留专题差距 |
-| 表格右键复制/删整表 | 上下文菜单 | 已实现（仅表格命中时） | 保持；行列项待 capability |
-| 链接右键打开/复制地址 | 已核实 observed | 已实现绝对 URL 白名单、相对文档打开与复制失败提示 | 显示真实命令；前后端双重协议校验 |
-| 图片右键资源管理 | Support 记载 | 已实现复制路径、reveal、删引用 | 远程图片不显示本地 reveal；删引用按命中范围执行 |
-| 文件树右键 | 非 Typora 编辑区基线；产品需要 | 已实现根/目录/文件场景组合与变更确认 | 回收站删除；路径与目录链接逃逸防护 |
-| Copy as Markdown / Paste as Plain Text | 已确认 | 未建立可靠剪贴板合同 | 不显示；作为剪贴板专题高优先级缺口 |
-| 数学 | `Ctrl+Shift+M`、Math Tools | 未实现 | 不显示 |
-| Mermaid | 围栏键入为主，无专用键 | 已实现主要渲染路径，未接入专用右键 | 当前不显示；编辑走既有预览/源码交互，导出图属后续 |
-| YAML Front Matter | 顶部菜单可插入，无专用默认键 | 未实现 | 不显示 |
-| 脚注 | 无专用菜单或键 | 未实现 | 不显示 |
-| TOC | `[toc]` + Return；专用菜单证据不足 | 未实现 | 不显示 |
-| Callout | Paragraph → Alert，无专用默认键 | 未实现 | 不显示 |
-| HTML / iframe / video | 键入或粘贴，无通用插入键 | 未实现且安全合同缺失 | 不显示 |
+| 能力 | LumaMark 本轮状态 | 菜单策略 |
+|---|---|---|
+| 标题、列表、引用、代码块、分割线 | 已接入真实命令；代码块 `Ctrl+Shift+K` 已补齐 | 保持单一 command port；不夸大专题边界体验 |
+| 本地图片 | 真实多选文件入口和快捷键已接入既有导入 pipeline | 取消不改文档；错误沿用文件通知合同 |
+| GFM 表格插入 | `Ctrl+T` 已接入，旧 `Ctrl+Alt+T` 迁移期兼容 | 顶部菜单只显示标准键位 |
+| 表格行列与选择 | 证据不足或未实现 | 不生成虚假顶部入口；保留专题差距 |
+| 表格右键复制/删整表 | 已实现（仅表格命中时） | 保持；行列项待 capability |
+| 链接右键打开/复制地址 | 已实现绝对 URL 白名单、相对文档打开与复制失败提示 | 显示真实命令；前后端双重协议校验 |
+| 图片右键资源管理 | 已实现复制路径、reveal、删引用 | 远程图片不显示本地 reveal；删引用按命中范围执行 |
+| 文件树右键 | 已实现根/目录/文件场景组合与变更确认 | 回收站删除；路径与目录链接逃逸防护 |
+| Copy as Markdown / Paste as Plain Text | 未建立可靠剪贴板合同 | 不显示；作为剪贴板专题高优先级缺口 |
+| 数学 | 未实现 | 不显示 |
+| Mermaid | 已实现主要渲染路径，未接入专用右键 | 当前不显示；编辑走既有预览/源码交互，导出图属后续 |
+| YAML Front Matter | 未实现 | 不显示 |
+| 脚注 | 未实现 | 不显示 |
+| TOC | 未实现 | 不显示 |
+| Callout | 未实现 | 不显示 |
+| HTML / iframe / video | 未实现且安全合同缺失 | 不显示 |
 
 ## 2026-08-02 历史菜单重构基线
 
@@ -321,9 +310,9 @@ Typora 基线中这两项为已核实（observed）事实，优先实现。
 - 最终自动化结果为 Vitest 637 项、Web Playwright 137 项、生产 bundle Playwright 2 项、Rust 81 项和独立性能基准 23 项全部通过；菜单专项另有 6 项，通过固定 1440×900 视口生成亮色、暗色、二级菜单和英文四种截图。
 - Windows Tauri 实机已人工检查顶部菜单、二级结构、快捷键列、源码模式状态和图片系统对话框；真实选择图片后的磁盘导入由分层自动化覆盖，本轮人工步骤只执行取消路径，未修改用户文件。
 
-截图证据随实现一同保存：[亮色中文文件菜单](../../artifacts/menu-system-report/menu-light-file-zh.png)、[暗色中文状态菜单](../../artifacts/menu-system-report/menu-dark-view-states-zh.png)、[暗色中文键盘二级菜单](../../artifacts/menu-system-report/menu-dark-nested-keyboard-zh.png)、[暗色英文文件菜单](../../artifacts/menu-system-report/menu-dark-file-en.png)、[Windows 原生图片选择器](../../artifacts/menu-system-report/tauri-native-image-dialog-zh.png)和[取消后的未修改文档](../../artifacts/menu-system-report/tauri-image-dialog-cancelled-zh.png)。
+截图证据随实现一同保存：[亮色中文文件菜单](../../../artifacts/menu-system-report/menu-light-file-zh.png)、[暗色中文状态菜单](../../../artifacts/menu-system-report/menu-dark-view-states-zh.png)、[暗色中文键盘二级菜单](../../../artifacts/menu-system-report/menu-dark-nested-keyboard-zh.png)、[暗色英文文件菜单](../../../artifacts/menu-system-report/menu-dark-file-en.png)、[Windows 原生图片选择器](../../../artifacts/menu-system-report/tauri-native-image-dialog-zh.png)和[取消后的未修改文档](../../../artifacts/menu-system-report/tauri-image-dialog-cancelled-zh.png)。
 
-仍未补齐的 Typora 差距没有生成虚假菜单入口：Copy as Markdown、Paste as Plain Text、表格选行/选单元格/删行，以及数学、脚注、TOC、Callout、YAML Front Matter 和受限 HTML 继续由各专题 capability 计划负责。
+仍未补齐的能力没有生成虚假菜单入口：Copy as Markdown、Paste as Plain Text、表格选行/选单元格/删行，以及数学、脚注、TOC、Callout、YAML Front Matter 和受限 HTML 继续由各专题 capability 计划负责。
 
 ## 错误与降级
 
@@ -364,7 +353,7 @@ Typora 基线中这两项为已核实（observed）事实，优先实现。
 - 覆盖代码块 `Ctrl+Shift+K`、图片 `Ctrl+Shift+I`、表格 `Ctrl+T`、标题、源码模式和旧表格键迁移兼容。
 - 覆盖中文和英文菜单，以及亮色和暗色状态。
 - 1440×900 固定视口截取亮色菜单、暗色菜单、子菜单、radio/checkbox 和 keyboard focus。
-- 新增 `context-menu` 专项：链接右键复制地址、表格右键回归、文件树新建文件主路径；文件树菜单保留[亮色中文](../../artifacts/context-menu-report/file-tree-context-menu-light-zh.png)与[暗色中文](../../artifacts/context-menu-report/file-tree-context-menu-dark-zh.png)视觉基线。
+- 新增 `context-menu` 专项：链接右键复制地址、表格右键回归、文件树新建文件主路径；文件树菜单保留[亮色中文](../../../artifacts/context-menu-report/file-tree-context-menu-light-zh.png)与[暗色中文](../../../artifacts/context-menu-report/file-tree-context-menu-dark-zh.png)视觉基线。
 
 ### Windows Tauri 实机
 
@@ -406,6 +395,6 @@ Typora 基线中这两项为已核实（observed）事实，优先实现。
 
 - 增删顶部菜单组、右键触发对象、菜单节点类型或全局快捷键。
 - 新 Markdown capability 进入可用状态并需要菜单或右键入口。
-- Typora 基线复核改变已确认的菜单、右键或快捷键事实。
+- 统一命令注册表改变菜单、右键或快捷键合同。
 - Radix Menubar/Context Menu、Tauri 原生菜单策略、opener 或菜单自动化链路发生变化。
 - 剪贴板、图片、表格、链接、文件树或关于对话框合同发生变化。

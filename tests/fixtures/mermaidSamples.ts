@@ -18,7 +18,7 @@ export const mermaidTestSamples: MermaidTestSample[] = [
     id: 'graph',
     renderGate: 'required',
     title: 'legacy graph flowchart',
-    source: ['graph TD', '  A[Typora style] --> B[Mermaid preview]'].join('\n'),
+    source: ['graph TD', '  A[Live preview] --> B[Mermaid preview]'].join('\n'),
   },
   {
     id: 'flowchartElk',

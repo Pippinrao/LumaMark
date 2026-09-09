@@ -12,7 +12,7 @@ LumaMark is a high-performance, modern, cross-platform WYSIWYG Markdown editor.
 
 Product path:
 
-- First replicate a mature Typora-like writing experience.
+- First replicate a mature WYSIWYG writing experience.
 - Then innovate on performance, modern workflows, extensibility, and platform integration.
 - Prioritize Windows experience while architecturally supporting macOS and Linux natively.
 - Treat Chinese and English as first-class UI languages from day one.
@@ -21,9 +21,9 @@ Project conventions:
 
 - App name: `LumaMark`
 - Repository and package name: `lumamark`
-- Product positioning: high-performance Typora-like Markdown editor
+- Product positioning: high-performance WYSIWYG Markdown editor
 
-Typora may be used only as a public experience baseline. Do not copy Typora’s proprietary assets, branding, or private implementation details.
+Use independently defined writing workflows. Do not copy third-party proprietary assets, branding, or private implementation details.
 
 ## Version number management
 
@@ -41,7 +41,7 @@ LumaMark versions use fixed `a.b.c` format; each part is a non-negative integer.
 1. Performance is a core product capability, not a later optimization.
 2. The Markdown source file is the single source of truth.
 3. WYSIWYG behavior must not destroy the user’s formatting, whitespace, line breaks, or source intent.
-4. First-version layout should stay close to mature Typora-like patterns: a quiet central editing area, optional sidebar, and minimal visual noise.
+4. First-version layout should stay close to mature WYSIWYG patterns: a quiet central editing area, optional sidebar, and minimal visual noise.
 5. Design for long writing sessions: restrained UI, predictable interaction, stable scrolling, fast typing.
 6. Prefer mature, reliable, plain infrastructure over clever but fragile custom systems.
 7. All user-visible copy must be localizable. Do not hard-code UI strings outside the i18n layer.
@@ -159,7 +159,7 @@ This rule applies to:
 
 Custom code should only cover LumaMark differentiators:
 
-- Typora-like Markdown WYSIWYG on the editor core
+- Markdown WYSIWYG on the editor core
 - Markdown source fidelity
 - Large-document fluidity
 - Async preview and render scheduling
@@ -345,7 +345,7 @@ Priority:
 1. `AGENTS.md`: working rules, engineering discipline, documentation governance.
 2. `DEVELOPMENT_PROCESS.md`: development process, testing, verification, and definition of done.
 3. `docs/product/PROJECT_CHARTER.md`: project vision and long-term positioning.
-4. `docs/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md`: current implementation scope, order, and exit gates.
+4. `docs/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md`: current implementation scope, order, and exit gates.
 5. `docs/architecture/DETAILED_ARCHITECTURE.md`: current detailed architecture and technology choices.
 6. `docs/roadmap/EVOLUTION_PLAN.md`: phases and evolution plan.
 

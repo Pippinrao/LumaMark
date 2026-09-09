@@ -17,7 +17,7 @@ Therefore LumaMark must establish an AI-native quality system from day one.
 
 Detailed execution rules are in the root [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.md).
 
-Current thematic gates, real Windows paths, and milestone exit criteria for Parity Reliability are in the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). This document maintains the long-term quality layering and does not copy the current task list.
+Current thematic gates, real Windows paths, and milestone exit criteria for Parity Reliability are in the [Editor Reliability Implementation Plan](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md). This document maintains the long-term quality layering and does not copy the current task list.
 
 ## Quality Goals
 
@@ -185,6 +185,10 @@ Manual testing is reserved for:
 Any manual test executed more than twice should be automated.
 
 ## Bug Strategy
+
+The local automation host has a separate `pnpm test:automation` gate (real Chromium rendering and MCP stdio client calls), run in CI after Chromium installation. It is not part of the browser-free `pnpm test` gate. Typecheck and lint include `tools/automation/`; the interface contract is in [ADR 0023](../decisions/0023-agent-cli-and-mcp.md).
+
+Known table-library diagnostic: activating everyday, unpadded GFM cells can emit `Selection points outside of document` from `codemirror-markdown-tables`' deferred nested-editor dispatch. A 2026-09-09 browser comparison reproduced it with both the previous and page-bound CSS, while source/caret assertions passed. It remains an existing interaction follow-up; do not suppress the error or attribute it to a CSS fix without reproduction. Browser geometry success does not replace the required desktop OS-pointer matrix.
 
 Bug fixes must follow:
 

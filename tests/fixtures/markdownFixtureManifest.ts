@@ -7,7 +7,7 @@ export type MarkdownFixtureManifest = {
 export const markdownFixtureManifest = [
   {
     fileName: 'basic.md',
-    tags: ['commonmark:paragraph', 'typora-like:live-preview'],
+    tags: ['commonmark:paragraph', 'wysiwyg:live-preview'],
   },
   {
     fileName: 'headings.md',
@@ -47,7 +47,7 @@ export const markdownFixtureManifest = [
     tags: [
       'commonmark:image',
       'i18n:mixed-chinese-english',
-      'typora-like:live-preview',
+      'wysiwyg:live-preview',
     ],
   },
   {
@@ -60,8 +60,8 @@ export const markdownFixtureManifest = [
       'commonmark:emphasis',
       'gfm:table',
       'gfm:strikethrough',
-      'typora-like:live-preview',
-      'typora-like:editing-process',
+      'wysiwyg:live-preview',
+      'wysiwyg:editing-process',
     ],
   },
   {
@@ -74,7 +74,7 @@ export const markdownFixtureManifest = [
     tags: [
       'plantuml:sequence',
       'plantuml:source-fidelity-only',
-      'typora-like:live-preview',
+      'wysiwyg:live-preview',
     ],
   },
   {
@@ -83,7 +83,7 @@ export const markdownFixtureManifest = [
   },
   {
     fileName: 'comprehensive.md',
-    notes: 'Combined CommonMark, GFM, and Typora-like editing fixture.',
+    notes: 'Combined CommonMark, GFM, and WYSIWYG editing fixture.',
     tags: [
       'commonmark:heading',
       'commonmark:paragraph',
@@ -100,7 +100,7 @@ export const markdownFixtureManifest = [
       'gfm:strikethrough',
       'gfm:autolink',
       'i18n:mixed-chinese-english',
-      'typora-like:live-preview',
+      'wysiwyg:live-preview',
     ],
   },
   {
@@ -174,7 +174,7 @@ export const markdownFixtureManifest = [
       'math:physics',
       'math:source-fidelity-only',
       'i18n:mixed-chinese-english',
-      'typora-like:live-preview',
+      'wysiwyg:live-preview',
     ],
   },
   {

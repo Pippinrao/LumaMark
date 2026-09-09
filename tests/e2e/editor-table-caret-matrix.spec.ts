@@ -449,7 +449,7 @@ test('maps consecutive everyday GFM cell clicks without blurring first', async (
   );
 });
 
-test('maps a click in the breakout gutter beside a narrow table into the table', async ({
+test('fills the page with a small table and maps its right-side padding into the cell', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1800, height: 900 });
@@ -476,12 +476,12 @@ test('maps a click in the breakout gutter beside a narrow table into the table',
     const widgetBox = widget.getBoundingClientRect();
     const tableBox = table.getBoundingClientRect();
     const gutter = widgetBox.right - tableBox.right;
-    if (gutter < 16) {
-      throw new Error(`expected a breakout gutter, received ${gutter}`);
+    if (Math.abs(gutter) > 1) {
+      throw new Error(`expected the table to fill its page, received gutter ${gutter}`);
     }
     return {
-      x: tableBox.right + Math.min(24, gutter / 2),
-      y: tableBox.top + tableBox.height / 2,
+      x: tableBox.right - 5,
+      y: tableBox.bottom - 12,
     };
   });
 

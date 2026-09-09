@@ -1,6 +1,6 @@
 # Comprehensive Markdown Fixture
 
-This document combines CommonMark, GFM, and Typora-like live preview cases in one stable file.
+This document combines CommonMark, GFM, and WYSIWYG live preview cases in one stable file.
 
 中文 English mixed paragraph with **bold**, *italic*, ***strong emphasis***, ~~deleted text~~, `inline code`, an escaped asterisk \*literal\*, and a hard line break here.  
 The next line must stay in the same paragraph after a hard break.

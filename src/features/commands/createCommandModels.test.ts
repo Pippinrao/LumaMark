@@ -426,7 +426,7 @@ describe('createCommandPaletteModels', () => {
     });
   });
 
-  it('shares Typora-aligned shortcuts and excludes table-only destructive actions', () => {
+  it('shares shared editor shortcuts and excludes table-only destructive actions', () => {
     const commands = createCommandPaletteModels({
       editorAvailable: true,
       editorState: editableSelection,
@@ -1225,7 +1225,7 @@ describe('createTopMenuModels', () => {
     }
   });
 
-  it('projects nested paragraph commands and Typora-aligned shortcuts', () => {
+  it('projects nested paragraph commands and shared editor shortcuts', () => {
     const paragraph = createModels().find((group) => group.id === 'paragraph');
 
     expect(findNode(paragraph?.items ?? [], 'heading-1')).toMatchObject({

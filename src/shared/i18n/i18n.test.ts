@@ -328,7 +328,6 @@ describe('i18n resources', () => {
     const description = resources[language].translation['about.description'];
 
     expect(description).toBe(expected);
-    expect(description).not.toMatch(/typora/i);
   });
 
   it.each([

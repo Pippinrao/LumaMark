@@ -189,7 +189,7 @@ describe('useGlobalCommandShortcuts', () => {
     ['c', false, true, 'copyTable'],
     ['Backspace', false, true, 'deleteTable'],
   ] as const)(
-    'runs the Typora-aligned %s shortcut through its shared command handler',
+    'runs the shared editor %s shortcut through its shared command handler',
     (key, shiftKey, altKey, handler) => {
       Object.defineProperty(window.navigator, 'userAgent', {
         configurable: true,

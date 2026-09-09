@@ -188,6 +188,9 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
 
+      - name: CLI and MCP integration tests
+        run: pnpm test:automation
+
       - name: V1 UX prototype gate
         run: pnpm quality:v1-ux-prototype
 

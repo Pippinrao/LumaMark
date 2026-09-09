@@ -62,7 +62,7 @@ exit $acceptanceExitCode
 - 设置证据覆盖 v2 `light` 基线、顶部主题菜单切换 `system`、窗口 X 进入 close coordinator 后仍等待写屏障、保存完成后正常退出，以及同一隔离 config + 全新且由 WebView2 实际创建的 profile 重启；磁盘与设置 UI 均恢复为 `system`。
 - 编辑器与文件树证据覆盖标题栏 portal、链接、图片、普通编辑、表格复制/删除和文件/目录/root 上下文菜单；图片 secondary click 不再激活源码，表格删除仅移除精确目标范围并令 widget 从 2 个降为 1 个。
 - 8 次文本剪贴板变更均由互斥 writer 合同、sequence、格式与期望内容共同证明归属；最终以 sequence compare-and-set 恢复。CDP 已验证断开、本次子进程已按身份结束、临时目录已删除，全部 cleanup stage 通过。
-- 本轮保留 13 张无原始剪贴板内容的 PNG 证据；关键视图包括[设置首次启动](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-first-launch.png)、[全新 profile 重启恢复](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-restart-restored.png)、[图片上下文菜单](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-image-context.png)、[表格精确删除](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-after-table-delete.png)与[文件树 root 菜单](../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/file-tree-root-context.png)。原始 `result.json`、runner outcome 与进程日志仍只保留在本机忽略目录；本轮 result SHA-256 为 `462a63fa1c43f96c24d80db45ee76d6d5c56404934e6aaffc05d7a3b5e84fba9`。
+- 本轮保留 13 张无原始剪贴板内容的 PNG 证据；关键视图包括[设置首次启动](../../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-first-launch.png)、[全新 profile 重启恢复](../../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/settings-persistence-restart-restored.png)、[图片上下文菜单](../../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-image-context.png)、[表格精确删除](../../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/editor-after-table-delete.png)与[文件树 root 菜单](../../../artifacts/installed-menu-context-os/2026-08-15T03-44-12-995Z/file-tree-root-context.png)。原始 `result.json`、runner outcome 与进程日志仍只保留在本机忽略目录；本轮 result SHA-256 为 `462a63fa1c43f96c24d80db45ee76d6d5c56404934e6aaffc05d7a3b5e84fba9`。
 
 构建说明：同一源码的 `pnpm build` 已成功生成上述 Release EXE、MSI 与 NSIS 包，但在最后的 updater 签名阶段因为本机只有公钥、未提供 `TAURI_SIGNING_PRIVATE_KEY` 而以退出码 `1` 结束。该缺口不影响本轮未签名 EXE 的实机行为证据，但仍是正式分发前必须由 CI / 离线签名环境关闭的发布门禁。
 
@@ -191,7 +191,7 @@ pnpm release:generate-updater-manifest
 |---|---|---:|---|
 | NSIS 安装包 | `LumaMark_0.2.1_x64-setup.exe` | 4,656,736 bytes | `6a003c9e3c798e991a820a345c0a5d5cecab6992a75e5498aebdeae6c4337efb` |
 
-本版本将应用菜单重构为 Typora-like 的 File、Edit、Paragraph、Format、View、Theme、Language、Help 八组菜单，补齐可执行命令、禁用态、嵌套菜单、键盘导航、菜单快捷键、About 对话框和中英文文案，并同步更新竞品分析与视觉验证截图。
+本版本将应用菜单重构为 WYSIWYG 的 File、Edit、Paragraph、Format、View、Theme、Language、Help 八组菜单，补齐可执行命令、禁用态、嵌套菜单、键盘导航、菜单快捷键、About 对话框和中英文文案，并同步更新竞品分析与视觉验证截图。
 
 新鲜自动化验证：
 

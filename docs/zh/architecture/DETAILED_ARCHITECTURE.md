@@ -16,9 +16,11 @@
 
 更新：2026-08-19（preview scheduler：源码路径与延迟视口 decoration）
 
-当前实施顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)，设置持久化与工作区/外部打开安全边界分别见 [ADR 0014](../decisions/0014-settings-persistence.md) 和 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
+当前实施顺序与退出门禁见 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)；编辑器合同与复审条件见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)，设置持久化与工作区/外部打开安全边界分别见 [ADR 0014](../decisions/0014-settings-persistence.md) 和 [ADR 0015](../decisions/0015-external-open-and-file-mutations.md)。
 
 ## 设计结论
+
+Agent 自动化采用独立 Node 宿主，CLI/MCP 共用服务和本地图表引擎，不进入编辑器启动依赖，见 [ADR 0023](../decisions/0023-agent-cli-and-mcp.md)。侧栏选择由应用外壳管理：单文件会话默认大纲，工作区会话默认文件，手动选择保留到工作区上下文变化。
 
 LumaMark 的默认架构是：
 
@@ -277,7 +279,7 @@ src/
 - `interaction`：从 CodeMirror state 与 Lezer 语法树派生 selection、最小 block、inline owner、delimiter、composition 和受保护源码范围。
 - `capabilities`：Mermaid、table、code block、image 等可独立演进的编辑器子能力。
 - `markdown`：Markdown 语言包和语法工具。
-- `wysiwyg`：Typora-like 通用 visual decorations 组合层，只保留低成本、源码保真的通用视觉规则，不持有复杂子能力主体实现。
+- `wysiwyg`：WYSIWYG 通用 visual decorations 组合层，只保留低成本、源码保真的通用视觉规则，不持有复杂子能力主体实现。
 - `widgets`：旧路径兼容导出；新能力不得把主体实现放回这里。
 - `commands`：编辑器命令和快捷键。
 - `metrics`：输入延迟、渲染耗时、scroll 采样。
@@ -794,7 +796,7 @@ V1 搜索分两层：
 
 ## 编辑器 WYSIWYG 分层
 
-Typora-like 行为分三层实现：
+WYSIWYG 行为分三层实现：
 
 ### 视觉层
 

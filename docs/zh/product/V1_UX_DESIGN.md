@@ -2,7 +2,7 @@
 
 # V1 UX 设计
 
-> **历史状态（Alpha UX 基线）：** 本文记录 Foundation / MarkText+ 阶段已经采用的界面方向、原型门禁与验收口径，不再作为当前实施顺序的事实来源。Parity Reliability 的当前交互合同与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+> **历史状态（Alpha UX 基线）：** 本文记录 Foundation / MarkText+ 阶段已经采用的界面方向、原型门禁与验收口径，不再作为当前实施顺序的事实来源。Parity Reliability 的当前交互合同与退出门禁见 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)。
 
 本文描述 LumaMark Alpha 前台界面、视觉目标、Markdown 编辑体验和当时的验收标准。后续实现仍应尊重其中稳定的布局与视觉原则，但过期的“实现前”原型步骤不能覆盖当前代码、测试和当前执行计划。
 
@@ -18,7 +18,7 @@
 - 亮色和暗色主题的视觉方向。
 - UX 验收标准。
 
-本设计不覆盖发布、安装包、商业官网、插件市场、云同步、AI 写作和完整 Typora Parity 后续阶段。
+本设计不覆盖发布、安装包、商业官网、插件市场、云同步、AI 写作和完整 Editor Reliability 后续阶段。
 
 ## UX 结论
 
@@ -63,7 +63,7 @@ http://127.0.0.1:4180/docs/zh/product/prototypes/v1-apple-file-mode/
 
 ## 视觉原则
 
-V1 视觉方向采用 Apple-like 的优雅桌面前端风格，但不复制 Apple 或 Typora 的专有素材、品牌元素或私有实现。
+V1 视觉方向采用 Apple-like 的优雅桌面前端风格，但不复制 第三方 的专有素材、品牌元素或私有实现。
 
 本轮高保真方向固定为：**quiet native workspace + liquid sidebar + paper-grade editor**。核心不是更炫，而是让第一眼像一个 2026 年的桌面 Markdown 写作 App：顶部低存在感、左侧安静可扫描、右侧文字优先。
 
@@ -219,7 +219,7 @@ V1 可以先实现菜单外观和关键命令入口，但不能再把顶部做�
 
 ## Markdown Live Preview
 
-V1 不能只满足于“源码上有 CSS class”。V1 的目标是 Typora-like live preview。
+V1 不能只满足于“源码上有 CSS class”。V1 的目标是 WYSIWYG live preview。
 
 基本原则：
 
@@ -326,7 +326,7 @@ V1 必须保留键盘优先体验。
 - 文件树和大纲没有收敛为左侧单侧栏 tab。
 - 编辑区排版还偏 CodeMirror 默认文本区，不足以支撑高美观度目标。
 - Markdown WYSIWYG 主要是浅层 decoration，不足以证明 live preview 体验完成。
-- 现有自动化测试更多证明元素存在，缺少视觉回归和 Typora-like 交互验收。
+- 现有自动化测试更多证明元素存在，缺少视觉回归和 WYSIWYG 交互验收。
 
 ## 验收标准
 
@@ -362,8 +362,8 @@ pnpm quality:v1-ux-screenshots
 
 V1 UX 不追求：
 
-- 完整复刻 Typora 的每一个菜单项和快捷键。
-- 复制 Typora 的专有素材、品牌元素或私有实现细节。
+- 完整构建完整写作体验 的每一个菜单项和快捷键。
+- 复制第三方专有素材、品牌元素或私有实现细节。
 - 插件系统。
 - 多标签页。
 - 云同步。
@@ -371,4 +371,4 @@ V1 UX 不追求：
 - AI 写作面板。
 - 完整导出发布工作流。
 
-这些能力进入后续 Typora Parity 或 World-Class 阶段评估。
+这些能力进入后续 Editor Reliability 或 World-Class 阶段评估。

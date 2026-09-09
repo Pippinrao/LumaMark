@@ -144,6 +144,7 @@ export default defineConfig({
       '**/target/**',
       '**/tests/e2e/**',
       '**/tests/production-e2e/**',
+      '**/tools/automation/tests/**',
     ],
     globals: false,
     setupFiles: [

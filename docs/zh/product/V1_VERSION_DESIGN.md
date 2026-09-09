@@ -2,19 +2,19 @@
 
 # V1 版本设计
 
-> **历史状态（Alpha 基线）：** 本文冻结为 Foundation / MarkText+ 阶段的产品与架构切片记录，不再作为当前执行计划，也不根据后续实现追溯改写完成状态。当前范围、顺序与退出门禁见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+> **历史状态（Alpha 基线）：** 本文冻结为 Foundation / MarkText+ 阶段的产品与架构切片记录，不再作为当前执行计划，也不根据后续实现追溯改写完成状态。当前范围、顺序与退出门禁见 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)。
 
 日期：2026-07-05
 
 ## 版本口径
 
-LumaMark V1 是第一版可日常试用的 Typora-like Markdown 编辑器基线。
+LumaMark V1 是第一版可日常试用的 WYSIWYG Markdown 编辑器基线。
 
-V1 的目标不是一次性达到商业级完整 1.0，也不是完整复刻 Typora 的全部细节，而是完成一个稳定、流畅、可信的最小产品闭环：
+V1 的目标不是一次性达到商业级完整 1.0，也不是完整构建完整写作体验 的全部细节，而是完成一个稳定、流畅、可信的最小产品闭环：
 
 > 打开 Markdown，顺畅编辑，看到基础 WYSIWYG，使用 Mermaid，保存不破坏源码，在 Windows 上稳定运行，并内建中文和英文。
 
-V1 对外可以理解为 **MarkText+ / Alpha-to-Beta 基线版本**：先在流畅度、现代感、源码保真和工程质量上赢过 MarkText，再为后续追平 Typora 打基础。
+V1 对外可以理解为 **MarkText+ / Alpha-to-Beta 基线版本**：先在流畅度、现代感、源码保真和工程质量上赢过 MarkText，再为后续完善写作流程打基础。
 
 ## 设计目标
 
@@ -23,7 +23,7 @@ V1 必须达成五个目标：
 1. **可写**：用户能完成新建、打开、编辑、保存 Markdown 的完整闭环。
 2. **流畅**：常规输入、滚动、打开文件、保存文件没有明显卡顿。
 3. **可信**：保存不会产生无关 diff，不破坏用户源码格式。
-4. **像 Typora**：布局、视觉和基础 WYSIWYG 行为对齐成熟 Typora-like 范式。
+4. **成熟的写作体验**：布局、视觉和基础 WYSIWYG 行为对齐成熟 WYSIWYG 范式。
 5. **可演进**：架构、测试、i18n、性能基准和模块边界能支撑后续扩展。
 
 ## 成功标准

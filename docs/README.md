@@ -6,6 +6,8 @@ This file is the sole index for the `docs/` directory. When adding, deleting, mo
 
 ## Documentation governance
 
+Current execution scratch: [Agent tools and document layout plan](superpowers/plans/2026-09-09-agent-tools-and-document-layout.md).
+
 - Keep docs few and accurate; do not create long-lived docs for temporary ideas.
 - Each topic may have only one primary source of truth.
 - Near-term plans may be detailed; far-term plans stay outline-level with decision gates.
@@ -28,8 +30,6 @@ docs/
 ├─ zh/                       # Full Chinese mirror of project docs
 ├─ superpowers/              # Non-authoritative agent planning scratch (specs/plans)
 ├─ product/                  # Product positioning, version scope, PRD, competitor strategy
-│  ├─ typora-baseline/       # Typora public behavior baseline (topic facts and alignment tables)
-│  └─ typora-competitive-analysis/ # LumaMark snapshot and topic gap analysis
 ├─ architecture/             # Architecture principles, module boundaries, technology choices
 ├─ decisions/                # Major decision records
 ├─ quality/                  # Testing, performance, quality strategy
@@ -53,7 +53,7 @@ New agents or contributors should read in this order:
 1. [Project charter](product/PROJECT_CHARTER.md)
 2. [Product positioning and strategy](product/PRODUCT_STRATEGY.md)
 3. [Evolution plan](roadmap/EVOLUTION_PLAN.md)
-4. [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
+4. [Editor reliability implementation plan](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)
 5. [Detailed architecture and technology choices](architecture/DETAILED_ARCHITECTURE.md)
 6. [Quality strategy](quality/QUALITY_STRATEGY.md)
 7. [Agent working contract](../AGENTS.md)
@@ -70,7 +70,7 @@ These documents record Foundation / MarkText+ Alpha baselines. They are frozen i
 
 ## Current status
 
-Foundation and MarkText+ form an Alpha technical baseline. The active milestone is **Parity Reliability Foundation**: converge source fidelity, IME, undo, focus, and active-save reliability before stacking more topic features. Scope, order, and exit gates live only in the [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+Foundation and MarkText+ form an Alpha technical baseline. The active milestone is **Parity Reliability Foundation**: converge source fidelity, IME, undo, focus, and active-save reliability before stacking more topic features. Scope, order, and exit gates live only in the [Editor reliability implementation plan](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 Landed capabilities (high level; follow the linked English docs for contracts and acceptance):
 
@@ -92,11 +92,8 @@ Landed capabilities (high level; follow the linked English docs for contracts an
 | [V1 product requirements](product/V1_PRODUCT_REQUIREMENTS.md) | Historical product baseline | Foundation / MarkText+ V1 feature scope and acceptance | Frozen in principle; fix links or historical status notes only |
 | [V1 version design](product/V1_VERSION_DESIGN.md) | Historical product baseline | Alpha product, interaction, and architecture slices; not a current execution plan | Frozen in principle; fix links or historical status notes only |
 | [V1 UX design](product/V1_UX_DESIGN.md) | Historical UX baseline | Alpha default layout, visual direction, hi-fi prototypes, UX acceptance | Stable visual principles or historical status notes change |
-| [Menu system design](product/MENU_SYSTEM_DESIGN.md) | Product UX | Shared visual/info structure, command contracts, context hit-testing, Typora shortcut mapping, and acceptance for top menus, context menus, and command palette | Menu/context structure, shortcuts, related capability status, or menu tech approach changes |
+| [Menu system design](product/MENU_SYSTEM_DESIGN.md) | Product UX | Shared visual/info structure, command contracts, context hit-testing, shortcut mapping, and acceptance for top menus, context menus, and command palette | Menu/context structure, shortcuts, related capability status, or menu tech approach changes |
 | [Settings system design](product/SETTINGS_SYSTEM_DESIGN.md) | Product UX | Settings dialog sections, schema, persistence/migration contracts, settings vs session boundaries, tests and acceptance | Settings sections/fields, persistence backend, migration strategy, or settings gates change |
-| [Competitor strategy and historical debt](product/COMPETITOR_STRATEGY.md) | Product | Typora, MarkText, and related competitor strategy and pitfalls | Competitor judgment or pitfall strategy changes |
-| [Typora behavior baseline](product/typora-baseline/README.md) | Product | Typora public writing-behavior facts, sources, and LumaMark alignment tables | Typora version re-check, baseline topic additions, or alignment decisions |
-| [Typora topic competitive analysis](product/typora-competitive-analysis/README.md) | Product | Index, responsibility boundaries, status vocabulary, and maintenance gates for 18 topic reports | Related implementation evidence, Typora baseline, or topic structure changes |
 | [Architecture strategy](architecture/ARCHITECTURE_STRATEGY.md) | Architecture | High-level architecture principles and anti-patterns | Architecture principle changes |
 | [Detailed architecture and technology choices](architecture/DETAILED_ARCHITECTURE.md) | Architecture | Module boundaries, data flow, technology choices | Default architecture or major dependency changes |
 | [ADR 0001: V1 app shell mature UI components](decisions/0001-task8-ui-components.md) | Decision | Task 8 UI primitive choices and review conditions | File tree, split pane, command palette, or dialog primitive changes |
@@ -125,10 +122,14 @@ Landed capabilities (high level; follow the linked English docs for contracts an
 | [V1 performance baseline](performance/V1_BASELINE.md) | Performance | V1 alpha performance budgets, measured results, known limits, installed UX stutter gates | Performance budgets, benchmark commands, installed UX gates, or measured results change |
 | [Windows V1 build record](release/WINDOWS_V1_BUILD.md) | Release | Windows build commands, install artifacts, release gaps | Windows build config, artifacts, or release gates change |
 | [Evolution plan](roadmap/EVOLUTION_PLAN.md) | Roadmap | Near-detail / far-outline phase plan | Near-term phase goals or exit conditions change |
-| [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) | Current execution roadmap | Parity Reliability Foundation order, contracts, evidence, and exit gates | Current milestone scope, order, or gates change |
+| [Editor reliability implementation plan](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md) | Current execution roadmap | Parity Reliability Foundation order, contracts, evidence, and exit gates | Current milestone scope, order, or gates change |
 | [V1 implementation plan](roadmap/V1_IMPLEMENTATION_PLAN.md) | Historical roadmap baseline | Foundation / MarkText+ Alpha task breakdown; original checkboxes retained; not current completion status | Frozen in principle; fix links or historical status notes only |
 
 ## Fact-source rules
+
+Agent usage: [CLI and MCP User Guide](release/AGENT_TOOLS.md) owns setup, commands, configuration and troubleshooting; update it when the interface or distribution changes.
+
+Agent architecture: [ADR 0023: CLI and MCP](decisions/0023-agent-cli-and-mcp.md) owns the service architecture, schemas, and capability boundaries; update it when the interface or distribution changes.
 
 - Working rules: [AGENTS.md](../AGENTS.md).
 - Development process: [DEVELOPMENT_PROCESS.md](../DEVELOPMENT_PROCESS.md).
@@ -136,9 +137,8 @@ Landed capabilities (high level; follow the linked English docs for contracts an
 - Alpha front-end UX historical baseline: [V1 UX design](product/V1_UX_DESIGN.md); current interaction implementation scope follows the current execution plan and detailed architecture.
 - Current detailed architecture: [Detailed architecture and technology choices](architecture/DETAILED_ARCHITECTURE.md).
 - Current phase positioning and Now/Next/Later: [Evolution plan](roadmap/EVOLUTION_PLAN.md).
-- Current executable scope, order, and exit gates: [Typora Parity core experience plan](roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+- Current executable scope, order, and exit gates: [Editor reliability implementation plan](roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 - [V1 product requirements](product/V1_PRODUCT_REQUIREMENTS.md), [V1 UX design](product/V1_UX_DESIGN.md), [V1 version design](product/V1_VERSION_DESIGN.md), and [V1 implementation plan](roadmap/V1_IMPLEMENTATION_PLAN.md) are historical Alpha baselines only; do not infer current implementation status from them.
-- Typora public behavior detail: [Typora behavior baseline](product/typora-baseline/README.md); topic implementation snapshots: [Typora topic competitive analysis](product/typora-competitive-analysis/README.md); LumaMark current implementation scope still follows the current execution plan.
 - `docs/superpowers/` is non-authoritative planning scratch and never overrides the sources above.
 
 If documents conflict, judge by the fact sources above first, then update the stale document.

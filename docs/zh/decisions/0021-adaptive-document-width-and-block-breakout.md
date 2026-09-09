@@ -16,9 +16,9 @@
 - 将其设为新默认。设置 schema 第 4 版会在升级时把旧的 `standard` 改写为 `adaptive`。明确选过的 `narrow`、`wide`、`fluid`，以及之后再次明确选择的 `standard` 予以保留。
 - 默认页面宽度已不再是 `adaptive`。ADR 0022 把 `fluid`（适应窗口）设为默认；设置 schema 第 5 版会把旧的 `adaptive` 改写为 `fluid`。`adaptive` 预设本身仍可用，CSS 不变。
 - 由 CodeMirror view plugin 观察 `view.scrollDOM`，把 `clientWidth - gutter` 量化为整数 px，写入 `--lm-editor-block-track-width`，仅在值变化时写入。
-- 表格、Mermaid、PlantUML、图片使用该轨道（较窄时居中）。数学公式与围栏代码仍留在正文列，因为 MathJax CHTML 会在内容宽度变化时重新渲染。
+- Mermaid、PlantUML、图片使用该轨道（较窄时居中）。数学公式与围栏代码仍留在正文列，因为 MathJax CHTML 会在内容宽度变化时重新渲染。自 2026-09-09 起，表格也跟随所选正文页面，不再使用越界轨道。
 - 后续轨道宽度变化后强制 CodeMirror `mustMeasureContent`，以便未注册进 `blockWidgetGeometry` 的表格 widget 刷新高度图。编辑器构造时的首次发布不整页重测：CodeMirror 第一次布局已经会测量 widget。ResizeObserver 回调合并到同一帧，避免打开多表格文件时叠满重测。
-- `.tbl-table-widget` 使用写作轨道宽，并设 `min-width: min-content`，保留库的 `contain: paint`。长单元格文本仍在轨道处折行。无法再压缩的宽表会撑开 widget，paint containment 就不会裁切。不要改成 `width: max-content`（单元格不再折行），也不要关闭 paint containment（即使页面宽度不是自适应，打开多表格也会卡住）。
+- 2026-09-09 按所有者要求更新：`.tbl-table-widget` 及表格宽度为所选页面的 100%，widget 最小宽度为零，使用固定表格布局。静态文本和激活后的嵌套编辑器行均使用 `overflow-wrap: anywhere`，避免连续长词撑开页面。这替代原先的 `min-width: min-content` 扩张契约。保持两种状态相同的 padding、真实空行、完整可见内容和库的 `contain: paint`，不增加内部滚动条或裁剪表头。
 
 ## 被否决方案
 
@@ -33,7 +33,7 @@
 - 侧栏自适应仍独立（见 ADR 0011）。自适应页面宽度不改变侧栏测量。
 - 纸张宽度 CSS 只能打在 `.lm-codemirror > .cm-editor > .cm-scroller > .cm-content`。嵌套表格单元格编辑器也在 `.lm-codemirror` 下，不得继承 96px gutter 或纸张 padding。
 - 表格库会在单元格之间复用同一个嵌套 `EditorView`。连续点击必须在捕获阶段记下坐标，并在布局后再映射到该视图；一次性 “已经 apply 过” 不够。
-- 表格 widget 使用写作轨道宽（`width: 轨道; min-width: min-content`），从而可以保留库的 `contain: paint`。只覆盖内层 `overflow-x: auto`；不再关闭 paint containment。
+- 表格 widget 现在通过固定布局和一致换行适配所选页面。保留库的 `contain: paint`，继续覆盖内层 `overflow-x: auto`。宽度变化需要浏览器光标矩阵以及打包 WebView/操作系统鼠标矩阵证据。
 
 ## 回滚与复审条件
 

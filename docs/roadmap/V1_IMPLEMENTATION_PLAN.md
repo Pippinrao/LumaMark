@@ -4,11 +4,11 @@
 
 > **Historical / frozen Alpha baseline — NOT current execution source of truth.**
 >
-> This document keeps the original Foundation / MarkText+ task breakdown and unfinished checkboxes. It is not the current execution plan, and later work must not be backfilled as forged TDD completion. Current scope, sequencing, and exit gates live only in [Typora Parity Implementation Plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+> This document keeps the original Foundation / MarkText+ task breakdown and unfinished checkboxes. It is not the current execution plan, and later work must not be backfilled as forged TDD completion. Current scope, sequencing, and exit gates live only in [Editor Reliability Implementation Plan](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 ## What this document was for
 
-This was the Alpha execution plan to land V1 as a daily-trial Typora-like baseline: open, edit, WYSIWYG, Mermaid, save, zh/en, performance baselines, and a usable Windows build.
+This was the Alpha execution plan to land V1 as a daily-trial WYSIWYG baseline: open, edit, WYSIWYG, Mermaid, save, zh/en, performance baselines, and a usable Windows build.
 
 **Historical stack:** Tauri v2, React, TypeScript, Vite, pnpm, CodeMirror 6, Radix Primitives, Zustand, i18next, Vitest, Playwright, Mermaid, Rust—with CodeMirror owning Markdown text and the edit hot path, React owning the shell, and Rust owning file/system capabilities.
 
@@ -32,4 +32,4 @@ Execution rules emphasized TDD, one clear slice per task, reading verification o
 ## Links
 
 - [Chinese full text](../zh/roadmap/V1_IMPLEMENTATION_PLAN.md)
-- [Current execution plan](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
+- [Current execution plan](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)

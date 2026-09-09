@@ -83,7 +83,7 @@ Reasons:
 - Suitable for large documents.
 - Supports incremental parsing.
 - Supports decorations/widgets.
-- Can implement a Typora-like Markdown visual layer.
+- Can implement a WYSIWYG Markdown visual layer.
 - Markdown source can remain the primary data.
 
 Responsibilities:

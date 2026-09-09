@@ -6,7 +6,7 @@ Date: 2026-07-04
 
 ## One-line positioning
 
-LumaMark is a high-performance, modern, cross-platform WYSIWYG Markdown editor. In phase one it uses a Typora-like experience as the baseline: first recreate a mature writing experience, then innovate on performance, engineering capability, and modern workflows.
+LumaMark is a high-performance, modern, cross-platform WYSIWYG Markdown editor. In phase one it uses a WYSIWYG experience as the baseline: first recreate a mature writing experience, then innovate on performance, engineering capability, and modern workflows.
 
 ## Vision
 
@@ -41,7 +41,7 @@ LumaMark follows a “recreate first, then innovate” path.
 
 ### Recreate first
 
-Phase one does not rush into divergent innovation. It first aligns with the mature Typora-like paradigm:
+Phase one does not rush into divergent innovation. It first aligns with the mature WYSIWYG paradigm:
 
 - The central editor is the primary surface.
 - Sidebar and outline are optional and restrained.
@@ -72,7 +72,7 @@ Core users:
 - Product managers
 - Researchers
 - Writing-oriented knowledge workers
-- Long-time users of Markdown tools such as Typora, MarkText, Obsidian, and Zettlr
+- Long-time users of Markdown tools such as MarkText, Obsidian, and Zettlr
 
 These users share concerns about:
 
@@ -92,13 +92,13 @@ Short-term success: quickly surpass MarkText.
 - Clearer maintenance strategy.
 - More stable Windows experience.
 
-Medium-term success: match Typora’s core experience.
+Medium-term success: complete core writing workflows.
 
-- Typora users can migrate without obvious friction.
+- Users of other Markdown editors can migrate without obvious friction.
 - Common Markdown editing actions feel natural.
 - Core capabilities such as images, links, tables, code blocks, Mermaid, math, and export are complete.
 
-Long-term success: surpass Typora.
+Long-term success: advance LumaMark’s own capabilities.
 
 - Clearly better large-document experience.
 - Stronger workspace and search.

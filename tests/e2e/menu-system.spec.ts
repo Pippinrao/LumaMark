@@ -106,7 +106,6 @@ test('executes menu state, recent-file, and About workflows end to end', async (
   await expect(about).toBeVisible();
   await expect(about).toContainText(packageVersion);
   await expect(about).toContainText('A modern, high-performance Markdown editor');
-  await expect(about).not.toContainText(/typora/i);
   await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('menuitem', { name: 'Help', exact: true })).toBeFocused();
@@ -322,7 +321,7 @@ test('keeps editor focus after confirming dirty new-document creation', async ({
   await expect(editor).toBeFocused();
 });
 
-test('routes Typora-aligned and migration shortcuts to real editor commands', async ({
+test('routes shared editor and migration shortcuts to real editor commands', async ({
   page,
 }) => {
   await page.goto('/');

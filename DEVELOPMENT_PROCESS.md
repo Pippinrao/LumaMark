@@ -45,7 +45,7 @@ A task should:
 The following are too large and must be split:
 
 - “Implement the editor”
-- “Replicate Typora”
+- “Build a complete writing experience”
 - “Build a complete filesystem”
 - “Optimize performance”
 - “Implement Mermaid”

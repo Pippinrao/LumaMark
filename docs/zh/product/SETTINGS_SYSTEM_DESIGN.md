@@ -2,13 +2,13 @@
 
 ﻿# LumaMark 设置系统设计
 
-> 本文定义 LumaMark 设置对话框的信息结构、`LumaMarkSettings` schema、持久化与迁移合同、设置与会话状态边界、i18n/a11y 与验收标准。它面向设置实现者、测试人员与后续 Markdown capability 维护者；当前实施顺序仍以 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。持久化后端决策见 [ADR 0014](../decisions/0014-settings-persistence.md)。
+> 本文定义 LumaMark 设置对话框的信息结构、`LumaMarkSettings` schema、持久化与迁移合同、设置与会话状态边界、i18n/a11y 与验收标准。它面向设置实现者、测试人员与后续 Markdown capability 维护者；当前实施顺序仍以 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md) 为准。持久化后端决策见 [ADR 0014](../decisions/0014-settings-persistence.md)。
 
 ## 用途与范围
 
 本设计解决以下已确认问题：
 
-- 设置页只有水平 Tab 与少量可配项，缺少 Typora 式左侧分区导航。
+- 设置页只有水平 Tab 与少量可配项，缺少 左侧分区导航。
 - 偏好散落在多个 localStorage key 与内存 store；`copyImagesToAssets` 与 `fontZoomPercent` 重启丢失。
 - 无统一 settings schema 与 Rust 侧配置文件，跨会话/跨重装不可迁移。
 - 设置与会话状态边界不清，容易把最近文件、临时侧栏状态塞进配置文件。
@@ -32,8 +32,6 @@
 
 ## 事实来源
 
-- Typora Preferences 事实取自 [Typora 行为基线](typora-baseline/README.md)；多数 Markdown 偏好出处为 `support`，未经本机逐条核实的项不得写成已确认 GUI 事实。
-- LumaMark 当前状态取自代码、[Typora 专题竞争分析](typora-competitive-analysis/README.md) 与 [菜单系统设计](MENU_SYSTEM_DESIGN.md)。
 - 持久化后端以 [ADR 0014](../decisions/0014-settings-persistence.md) 为准。
 
 ## 当前问题与根因
@@ -284,7 +282,7 @@ SettingsDialog
 ### E2E
 
 26. 打开设置 → 键盘切换分区 → 改字体缩放 → reload → 值保留。
-27. 1440×900 截取并人工批准[亮色中文](../../artifacts/settings-report/settings-light-zh.png)、[暗色中文](../../artifacts/settings-report/settings-dark-zh.png)、[暗色英文](../../artifacts/settings-report/settings-dark-en.png)四分区代表截图；自动化同时断言大面板不溢出 viewport、英文控件不发生不必要截断、主题/页面宽度选中态可辨。历史截图只能说明当时结构，不自动成为新版视觉基线。
+27. 1440×900 截取并人工批准[亮色中文](../../../artifacts/settings-report/settings-light-zh.png)、[暗色中文](../../../artifacts/settings-report/settings-dark-zh.png)、[暗色英文](../../../artifacts/settings-report/settings-dark-en.png)四分区代表截图；自动化同时断言大面板不溢出 viewport、英文控件不发生不必要截断、主题/页面宽度选中态可辨。历史截图只能说明当时结构，不自动成为新版视觉基线。
 28. 520×620 与关键中间断点验证单栏导航/内容切换、主内容独立滚动、无横向溢出；forced-colors 与无 `backdrop-filter` 条件下 surface 不透明且焦点、radio、switch 状态可辨。
 29. 当前工作树 Release exe 在隔离的系统临时 config 中，先形成已落盘基线，再用真实 OS 指针从顶部主题菜单切到 `system`，不预等该变更写盘即立即用窗口 X 关闭；close coordinator flush 后，以同一 exe、同一隔离 config 和全新 WebView profile 重启，从设置 UI 与 canonical v2 `settings.json` 同时读回。browser localStorage reload、Rust service 单测或直接预写 JSON 均不能单独替代这条组合证据。
 

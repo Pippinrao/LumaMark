@@ -21,7 +21,7 @@ ADR 0019 already states: "A `detail === 2` drag that already painted a character
 
 ### Vertical sensitivity
 
-`stabilizeDragHead` rejects a head that moves opposite the pointer on the X axis. It has no Y logic. `posAtCoords(coords, false)` with `precise: false` snaps to the closest line even when the pointer is only 1 px into the next line's territory. Real editors (VS Code, Typora, browser `<textarea>`) keep the selection on the current line until the pointer is well into the next line (roughly half a line-height). This is "line stickiness" or Y hysteresis.
+`stabilizeDragHead` rejects a head that moves opposite the pointer on the X axis. It has no Y logic. `posAtCoords(coords, false)` with `precise: false` snaps to the closest line even when the pointer is only 1 px into the next line's territory. Real editors (VS Code, browser `<textarea>`) keep the selection on the current line until the pointer is well into the next line (roughly half a line-height). This is "line stickiness" or Y hysteresis.
 
 ## Decision
 

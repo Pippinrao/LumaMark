@@ -16,9 +16,9 @@ Updated: 2026-08-19 (everyday GFM tables mount widgets without format-on-load)
 
 Updated: 2026-08-19 (preview scheduler: source path vs deferred viewport decorations)
 
-Current implementation order and exit gates live in the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). The current execution stage is the **Parity Reliability Foundation**, not historical V1 Alpha plans. Editor contracts and review conditions are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md). Settings persistence and workspace/external-open safety boundaries are in [ADR 0014](../decisions/0014-settings-persistence.md) and [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
+Current implementation order and exit gates live in the [Editor Reliability Implementation Plan](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md). The current execution stage is the **Parity Reliability Foundation**, not historical V1 Alpha plans. Editor contracts and review conditions are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md). Settings persistence and workspace/external-open safety boundaries are in [ADR 0014](../decisions/0014-settings-persistence.md) and [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
 
-**Landed capabilities (partial; do not treat the whole Typora Parity milestone as complete):**
+**Landed capabilities (partial; do not treat the whole Editor Reliability milestone as complete):**
 
 - Settings persistence: [ADR 0014](../decisions/0014-settings-persistence.md) and [SETTINGS_SYSTEM_DESIGN](../product/SETTINGS_SYSTEM_DESIGN.md)
 - Menu system: [MENU_SYSTEM_DESIGN](../product/MENU_SYSTEM_DESIGN.md)
@@ -30,6 +30,8 @@ Current implementation order and exit gates live in the [Typora Parity Core Expe
 V1 product/UX/implementation plans remain a historical Alpha baseline only. They are not the current execution source of truth.
 
 ## Design Conclusions
+
+Agent automation is a separate Node host with shared CLI/MCP services, local diagram engines, and no editor startup dependency; see [ADR 0023](../decisions/0023-agent-cli-and-mcp.md). Sidebar selection belongs to the app shell: standalone sessions default to Outline, workspace sessions to Files, and manual selection lasts until the workspace context changes.
 
 LumaMark’s default architecture is:
 
@@ -288,7 +290,7 @@ Recommended submodules:
 - `interaction`: Derives selection, minimal block, inline owner, delimiter, composition, and protected source ranges from CodeMirror state and the Lezer syntax tree.
 - `capabilities`: Independently evolving editor sub-capabilities such as Mermaid, table, code block, and image.
 - `markdown`: Markdown language pack and syntax helpers.
-- `wysiwyg`: Typora-like shared visual decorations composition layer; keeps only low-cost, source-faithful shared visual rules and does not host complex sub-capability implementations.
+- `wysiwyg`: WYSIWYG shared visual decorations composition layer; keeps only low-cost, source-faithful shared visual rules and does not host complex sub-capability implementations.
 - `widgets`: Compatibility re-exports for old paths; new capabilities must not put primary implementations back here.
 - `commands`: Editor commands and shortcuts.
 - `metrics`: Input latency, render duration, and scroll sampling.
@@ -807,7 +809,7 @@ Full-text indexing enters a later stage and is not locked during the Parity Reli
 
 ## Editor WYSIWYG Layers
 
-Typora-like behavior is implemented in three layers:
+WYSIWYG behavior is implemented in three layers:
 
 ### Visual Layer
 
@@ -920,7 +922,7 @@ If a mature component does not meet goals, record evidence and request user conf
 These choices are not adopted yet and need small-sample validation before entering the corresponding milestone:
 
 - `KaTeX`: already rejected as the final engine for Issue #11; see [ADR 0017](../decisions/0017-mathjax-document-worker-chtml.md).
-- Workspace search library: whether to start with simple Rust scanning or introduce an index library directly should follow current Typora Parity / Parity Reliability roadmap scope, not historical V1 Alpha plans.
+- Workspace search library: whether to start with simple Rust scanning or introduce an index library directly should follow current Editor Reliability / Parity Reliability roadmap scope, not historical V1 Alpha plans.
 
 Validation failure does not mean immediate hand-rolling. Prefer finding a mature alternative of the same class.
 

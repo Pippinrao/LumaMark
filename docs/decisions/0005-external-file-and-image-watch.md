@@ -26,7 +26,7 @@ LumaMark previously read from disk only when opening a file. After other program
 - `file-watch://changed` `kind: image` events are wired to app-layer `refreshLocalImage({ path, revision })`, which then updates the same-source revision store, invalidates the resolver path, calls `EditorDocumentPort.refreshImages(path)`, and dispatches the image capability refresh effect.
 - Resolver and revision store share `normalizeLocalPathKey`; re-resolved asset URLs carry the same-source `lmv=<revision>`. Image widget identity includes source revision, so hit images replace DOM while other widgets remain equivalent for reuse; Markdown body, dirty, and undo stay unchanged.
 - The frontend drops old events by monotonic watch revision. Document reload results are isolated by generation, request id, and current path. Image target sync uses a serial queue + generation; switching documents clears old authorize/invalidate sets so stale target updates cannot overwrite the new reference set.
-- Browser unit/integration tests verify event→resolver→editor effect, cache-busting, and late-result discard. Rust tests verify real watchers, atomic replace, and fingerprints. Browser mocks still cannot replace real Windows Tauri image-replace proof; exit criteria are in the [current execution plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+- Browser unit/integration tests verify event→resolver→editor effect, cache-busting, and late-result discard. Rust tests verify real watchers, atomic replace, and fingerprints. Browser mocks still cannot replace real Windows Tauri image-replace proof; exit criteria are in the [current execution plan](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).
 
 ## Alternatives considered
 

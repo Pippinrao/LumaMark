@@ -12,7 +12,7 @@ This document records the dependencies, permissions, and security boundaries int
 
 ## Context
 
-Before this decision landed, `src-tauri` only registered `tauri-plugin-dialog` and `tauri-plugin-single-instance`; `capabilities/default.json` granted only `core:*` window permissions and `dialog:default`. The 19 registered commands at that time had no ability to open external URLs, reveal in explorer, or create/rename/delete files. Therefore verified Typora-baseline link “Open link” and file-tree resource-manager actions could not be implemented. The editor already had `deriveEditorInteractionContext` to recognize Link/Image; the gap was platform capability, not the syntax tree.
+Before this decision landed, `src-tauri` only registered `tauri-plugin-dialog` and `tauri-plugin-single-instance`; `capabilities/default.json` granted only `core:*` window permissions and `dialog:default`. The 19 registered commands at that time had no ability to open external URLs, reveal in explorer, or create/rename/delete files. Therefore link-context “Open link” and file-tree resource-manager actions could not be implemented. The editor already had `deriveEditorInteractionContext` to recognize Link/Image; the gap was platform capability, not the syntax tree.
 
 ## Decision
 

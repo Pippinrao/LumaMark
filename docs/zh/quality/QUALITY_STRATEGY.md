@@ -15,9 +15,9 @@ LumaMark 计划大量使用 AI 构建。AI 可以显著提升产出速度，但�
 
 因此 LumaMark 必须从第一天建立 AI 原生质量体系。
 
-详细执行规则见根目录 [DEVELOPMENT_PROCESS.md](../../DEVELOPMENT_PROCESS.zh.md)。
+详细执行规则见根目录 [DEVELOPMENT_PROCESS.md](../../../DEVELOPMENT_PROCESS.zh.md)。
 
-当前 Parity Reliability 的专题门禁、真实 Windows 路径和里程碑退出条件见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。本文件维护长期质量分层，不复制当前任务清单。
+当前 Parity Reliability 的专题门禁、真实 Windows 路径和里程碑退出条件见 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)。本文件维护长期质量分层，不复制当前任务清单。
 
 ## 质量目标
 
@@ -185,6 +185,10 @@ Windows 本地候选包还必须运行 `pnpm release:packaged-webview`：从真�
 凡是重复执行两次以上的手动测试，都应该转为自动化。
 
 ## Bug 策略
+
+本地自动化宿主使用独立 `pnpm test:automation` 门禁（真实 Chromium 渲染与 MCP stdio 客户端调用），CI 在安装 Chromium 后运行；不并入不需要浏览器的 `pnpm test` 门禁。类型检查和 lint 覆盖 `tools/automation/`，接口契约见 [ADR 0023](../decisions/0023-agent-cli-and-mcp.md)。
+
+已知表格库诊断：激活未按列补齐空格的日常 GFM 单元格时，`codemirror-markdown-tables` 的延迟嵌套编辑器 dispatch 可能输出 `Selection points outside of document`。2026-09-09 的浏览器对照在旧 CSS 和页面约束 CSS 下均复现，而源码/光标断言通过。这是已有交互跟进项，不应隐藏错误，也不能未经复现归因于 CSS 修复。浏览器几何通过不能替代桌面操作系统指针矩阵。
 
 Bug 修复必须遵守：
 

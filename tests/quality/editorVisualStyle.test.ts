@@ -64,7 +64,7 @@ describe('editor visual style contract', () => {
     expect(editorCss).toContain('font-variant-east-asian: proportional-width;');
   });
 
-  it('sizes table widgets to their content so paint containment can stay on', async () => {
+  it('fits table widgets to the selected page while retaining paint containment', async () => {
     const editorCss = await readCss('src', 'editor', 'core', 'editor.css');
     const tableCss = await readCss(
       'src',
@@ -78,10 +78,11 @@ describe('editor visual style contract', () => {
       '.lm-codemirror .cm-content .tbl-table-widget',
     );
 
-    expect(tableWidget).toContain(
-      'width: var(--lm-editor-block-track-width, 100%);',
-    );
-    expect(tableWidget).toContain('min-width: min-content;');
+    expect(tableWidget).toContain('width: 100%;');
+    expect(tableWidget).toContain('min-width: 0;');
+    expect(tableWidget).toContain('max-width: 100%;');
+    expect(tableCss).toContain('table-layout: fixed;');
+    expect(tableCss).toContain('overflow-wrap: anywhere;');
     expect(tableWidget).not.toContain('width: max-content;');
     const breakoutList = editorCss.match(
       /\.lm-codemirror \.cm-content :is\(([\s\S]*?)\)\s*\{/,

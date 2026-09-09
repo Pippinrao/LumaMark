@@ -4,13 +4,13 @@
 
 LumaMark 是一个高性能、现代化、跨平台的所见即所得 Markdown 编辑器。
 
-项目愿景：先快速超过 MarkText，再追平 Typora 核心体验，最终成为世界第一的所见即所得 Markdown 编辑器。
+项目愿景：先建立可靠的日常写作体验，再持续提升性能、源码保真和现代 Markdown 工作流。
 
 ## 项目方向
 
 LumaMark 的路线是“先复刻，再创新”：
 
-1. 第一阶段对齐成熟的 Typora-like 写作体验和布局范式。
+1. 第一阶段对齐成熟的 WYSIWYG 写作体验和布局范式。
 2. 第二阶段在流畅度、源码保真、大文档、现代 UI、多语言和工作区体验上超过现有产品。
 3. 第三阶段形成自己的差异化能力，成为高性能 Markdown 写作工作台。
 
@@ -26,8 +26,10 @@ LumaMark 的路线是“先复刻，再创新”：
 
 ## 文档入口
 
+- [CLI 与 MCP 使用说明](docs/zh/release/AGENT_TOOLS.md)
+
 - [项目文档地图](docs/zh/README.md)
-- [当前 Typora Parity 实施计划](docs/zh/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)
+- [当前 Editor Reliability 实施计划](docs/zh/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)
 - [Agent 工作契约](AGENTS.zh.md)
 - [AI 开发流程](DEVELOPMENT_PROCESS.zh.md)
 
@@ -46,7 +48,7 @@ LumaMark 的路线是“先复刻，再创新”：
 
 ## 当前状态
 
-Foundation 与 MarkText+ 已形成 Alpha 技术基线。项目当前处于 **Parity Reliability Foundation**，优先收敛源码保真、输入法、撤销、焦点和 active-save 可靠性。范围与退出门禁以 [Typora Parity 核心体验改进计划](docs/zh/roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md) 为准。
+Foundation 与 MarkText+ 已形成 Alpha 技术基线。项目当前处于 **Parity Reliability Foundation**，优先收敛源码保真、输入法、撤销、焦点和 active-save 可靠性。范围与退出门禁以 [编辑器可靠性实施计划](docs/zh/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md) 为准。
 
 已落地能力（高层索引；细节见链接文档）：
 

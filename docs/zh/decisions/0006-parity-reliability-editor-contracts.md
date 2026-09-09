@@ -10,7 +10,7 @@
 
 Foundation 与 MarkText+ 已建立 CodeMirror 主编辑器、文件闭环和多种 Markdown capability，但可靠性行为曾分散在装饰器、保存调用方和复杂块内部。继续逐语法增加活动行特例、字符串 round-trip 或嵌套编辑器，会放大 IME、选区、撤销、active-save 与源码保真的风险。
 
-当前实施范围见 [Typora Parity 核心体验改进计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)。
+当前实施范围见 [编辑器可靠性实施计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)。
 
 ## 决策
 

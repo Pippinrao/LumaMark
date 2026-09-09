@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const prototypePath = '/docs/product/prototypes/v1-apple-file-mode/';
 
-test('locks the V1 Typora-like file management UX prototype constraints', async ({
+test('locks the V1 WYSIWYG file management UX prototype constraints', async ({
   page,
 }) => {
   await page.goto(prototypePath);

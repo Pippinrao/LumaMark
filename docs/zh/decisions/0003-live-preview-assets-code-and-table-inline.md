@@ -50,7 +50,7 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 本地图片引用由 `ImageAssetResolver.syncLocalSources` 同步为 watcher targets。图片事件把规范化 path 对应的 revision 写入 resolver、失效旧授权缓存，再通过 `EditorDocumentPort.refreshImages(path)` 向 image capability 派发刷新 effect。
 - decoration 会重建图片 widget 候选，但 widget identity 包含对应 source 的 revision；只有命中该 path 的图片获得新 asset URL（`lmv=<revision>`），无关 widget 复用，Markdown source 不发生 transaction。
 - 首次保存前，file workflow 从 editor 的精确序列化快照调用 `finalizeAllDraftImages`，按文档中首次出现顺序迁移各 draft batch 并替换 `lumamark-draft://` 引用。只有文件写入成功且原快照仍是当前文档时，转换文本才以最小 CodeMirror changes 映射回主文档并标记保存点；失败时不把占位替换提交到正文，并保留 dirty。
-- 当前 finalize 会先原子复制目标图片，再写 Markdown 文件；若图片迁移成功而后续文档写入失败，可能留下未被文档引用的 asset 文件。这不是完整文件系统事务，图片策略持久化与事务回滚仍属于 [当前计划](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md)的 Next 阶段。精确快照与最小 changes 合同见 [ADR 0006](0006-parity-reliability-editor-contracts.md)。
+- 当前 finalize 会先原子复制目标图片，再写 Markdown 文件；若图片迁移成功而后续文档写入失败，可能留下未被文档引用的 asset 文件。这不是完整文件系统事务，图片策略持久化与事务回滚仍属于 [当前计划](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)的 Next 阶段。精确快照与最小 changes 合同见 [ADR 0006](0006-parity-reliability-editor-contracts.md)。
 
 ### 2026-08-12 代码块实现更新
 
@@ -65,7 +65,7 @@ V1 live preview 需要补齐图片、代码块和表格内嵌语法体验，同�
 - 代码块表面和语法 token 样式归属 code-block capability；通用 WYSIWYG 样式不再持有 fenced-code 专属规则。亮暗配色集中在 shared theme tokens，继续复用 CodeMirror/Lezer 产生的语义 class，不引入自研 tokenizer、额外 DOM 或新依赖。
 - 代码正文行使用一致的 12px `padding-inline`，active/inactive 两态不改变该值。该内距属于真实 `.cm-line` 点击与选区几何，不通过假空格、复制文本或 overlay 模拟；禁止新增 `padding-block`、专属 `line-height`、纵向 margin、transform、filter 或内层滚动容器。
 - 表面由各真实代码行内部、不可命中的空 `::before` 绘制。正文行绘制完整行内表面；opening 只绘制真实 opening 行的下半，closing 只绘制真实 closing 行的上半，单行退化节点只绘制行内中间半行。伪元素不得越出行盒、插入字符或创造块外命中区。
-- focused/inactive 仍只切换表面与边界 custom properties；语言提示保持在 active opening 行下半表面内，继续绝对定位、`pointer-events: none`，并在源码 mark 显露时隐藏。外壳采用中性细框、小圆角和无投影的 Typora-like 节奏；内部使用 LumaMark 自有、JetBrains-inspired 语义配色，但不复制专有主题或素材。
+- focused/inactive 仍只切换表面与边界 custom properties；语言提示保持在 active opening 行下半表面内，继续绝对定位、`pointer-events: none`，并在源码 mark 显露时隐藏。外壳采用中性细框、小圆角和无投影的 WYSIWYG 节奏；内部使用 LumaMark 自有、JetBrains-inspired 语义配色，但不复制专有主题或素材。
 - 浏览器回归必须同时覆盖亮暗主题、active/inactive 几何、语言提示对比度、语义 token 对比度、原生跨行选区以及局部像素基线。Windows 打包验收读取真实 `::before` 表面，并继续用 Win32 `SendInput` 验证点击、焦点、无虚构纵向命中区和源码保存。
 
 ## 被否决方案

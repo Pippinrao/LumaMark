@@ -6,7 +6,7 @@
 
 LumaMark is a modern desktop editor for people who write Markdown frequently.
 
-It does not try to become “the collection of every document tool” from day one. It first aims to be a Typora-like Markdown editor that is fast enough, beautiful enough, and trustworthy enough.
+It does not try to become “the collection of every document tool” from day one. It first aims to be a WYSIWYG Markdown editor that is fast enough, beautiful enough, and trustworthy enough.
 
 ## Core promises
 
@@ -22,13 +22,13 @@ LumaMark promises users that:
 
 The first battlefield is not plugin ecosystems or cloud sync. It is:
 
-> The world’s smoothest, most beautiful, and most fidelity-preserving Typora-like Markdown editing experience.
+> The world’s smoothest, most beautiful, and most fidelity-preserving WYSIWYG Markdown editing experience.
 
 That battlefield is narrow enough, and valuable enough.
 
 ## User value
 
-### For Typora users
+### For users migrating from other Markdown editors
 
 LumaMark should offer a familiar alternative that is more modern and smoother.
 
@@ -58,7 +58,7 @@ LumaMark does not compete head-on with knowledge-base ecosystems in phase one.
 Attractors:
 
 - Purer single-document WYSIWYG writing.
-- Visual and input experience closer to Typora.
+- Consistent visual and input behavior for daily writing.
 - Stronger focus on the Markdown file itself.
 
 ### For Zettlr users
@@ -75,7 +75,7 @@ Attractors:
 
 ### Recreate first
 
-V1 first aligns with Typora-like patterns users already understand, lowering learning cost.
+V1 first aligns with WYSIWYG patterns users already understand, lowering learning cost.
 
 Layout first recreates the mature paradigm as closely as practical:
 
@@ -120,7 +120,7 @@ From day one:
 
 LumaMark’s custom-build budget is spent only on differentiating capabilities:
 
-- Typora-like editing experience.
+- WYSIWYG editing experience.
 - Large-document fluency.
 - Source fidelity.
 - Async render scheduling.

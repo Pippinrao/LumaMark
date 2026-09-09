@@ -2,7 +2,7 @@
 
 # LumaMark Menu System Design
 
-> This document defines the shared product structure, visual direction, command contracts, Typora baseline mapping, and acceptance criteria for LumaMark **top-bar menus, editor/file-tree context menus, and the command palette**. It is for menu implementers, testers, and later Markdown capability maintainers. Current implementation order remains governed by the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). Settings are out of scope here; see [Settings System Design](SETTINGS_SYSTEM_DESIGN.md). External open and file-mutation dependencies are in [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
+> This document defines the shared product structure, visual direction, command contracts, shortcut mapping, and acceptance criteria for LumaMark **top-bar menus, editor/file-tree context menus, and the command palette**. It is for menu implementers, testers, and later Markdown capability maintainers. Current implementation order remains governed by the [Editor Reliability Implementation Plan](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md). Settings are out of scope here; see [Settings System Design](SETTINGS_SYSTEM_DESIGN.md). External open and file-mutation dependencies are in [ADR 0015](../decisions/0015-external-open-and-file-mutations.md).
 
 ## Purpose and scope
 
@@ -13,7 +13,7 @@ The top-bar menu redesign already addressed rough visuals, mismatched entries, a
 - **Context menus (right-click) for the editor area, file tree, and similar surfaces**.
 - One shared command source of truth for menus, **context menus**, shortcuts, and the command palette.
 - Separators, submenus, checkboxes, radios, icons, shortcut columns, and disabled states.
-- Accurate wiring of existing Markdown capabilities and Typora-verified shortcuts.
+- Accurate wiring of existing Markdown capabilities and shared editor shortcuts.
 - Acceptance via Web Playwright, production Web E2E, and Windows Tauri real-device screenshots.
 - A menu and context-menu coverage matrix that makes clear which capabilities are wired and which topical capabilities are not yet implemented.
 
@@ -21,7 +21,7 @@ The top-bar menu redesign already addressed rough visuals, mismatched entries, a
 
 - Do not implement math, footnotes, TOC, Callout, YAML Front Matter, or restricted HTML capabilities in this round.
 - Do not add “coming soon”, permanently disabled, or no-op fake menu items for unimplemented capabilities.
-- Do not copy Typora branding, icons, theme assets, or unpublished implementation.
+- Do not copy third-party branding, icons, theme assets, or unpublished implementation.
 - Do not put full Markdown text, high-frequency editor state, or platform details into React stores.
 - Do not replace CodeMirror, Radix Menubar / Context Menu, the command palette, or the Tauri architecture.
 - Do not maintain a second context-menu command registry or a second menu design document.
@@ -29,17 +29,7 @@ The top-bar menu redesign already addressed rough visuals, mismatched entries, a
 
 ## Sources of truth
 
-Typora behavior is taken only from the [Typora behavior baseline](typora-baseline/README.md). LumaMark’s current state is taken only from the [Typora topical competitive analysis](typora-competitive-analysis/README.md) plus current code and tests. Typora menu paths or keybindings without sufficient evidence are not written as confirmed facts.
-
-This design specifically re-checked:
-
-- [Live Preview cross-cutting model](typora-baseline/00-live-preview-model.md): source mode `Ctrl+/`, Copy as Markdown `Ctrl+Shift+C`, Paste as Plain Text `Ctrl+Shift+V`.
-- [Headings](typora-baseline/02-headings.md): headings 1–6 use `Ctrl+1…6`.
-- [Images](typora-baseline/07-images.md): insert local image uses `Ctrl+Shift+I`, entry under Format → Image.
-- [Code blocks](typora-baseline/08-code-blocks.md): insert code fence uses `Ctrl+Shift+K`.
-- [Tables](typora-baseline/10-tables.md): insert table `Ctrl+T`, select row `Ctrl+L`, select cell `Ctrl+E`, delete row `Ctrl+Shift+Backspace`.
-- [Math](typora-baseline/09-math.md): math block uses `Ctrl+Shift+M`, but LumaMark currently has no math capability.
-- [Mermaid](typora-baseline/11-mermaid-and-diagrams.md), [Footnotes](typora-baseline/12-footnotes.md), [Horizontal rules](typora-baseline/13-horizontal-rules.md), and [TOC](typora-baseline/15-toc.md): no verified dedicated default shortcuts.
+Command behavior is defined by the shared registry, editor contracts, current code and regression tests.
 
 ## Pre-redesign problems and root causes
 
@@ -103,7 +93,7 @@ app/shell menu / ContextMenuSurface rendering
 1. Opening the top bar or a context menu must not clear the CodeMirror selection.
 2. Format, paragraph, undo, redo, find, and similar **top-bar** actions operate on the selection that existed before the menu opened.
 3. **Context-target-specific commands** act at the right-click hit location (document coordinate or tree node), not the current caret. “Copy link address” must copy the hit link’s URL; image delete and table copy/delete must carry the hit range. Ordinary cut, copy, paste, and select-all still use the selection/cursor preserved before the menu opened.
-4. **LumaMark explicitly defines:** when right-click lands outside the current selection, **do not move the caret or collapse the selection**; after the menu closes, selection remains as before open. Target-specific commands use the hit location rather than `selection.main`; ordinary clipboard commands do not treat the right-click location as a new caret. This behavior is locked by tests (Typora baseline is unverified here).
+4. **LumaMark explicitly defines:** when right-click lands outside the current selection, **do not move the caret or collapse the selection**; after the menu closes, selection remains as before open. Target-specific commands use the hit location rather than `selection.main`; ordinary clipboard commands do not treat the right-click location as a new caret. This behavior is locked by tests.
 5. After editor actions complete, restore editor focus. Actions that open file pickers, settings, about, workspace pickers, system openers, or secondary confirmation dialogs do not forcibly steal focus back.
 6. Format and paragraph actions produce minimal CodeMirror transactions and preserve single-step undo semantics. Opening a context menu and read-only actions (copy link, copy path) must have transactions with `docChanged === false`.
 7. Success side effects or failure feedback for actions must be observable; destructive silent fallbacks are forbidden. Context actions that depend on a specific hit target (link, image, table) are **hidden when inapplicable**. Stable editing entries such as cut, copy, paste, and select-all remain in the menu and show disabled based on read-only state, selection, and plain-text clipboard port availability. Desktop ports use the official Tauri clipboard-manager; native failure must not fall back to WebView `navigator`.
@@ -137,7 +127,7 @@ app/shell menu / ContextMenuSurface rendering
 - Find
 - Command palette
 
-Table copy and delete no longer live permanently in the Edit menu. Related actions appear only in real table context. “Delete entire table” must be distinguished from Typora’s “delete table row.”
+Table copy and delete no longer live permanently in the Edit menu. Related actions appear only in real table context. “Delete entire table” must be distinguished from “delete table row.”
 
 ### Paragraph
 
@@ -146,7 +136,7 @@ Table copy and delete no longer live permanently in the Edit menu. Related actio
 - Blocks submenu: quote, code block
 - Insert submenu: table, horizontal rule
 
-Normal paragraph is an explicit LumaMark normalize command and does not pretend to be a Typora-verified standalone menu entry. It only removes the current ATX heading marker and does not rearrange paragraph content.
+Normal paragraph is an explicit LumaMark normalize command. It only removes the current ATX heading marker and does not rearrange paragraph content.
 
 ### Format
 
@@ -189,14 +179,14 @@ Reading Mode is mutually exclusive with Live Preview and Source. It locks render
 | New / Open / Save / Save as | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` | Display and reuse existing global shortcuts |
 | Cut / Copy / Paste / Select all | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` / `Ctrl+A` | Top bar, context menu, and shortcuts share `EditorCommandPort` and live availability checks; the app injects the plain-text port from `services/clipboard`; desktop uses the official Tauri plugin, browser uses the navigator adapter; before async clipboard completion, validate the original selection and never delete text on failure. Platform boundaries are in [ADR 0016](../decisions/0016-tauri-text-clipboard-adapter.md) |
 | Command palette | `Ctrl+K` | Display and reuse existing global shortcuts |
-| Headings 1–6 | `Ctrl+1…6` | Matches Typora baseline; reuse CodeMirror keymap |
-| Bold / Italic | `Ctrl+B` / `Ctrl+I` | Display existing LumaMark bindings; do not claim them as locally verified Typora bindings |
-| Image | `Ctrl+Shift+I` | Align with Typora; menu, command palette, and shortcut call the real local-image flow |
-| Code block | `Ctrl+Shift+K` | Align with Typora; all three entries call the same command |
-| Table | `Ctrl+T` | Align with Typora; current `Ctrl+Alt+T` remains compatible during migration; menu shows only `Ctrl+T` |
-| Delete entire table | Dedicated LumaMark binding | Do not reuse Typora `Ctrl+Shift+Backspace`, to avoid presenting row delete as table delete |
-| Display-mode cycle | `Ctrl+/` | Binding matches Typora baseline, but cycles Live Preview → Source → Reading; the three radio states stay in sync; the menu does not label this key as source-mode only |
-| Sidebar / Focus mode | Existing LumaMark bindings | Shown in the menu, but not claimed as Typora baseline bindings |
+| Headings 1–6 | `Ctrl+1…6` | Reuse the shared CodeMirror keymap |
+| Bold / Italic | `Ctrl+B` / `Ctrl+I` | Display existing LumaMark bindings |
+| Image | `Ctrl+Shift+I` | menu, command palette, and shortcut call the real local-image flow |
+| Code block | `Ctrl+Shift+K` | all three entries call the same command |
+| Table | `Ctrl+T` | current `Ctrl+Alt+T` remains compatible during migration; menu shows only `Ctrl+T` |
+| Delete entire table | Dedicated LumaMark binding | Keep row deletion and entire-table deletion as distinct commands |
+| Display-mode cycle | `Ctrl+/` | Cycles Live Preview → Source → Reading; the three radio states stay in sync; the menu does not label this key as source-mode only |
+| Sidebar / Focus mode | Existing LumaMark bindings | Show the current bindings in the menu |
 
 `Ctrl+Shift+C` Copy as Markdown, `Ctrl+Shift+V` Paste as Plain Text, table select-row / select-cell / delete-row, and math blocks are known gaps. This round does not register empty actions; they remain in the coverage matrix and are wired after the corresponding capability and clipboard contracts land.
 
@@ -248,7 +238,6 @@ Copy as plain text / Markdown and similar clipboard contracts are wired after th
 - Open link (protocol allowlist; relative paths open in-app)
 - Copy link address
 
-In the Typora baseline these two are verified (observed) facts and are prioritized.
 
 ### Image
 
@@ -290,26 +279,26 @@ Not implemented yet.
 - Reveal: with a workspace, reuse the managed-session boundary above; for a standalone document, the only trusted built-in frontend fallback is “canonical actual parent directory of an existing document.” This does not claim to resist a compromised WebView; detailed boundaries are in ADR 0015.
 - Name collisions do not overwrite; delete defaults to the recycle bin.
 
-## Competitor menu coverage matrix
+## Menu capability coverage matrix
 
-| Capability | Typora baseline | LumaMark this round | Menu strategy |
-|---|---|---|---|
-| Headings, lists, quotes, code blocks, horizontal rules | Public input or menu/shortcut evidence exists | Real commands wired; code-block `Ctrl+Shift+K` completed | Keep a single command port; do not overclaim topical edge experience |
-| Local images | Format → Image, `Ctrl+Shift+I` | Real multi-select file entry and shortcut wired into existing import pipeline | Cancel leaves the document unchanged; errors reuse the file notification contract |
-| GFM table insert | `Ctrl+T` | `Ctrl+T` wired; old `Ctrl+Alt+T` compatible during migration | Top menu shows only the standard binding |
-| Table row/column and selection | Toolbar/context menu and dedicated keys | Insufficient evidence or unimplemented | Do not invent fake top entries; keep topical gaps |
-| Table context copy / delete entire table | Context menu | Implemented (only when a table is hit) | Keep; row/column items await capability |
-| Link context open / copy address | Verified observed | Absolute URL allowlist, relative document open, and copy-failure feedback implemented | Show real commands; dual frontend/backend protocol checks |
-| Image context resource management | Documented in Support | Copy path, reveal, delete reference implemented | Remote images do not show local reveal; delete reference runs on the hit range |
-| File-tree context | Not a Typora editor-area baseline; product need | Root/directory/file scenario combinations and mutation confirmations implemented | Recycle-bin delete; path and directory-link escape protection |
-| Copy as Markdown / Paste as Plain Text | Confirmed | Reliable clipboard contract not yet established | Do not show; high-priority clipboard-topic gap |
-| Math | `Ctrl+Shift+M`, Math Tools | Unimplemented | Do not show |
-| Mermaid | Mostly fence typing; no dedicated key | Main render path implemented; no dedicated context menu | Do not show for now; editing uses existing preview/source interaction; export images come later |
-| YAML Front Matter | Insertable from top menu; no dedicated default key | Unimplemented | Do not show |
-| Footnotes | No dedicated menu or key | Unimplemented | Do not show |
-| TOC | `[toc]` + Return; dedicated-menu evidence insufficient | Unimplemented | Do not show |
-| Callout | Paragraph → Alert; no dedicated default key | Unimplemented | Do not show |
-| HTML / iframe / video | Type or paste; no general insert key | Unimplemented and safety contract missing | Do not show |
+| Capability | LumaMark this round | Menu strategy |
+|---|---|---|
+| Headings, lists, quotes, code blocks, horizontal rules | Real commands wired; code-block `Ctrl+Shift+K` completed | Keep a single command port; do not overclaim topical edge experience |
+| Local images | Real multi-select file entry and shortcut wired into existing import pipeline | Cancel leaves the document unchanged; errors reuse the file notification contract |
+| GFM table insert | `Ctrl+T` wired; old `Ctrl+Alt+T` compatible during migration | Top menu shows only the standard binding |
+| Table row/column and selection | Insufficient evidence or unimplemented | Do not invent fake top entries; keep topical gaps |
+| Table context copy / delete entire table | Implemented (only when a table is hit) | Keep; row/column items await capability |
+| Link context open / copy address | Absolute URL allowlist, relative document open, and copy-failure feedback implemented | Show real commands; dual frontend/backend protocol checks |
+| Image context resource management | Copy path, reveal, delete reference implemented | Remote images do not show local reveal; delete reference runs on the hit range |
+| File-tree context | Root/directory/file scenario combinations and mutation confirmations implemented | Recycle-bin delete; path and directory-link escape protection |
+| Copy as Markdown / Paste as Plain Text | Reliable clipboard contract not yet established | Do not show; high-priority clipboard-topic gap |
+| Math | Unimplemented | Do not show |
+| Mermaid | Main render path implemented; no dedicated context menu | Do not show for now; editing uses existing preview/source interaction; export images come later |
+| YAML Front Matter | Unimplemented | Do not show |
+| Footnotes | Unimplemented | Do not show |
+| TOC | Unimplemented | Do not show |
+| Callout | Unimplemented | Do not show |
+| HTML / iframe / video | Unimplemented and safety contract missing | Do not show |
 
 ## 2026-08-02 historical menu-refactor baseline
 
@@ -323,7 +312,7 @@ This section only summarizes the 2026-08-02 top-bar menu refactor. It is not fre
 
 Screenshot evidence is stored with the implementation: [light Chinese File menu](../../artifacts/menu-system-report/menu-light-file-zh.png), [dark Chinese state menu](../../artifacts/menu-system-report/menu-dark-view-states-zh.png), [dark Chinese keyboard nested menu](../../artifacts/menu-system-report/menu-dark-nested-keyboard-zh.png), [dark English File menu](../../artifacts/menu-system-report/menu-dark-file-en.png), [Windows native image picker](../../artifacts/menu-system-report/tauri-native-image-dialog-zh.png), and [unmodified document after cancel](../../artifacts/menu-system-report/tauri-image-dialog-cancelled-zh.png).
 
-Remaining Typora gaps did not get fake menu entries: Copy as Markdown, Paste as Plain Text, table select-row / select-cell / delete-row, plus math, footnotes, TOC, Callout, YAML Front Matter, and restricted HTML remain owned by their topical capability plans.
+Remaining capability gaps did not get fake menu entries: Copy as Markdown, Paste as Plain Text, table select-row / select-cell / delete-row, plus math, footnotes, TOC, Callout, YAML Front Matter, and restricted HTML remain owned by their topical capability plans.
 
 ## Errors and degradation
 
@@ -406,6 +395,6 @@ Update this document when any of the following change:
 
 - Top menu groups, context-menu trigger targets, menu node types, or global shortcuts are added or removed.
 - A new Markdown capability becomes available and needs a menu or context entry.
-- Typora baseline review changes confirmed menu, context-menu, or shortcut facts.
+- The shared command registry changes menu, context-menu, or shortcut contracts.
 - Radix Menubar/Context Menu, Tauri native-menu strategy, opener, or menu automation paths change.
 - Clipboard, image, table, link, file-tree, or about-dialog contracts change.

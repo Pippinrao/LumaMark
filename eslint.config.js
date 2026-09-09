@@ -41,6 +41,7 @@ export default [
       'playwright.config.ts',
       'tests/**/*.{ts,tsx}',
       'scripts/**/*.mjs',
+      'tools/automation/**/*.{ts,mjs}',
     ],
     languageOptions: {
       globals: {

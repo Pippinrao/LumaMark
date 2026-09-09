@@ -25,7 +25,6 @@
 - **自研 pointer/wheel transform 引擎：** 需要自行维护边界、触控、滚轮、动画和跨浏览器行为，不符合成熟组件优先原则。
 - **在 CodeMirror Widget 内直接挂全屏层：** 会把应用级模态、焦点和 i18n 生命周期耦合到 decoration DOM，Widget 重建时也更易丢失会话。
 - **使用浏览器 Fullscreen API：** 会进入操作系统全屏权限与窗口级 Esc 语义；本需求采用应用视口内 Dialog，行为更可预测且跨 Tauri 平台一致。
-- **复刻 Typora 私有 viewer：** 只参考公开体验目标，不复制专有素材或私有实现。
 
 ## 影响
 

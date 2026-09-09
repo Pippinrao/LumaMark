@@ -40,4 +40,4 @@ A writing app should preserve unsaved work after unexpected exits as much as pos
 - The restore path affects CodeMirror IME, undo/redo, selection stability, or startup performance.
 - Browser storage or a later draft schema cannot preserve format intent expressed by `DocumentSourceFormat` byte-for-byte.
 
-Current recovery-draft gates are included with active-save in the [Typora Parity core experience improvement plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md).
+Current recovery-draft gates are included with active-save in the [Editor Reliability core experience improvement plan](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md).

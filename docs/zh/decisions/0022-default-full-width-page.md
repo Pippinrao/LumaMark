@@ -31,7 +31,7 @@ v4 配置里的 `pageWidth: "adaptive"` 无法与“从未改过的默认值”�
 ## 影响
 
 - 新安装，以及被迁移的 v4 `adaptive`（和更旧的 `standard`）会得到减去安全边距的满窗口写作栏。
-- 宽表格、Mermaid、PlantUML、图片仍使用 `--lm-editor-block-track-width`。
+- Mermaid、PlantUML、图片仍使用 `--lm-editor-block-track-width`。表格依据 ADR 0021 的 2026-09-09 更新跟随所选正文页面。
 - 想要以前自适应栏宽的用户仍可在设置里选择“自适应”。
 - TypeScript 与 Rust 共用 `tests/fixtures/settings-v5-contract.json`。
 

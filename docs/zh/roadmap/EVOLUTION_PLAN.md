@@ -6,8 +6,8 @@
 
 LumaMark 的路线采用“近细远粗”的规划方式。
 
-- **近期细化**：当前 Parity Reliability Foundation 由唯一的 [当前执行计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)写到可执行、可验证。
-- **中期定方向**：Typora Migration Completeness 保留依赖顺序和能力边界，在进入 Now 前不锁死实现任务。
+- **近期细化**：当前 Parity Reliability Foundation 由唯一的 [当前执行计划](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)写到可执行、可验证。
+- **中期定方向**：Editing Workflow Completeness 保留依赖顺序和能力边界，在进入 Now 前不锁死实现任务。
 - **远期留弹性**：World-Class 和生态方向只保留主题，不做过细承诺。
 
 原因很简单：编辑器产品的真实判断来自原型、性能数据和用户试用。远期计划写得过细，会制造假确定性，并增加返工。
@@ -20,7 +20,7 @@ LumaMark 的演进路线分为四个层级：
 
 1. **Foundation**：建立架构、质量和验证地基。
 2. **MarkText+**：快速超过 MarkText，形成可试用 Alpha。
-3. **Typora Parity**：追平 Typora 核心日常体验。
+3. **Editor Reliability**：提供可靠的核心日常编辑体验。
 4. **World-Class**：基于真实反馈选择创新方向，冲击世界第一的 WYSIWYG Markdown 编辑器。
 
 路线原则：
@@ -83,7 +83,7 @@ LumaMark 的演进路线分为四个层级：
 - 最近文件。
 - dirty 状态提示。
 
-基础 Typora-like 编辑体验：
+基础 WYSIWYG 编辑体验：
 
 - 标题。
 - 粗体。
@@ -98,7 +98,7 @@ LumaMark 的演进路线分为四个层级：
 
 应用外壳：
 
-- Typora-like 基础布局。
+- WYSIWYG 基础布局。
 - 中央编辑区。
 - 可选文件树。
 - 大纲。
@@ -138,7 +138,7 @@ LumaMark 的演进路线分为四个层级：
 
 ### 阶段退出条件
 
-历史阶段定义要求满足以下条件后再进入 Typora Parity 细化规划。当前已转入可靠性收敛不等于追溯宣称每项完成；缺失证据直接纳入当前计划：
+历史阶段定义要求满足以下条件后再进入 Editor Reliability 细化规划。当前已转入可靠性收敛不等于追溯宣称每项完成；缺失证据直接纳入当前计划：
 
 - MarkText+ 核心路径经过自动化验证。
 - 性能基准数据稳定。
@@ -146,11 +146,11 @@ LumaMark 的演进路线分为四个层级：
 - Mermaid 异步渲染策略被验证。
 - 至少完成一轮真实自用或试用反馈整理。
 
-## 阶段 2：Typora Parity
+## 阶段 2：Editor Reliability
 
-目标：追平 Typora 的核心日常写作体验。
+目标：提供可靠的核心日常写作体验。
 
-**状态：当前阶段。** 第一子阶段是 Parity Reliability Foundation：先统一源码保真、焦点、输入和撤销合同，再将合同推广到代表性 Markdown 行为。完整范围、顺序和退出门禁只在 [当前执行计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)维护。
+**状态：当前阶段。** 第一子阶段是 Parity Reliability Foundation：先统一源码保真、焦点、输入和撤销合同，再将合同推广到代表性 Markdown 行为。完整范围、顺序和退出门禁只在 [当前执行计划](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)维护。
 
 ### 方向范围
 
@@ -163,14 +163,14 @@ LumaMark 的演进路线分为四个层级：
 
 ### 规划原则
 
-- 只补齐 Typora 日常迁移所需的核心能力。
+- 只补齐 日常写作和迁移所需的核心能力。
 - 每个能力都必须先定义验收样例和自动化测试。
 - 任何会影响编辑热路径的能力，都必须先做性能原型。
 - 不为追平功能清单牺牲输入流畅度。
 
 ### 阶段成功标准
 
-- Typora 用户可以完成主要迁移。
+- 其他 Markdown 编辑器用户可以完成主要迁移。
 - 常用 Markdown 写作动作自然。
 - 图片、表格、链接、公式没有明显日常使用缺口。
 - 保存仍然不产生无关 diff。
@@ -179,7 +179,7 @@ LumaMark 的演进路线分为四个层级：
 
 ## 阶段 3：World-Class
 
-目标：超过 Typora，形成 LumaMark 自己的护城河。
+目标：发展独立的产品能力，形成 LumaMark 自己的护城河。
 
 本阶段只保留创新主题，不提前承诺具体功能。真实方向必须来自前两个阶段的性能数据、用户反馈和产品判断。
 
@@ -230,7 +230,7 @@ LumaMark 的演进路线分为四个层级：
 - 用段落、行内 span、列表/引用、代码块/标题/水平线和 Mermaid 代表切片验证合同。
 - 完成真实保存重开、Windows 中文 IME、可访问性、独立性能门禁和自用反馈。
 
-详细任务、顺序与退出证据见 [Typora Parity 核心体验改进计划](TYPORA_PARITY_IMPLEMENTATION_PLAN.md)；核心架构合同见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
+详细任务、顺序与退出证据见 [编辑器可靠性实施计划](EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)；核心架构合同见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。
 
 ### Next
 
@@ -264,7 +264,7 @@ M0 可运行骨架、M1 可编辑 Markdown 与 M2 可日常试用 Alpha 的原�
 
 ### 编辑器 WYSIWYG 难度
 
-风险：Typora-like 行为细节多，容易漏掉 IME、撤销、选区、粘贴等边缘场景。
+风险：WYSIWYG 行为细节多，容易漏掉 IME、撤销、选区、粘贴等边缘场景。
 
 应对：
 

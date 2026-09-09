@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppShellSlots } from '../containers/useAppShellSlots';
 import { useAppShellModel } from '../controllers/useAppShellModel';
+import { useSidebarTab } from '../controllers/useSidebarTab';
 import { ensureMenuDebugDomCapture } from '../../shared/debug/menuInteractionLog';
 import { AppShellView } from './AppShellView';
-import { FILE_TREE_CONTENT_CHROME_WIDTH, type SidebarTab } from './panelConstraints';
+import { FILE_TREE_CONTENT_CHROME_WIDTH } from './panelConstraints';
 
 export function AppShell() {
   const model = useAppShellModel();
@@ -11,7 +12,7 @@ export function AppShell() {
   const [sidebarContentChromeWidth, setSidebarContentChromeWidth] = useState(
     FILE_TREE_CONTENT_CHROME_WIDTH,
   );
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('files');
+  const [sidebarTab, setSidebarTab] = useSidebarTab(model.workspace.root?.path ?? null);
   const [readOnlyFlashing, setReadOnlyFlashing] = useState(false);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onReadOnlyEditAttempt = useCallback(() => {
@@ -36,8 +37,9 @@ export function AppShell() {
       onReadOnlyEditAttempt,
       onSidebarContentWidthChange,
       onSidebarTabChange: setSidebarTab,
+      sidebarTab,
     }),
-    [onReadOnlyEditAttempt, onSidebarContentWidthChange],
+    [onReadOnlyEditAttempt, onSidebarContentWidthChange, setSidebarTab, sidebarTab],
   );
   const slots = useAppShellSlots(model, slotHandlers);
 

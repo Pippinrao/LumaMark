@@ -2,13 +2,13 @@
 
 # LumaMark Settings System Design
 
-> This document defines the information architecture of the LumaMark settings dialog, the `LumaMarkSettings` schema, persistence and migration contracts, the boundary between settings and session state, i18n/a11y, and acceptance criteria. It is for settings implementers, testers, and later Markdown capability maintainers. Current implementation order remains governed by the [Typora Parity Core Experience Improvement Plan](../roadmap/TYPORA_PARITY_IMPLEMENTATION_PLAN.md). Persistence-backend decisions are in [ADR 0014](../decisions/0014-settings-persistence.md).
+> This document defines the information architecture of the LumaMark settings dialog, the `LumaMarkSettings` schema, persistence and migration contracts, the boundary between settings and session state, i18n/a11y, and acceptance criteria. It is for settings implementers, testers, and later Markdown capability maintainers. Current implementation order remains governed by the [Editor Reliability Implementation Plan](../roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md). Persistence-backend decisions are in [ADR 0014](../decisions/0014-settings-persistence.md).
 
 ## Purpose and scope
 
 This design addresses the following confirmed problems:
 
-- The settings page had only horizontal tabs and a few configurable items, lacking Typora-style left section navigation.
+- The settings page had only horizontal tabs and a few configurable items, lacking left section navigation.
 - Preferences were scattered across multiple localStorage keys and in-memory stores; `copyImagesToAssets` and `fontZoomPercent` were lost on restart.
 - There was no unified settings schema or Rust-side config file, so settings were not migratable across sessions/reinstalls.
 - The boundary between settings and session state was unclear, making it easy to stuff recent files or temporary sidebar state into the config file.
@@ -32,8 +32,6 @@ Scope includes:
 
 ## Sources of truth
 
-- Typora Preferences facts come from the [Typora behavior baseline](typora-baseline/README.md). Most Markdown preference provenance is `support`; items not verified item-by-item on a local machine must not be written as confirmed GUI facts.
-- LumaMark current state comes from code, the [Typora topical competitive analysis](typora-competitive-analysis/README.md), and [Menu System Design](MENU_SYSTEM_DESIGN.md).
 - Persistence backend is governed by [ADR 0014](../decisions/0014-settings-persistence.md).
 
 ## Current problems and root causes

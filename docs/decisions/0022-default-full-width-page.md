@@ -31,7 +31,7 @@ A v4 settings document with `pageWidth: "adaptive"` cannot be distinguished from
 ## Impact
 
 - New installs and migrated v4 `adaptive` (and older `standard`) profiles get a full-window writing column minus the safe gutter.
-- Wide tables, Mermaid, PlantUML, and images still use `--lm-editor-block-track-width`.
+- Mermaid, PlantUML, and images still use `--lm-editor-block-track-width`. Tables follow the selected prose page under the 2026-09-09 update to ADR 0021.
 - Users who want the previous Adaptive column can still choose Adaptive in Settings.
 - TypeScript and Rust share `tests/fixtures/settings-v5-contract.json`.
 

@@ -21,10 +21,6 @@ English-default documentation with full Chinese retained via `docs/zh/` / `*.zh.
 - EN: `> Language: **English** · [中文](<rel-zh>)`
 - ZH: `> 语言：**中文** · [English](<rel-en>)`
 
-## Specialty
-
-`typora-baseline` / `typora-competitive-analysis`: EN README index + per-topic stubs linking to Chinese full text under `docs/zh/`.
-
 ## Historical Alpha
 
 EN archive banner + short summary + link to zh full; remove from must-read primary path.
@@ -43,4 +39,4 @@ Full EN translation of every specialty topic body; competitive gap matrix rewrit
 
 ## Verification
 
-Paired living docs; switchers resolve; single execution source of truth remains Typora Parity plan; version `c+1` on landing commit.
+Paired living docs; switchers resolve; single execution source of truth remains Editor Reliability plan; version `c+1` on landing commit.

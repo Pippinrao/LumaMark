@@ -110,6 +110,23 @@ function createTestDocumentClaimClient(): DocumentClaimClient {
 }
 
 describe('AppShell', () => {
+  it('defaults standalone documents to outline and workspace sessions to files, preserving manual tabs', async () => {
+    render(<I18nProvider><ThemeProvider><AppShell /></ThemeProvider></I18nProvider>);
+    expect(screen.getByRole('tab', { name: '大纲' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '文件' }));
+    expect(screen.getByRole('tab', { name: '文件' })).toHaveAttribute('aria-selected', 'true');
+    act(() => useAppStore.setState({ dirty: true }));
+    expect(screen.getByRole('tab', { name: '文件' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '大纲' }));
+    act(() => useWorkspaceStore.setState({ root: { name: 'notes', path: '/notes' } }));
+    expect(screen.getByRole('tab', { name: '文件' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '大纲' }));
+    act(() => useAppStore.setState({ dirty: false }));
+    expect(screen.getByRole('tab', { name: '大纲' })).toHaveAttribute('aria-selected', 'true');
+    act(() => useWorkspaceStore.getState().clearWorkspace());
+    expect(screen.getByRole('tab', { name: '大纲' })).toHaveAttribute('aria-selected', 'true');
+  });
+
   beforeEach(() => {
     delete window.__LUMAMARK_E2E_OPEN_REQUESTS__;
     window.__LUMAMARK_E2E_DOCUMENT_CLAIMS__ = createTestDocumentClaimClient();
@@ -260,7 +277,7 @@ describe('AppShell', () => {
     cleanup();
   });
 
-  it('renders the localized Typora-like shell structure without hardcoded English UI', async () => {
+  it('renders the localized WYSIWYG shell structure without hardcoded English UI', async () => {
     useAppStore.setState({
       sidebarOpen: true,
       statusKey: 'status.ready',
@@ -1386,7 +1403,6 @@ describe('AppShell', () => {
     ).toBeVisible();
     expect(screen.queryByRole('dialog', { name: '设置' })).not.toBeInTheDocument();
     expect(screen.getByText('现代、高性能的 Markdown 编辑器')).toBeVisible();
-    expect(screen.queryByText(/typora/i)).not.toBeInTheDocument();
   });
 
   it('shows insert table in the editor context menu without guessing table DOM widgets', async () => {
@@ -1455,6 +1471,7 @@ describe('AppShell', () => {
       </I18nProvider>,
     );
 
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '文件' }));
     const openWorkspaceButton = screen.getByRole('button', {
       name: '打开工作区',
     });

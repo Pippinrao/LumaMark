@@ -22,7 +22,6 @@ describe('AboutDialog', () => {
     expect(screen.getByRole('dialog', { name: '关于 LumaMark' })).toBeVisible();
     expect(screen.getByText('0.2.0')).toBeVisible();
     expect(screen.getByText('现代、高性能的 Markdown 编辑器')).toBeVisible();
-    expect(screen.queryByText(/typora/i)).not.toBeInTheDocument();
     expect(screen.queryByText('调整 LumaMark 的基础体验选项。')).not.toBeInTheDocument();
   });
 });

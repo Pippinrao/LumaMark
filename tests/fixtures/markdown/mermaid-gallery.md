@@ -8,7 +8,7 @@ flowchart TD
 
 ```mermaid
 graph TD
-  A[Typora style] --> B[Mermaid preview]
+  A[Live preview] --> B[Mermaid preview]
 ```
 
 ```mermaid

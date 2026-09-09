@@ -23,7 +23,7 @@ const requiredTags = [
   'gfm:autolink',
   'gfm:escaped-pipe-table',
   'i18n:mixed-chinese-english',
-  'typora-like:live-preview',
+  'wysiwyg:live-preview',
   'mermaid:flowchart',
   'mermaid:sequenceDiagram',
   'mermaid:classDiagram',

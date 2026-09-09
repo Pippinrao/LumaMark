@@ -92,22 +92,16 @@
 }
 
 /*
- * Keep the writing-track width so long cell text still wraps, and grow with
- * min-content so unwrappable wide tables stay fully visible. Forcing
- * max-content instead made wrap tests fail and was unnecessary for
- * paint containment. min-content growth means the widget is never smaller
- * than the table, so library contain:paint can stay on.
+ * Tables follow the selected prose page. Their fixed layout and shared cell
+ * wrapping keep long tokens inside this box without a nested scroll container.
+ * Retain the library's paint containment for many-table documents.
  */
 .lm-codemirror .cm-content .tbl-table-widget {
   box-sizing: border-box;
-  display: flex;
-  justify-content: center;
-  width: var(--lm-editor-block-track-width, 100%);
-  min-width: min-content;
-  max-width: none;
-  margin-inline: calc(
-    (100% - var(--lm-editor-block-track-width, 100%)) / 2
-  );
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin-inline: 0;
 }
 
 .lm-codemirror .cm-line {

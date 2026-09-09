@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
 const entry = fileURLToPath(new URL('../cli.ts', import.meta.url));
-function run(args: string[], input = ''): Promise<{ code: number | null; stdout: string; stderr: string }> {
+function run(args: string[], input = '', env: NodeJS.ProcessEnv = process.env): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [entry, ...args], { windowsHide: true, timeout: 90_000 });
+    const child = spawn(process.execPath, [entry, ...args], { windowsHide: true, timeout: 90_000, env });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk) => { stdout += chunk; });
@@ -33,6 +33,14 @@ test('mcp-config prints absolute runtime and entry paths without requiring PATH'
   const config = JSON.parse(result.stdout).mcpServers.lumamark;
   assert.equal(config.command, process.execPath);
   assert.deepEqual(config.args, [entry, 'mcp']);
+});
+
+test('mcp-config preserves a custom Chromium install path across host working directories', async () => {
+  const result = await run(['mcp-config'], '', { ...process.env, PLAYWRIGHT_BROWSERS_PATH: '.ms-playwright' });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).mcpServers.lumamark.env, { PLAYWRIGHT_BROWSERS_PATH: resolve('.ms-playwright') });
+  const hermetic = await run(['mcp-config'], '', { ...process.env, PLAYWRIGHT_BROWSERS_PATH: '0' });
+  assert.deepEqual(JSON.parse(hermetic.stdout).mcpServers.lumamark.env, { PLAYWRIGHT_BROWSERS_PATH: '0' });
 });
 
 test('check renders both diagram engines and ignores unrelated code fences', async () => {

@@ -33,6 +33,8 @@ node tools/automation/cli.ts mcp-config
 
 将生成的 `mcpServers.lumamark` 项复制到支持此结构的宿主配置；其他宿主使用其中的 `command` 和 `args` 配置 stdio 服务。命令仅打印配置，不修改宿主设置。服务实际以 `node <入口完整路径> mcp` 启动，不依赖工作目录。MCP 标准输出只包含协议消息。
 
+如果安装 Chromium 时设置过 `PLAYWRIGHT_BROWSERS_PATH`，生成配置前也要设置同一变量，并将生成的 `env` 项一并复制到宿主。生成器会将浏览器相对路径转成绝对路径，同时保留 Playwright 的特殊值 `0`。MCP 宿主不一定自动继承自定义环境变量。
+
 MCP 工具：
 
 | 工具 | 输入 | 结果 |

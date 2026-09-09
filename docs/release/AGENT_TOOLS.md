@@ -33,6 +33,8 @@ node tools/automation/cli.ts mcp-config
 
 Copy the generated `mcpServers.lumamark` entry into a host accepting that configuration shape; for other hosts, copy its `command` and `args` into the host's stdio server settings. This command only prints configuration and never edits host settings. It launches `node <absolute-entry-path> mcp`, with no working-directory dependency. MCP stdout contains protocol messages only.
 
+If Chromium was installed with `PLAYWRIGHT_BROWSERS_PATH`, set the same variable before generating configuration and also copy the generated `env` entry into the host. The generator converts relative browser paths to absolute paths and preserves Playwright's special `0` value. MCP hosts may not inherit custom environment variables automatically.
+
 MCP tools:
 
 | Tool | Input | Result |

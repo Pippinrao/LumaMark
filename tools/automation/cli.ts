@@ -48,7 +48,9 @@ try {
   if (values.help || !positionals.length) process.stdout.write(messages.help);
   else if (positionals[0] === 'mcp-config') {
     if (positionals.length !== 1 || values.output || values.format || json) throw new AutomationError('input.arguments', messages.mcpArguments);
-    process.stdout.write(JSON.stringify({ mcpServers: { lumamark: { command: process.execPath, args: [fileURLToPath(import.meta.url), 'mcp'] } } }, null, 2) + '\n');
+    const browserPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+    const env = browserPath ? { PLAYWRIGHT_BROWSERS_PATH: browserPath === '0' ? '0' : resolve(browserPath) } : undefined;
+    process.stdout.write(JSON.stringify({ mcpServers: { lumamark: { command: process.execPath, args: [fileURLToPath(import.meta.url), 'mcp'], env } } }, null, 2) + '\n');
   }
   else if (positionals[0] === 'mcp') {
     if (positionals.length !== 1 || values.output || values.format || json) throw new AutomationError('input.arguments', messages.mcpArguments);

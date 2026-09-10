@@ -2,6 +2,8 @@
 
 # Agent tools and document layout implementation plan
 
+> Historical record. The Node/Playwright automation host this plan describes was replaced by the bundled in-app host in [2026-09-11-bundled-automation-host.md](2026-09-11-bundled-automation-host.md) ([ADR 0024](../../decisions/0024-bundled-automation-host.md)); do not follow the tooling steps below.
+
 Purpose: implement the owner's approved CLI + MCP choice and two editor-shell corrections. This is temporary execution scratch, not a new architectural source of truth.
 
 Architecture: the app shell owns sidebar selection; the existing table capability owns wrapping geometry. A separate Node tool host runs official diagram engines in local headless Chromium. CLI and the official MCP stdio SDK share one typed service; neither is imported by the app. No Markdown text enters React stores.

@@ -26,7 +26,7 @@ LumaMark 的路线是“先复刻，再创新”：
 
 ## 文档入口
 
-- [CLI 与 MCP 使用说明](docs/zh/release/AGENT_TOOLS.md)
+- CLI 与 MCP 用法：`LumaMark.exe --help` 即完整说明；不再单独维护手册。
 
 - [项目文档地图](docs/zh/README.md)
 - [当前 Editor Reliability 实施计划](docs/zh/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)

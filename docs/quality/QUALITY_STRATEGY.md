@@ -186,7 +186,7 @@ Any manual test executed more than twice should be automated.
 
 ## Bug Strategy
 
-The local automation host has a separate `pnpm test:automation` gate (real Chromium rendering and MCP stdio client calls), run in CI after Chromium installation. It is not part of the browser-free `pnpm test` gate. Typecheck and lint include `tools/automation/`; the interface contract is in [ADR 0023](../decisions/0023-agent-cli-and-mcp.md).
+The bundled automation host is covered by `cargo test` (arguments, help completeness, report shell, exit codes, input limits, MCP tool declarations) and `pnpm test` (fence extraction, report assembly, sanitization, page job loop); both stay browser-free. Packaged behaviour is gated by `pnpm release:packaged-automation`, which drives the real executable through the CLI contracts, an official MCP client session, and a Win32 check that no window is ever visible. No Chromium download is required. The interface contract is in [ADR 0024](../decisions/0024-bundled-automation-host.md) and [ADR 0023](../decisions/0023-agent-cli-and-mcp.md).
 
 Known table-library diagnostic: activating everyday, unpadded GFM cells can emit `Selection points outside of document` from `codemirror-markdown-tables`' deferred nested-editor dispatch. A 2026-09-09 browser comparison reproduced it with both the previous and page-bound CSS, while source/caret assertions passed. It remains an existing interaction follow-up; do not suppress the error or attribute it to a CSS fix without reproduction. Browser geometry success does not replace the required desktop OS-pointer matrix.
 

@@ -20,7 +20,7 @@
 
 ## 设计结论
 
-Agent 自动化采用独立 Node 宿主，CLI/MCP 共用服务和本地图表引擎，不进入编辑器启动依赖，见 [ADR 0023](../decisions/0023-agent-cli-and-mcp.md)。侧栏选择由应用外壳管理：单文件会话默认大纲，工作区会话默认文件，手动选择保留到工作区上下文变化。
+Agent 自动化随桌面可执行文件一起打包：`LumaMark.exe` 自身提供 CLI 与 MCP 接口，在应用自带 WebView 的隐藏窗口中渲染 Mermaid/PlantUML，并通过 `--help` 说明用法；见 [ADR 0024](../decisions/0024-bundled-automation-host.md) 与 [ADR 0023](../decisions/0023-agent-cli-and-mcp.md)。侧栏选择由应用外壳管理：单文件会话默认大纲，工作区会话默认文件，手动选择保留到工作区上下文变化。
 
 LumaMark 的默认架构是：
 

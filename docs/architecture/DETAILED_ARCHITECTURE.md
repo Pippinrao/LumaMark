@@ -31,7 +31,7 @@ V1 product/UX/implementation plans remain a historical Alpha baseline only. They
 
 ## Design Conclusions
 
-Agent automation is a separate Node host with shared CLI/MCP services, local diagram engines, and no editor startup dependency; see [ADR 0023](../decisions/0023-agent-cli-and-mcp.md). Sidebar selection belongs to the app shell: standalone sessions default to Outline, workspace sessions to Files, and manual selection lasts until the workspace context changes.
+Agent automation is bundled into the desktop executable: `LumaMark.exe` serves the CLI and MCP surfaces itself, renders Mermaid/PlantUML in a hidden window of the app's own WebView, and documents its usage through `--help`; see [ADR 0024](../decisions/0024-bundled-automation-host.md) and [ADR 0023](../decisions/0023-agent-cli-and-mcp.md). Sidebar selection belongs to the app shell: standalone sessions default to Outline, workspace sessions to Files, and manual selection lasts until the workspace context changes.
 
 LumaMark’s default architecture is:
 

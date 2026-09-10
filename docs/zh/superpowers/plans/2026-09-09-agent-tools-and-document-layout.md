@@ -2,6 +2,8 @@
 
 # Agent 工具与文档布局实施计划
 
+> 历史记录。本文描述的 Node/Playwright 自动化宿主已被 [2026-09-11-bundled-automation-host.md](2026-09-11-bundled-automation-host.md)（[ADR 0024](../../decisions/0024-bundled-automation-host.md)）中的内置宿主取代；请勿再按下方工具步骤执行。
+
 目的：落实所有者已确认的 CLI + MCP 方案及两项编辑器布局修正。本文件仅为执行草稿，不是新的架构事实来源。
 
 架构：应用外壳管理侧栏选择，已有表格能力管理换行几何。独立 Node 工具宿主通过本地无头 Chromium 执行官方图表引擎。CLI 与官方 MCP stdio SDK 共用带类型的服务，不进入应用启动或输入路径。Markdown 全文不进入 React store。

@@ -34,6 +34,10 @@ export default defineConfig({
           configDir,
           'plantuml-render-frame.html',
         ),
+        'automation-render': path.resolve(
+          configDir,
+          'automation-render.html',
+        ),
       },
       // MathJax NewCM WOFF2 + lazy PlantUML TeaVM copy time trips Rolldown's
       // vite:asset PLUGIN_TIMINGS diagnostic. quality:web-build still fails
@@ -144,7 +148,6 @@ export default defineConfig({
       '**/target/**',
       '**/tests/e2e/**',
       '**/tests/production-e2e/**',
-      '**/tools/automation/tests/**',
     ],
     globals: false,
     setupFiles: [

@@ -26,7 +26,7 @@ LumaMark’s path is “replicate first, then innovate”:
 
 ## Documentation entry points
 
-- [CLI and MCP User Guide](docs/release/AGENT_TOOLS.md)
+- CLI and MCP usage: `LumaMark.exe --help` is the complete reference; no separate manual is maintained.
 
 - [Project documentation map](docs/README.md)
 - [Current Editor Reliability implementation plan](docs/roadmap/EDITOR_RELIABILITY_IMPLEMENTATION_PLAN.md)

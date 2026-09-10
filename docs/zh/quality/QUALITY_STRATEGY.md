@@ -186,7 +186,7 @@ Windows 本地候选包还必须运行 `pnpm release:packaged-webview`：从真�
 
 ## Bug 策略
 
-本地自动化宿主使用独立 `pnpm test:automation` 门禁（真实 Chromium 渲染与 MCP stdio 客户端调用），CI 在安装 Chromium 后运行；不并入不需要浏览器的 `pnpm test` 门禁。类型检查和 lint 覆盖 `tools/automation/`，接口契约见 [ADR 0023](../decisions/0023-agent-cli-and-mcp.md)。
+内置自动化宿主由 `cargo test`（参数、帮助完整性、报告外壳、退出码、输入限制、MCP 工具声明）与 `pnpm test`（围栏提取、报告组装、净化、页面任务循环）覆盖，两者都不依赖浏览器。打包行为由 `pnpm release:packaged-automation` 把关：它对真实可执行文件验证 CLI 契约、官方 MCP 客户端会话，并用 Win32 断言任何时刻都不出现可见窗口。无需下载 Chromium。接口契约见 [ADR 0024](../decisions/0024-bundled-automation-host.md) 与 [ADR 0023](../decisions/0023-agent-cli-and-mcp.md)。
 
 已知表格库诊断：激活未按列补齐空格的日常 GFM 单元格时，`codemirror-markdown-tables` 的延迟嵌套编辑器 dispatch 可能输出 `Selection points outside of document`。2026-09-09 的浏览器对照在旧 CSS 和页面约束 CSS 下均复现，而源码/光标断言通过。这是已有交互跟进项，不应隐藏错误，也不能未经复现归因于 CSS 修复。浏览器几何通过不能替代桌面操作系统指针矩阵。
 

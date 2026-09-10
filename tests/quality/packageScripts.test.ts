@@ -494,6 +494,7 @@ describe('package quality scripts', () => {
     expect(workflow).toContain('PLAYWRIGHT_BROWSERS_PATH: .ms-playwright');
     const viteConfig = await readFile(join(process.cwd(), 'vite.config.ts'), 'utf8');
     expect(viteConfig).toContain('plantuml-render-frame.html');
+    expect(viteConfig).toContain('automation-render.html');
     const playwrightConfig = await readFile(
       join(process.cwd(), 'playwright.config.ts'),
       'utf8',

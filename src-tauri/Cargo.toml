@@ -1,6 +1,6 @@
 [package]
 name = "lumamark"
-version = "0.3.65"
+version = "0.3.66"
 description = "LumaMark desktop application"
 authors = ["LumaMark Contributors"]
 edition = "2021"
@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 atomic-write-file = "0.3.0"
 notify-debouncer-full = { version = "0.7.0", registry = "aliyun" }
+rmcp = { version = "3", features = ["server", "transport-io"] }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-dialog = "2"
@@ -33,3 +34,9 @@ tauri-plugin-updater = { version = "2.10.1", features = ["default"] }
 
 [target.'cfg(windows)'.dependencies]
 reqwest = { version = "=0.13.4", default-features = false, features = ["system-proxy"] }
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+] }

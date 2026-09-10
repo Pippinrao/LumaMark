@@ -14,6 +14,8 @@ pub mod commands {
 
 pub mod errors;
 
+pub mod automation;
+
 pub mod services {
     pub mod asset_service;
     pub mod debug_log_service;
@@ -85,6 +87,14 @@ use tauri::{Emitter, Manager};
 
 const ROUTING_ACCEPTANCE_MODE_ENV: &str = "LUMAMARK_ROUTING_ACCEPTANCE_MODE";
 const OPEN_REQUEST_STATE_STARTUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Builds the embedded application context.
+///
+/// The editor and the bundled automation host share this single expansion so
+/// the frontend assets are embedded exactly once.
+pub(crate) fn app_context() -> tauri::Context {
+    tauri::generate_context!()
+}
 
 #[derive(Default)]
 struct OpenRequestStateReadiness {
@@ -492,7 +502,7 @@ pub fn run() {
             trash_empty,
             debug_append_log
         ])
-        .run(tauri::generate_context!())
+        .run(app_context())
         .expect("error while running LumaMark");
 }
 

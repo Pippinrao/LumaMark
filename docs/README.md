@@ -6,7 +6,7 @@ This file is the sole index for the `docs/` directory. When adding, deleting, mo
 
 ## Documentation governance
 
-Current execution scratch: [Agent tools and document layout plan](superpowers/plans/2026-09-09-agent-tools-and-document-layout.md).
+Current execution scratch: [Bundled automation host plan](superpowers/plans/2026-09-11-bundled-automation-host.md).
 
 - Keep docs few and accurate; do not create long-lived docs for temporary ideas.
 - Each topic may have only one primary source of truth.
@@ -118,6 +118,7 @@ Landed capabilities (high level; follow the linked English docs for contracts an
 | [ADR 0020: Preview scheduler](decisions/0020-preview-scheduler.md) | Decision | Source/caret stay sync; viewport WYSIWYG rebuilds coalesce to one animation-frame preview pass | Preview scheduling, viewport decoration rebuild timing, or installed stutter evidence changes |
 | [ADR 0021: Adaptive document width and wide-block breakout](decisions/0021-adaptive-document-width-and-block-breakout.md) | Decision | Adaptive prose column, settings v4 `standard`→`adaptive` rewrite, and table/Mermaid/PlantUML/image breakout track. Default page width later replaced by ADR 0022. | Block-widget width, height-map refresh after pane resize, or Adaptive preset CSS |
 | [ADR 0022: Default page width is fit-window (fluid)](decisions/0022-default-full-width-page.md) | Decision | Default `pageWidth` is `fluid`; settings v5 rewrites previous `adaptive` to `fluid`; Adaptive preset remains selectable | Page-width defaults, settings schema version, or fluid/adaptive migration |
+| [ADR 0024: Automation host bundled into the desktop executable](decisions/0024-bundled-automation-host.md) | Decision | In-app CLI/MCP host, hidden-WebView rendering, `--help` as the usage manual, removed Node/Chromium dependency, contract changes | CLI/MCP entry point, renderer host, distribution requirement, or MCP dependency changes |
 | [Quality strategy](quality/QUALITY_STRATEGY.md) | Quality | Testing, performance, and AI development quality strategy | Test or quality gate changes |
 | [V1 performance baseline](performance/V1_BASELINE.md) | Performance | V1 alpha performance budgets, measured results, known limits, installed UX stutter gates | Performance budgets, benchmark commands, installed UX gates, or measured results change |
 | [Windows V1 build record](release/WINDOWS_V1_BUILD.md) | Release | Windows build commands, install artifacts, release gaps | Windows build config, artifacts, or release gates change |
@@ -127,9 +128,9 @@ Landed capabilities (high level; follow the linked English docs for contracts an
 
 ## Fact-source rules
 
-Agent usage: [CLI and MCP User Guide](release/AGENT_TOOLS.md) owns setup, commands, configuration and troubleshooting; update it when the interface or distribution changes.
+Agent usage: CLI and MCP usage is owned by `LumaMark.exe --help`, which is rendered from the same tables the parser uses; any interface change must update the help text in the same change. No separate manual is maintained.
 
-Agent architecture: [ADR 0023: CLI and MCP](decisions/0023-agent-cli-and-mcp.md) owns the service architecture, schemas, and capability boundaries; update it when the interface or distribution changes.
+Agent architecture: [ADR 0024: Bundled automation host](decisions/0024-bundled-automation-host.md) owns the host, renderer and distribution boundary; [ADR 0023: CLI and MCP](decisions/0023-agent-cli-and-mcp.md) keeps the report schema and capability boundaries it established.
 
 - Working rules: [AGENTS.md](../AGENTS.md).
 - Development process: [DEVELOPMENT_PROCESS.md](../DEVELOPMENT_PROCESS.md).

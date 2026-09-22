@@ -197,7 +197,9 @@ test('keeps editor content visible when the watched document is removed', async 
   }, { documentPath });
   expect(delivered).toBe(true);
 
-  await expect(page.getByText('Content survives removal')).toBeVisible();
+  await expect(
+    page.getByTestId('editor-host').getByText('Content survives removal'),
+  ).toBeVisible();
   await expect(page.getByRole('alert')).toContainText(/File not found|找不到该文件/);
   await expect(page.getByTestId('app-shell')).toBeVisible();
 });

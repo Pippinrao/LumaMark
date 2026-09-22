@@ -4,7 +4,7 @@
 
 Date: 2026-07-05
 
-Updated: 2026-08-04 (pin 1.0.0 and patch vertical caret column retention)
+Updated: 2026-09-22 (preserve cell selections and original-source positions)
 
 ## Context
 
@@ -20,7 +20,15 @@ LumaMark keeps only a thin integration layer:
 - Source mode does not enable table widgets; it shows raw Markdown.
 - Menu commands only add “copy current table Markdown source” and “delete current table block”.
 - Visual differences are adjusted via CSS/theme adapters; table editing interaction is not rewritten.
-- The dependency is pinned to `1.0.0`. Until upstream ships an equivalent fix, a pnpm patch makes `ArrowUp` / `ArrowDown` keep the current source column and clamp to the end when the target cell is shorter. The patch does not take over the table state machine, serialization, or DOM selection.
+- The dependency is pinned to `1.0.0`. A pnpm patch preserves vertical caret goals, mounts ordinary GFM tables without passive reformatting, and fixes the selection handoff described below. Table editing and serialization continue to use the mature component.
+
+### Cell selection integration
+
+Native selections in a passive cell must transfer both anchor and focus into the nested editor. Converting only the native range start loses double-click and drag selections. The coordinate replay adapter only positions a collapsed caret during activation; an already active editor owns word, line, drag, and Shift-click gestures.
+
+Selection-only synchronization must use cell spans parsed from the original table source, not offsets into the library's column-padded representation. The patch reuses the component's Lezer parser and cell-span extraction and retains source spans between selection transactions. Otherwise ordinary unpadded tables can select unrelated text or raise `Selection points outside of document`. A real table edit still uses the component's existing serialization and the resulting canonical offsets; merely selecting or copying never rewrites the source.
+
+Regression coverage lives in `tablePreviewExtension.test.ts`, `tests/e2e/editor-table-selection-copy.spec.ts`, and the existing table caret matrix. Run `node scripts/release/verify-table-selection-copy-os.mjs [executable]` for native Windows double-click/drag and clipboard acceptance against an installed or equivalent packaged WebView. The probe uses `ClientToScreen`, verifies the exact child PID, and checks in-memory and on-disk source preservation.
 
 ## Alternatives considered
 
@@ -43,5 +51,5 @@ Revisit when any of the following occurs:
 - The component breaks Markdown source fidelity, undo/redo, IME, or copy/paste.
 - Table widgets cause measurable typing or scrolling regression in large documents.
 - The component becomes unmaintained or blocks CodeMirror version upgrades.
-- Upstream ships and we verify the same vertical column-retention behavior; then remove the local patch, unpin the exact version, and use the same E2E suite to prevent regressions.
+- Upstream ships equivalent vertical movement, passive source preservation, and selection handoff fixes; remove each local patch only after the corresponding regression suite passes.
 - After V1, if the primary editor core is replaced as a whole, re-evaluate Milkdown, Toast UI Editor, or ProseMirror together.

@@ -220,6 +220,13 @@ export function applyPendingTableClickToView(view: EditorViewType): boolean {
     return false;
   }
 
+  // Activation can already carry a native word/drag selection into the new
+  // editor. Only a collapsed caret needs the coordinate replay.
+  if (!view.state.selection.main.empty) {
+    pendingTableClick = null;
+    return true;
+  }
+
   const position = view.posAtCoords({ x: click.x, y: click.y });
   if (position == null) {
     return false;
@@ -280,6 +287,14 @@ const tableBreakoutGutterClickPlugin = ViewPlugin.fromClass(
             event.stopPropagation();
             announceReadOnlyEditAttempt(this.view);
           }
+          return;
+        }
+
+        // An already mounted editor owns the whole gesture, including word,
+        // line, drag and Shift-click selection. Replaying its press would
+        // collapse the selection that CodeMirror just created.
+        if (target.closest('.tbl-cell-editor')) {
+          clearPendingTablePointerClick();
           return;
         }
 
@@ -350,6 +365,11 @@ export function tableCellClickSyncRootExtension(): Extension {
           event.stopPropagation();
           announceReadOnlyEditAttempt(view);
           return true;
+        }
+
+        if (target.closest('.tbl-cell-editor')) {
+          clearPendingTablePointerClick();
+          return false;
         }
 
         rememberTablePointerClick(event.clientX, event.clientY);

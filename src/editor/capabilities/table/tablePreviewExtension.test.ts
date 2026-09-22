@@ -121,6 +121,32 @@ afterAll(() => {
 });
 
 describe('tablePreviewExtension', () => {
+  it.each([false, true])('retains a native word selection when mounting an inactive cell editor (reverse: %s)', async (reverse) => {
+    const doc = 'before\n\n| Name | Value |\n| --- | --- |\n| alpha bravo charlie | value |\n\nafter';
+    const { parent, view } = createView(doc);
+    try {
+      await settleTablePreview();
+      const surface = [...parent.querySelectorAll<HTMLElement>('.tbl-cell-view')]
+        .find((element) => element.textContent === 'alpha bravo charlie')!;
+      const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+      const text = walker.nextNode()!;
+      const selection = window.getSelection()!;
+      selection.setBaseAndExtent(text, reverse ? 11 : 6, text, reverse ? 6 : 11);
+      document.dispatchEvent(new Event('selectionchange'));
+      await settleTablePreview();
+      const nested = findNestedTableEditor(parent)!;
+      expect(nested).not.toBeNull();
+      expect(nested.state.selection.main.anchor).toBe(reverse ? 11 : 6);
+      expect(nested.state.selection.main.head).toBe(reverse ? 6 : 11);
+      expect(nested.state.sliceDoc(nested.state.selection.main.from, nested.state.selection.main.to)).toBe('bravo');
+      expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).toBe('bravo');
+      expect(view.state.doc.toString()).toBe(doc);
+    } finally {
+      view.destroy();
+      parent.remove();
+    }
+  });
+
   it('maps inactive table decorations without remounting nested editors on selection', async () => {
     const doc = [
       'before',

@@ -1,8 +1,9 @@
 diff --git a/dist/codemirror-markdown-tables.js b/dist/codemirror-markdown-tables.js
-index cc9e0e7..545c636 100644
+index cc9e0e76c5e68a1cfb51f0cad684fc7aa71ca3d9..f2b0bc724d9e955bfe52b8ab5d4a74b86fd4b4ce 100644
 --- a/dist/codemirror-markdown-tables.js
 +++ b/dist/codemirror-markdown-tables.js
-@@ -3298,8 +3298,8 @@ function zh({
+@@ -3296,9 +3296,9 @@ function zh({
+   getText: n
  }) {
    const o = [];
 -  for (let i = t; i !== e; i = i.parentNode) {
@@ -13,7 +14,77 @@ index cc9e0e7..545c636 100644
        r.push(n?.(l) ?? l.textContent ?? "");
      o.unshift(r.join(""));
    }
-@@ -4901,11 +4901,29 @@ function Jl(e) {
+@@ -4589,6 +4589,34 @@ class mi {
+   }
+ }
+ class pi {
++  lmSourceText;
++  lmSourceRows;
++  lmSetSourceText(text) {
++    if (text === this.lmSourceText) return;
++    this.lmSourceText = text;
++    this.lmSourceRows = [];
++    const table = Or.parse(new Ko(text)).topNode.firstChild;
++    for (let row = table?.firstChild; row; row = row.nextSibling) {
++      if (row.name !== "TableHeader" && row.name !== "TableRow") continue;
++      const cells = Bi(row.cursor());
++      while (cells.length < this.table.colCount) cells.push({ from: row.to, to: row.to });
++      this.lmSourceRows.push(cells);
++    }
++  }
++  lmCellSpan(cell) {
++    return this.lmSourceRows[cell.row][cell.col];
++  }
++  lmClosestCell(position) {
++    const line = this.lmSourceText.lineAt(position).number;
++    const row = Math.min(line === 1 ? 0 : Math.max(1, line - 2), this.lmSourceRows.length - 1);
++    const cells = this.lmSourceRows[row];
++    let col = 0;
++    for (let index = 1; index < Math.min(cells.length, this.table.colCount); index++) {
++      if (cells[index].from > position) break;
++      col = index;
++    }
++    return { row, col };
++  }
+   #t;
+   get _editorTableText() {
+     return f(this.#t);
+@@ -4631,6 +4659,7 @@ class pi {
+     return this.selection.isCell() || this.selection.isHidden();
+   }
+   markSynchronized() {
++    if (!this.table.text.eq(this._editorTableText)) this.lmSetSourceText(this.table.text);
+     this._editorTableText = this.table.text, this._editorSelectionValue = this.selection.value;
+   }
+   applyTransaction(t) {
+@@ -4641,7 +4670,7 @@ class pi {
+     if (this.span = {
+       from: t.changes.mapPos(this.from, 1),
+       to: t.changes.mapPos(this.to)
+-    }, !!this.isValid && (this.applySelectionChange(t), jh(t) && t.changes.touchesRange(n, o) !== !1)) {
++    }, !!this.isValid && (this.lmSetSourceText(t.newDoc.slice(this.from, this.to)), this.applySelectionChange(t), jh(t) && t.changes.touchesRange(n, o) !== !1)) {
+       const r = t.newDoc.slice(this.from, this.to);
+       this.table.reset(r), this._editorTableText = r;
+     }
+@@ -4657,7 +4686,7 @@ class pi {
+     if (Ni({ needle: this.span, haystack: t.main }))
+       return "all";
+     if (Ni({ needle: t.main, haystack: this.span })) {
+-      const n = this.table.closestCellAtPosition(t.main.anchor - this.from), { from: o, to: i } = this.table.cellSpan(n);
++      const n = this.lmClosestCell(t.main.anchor - this.from), { from: o, to: i } = this.lmCellSpan(n);
+       return {
+         cell: n,
+         section: {
+@@ -4672,7 +4701,7 @@ class pi {
+     return new pi(t);
+   }
+   constructor({ span: t, doc: n, selection: o }) {
+-    this._span = t, this.table = dn.of(n.slice(this.from, this.to)), this.selection = mi.of(this.computeSelection(o)), this.#t = /* @__PURE__ */ M(gt(this.table.text)), this.#n = /* @__PURE__ */ M(gt(this.selection.value));
++    this._span = t, this.table = dn.of(n.slice(this.from, this.to)), this.lmSetSourceText(n.slice(this.from, this.to)), this.selection = mi.of(this.computeSelection(o)), this.#t = /* @__PURE__ */ M(gt(this.table.text)), this.#n = /* @__PURE__ */ M(gt(this.selection.value));
+   }
+ }
+ const eu = { top: 0, right: 0, bottom: 0, left: 0 }, Yl = {
+@@ -4901,11 +4930,29 @@ function Jl(e) {
    return !Gl(e);
  }
  function ar(e) {
@@ -44,7 +115,30 @@ index cc9e0e7..545c636 100644
  function bu(e) {
    fo(e).empty();
  }
-@@ -5587,6 +5605,7 @@ function Bu(e, t) {
+@@ -5391,6 +5438,22 @@ function Ru(e) {
+   }, e.activeCell = o, e.anchorCell = o, e.outlinedSection = z.ofCell(o));
+ }
+ function Au(e, t) {
++  const surface = ns(t), selection = fo(e);
++  // Preserve native word/drag selections while replacing the passive cell
++  // with CodeMirror. Cross-cell selections keep the upstream grid behavior.
++  if (surface && selection.anchorNode && selection.focusNode &&
++      surface.contains(selection.anchorNode) && surface.contains(selection.focusNode)) {
++    const offset = (node, position) => {
++      const before = zh({ ancestor: surface, descendent: node,
++        getText: (part) => Th(part) ? "\n" : part.textContent ?? "" }) ?? "";
++      const range = e.createRange();
++      range.setStart(node, 0), range.setEnd(node, position);
++      const prefix = before + range.toString();
++      return os({ anchor: prefix.length, head: prefix.length }, dt(prefix), { trim: !1 }).head;
++    };
++    return { anchor: offset(selection.anchorNode, selection.anchorOffset),
++      head: offset(selection.focusNode, selection.focusOffset) };
++  }
+   const n = ns(t), o = zh({
+     ancestor: n,
+     descendent: t,
+@@ -5587,6 +5650,7 @@ function Bu(e, t) {
    var c = Hu();
    Xn(c, (h) => i = h, () => i), C(e, c), pe();
  }
@@ -52,7 +146,7 @@ index cc9e0e7..545c636 100644
  class mo {
    event;
    tableState;
-@@ -5612,7 +5631,10 @@ class mo {
+@@ -5612,7 +5676,10 @@ class mo {
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateArrowUp() {
@@ -64,7 +158,7 @@ index cc9e0e7..545c636 100644
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateArrowRight() {
-@@ -5620,7 +5642,10 @@ class mo {
+@@ -5620,7 +5687,10 @@ class mo {
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateArrowDown() {
@@ -76,7 +170,7 @@ index cc9e0e7..545c636 100644
    }
    // noinspection JSUnusedGlobalSymbols -- Called dynamically
    navigateShiftArrowLeft() {
-@@ -5741,9 +5766,22 @@ class mo {
+@@ -5741,9 +5811,22 @@ class mo {
        );
      }
    }
@@ -100,7 +194,7 @@ index cc9e0e7..545c636 100644
        this.tableState.selectionValue = { cell: t, section: { anchor: o, head: o } };
      }
    }
-@@ -6980,7 +7018,13 @@ function af(e, t) {
+@@ -6980,7 +7063,13 @@ function af(e, t) {
      onNavigate: () => t.onNavigate,
      onDelete: () => t.onDelete
    });
@@ -115,7 +209,7 @@ index cc9e0e7..545c636 100644
    var o = sf(), i = Lt(o);
    {
      const x = (R, it = Fr) => {
-@@ -7056,7 +7100,7 @@ function af(e, t) {
+@@ -7056,7 +7145,7 @@ function af(e, t) {
                          return ve();
                        },
                        set text(B) {
@@ -124,7 +218,7 @@ index cc9e0e7..545c636 100644
                        },
                        get selection() {
                          return be();
-@@ -7087,7 +7131,9 @@ function af(e, t) {
+@@ -7087,7 +7176,9 @@ function af(e, t) {
                        },
                        onbeforeinput: (B) => Fu(B, n),
                        ondragstart: (B) => $u(B),
@@ -135,7 +229,18 @@ index cc9e0e7..545c636 100644
                        onpaste: (B) => Vu(B, n)
                      });
                    }
-@@ -7641,14 +7687,9 @@ function as(e, t = []) {
+@@ -7532,7 +7623,9 @@ class Ti extends gs {
+         if (!m && !v) return;
+         let w;
+         if (o.selection.isCell()) {
+-          const { from: S } = o.table.cellSpan(o.selection.cell);
++          // A passive selection uses original source spans. Only an actual
++          // table edit writes the library's canonical text back to the root.
++          const { from: S } = m ? o.table.cellSpan(o.selection.cell) : o.lmCellSpan(o.selection.cell);
+           w = {
+             anchor: o.from + S + o.selection.cellSection.anchor,
+             head: o.from + S + o.selection.cellSection.head
+@@ -7641,14 +7734,9 @@ function as(e, t = []) {
    });
    const o = [], i = [];
    for (const r of n) {

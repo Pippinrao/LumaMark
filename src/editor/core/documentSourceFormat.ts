@@ -574,3 +574,59 @@ export function serializeDocumentSource(state: EditorState): string {
 
   return parts.join('');
 }
+
+/**
+ * Serializes normalized document text while replacing complete lines.
+ *
+ * Line endings are taken from the original source positions, so replacing
+ * characters inside a line can never shift a later line's preserved ending.
+ */
+export function serializeDocumentSourceLines(
+  source: string,
+  lineReplacements: ReadonlyMap<number, string>,
+  format: DocumentSourceFormat,
+): string {
+  const lines = source.split('\n');
+
+  for (const [index, replacement] of lineReplacements) {
+    if (index < 0 || index >= lines.length) {
+      throw new Error('Document line replacement index is out of range.');
+    }
+    if (replacement.includes('\n') || replacement.includes('\r')) {
+      throw new Error('Document line replacement must not contain a line break.');
+    }
+  }
+
+  const parts = format.hasUtf8Bom ? [UTF8_BOM] : [];
+  const lineEndingOverrides = format.lineEndingOverrides.iter();
+  let position = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const originalLine = lines[index]!;
+    parts.push(lineReplacements.get(index) ?? originalLine);
+    position += originalLine.length;
+
+    if (index === lines.length - 1) {
+      break;
+    }
+
+    const lineEnding =
+      lineEndingOverrides.value &&
+      lineEndingOverrides.from === position
+        ? lineEndingOverrides.value.lineEnding
+        : format.dominantLineEnding;
+    parts.push(lineEnding);
+    if (lineEndingOverrides.value?.lineEnding === lineEnding) {
+      lineEndingOverrides.next();
+    }
+    position += 1;
+  }
+
+  if (lineEndingOverrides.value) {
+    throw new Error(
+      'Document source format contains an invalid line-ending override.',
+    );
+  }
+
+  return parts.join('');
+}

@@ -29,6 +29,7 @@ type UseAppCommandModelsOptions = {
   focusMode: boolean;
   handlers: CommandHandlerMap;
   language: AppLanguage;
+  packageView: boolean;
   payloadHandlers: CommandPayloadHandlerMap;
   recentFiles: readonly { name: string; path: string }[];
   shortcuts: CommandShortcutLabels;
@@ -45,6 +46,7 @@ export function useAppCommandModels({
   focusMode,
   handlers,
   language,
+  packageView,
   payloadHandlers,
   recentFiles,
   shortcuts,
@@ -59,10 +61,19 @@ export function useAppCommandModels({
         editorState,
         fileOpening,
         focusMode,
+        packageView,
         shortcuts,
         t,
       }),
-    [editorAvailable, editorState, fileOpening, focusMode, shortcuts, t],
+    [
+      editorAvailable,
+      editorState,
+      fileOpening,
+      focusMode,
+      packageView,
+      shortcuts,
+      t,
+    ],
   );
   const topMenuGroups = useMemo(
     () =>
@@ -73,6 +84,7 @@ export function useAppCommandModels({
         fileOpening,
         focusMode,
         language,
+        packageView,
         recentFiles,
         sidebarOpen,
         shortcuts,
@@ -86,6 +98,7 @@ export function useAppCommandModels({
       fileOpening,
       focusMode,
       language,
+      packageView,
       recentFiles,
       shortcuts,
       sidebarOpen,

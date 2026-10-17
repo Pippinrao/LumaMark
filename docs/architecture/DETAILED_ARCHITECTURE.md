@@ -174,6 +174,7 @@ Not for the store:
 | Markdown interactive parsing | `@codemirror/lang-markdown` / Lezer | remark as hot-path parser | Editing hot path chooses CodeMirror/Lezer; export uses `markdown-it` on a cold path. |
 | Markdown export | `markdown-it` + task lists + `highlight.js` | remark/unified; comrak; Pandoc sidecar | Self-contained HTML, reuse MathJax/Mermaid/PlantUML, no second runtime; CLI and GUI share one renderer. See [ADR 0025](../decisions/0025-markdown-html-pdf-export.md). |
 | PDF export | WebView2 `PrintToPdf` (Windows) / system print dialog | Chromium bundle, wkhtmltopdf, WeasyPrint, Typst | Print-only stage in the current WebView; A4, searchable text, no extra runtime. See [ADR 0025](../decisions/0025-markdown-html-pdf-export.md). |
+| Markdown package export | Rust `zip` + `package_service`; Lezer image scan; shared ExportDialog | Virtual zip asset protocol; write-back zip; self-contained HTML | Portable zip with relative POSIX image destinations, fail-closed resources, read-only package view then explicit unpack. See [ADR 0026](../decisions/0026-markdown-package-zip.md). |
 | Save-transform diff | `@codemirror/merge` | Hand-rolled diff / full-text replace | Only after sparse, controlled `prepareTextForSave` transforms, produce minimal CodeMirror changes; never on the ordinary input hot path. Target text is exact, but position mapping under extreme inputs must not be treated as unconditionally exact; review and fallback are in [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md). |
 | Markdown table interaction | `codemirror-markdown-tables` | Hand-rolled TableWidget / Milkdown / Toast UI / ProseMirror tables | Choose `codemirror-markdown-tables`. Mature table widget, cell editing, row/column ops, copy/paste, and table autocompletion inside CodeMirror 6; LumaMark only does thin integration, theme adaptation, and source-fidelity boundaries. A project patch mounts valid GFM tables without a load-time `table.format` rewrite; remaining format document changes are dropped so source stays verbatim. See [ADR 0002](../decisions/0002-codemirror-markdown-tables.md) and [ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md). |
 | UI primitives | Radix Primitives | Ariakit/Base UI/React Aria | Default Radix. Replace per component if one does not fit. |
@@ -220,10 +221,12 @@ src/
 │  ├─ command-palette/
 │  ├─ commands/
 │  ├─ document-statistics/
+│  ├─ export/
 │  ├─ file-actions/
 │  ├─ file-tree/
 │  ├─ media-viewer/
 │  ├─ outline/
+│  ├─ packages/
 │  ├─ reading-appearance/
 │  ├─ recent-files/
 │  ├─ recovery-drafts/
@@ -236,10 +239,12 @@ src/
 │  ├─ clipboard/
 │  ├─ debug/
 │  ├─ drafts/
+│  ├─ export/
 │  ├─ file-watch/
 │  ├─ files/
 │  ├─ open-requests/
 │  ├─ opener/
+│  ├─ packages/
 │  ├─ preferences/
 │  ├─ settings/
 │  ├─ tauri/
@@ -387,6 +392,7 @@ Feature workflow rules:
 - Disk-watch events for the current document are also closed through `features/file-actions`: clean auto-reloads, dirty only produces an explicit conflict decision; same-document request ids and cross-document generations must both block late reads from overwriting newer state.
 - `features/file-actions` receives state and editor capabilities through `FileStateAdapter`, `StatusAdapter`, and `EditorDocumentPort`; it must not hard-depend on `appStore`.
 - Workspace open, children lazy load, and stale-request protection are closed through workflows in `features/workspace`.
+- `features/packages` owns the package format planner, portable image-destination rules, read-only archive opener, unpack workflow, and package session metadata. It must not duplicate the export dialog; package export is an `ExportKind` handled by `features/export`. Rust `package_service` owns zip read/write, session extraction, path validation, and limits; commands stay thin. See [ADR 0026](../decisions/0026-markdown-package-zip.md).
 - `features/workspace` splits into workflow, selectors, and view-model/UI-facing types; opening a file only uses an injected callback and does not know the file-workflow implementation.
 - `features/startup` only holds start-page UI and versioned session metadata store. Auto-restore must wait until the editor is ready and recovery-draft checks complete; pending recovery drafts take priority over the last session.
 - File and workspace open workflows return `opened`, `cancelled`, `failed`, or applicable `superseded` results; the app controller may close the start page only after confirmed success.

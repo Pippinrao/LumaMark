@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { PackageSession } from '../../features/packages/packageTypes';
 import type { FileMetadata } from '../../services/files/fileTypes';
 import type { CommandError } from '../../services/tauri/invokeCommand';
 
@@ -12,7 +13,9 @@ export type StatusKey =
   | 'status.saveFailed'
   | 'status.unsaved'
   | 'status.workspaceOpened'
-  | 'status.workspaceOpenFailed';
+  | 'status.workspaceOpenFailed'
+  | 'status.packageReadOnly'
+  | 'status.packageExtracted';
 
 type AppState = {
   copyImagesToAssets: boolean;
@@ -20,12 +23,14 @@ type AppState = {
   dirty: boolean;
   dirtyRevision: number;
   lastFileError: CommandError | null;
+  packageSession: PackageSession | null;
   sidebarOpen: boolean;
   statusKey: StatusKey;
   setCopyImagesToAssets: (copyImagesToAssets: boolean) => void;
   setCurrentFile: (currentFile: FileMetadata | null) => void;
   setDirty: (dirty: boolean) => void;
   setLastFileError: (lastFileError: CommandError | null) => void;
+  setPackageSession: (packageSession: PackageSession | null) => void;
   setSidebarOpen: (sidebarOpen: boolean) => void;
   setStatusKey: (statusKey: StatusKey) => void;
   toggleSidebar: () => void;
@@ -37,6 +42,7 @@ export const useAppStore = create<AppState>((set) => ({
   dirty: false,
   dirtyRevision: 0,
   lastFileError: null,
+  packageSession: null,
   sidebarOpen: true,
   statusKey: 'status.ready',
   setCopyImagesToAssets: (copyImagesToAssets) => {
@@ -80,6 +86,9 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setSidebarOpen: (sidebarOpen) => {
     set({ sidebarOpen });
+  },
+  setPackageSession: (packageSession) => {
+    set({ packageSession });
   },
   setStatusKey: (statusKey) => {
     set({ statusKey });

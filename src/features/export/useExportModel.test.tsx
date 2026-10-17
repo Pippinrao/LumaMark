@@ -1,11 +1,18 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { EditorState } from '@codemirror/state';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../app/providers/I18nProvider';
+import {
+  documentSourceFormatExtension,
+  parseDocumentSource,
+} from '../../editor/core/documentSourceFormat';
+import { markdownLanguage } from '../../editor/markdown/markdownLanguage';
 import type { FileMetadata } from '../../services/files/fileTypes';
 import { useExportModel } from './useExportModel';
 
 const commands = vi.hoisted(() => ({
+  exportPackage: vi.fn(),
   getExportCapabilities: vi.fn(),
   printExportPdf: vi.fn(),
   showExportSaveDialog: vi.fn(),
@@ -60,6 +67,16 @@ beforeEach(() => {
     title: 'note',
     warnings: [],
   });
+  commands.exportPackage.mockResolvedValue({
+    data: {
+      entryName: 'note.md',
+      outputPath: 'E:\\notes\\note.zip',
+      resourceCount: 1,
+      totalBytes: 20,
+      warnings: [],
+    },
+    ok: true,
+  });
 });
 
 function renderModel() {
@@ -69,6 +86,32 @@ function renderModel() {
         currentFile,
         focusEditor: vi.fn(),
         getDocumentText: () => '# note',
+        getEditorState: () => null,
+      }),
+    { wrapper },
+  );
+}
+
+function createState(source: string): EditorState {
+  const parsed = parseDocumentSource(source);
+  return EditorState.create({
+    doc: parsed.text,
+    extensions: [
+      markdownLanguage(),
+      documentSourceFormatExtension(parsed.format),
+    ],
+  });
+}
+
+function renderPackageModel(source: string) {
+  const state = createState(source);
+  return renderHook(
+    () =>
+      useExportModel({
+        currentFile,
+        focusEditor: vi.fn(),
+        getDocumentText: () => source,
+        getEditorState: () => state,
       }),
     { wrapper },
   );
@@ -129,5 +172,41 @@ describe('useExportModel', () => {
     expect(pdfStage.mountExportPdfStage).toHaveBeenCalledOnce();
     expect(pdfStage.printWithSystemDialog).toHaveBeenCalledOnce();
     expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('exports a portable package through the shared dialog', async () => {
+    commands.showExportSaveDialog.mockResolvedValueOnce({
+      data: 'E:\\notes\\note.zip',
+      ok: true,
+    });
+    const { result } = renderPackageModel('![a](note.assets/a.png)');
+
+    act(() => result.current.exportPackage());
+
+    await waitFor(() => expect(result.current.state.status).toBe('done'));
+    expect(commands.showExportSaveDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'package',
+        suggestedName: 'note.zip',
+      }),
+    );
+    expect(commands.exportPackage).toHaveBeenCalledWith({
+      documentPath: 'E:\\notes\\note.md',
+      entryName: 'note.md',
+      entryText: '![a](note.assets/a.png)',
+      outputPath: 'E:\\notes\\note.zip',
+      resources: [
+        {
+          archivePath: 'note.assets/a.png',
+          kind: 'local',
+          source: 'note.assets/a.png',
+        },
+      ],
+    });
+    expect(result.current.state).toMatchObject({
+      kind: 'package',
+      path: 'E:\\notes\\note.zip',
+      summary: { resourceCount: 1, totalBytes: 20 },
+    });
   });
 });

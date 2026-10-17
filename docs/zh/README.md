@@ -124,6 +124,7 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 | [ADR 0022：默认页面宽度改为适应窗口（fluid）](decisions/0022-default-full-width-page.md) | 决策 | 默认 `pageWidth` 为 `fluid`；设置 v5 把旧的 `adaptive` 改写为 `fluid`；自适应预设仍可选 | 页面宽度默认值、设置 schema 版本，或 fluid/adaptive 迁移 |
 | [ADR 0024：自动化宿主并入桌面可执行文件](decisions/0024-bundled-automation-host.md) | 决策 | 应用内 CLI/MCP 宿主、隐藏 WebView 渲染、`--help` 即用法手册、去除 Node/Chromium 依赖、契约变化 | CLI/MCP 入口、渲染宿主、分发要求或 MCP 依赖变化 |
 | [ADR 0025：Markdown HTML/PDF 导出与 CLI/GUI 入口](decisions/0025-markdown-html-pdf-export.md) | 决策 | 共享 markdown-it/MathJax/图表渲染器、自包含 HTML、Windows PrintToPdf、CLI 导出与报告 | 导出渲染器、依赖、CLI 契约、PDF 平台矩阵或输出安全变化 |
+| [ADR 0026：可移植 Markdown 压缩包导出与只读打开](decisions/0026-markdown-package-zip.md) | 决策 | zip 包格式、可移植图片目标、失败关闭导出、只读包视图、解包到文件夹、复用 ExportDialog | 包格式、导出对话框复用、只读契约、解包行为或 zip 安全限制变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果、已知限制与装机交互卡顿门禁 | 性能预算、基准命令、装机交互门禁或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |

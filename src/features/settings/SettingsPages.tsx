@@ -402,12 +402,18 @@ export function EditorSettingsPage({
 
 type ImagesSettingsPageProps = {
   copyImagesToAssets: boolean;
+  downloadRemoteImagesOnExport: boolean;
   onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
+  onDownloadRemoteImagesOnExportChange: (
+    downloadRemoteImagesOnExport: boolean,
+  ) => void;
 };
 
 export function ImagesSettingsPage({
   copyImagesToAssets,
+  downloadRemoteImagesOnExport,
   onCopyImagesToAssetsChange,
+  onDownloadRemoteImagesOnExportChange,
 }: ImagesSettingsPageProps) {
   const { t } = useTranslation();
 
@@ -427,6 +433,14 @@ export function ImagesSettingsPage({
           description={t('settings.copyImagesToAssetsDescription')}
           label={t('settings.copyImagesToAssets')}
           onCheckedChange={onCopyImagesToAssetsChange}
+        />
+      </SettingsGroup>
+      <SettingsGroup title={t('settings.groupPackaging')}>
+        <SettingsSwitch
+          checked={downloadRemoteImagesOnExport}
+          description={t('settings.downloadRemoteImagesOnExportDescription')}
+          label={t('settings.downloadRemoteImagesOnExport')}
+          onCheckedChange={onDownloadRemoteImagesOnExportChange}
         />
       </SettingsGroup>
     </Tabs.Content>

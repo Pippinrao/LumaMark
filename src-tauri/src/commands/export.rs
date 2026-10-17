@@ -50,11 +50,7 @@ pub async fn export_show_save_dialog(
     suggested_directory: Option<String>,
     document_path: Option<String>,
 ) -> Result<Option<String>, AppError> {
-    let extension = match kind.as_str() {
-        "html" => "html",
-        "pdf" => "pdf",
-        _ => return Err(AppError::invalid_path()),
-    };
+    let extension = export_extension_for_kind(&kind)?;
 
     if let Some(path) = acceptance_output_path()? {
         let path = validate_output_path(&path, extension)?;
@@ -153,6 +149,15 @@ fn acceptance_output_path() -> Result<Option<String>, AppError> {
     }
 }
 
+fn export_extension_for_kind(kind: &str) -> Result<&'static str, AppError> {
+    match kind {
+        "html" => Ok("html"),
+        "pdf" => Ok("pdf"),
+        "package" => Ok("zip"),
+        _ => Err(AppError::invalid_path()),
+    }
+}
+
 fn sanitize_suggested_name(name: &str, extension: &str) -> String {
     let trimmed = name.trim();
     let file_name = if trimmed.is_empty() {
@@ -229,6 +234,14 @@ mod tests {
             preferred_export_directory(None, Some(directory.to_str().unwrap())),
             Some(directory)
         );
+    }
+
+    #[test]
+    fn package_exports_use_the_zip_extension() {
+        assert_eq!(export_extension_for_kind("html").unwrap(), "html");
+        assert_eq!(export_extension_for_kind("pdf").unwrap(), "pdf");
+        assert_eq!(export_extension_for_kind("package").unwrap(), "zip");
+        assert!(export_extension_for_kind("unknown").is_err());
     }
 
     #[test]

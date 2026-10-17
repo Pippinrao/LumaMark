@@ -21,6 +21,7 @@ type UseAppCommandHandlersOptions = {
   editorAvailable: boolean;
   exitFocusMode: () => void;
   exportHtml: () => void;
+  exportPackage: () => void;
   exportPdf: () => void;
   fileOpening: boolean;
   focusEditor: () => void;
@@ -34,6 +35,7 @@ type UseAppCommandHandlersOptions = {
   openSearch: () => void;
   openSettings: () => void;
   openWorkspace: () => void;
+  packageView: boolean;
   paste: () => Promise<boolean>;
   redo: () => void;
   resetZoom: () => void;
@@ -52,6 +54,7 @@ type UseAppCommandHandlersOptions = {
   toggleSidebar: () => void;
   toggleTheme: () => void;
   undo: () => void;
+  unpackPackage: () => void;
 };
 
 export function useAppCommandHandlers({
@@ -64,6 +67,7 @@ export function useAppCommandHandlers({
   editorAvailable,
   exitFocusMode,
   exportHtml,
+  exportPackage,
   exportPdf,
   fileOpening,
   focusEditor,
@@ -77,6 +81,7 @@ export function useAppCommandHandlers({
   openSearch,
   openSettings,
   openWorkspace,
+  packageView,
   paste,
   redo,
   resetZoom,
@@ -95,6 +100,7 @@ export function useAppCommandHandlers({
   toggleSidebar,
   toggleTheme,
   undo,
+  unpackPackage,
 }: UseAppCommandHandlersOptions): CommandHandlerMap {
   return useMemo(() => {
     const guardAction = <TArgs extends unknown[]>(
@@ -107,8 +113,16 @@ export function useAppCommandHandlers({
             editorAvailable,
             editorState: getEditState(),
             fileOpening,
+            packageView,
           })
         ) {
+          command(...args);
+          return;
+        }
+
+        // Save/Save As are disabled for read-only packages, but the shortcut
+        // must still reach the workflow guard so the status bar explains why.
+        if (packageView && (action === 'save' || action === 'saveAs')) {
           command(...args);
         }
       };
@@ -157,6 +171,7 @@ export function useAppCommandHandlers({
       deleteTable: guardAction('deleteTable', deleteTable),
       exitFocusMode: guardAction('exitFocusMode', exitFocusMode),
       exportHtml: guardAction('exportHtml', exportHtml),
+      exportPackage: guardAction('exportPackage', exportPackage),
       exportPdf: guardAction('exportPdf', exportPdf),
       focusEditor: guardAction('focusEditor', focusEditor),
       newDocument: guardAction('newDocument', newDocument),
@@ -210,6 +225,7 @@ export function useAppCommandHandlers({
       toggleSidebar: guardAction('toggleSidebar', toggleSidebar),
       toggleTheme: guardAction('toggleTheme', toggleTheme),
       undo: guardAction('undo', undo),
+      unpackPackage: guardAction('unpackPackage', unpackPackage),
     };
   }, [
     copy,
@@ -221,6 +237,7 @@ export function useAppCommandHandlers({
     editorAvailable,
     exitFocusMode,
     exportHtml,
+    exportPackage,
     exportPdf,
     fileOpening,
     focusEditor,
@@ -234,6 +251,7 @@ export function useAppCommandHandlers({
     openSearch,
     openSettings,
     openWorkspace,
+    packageView,
     paste,
     redo,
     resetZoom,
@@ -252,5 +270,6 @@ export function useAppCommandHandlers({
     toggleSidebar,
     toggleTheme,
     undo,
+    unpackPackage,
   ]);
 }

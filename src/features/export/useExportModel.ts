@@ -1,20 +1,31 @@
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { EditorState } from '@codemirror/state';
 import type { FileMetadata } from '../../services/files/fileTypes';
 import {
+  exportPackage,
   getExportCapabilities,
   printExportPdf,
   showExportSaveDialog,
   writeExportHtml,
 } from '../../services/export/exportCommands';
 import type { CommandError } from '../../services/tauri/invokeCommand';
+import type { PackageResourceWarning } from '../../services/packages/packageTypes';
 import { useSettingsStore } from '../settings/settingsStore';
+import {
+  buildPackageExportPlan,
+  packageEntryName,
+} from '../packages/packageExportPlan';
+import type {
+  PackageExportPlanWarning,
+} from '../packages/packageExportPlan';
 import { mountExportPdfStage, printWithSystemDialog } from './exportPdfStage';
 import type {
   ExportKind,
   ExportMathPreferences,
   ExportRenderResult,
   ExportWarning,
+  PackageExportWarningCode,
 } from './exportTypes';
 
 export type ExportStatus =
@@ -32,6 +43,10 @@ export type ExportDialogState = {
   open: boolean;
   path: string | null;
   status: ExportStatus;
+  summary?: {
+    resourceCount: number;
+    totalBytes: number;
+  };
   warnings: ExportWarning[];
 };
 
@@ -48,12 +63,14 @@ type UseExportModelOptions = {
   currentFile: FileMetadata | null;
   focusEditor: () => void;
   getDocumentText: () => string;
+  getEditorState: () => EditorState | null;
 };
 
 export function useExportModel({
   currentFile,
   focusEditor,
   getDocumentText,
+  getEditorState,
 }: UseExportModelOptions) {
   const { i18n, t } = useTranslation();
   const settings = useSettingsStore((state) => state.settings);
@@ -92,6 +109,8 @@ export function useExportModel({
       const language = i18n.language === 'zh-CN' ? 'zh-CN' : 'en';
       const baseName = exportBaseName(currentFile, t('app.emptyTitle'));
       const suggestedDirectory = documentDirectory(currentFile?.path ?? null);
+      const suggestedName =
+        kind === 'package' ? `${baseName}.zip` : `${baseName}.${kind}`;
 
       setState((current) => ({
         ...current,
@@ -113,12 +132,12 @@ export function useExportModel({
           capabilities.data.pdfMode === 'direct';
         let outputPath: string | null = null;
 
-        if (kind === 'html' || directPdf) {
+        if (kind === 'html' || kind === 'package' || directPdf) {
           const selected = await showExportSaveDialog({
             documentPath: currentFile?.path ?? null,
             kind,
             suggestedDirectory,
-            suggestedName: `${baseName}.${kind}`,
+            suggestedName,
           });
           if (!selected.ok) {
             throw selected.error;
@@ -135,6 +154,62 @@ export function useExportModel({
         }
 
         if (generation !== generationRef.current) {
+          return;
+        }
+
+        if (kind === 'package') {
+          if (!outputPath) {
+            throw new Error('Missing package output path.');
+          }
+          setState((current) => ({ ...current, status: 'writing' }));
+          const editorState = getEditorState();
+          if (!editorState) {
+            throw packageFailure(
+              'package.editor_unavailable',
+              'The editor is not available.',
+            );
+          }
+          const plan = buildPackageExportPlan({
+            documentPath: currentFile?.path ?? null,
+            downloadRemoteImages:
+              settings.images.downloadRemoteImagesOnExport,
+            entryName: packageEntryName(currentFile?.name),
+            state: editorState,
+          });
+          if (plan.status === 'error') {
+            throw packageFailure(
+              `package.${plan.error}`,
+              `The package image could not be planned: ${plan.source}`,
+            );
+          }
+          const written = await exportPackage({
+            documentPath: currentFile?.path ?? null,
+            entryName: plan.entryName,
+            entryText: plan.entryText,
+            outputPath,
+            resources: plan.resources,
+          });
+          if (!written.ok) {
+            throw written.error;
+          }
+          if (generation !== generationRef.current) {
+            return;
+          }
+          setState({
+            error: null,
+            kind,
+            open: true,
+            path: written.data.outputPath,
+            status: 'done',
+            summary: {
+              resourceCount: written.data.resourceCount,
+              totalBytes: written.data.totalBytes,
+            },
+            warnings: [
+              ...planWarningsToExportWarnings(plan.warnings),
+              ...rustWarningsToExportWarnings(written.data.warnings),
+            ],
+          });
           return;
         }
 
@@ -237,7 +312,9 @@ export function useExportModel({
       currentFile,
       focusEditor,
       getDocumentText,
+      getEditorState,
       i18n.language,
+      settings.images.downloadRemoteImagesOnExport,
       settings.markdown.math.equationNumbering,
       settings.markdown.math.physicsEnabled,
       settings.markdown.math.syntaxMode,
@@ -274,6 +351,7 @@ export function useExportModel({
     cancel,
     close,
     exportHtml: useCallback(() => start('html'), [start]),
+    exportPackage: useCallback(() => start('package'), [start]),
     exportPdf: useCallback(() => start('pdf'), [start]),
     retry,
     state,
@@ -318,4 +396,42 @@ function toCommandError(error: unknown): CommandError {
     message: error instanceof Error ? error.message : String(error),
     recoverable: true,
   };
+}
+
+const PACKAGE_WARNING_CODES: Record<
+  PackageExportPlanWarning['code'],
+  PackageExportWarningCode
+> = {
+  package_blob_unsupported: 'export.package_blob_unsupported',
+  package_html_image_unsupported: 'export.package_html_image_unsupported',
+  package_image_unsupported: 'export.package_image_unsupported',
+  package_remote_skipped: 'export.package_remote_skipped',
+  package_unsupported_source: 'export.package_unsupported_source',
+};
+
+function planWarningsToExportWarnings(
+  warnings: readonly PackageExportPlanWarning[],
+): ExportWarning[] {
+  return warnings.map((warning) => ({
+    code: PACKAGE_WARNING_CODES[warning.code],
+    message: '',
+    source: warning.source,
+  }));
+}
+
+function rustWarningsToExportWarnings(
+  warnings: readonly PackageResourceWarning[],
+): ExportWarning[] {
+  return warnings.map((warning) => ({
+    code: 'export.package_image_unavailable',
+    message: warning.reason,
+    source: warning.source,
+  }));
+}
+
+function packageFailure(
+  code: string,
+  message: string,
+): CommandError {
+  return { code, message, recoverable: true };
 }

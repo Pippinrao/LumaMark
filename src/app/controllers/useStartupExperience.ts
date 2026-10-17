@@ -6,6 +6,7 @@ import type { WorkspaceWorkflow } from '../../features/workspace/useWorkspaceWor
 
 type UseStartupExperienceOptions = {
   currentFilePath: string | null;
+  currentPackagePath: string | null;
   desktopOpenRequests?: {
     blocksSessionRestore: boolean;
     bootstrapComplete: boolean;
@@ -22,6 +23,7 @@ type UseStartupExperienceOptions = {
 
 export function useStartupExperience({
   currentFilePath,
+  currentPackagePath,
   desktopOpenRequests = {
     blocksSessionRestore: false,
     bootstrapComplete: true,
@@ -61,7 +63,10 @@ export function useStartupExperience({
   const openFile = useCallback(async () => {
     const outcome = await fileWorkflow.openFromDialog();
     if (outcome.status === 'opened') {
-      setLastSession({ kind: 'file', path: outcome.file.path });
+      setLastSession({
+        kind: 'file',
+        path: outcome.sessionPath ?? outcome.file.path,
+      });
       setVisible(false);
     }
     return outcome;
@@ -70,7 +75,10 @@ export function useStartupExperience({
   const openFileAfterDiscard = useCallback(async () => {
     const outcome = await fileWorkflow.openFromDialogAfterDiscard();
     if (outcome.status === 'opened') {
-      setLastSession({ kind: 'file', path: outcome.file.path });
+      setLastSession({
+        kind: 'file',
+        path: outcome.sessionPath ?? outcome.file.path,
+      });
       setVisible(false);
     }
     return outcome;
@@ -79,7 +87,10 @@ export function useStartupExperience({
   const openRecentFile = useCallback(async (path: string) => {
     const outcome = await fileWorkflow.openPath(path);
     if (outcome.status === 'opened') {
-      setLastSession({ kind: 'file', path: outcome.file.path });
+      setLastSession({
+        kind: 'file',
+        path: outcome.sessionPath ?? outcome.file.path,
+      });
       setVisible(false);
     }
     return outcome;
@@ -88,7 +99,10 @@ export function useStartupExperience({
   const openRecentFileAfterDiscard = useCallback(async (path: string) => {
     const outcome = await fileWorkflow.openPathAfterDiscard(path);
     if (outcome.status === 'opened') {
-      setLastSession({ kind: 'file', path: outcome.file.path });
+      setLastSession({
+        kind: 'file',
+        path: outcome.sessionPath ?? outcome.file.path,
+      });
       setVisible(false);
     }
     return outcome;
@@ -184,14 +198,25 @@ export function useStartupExperience({
 
     if (workspace.root) {
       setLastSession({
-        documentPath: currentFilePath ?? undefined,
+        documentPath: currentPackagePath
+          ? undefined
+          : currentFilePath ?? undefined,
         kind: 'workspace',
         path: workspace.root.path,
       });
+    } else if (currentPackagePath) {
+      setLastSession({ kind: 'file', path: currentPackagePath });
     } else if (currentFilePath) {
       setLastSession({ kind: 'file', path: currentFilePath });
     }
-  }, [currentFilePath, editorReady, setLastSession, visible, workspace.root]);
+  }, [
+    currentFilePath,
+    currentPackagePath,
+    editorReady,
+    setLastSession,
+    visible,
+    workspace.root,
+  ]);
 
   return {
     newDocument,

@@ -94,10 +94,11 @@ export function livePreviewPluginsNeedRemount(
 export function editorReadOnlyExtension(
   mode: EditorDisplayMode,
   transitionLocked = false,
+  documentReadOnly = false,
 ): Extension {
   // CodeMirror's readOnly facet keeps the first provided value. Emitting
   // `of(false)` here would permanently mask a later `of(true)`.
-  if (mode === 'reading' || transitionLocked) {
+  if (documentReadOnly || mode === 'reading' || transitionLocked) {
     return EditorState.readOnly.of(true);
   }
 

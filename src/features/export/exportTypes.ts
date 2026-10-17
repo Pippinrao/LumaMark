@@ -1,4 +1,4 @@
-export type ExportKind = 'html' | 'pdf';
+export type ExportKind = 'html' | 'package' | 'pdf';
 
 export type ExportMathPreferences = {
   numbering: 'none' | 'ams' | 'all';
@@ -15,6 +15,15 @@ export type ExportImageWarningCode =
   | 'export.image_remote_failed'
   | 'export.image_unsupported';
 
+export type PackageExportWarningCode =
+  | 'export.package_blob_unsupported'
+  | 'export.package_html_image_unsupported'
+  | 'export.package_image_too_large'
+  | 'export.package_image_unavailable'
+  | 'export.package_image_unsupported'
+  | 'export.package_remote_skipped'
+  | 'export.package_unsupported_source';
+
 export type ExportWarning =
   | {
       code:
@@ -27,6 +36,11 @@ export type ExportWarning =
     }
   | {
       code: ExportImageWarningCode;
+      message: string;
+      source: string;
+    }
+  | {
+      code: PackageExportWarningCode;
       message: string;
       source: string;
     }

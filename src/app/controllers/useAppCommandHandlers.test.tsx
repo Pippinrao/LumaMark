@@ -28,6 +28,7 @@ describe('useAppCommandHandlers availability guard', () => {
       editorAvailable: true,
       exitFocusMode: vi.fn(),
       exportHtml: vi.fn(),
+      exportPackage: vi.fn(),
       exportPdf: vi.fn(),
       fileOpening: false,
       focusEditor: vi.fn(),
@@ -53,6 +54,7 @@ describe('useAppCommandHandlers availability guard', () => {
       openSearch,
       openSettings: vi.fn(),
       openWorkspace: vi.fn(),
+      packageView: false,
       paste,
       redo: vi.fn(),
       resetZoom: vi.fn(),
@@ -71,6 +73,7 @@ describe('useAppCommandHandlers availability guard', () => {
       toggleSidebar: vi.fn(),
       toggleTheme: vi.fn(),
       undo,
+      unpackPackage: vi.fn(),
     };
     const { result } = renderHook(() => useAppCommandHandlers(options));
 

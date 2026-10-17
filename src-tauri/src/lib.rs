@@ -7,6 +7,7 @@ pub mod commands {
     pub mod files;
     pub mod open_requests;
     pub mod opener;
+    pub mod packages;
     pub mod recent_files;
     pub mod settings;
     pub mod trash;
@@ -30,6 +31,7 @@ pub mod services {
     pub mod open_request_lifecycle;
     pub mod open_request_service;
     pub mod opener_service;
+    pub mod package_service;
     pub mod pdf_export_service;
     pub mod recent_files_service;
     pub mod settings_service;
@@ -64,6 +66,9 @@ use commands::open_requests::{
     open_requests_record_applied, open_requests_recover,
 };
 use commands::opener::{opener_open_url, opener_reveal_path};
+use commands::packages::{
+    package_export, package_extract, package_open, package_show_extract_dialog,
+};
 use commands::recent_files::{
     recent_files_add, recent_files_clear, recent_files_get, recent_files_import_legacy,
 };
@@ -512,6 +517,10 @@ pub fn run() {
             export_write_html,
             export_embed_image,
             export_print_pdf,
+            package_open,
+            package_export,
+            package_extract,
+            package_show_extract_dialog,
             debug_append_log
         ])
         .run(app_context())

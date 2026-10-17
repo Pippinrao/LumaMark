@@ -206,6 +206,7 @@ function createShell({
       }}
       statusLabels={{
         dirtyIndicator: 'Unsaved',
+        packageReadOnly: 'Package · read-only',
         readOnly: 'Read-only',
         readOnlyFlash: 'Document is read-only',
         statistics: 'Statistics',

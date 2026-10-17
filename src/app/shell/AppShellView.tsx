@@ -31,6 +31,8 @@ type AppShellViewProps = {
   currentFileName?: string;
   onSidebarCollapsedFocus: () => void;
   onSidebarOpenChange: (open: boolean) => void;
+  packageName?: string;
+  packageReadOnly?: boolean;
   readingMode: boolean;
   readOnlyFlashing: boolean;
   sidebarContentChromeWidth?: number;
@@ -50,6 +52,8 @@ export function AppShellView({
   onExitFocusMode,
   onSidebarCollapsedFocus,
   onSidebarOpenChange,
+  packageName,
+  packageReadOnly,
   readingMode,
   readOnlyFlashing,
   sidebarContentChromeWidth = FILE_TREE_CONTENT_CHROME_WIDTH,
@@ -233,6 +237,8 @@ export function AppShellView({
         currentFileName={currentFileName}
         dirty={dirty}
         labels={statusLabels}
+        packageName={packageName}
+        packageReadOnly={packageReadOnly}
         readingMode={readingMode}
         readOnlyFlashing={readOnlyFlashing}
         workspaceName={workspaceName}

@@ -9,7 +9,7 @@ import type { useUpdateModel } from './useUpdateModel';
 type UseAppShellCommandHandlersOptions = {
   document: Pick<
     ReturnType<typeof useAppDocumentModel>,
-    'exportModel' | 'fileWorkflow'
+    'exportModel' | 'fileWorkflow' | 'packageWorkflow'
   >;
   editor: Pick<
     ReturnType<typeof useAppEditorCommands>,
@@ -39,6 +39,7 @@ type UseAppShellCommandHandlersOptions = {
   openCommandPalette: () => void;
   openFile: () => void;
   openSettings: () => void;
+  packageView: boolean;
   readingAppearance: Pick<
     ReturnType<typeof useReadingAppearanceModel>,
     'resetZoom'
@@ -70,6 +71,7 @@ export function useAppShellCommandHandlers({
   openCommandPalette,
   openFile,
   openSettings,
+  packageView,
   readingAppearance,
   settings,
   startup,
@@ -88,6 +90,9 @@ export function useAppShellCommandHandlers({
     exitFocusMode,
     exportHtml: () => {
       document.exportModel.exportHtml();
+    },
+    exportPackage: () => {
+      document.exportModel.exportPackage();
     },
     exportPdf: () => {
       document.exportModel.exportPdf();
@@ -108,6 +113,7 @@ export function useAppShellCommandHandlers({
     openWorkspace: () => {
       void startup.openWorkspace();
     },
+    packageView,
     paste: editor.paste,
     redo: editor.redo,
     resetZoom: readingAppearance.resetZoom,
@@ -130,5 +136,8 @@ export function useAppShellCommandHandlers({
     toggleSidebar,
     toggleTheme: settings.toggleTheme,
     undo: editor.undo,
+    unpackPackage: () => {
+      void document.packageWorkflow.unpackPackage();
+    },
   });
 }

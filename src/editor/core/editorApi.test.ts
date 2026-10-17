@@ -1253,4 +1253,28 @@ describe('editorApi', () => {
     editor.destroy();
     parent.remove();
   });
+
+  it('keeps a document-level read-only lock across display modes', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const editor = createEditorApi({ doc: '# title', parent });
+
+    editor.setDocumentReadOnly(true);
+    expect(editor.view.state.readOnly).toBe(true);
+
+    editor.setDisplayMode('source');
+    expect(editor.view.state.readOnly).toBe(true);
+
+    editor.setDisplayMode('reading');
+    expect(editor.view.state.readOnly).toBe(true);
+
+    editor.setDisplayMode('livePreview');
+    expect(editor.view.state.readOnly).toBe(true);
+
+    editor.setDocumentReadOnly(false);
+    expect(editor.view.state.readOnly).toBe(false);
+
+    editor.destroy();
+    parent.remove();
+  });
 });

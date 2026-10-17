@@ -73,6 +73,8 @@ export type EditorDocumentPort = {
   refreshImages?: (path: string) => void;
   serializeText: () => string;
   setContext: NonNullable<EditorApi['setDocumentContext']>;
+  setDisplayMode?: NonNullable<EditorApi['setDisplayMode']>;
+  setDocumentReadOnly?: NonNullable<EditorApi['setDocumentReadOnly']>;
   setTransitionLocked: NonNullable<EditorApi['setDocumentTransitionLocked']>;
 };
 
@@ -129,6 +131,12 @@ export function createEditorDocumentPort(editor: EditorApi): EditorDocumentPort 
     serializeText: () => editor.getSerializedDocumentText(),
     setContext: (context) => {
       editor.setDocumentContext(context);
+    },
+    setDisplayMode: (mode) => {
+      editor.setDisplayMode(mode);
+    },
+    setDocumentReadOnly: (readOnly) => {
+      editor.setDocumentReadOnly(readOnly);
     },
     setTransitionLocked: (locked) => {
       editor.setDocumentTransitionLocked(locked);

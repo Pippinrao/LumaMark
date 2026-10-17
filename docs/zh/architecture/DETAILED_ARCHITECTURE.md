@@ -163,6 +163,7 @@ Rust 保存：
 | Markdown 交互解析 | `@codemirror/lang-markdown` / Lezer | remark 作为热路径 parser | 编辑热路径选 CodeMirror/Lezer；导出在冷路径使用 `markdown-it`。 |
 | Markdown 导出 | `markdown-it` + task lists + `highlight.js` | remark/unified；comrak；Pandoc sidecar | 自包含 HTML，复用 MathJax/Mermaid/PlantUML，不引入第二运行时；CLI 与 GUI 共用一份渲染器。详见 [ADR 0025](../decisions/0025-markdown-html-pdf-export.md)。 |
 | PDF 导出 | WebView2 `PrintToPdf`（Windows）/ 系统打印对话框 | 打包 Chromium、wkhtmltopdf、WeasyPrint、Typst | 在当前 WebView 中挂载 print-only 舞台；A4、可搜索文本、无额外运行时。详见 [ADR 0025](../decisions/0025-markdown-html-pdf-export.md)。 |
+| Markdown 压缩包导出 | Rust `zip` + `package_service`；Lezer 图片扫描；共享 ExportDialog | 虚拟 zip asset 协议；写回 zip；自包含 HTML | 可移植 zip，图片目标为相对 POSIX 路径；失败关闭；只读包视图后显式解包。详见 [ADR 0026](../decisions/0026-markdown-package-zip.md)。 |
 | 保存转换 diff | `@codemirror/merge` | 自研 diff / 全文替换 | 只在稀疏、受控的 `prepareTextForSave` 转换后生成最小 CodeMirror changes，不进入普通输入热路径。目标文本精确，但极端输入下位置映射不能无条件视为精确；复审与 fallback 见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。 |
 | Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成、主题适配与源码保真边界。项目补丁让合法 GFM 表格在不做加载时 `table.format` 改写的情况下挂载 widget；仍会丢弃剩余 format 文档变更，源码保持逐字不变。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)与[ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)。 |
 | UI 基础组件 | Radix Primitives | Ariakit/Base UI/React Aria | 默认 Radix。若单个组件不满足，再按组件替换。 |
@@ -209,10 +210,12 @@ src/
 │  ├─ command-palette/
 │  ├─ commands/
 │  ├─ document-statistics/
+│  ├─ export/
 │  ├─ file-actions/
 │  ├─ file-tree/
 │  ├─ media-viewer/
 │  ├─ outline/
+│  ├─ packages/
 │  ├─ reading-appearance/
 │  ├─ recent-files/
 │  ├─ recovery-drafts/
@@ -225,10 +228,12 @@ src/
 │  ├─ clipboard/
 │  ├─ debug/
 │  ├─ drafts/
+│  ├─ export/
 │  ├─ file-watch/
 │  ├─ files/
 │  ├─ open-requests/
 │  ├─ opener/
+│  ├─ packages/
 │  ├─ preferences/
 │  ├─ settings/
 │  ├─ tauri/
@@ -376,6 +381,7 @@ feature workflow 规则：
 - 当前文档的磁盘监听事件也由 `features/file-actions` 收口：clean 自动重载，dirty 只产生显式冲突决策，同文档 request id 和跨文档 generation 都必须阻止旧读取晚到覆盖。
 - `features/file-actions` 通过 `FileStateAdapter`、`StatusAdapter`、`EditorDocumentPort` 接收状态和编辑器能力，不能硬依赖 `appStore`。
 - 工作区打开、children lazy load、stale request 防护通过 `features/workspace` 的 workflow 收口。
+- `features/packages` 负责包格式规划、可移植图片目标规则、只读压缩包打开、解包 workflow 与包会话元数据；不得复制导出对话框，package 导出是 `features/export` 的一个 `ExportKind`。Rust `package_service` 负责 zip 读写、会话解压、路径校验与限制；命令保持薄入口。详见 [ADR 0026](../decisions/0026-markdown-package-zip.md)。
 - `features/workspace` 拆为 workflow、selectors、view model/UI-facing 类型；打开文件只通过注入 callback，不知道 file workflow 实现。
 - `features/startup` 只持有开始页 UI 和版本化会话元数据 store。自动恢复必须等待编辑器 ready 且恢复草稿检查完成；待恢复草稿优先于最后会话。
 - 文件与工作区打开 workflow 返回 `opened`、`cancelled`、`failed` 或适用的 `superseded` 结果，app controller 只能在确认成功后关闭开始页。

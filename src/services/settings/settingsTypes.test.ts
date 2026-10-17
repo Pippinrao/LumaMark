@@ -61,7 +61,10 @@ describe('settings v5 contract', () => {
         openWindowMode: 'multiWindow',
         startupBehavior: 'home',
       },
-      images: { copyImagesToAssets: false },
+      images: {
+        copyImagesToAssets: false,
+        downloadRemoteImagesOnExport: false,
+      },
       markdown: {
         math: {
           equationNumbering: 'none',

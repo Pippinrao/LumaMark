@@ -63,7 +63,11 @@ export function ExportDialog({
             <span>{t(titleKey(state.kind))}</span>
           </Dialog.Title>
           <Dialog.Description className="lm-dialog-description">
-            {t('export.description')}
+            {t(
+              state.kind === 'package'
+                ? 'export.description.package'
+                : 'export.description',
+            )}
           </Dialog.Description>
 
           <div className="lm-export-dialog-body" aria-live="polite">
@@ -128,17 +132,22 @@ function ProgressSummary({ status }: { status: ExportStatus }) {
 
 function SuccessSummary({ state }: { state: ExportDialogState }) {
   const { t } = useTranslation();
+  const message =
+    state.kind === 'package'
+      ? t('export.success.package', {
+          count: state.summary?.resourceCount ?? 0,
+          size: formatBytes(state.summary?.totalBytes ?? 0),
+        })
+      : t(
+          state.kind === 'html'
+            ? 'export.success.html'
+            : 'export.success.pdf',
+        );
   return (
     <div className="lm-export-success">
       <div className="lm-export-status-line">
         <CheckCircle2 aria-hidden="true" size={18} strokeWidth={1.8} />
-        <span>
-          {t(
-            state.kind === 'html'
-              ? 'export.success.html'
-              : 'export.success.pdf',
-          )}
-        </span>
+        <span>{message}</span>
       </div>
       {state.path ? (
         <code className="lm-export-output-path" title={state.path}>
@@ -196,7 +205,14 @@ function WarningList({ warnings }: { warnings: ExportWarning[] }) {
 }
 
 function titleKey(kind: ExportKind): string {
-  return kind === 'html' ? 'export.title.html' : 'export.title.pdf';
+  switch (kind) {
+    case 'html':
+      return 'export.title.html';
+    case 'pdf':
+      return 'export.title.pdf';
+    case 'package':
+      return 'export.title.package';
+  }
 }
 
 function progressKey(status: ExportStatus): string {
@@ -230,6 +246,20 @@ function warningKey(warning: ExportWarning): string {
       return 'export.warning.imageRemoteFailed';
     case 'export.image_unsupported':
       return 'export.warning.imageUnsupported';
+    case 'export.package_blob_unsupported':
+      return 'export.warning.packageBlobUnsupported';
+    case 'export.package_html_image_unsupported':
+      return 'export.warning.packageHtmlImageUnsupported';
+    case 'export.package_image_too_large':
+      return 'export.warning.imageTooLarge';
+    case 'export.package_image_unavailable':
+      return 'export.warning.packageImageUnavailable';
+    case 'export.package_image_unsupported':
+      return 'export.warning.imageUnsupported';
+    case 'export.package_remote_skipped':
+      return 'export.warning.packageRemoteSkipped';
+    case 'export.package_unsupported_source':
+      return 'export.warning.packageUnsupportedSource';
     case 'export.math_failed':
       return 'export.warning.mathFailed';
     default:
@@ -255,9 +285,41 @@ function errorKey(code: string): string {
       return 'exportError.pdfFailed';
     case 'export.render_failed':
       return 'exportError.renderFailed';
+    case 'package.editor_unavailable':
+      return 'exportError.packageEditorUnavailable';
+    case 'package.relative_without_document':
+      return 'exportError.packageRelativeWithoutDocument';
+    case 'package.resource_unavailable':
+      return 'exportError.packageResourceUnavailable';
+    case 'package.resource_too_large':
+    case 'package.too_large':
+      return 'exportError.tooLarge';
+    case 'package.unsupported_source':
+      return 'exportError.packageUnsupportedSource';
+    case 'package.export_failed':
+      return 'exportError.packageWriteFailed';
+    case 'package.invalid_path':
+      return 'exportError.invalidPath';
     default:
       return 'exportError.generic';
   }
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+  const units = ['KB', 'MB', 'GB', 'TB'] as const;
+  let value = bytes;
+  let unitIndex = -1;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  if (unitIndex < 0) {
+    return `${Math.round(value)} B`;
+  }
+  return `${value >= 10 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`;
 }
 
 function isBusy(status: ExportStatus): boolean {

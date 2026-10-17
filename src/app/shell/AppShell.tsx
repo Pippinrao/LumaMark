@@ -64,6 +64,7 @@ export function AppShell() {
       onExitFocusMode={model.toggleFocusMode}
       onSidebarCollapsedFocus={model.editor.focusEditor}
       onSidebarOpenChange={model.setSidebarOpen}
+      packageName={model.packageSession?.zipName} packageReadOnly={model.packageSession !== null}
       readingMode={model.editor.editorDisplayMode === 'reading'}
       readOnlyFlashing={readOnlyFlashing}
       sidebarContentChromeWidth={sidebarContentChromeWidth}

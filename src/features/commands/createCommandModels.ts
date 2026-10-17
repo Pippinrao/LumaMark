@@ -38,6 +38,7 @@ type CommandBuildContext = CommandPresentationBuildContext & {
   editorAvailable: boolean;
   editorState: EditorEditState;
   fileOpening?: boolean;
+  packageView?: boolean;
 };
 
 export function createCommandPaletteModels({
@@ -45,6 +46,7 @@ export function createCommandPaletteModels({
   editorState,
   fileOpening,
   focusMode = false,
+  packageView = false,
   shortcuts,
   t,
 }: {
@@ -52,6 +54,7 @@ export function createCommandPaletteModels({
   editorState: EditorEditState;
   fileOpening: boolean;
   focusMode?: boolean;
+  packageView?: boolean;
   shortcuts: CommandShortcutLabels;
   t: Translate;
 }): readonly CommandModel[] {
@@ -60,6 +63,7 @@ export function createCommandPaletteModels({
     editorState,
     fileOpening,
     focusMode,
+    packageView,
     scene: 'palette',
     shortcuts,
     t,
@@ -92,7 +96,9 @@ export function createCommandPaletteModels({
     actionCommand('save', 'save'),
     actionCommand('save-as', 'saveAs'),
     actionCommand('export-html', 'exportHtml'),
+    actionCommand('export-package', 'exportPackage'),
     actionCommand('export-pdf', 'exportPdf'),
+    actionCommand('unpack-package', 'unpackPackage'),
     actionCommand('find', 'openSearch'),
     actionCommand('undo', 'undo'),
     actionCommand('redo', 'redo'),
@@ -150,6 +156,7 @@ export function createTopMenuModels({
   fileOpening,
   focusMode = false,
   language,
+  packageView = false,
   recentFiles,
   shortcuts,
   sidebarOpen,
@@ -162,6 +169,7 @@ export function createTopMenuModels({
   fileOpening: boolean;
   focusMode?: boolean;
   language: 'en' | 'zh-CN';
+  packageView?: boolean;
   recentFiles: readonly { name: string; path: string }[];
   sidebarOpen: boolean;
   shortcuts: CommandShortcutLabels;
@@ -173,6 +181,7 @@ export function createTopMenuModels({
     editorState,
     fileOpening,
     focusMode,
+    packageView,
     scene: 'topMenu',
     shortcuts,
     t,
@@ -231,8 +240,10 @@ export function createTopMenuModels({
         item('save-as', 'saveAs'),
         submenu('export', FileDown, t('menu.export'), [
           item('export-html', 'exportHtml'),
+          item('export-package', 'exportPackage'),
           item('export-pdf', 'exportPdf'),
         ]),
+        ...(packageView ? [item('unpack-package', 'unpackPackage')] : []),
         separator('file-settings-separator'),
         item('settings', 'openSettings'),
       ],
@@ -493,6 +504,7 @@ function commandDisabled(
       editorAvailable: context.editorAvailable,
       editorState: context.editorState,
       fileOpening: context.fileOpening,
+      packageView: context.packageView,
     })
   );
 }

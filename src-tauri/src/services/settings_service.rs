@@ -70,6 +70,7 @@ pub enum OpenWindowMode {
 #[serde(rename_all = "camelCase")]
 pub struct ImageSettings {
     pub copy_images_to_assets: bool,
+    pub download_remote_images_on_export: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -140,6 +141,7 @@ pub fn default_settings() -> LumaMarkSettings {
         },
         images: ImageSettings {
             copy_images_to_assets: false,
+            download_remote_images_on_export: false,
         },
         markdown: default_markdown_settings(),
         updates: UpdateSettings {
@@ -495,6 +497,23 @@ fn parse_and_normalize_settings(bytes: &[u8]) -> Result<ParsedSettings, AppError
         defaults.images.copy_images_to_assets,
         &mut had_invalid_fields,
     );
+    settings.images.download_remote_images_on_export = {
+        let missing = value
+            .get("images")
+            .and_then(Value::as_object)
+            .map(|images| images.get("downloadRemoteImagesOnExport").is_none())
+            .unwrap_or(true);
+        if missing {
+            defaults.images.download_remote_images_on_export
+        } else {
+            read_bool_field(
+                value.get("images"),
+                "downloadRemoteImagesOnExport",
+                defaults.images.download_remote_images_on_export,
+                &mut had_invalid_fields,
+            )
+        }
+    };
     let markdown_math_missing = value
         .get("markdown")
         .and_then(Value::as_object)

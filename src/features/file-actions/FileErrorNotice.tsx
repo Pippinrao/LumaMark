@@ -49,7 +49,34 @@ function messageKeyForError(code: string): string {
       return 'linkError.fragmentUnavailable';
     case 'link.copy_failed':
       return 'linkError.copyFailed';
+    case 'package.invalid_zip':
+    case 'package.open_failed':
+    case 'package.cache_unavailable':
+      return 'packageError.invalidZip';
+    case 'package.unsupported':
+      return 'packageError.unsupported';
+    case 'package.unsupported_version':
+      return 'packageError.unsupportedVersion';
+    case 'package.entry_missing':
+      return 'packageError.entryMissing';
+    case 'package.entry_ambiguous':
+      return 'packageError.entryAmbiguous';
+    case 'package.unsafe_entry':
+      return 'packageError.unsafeEntry';
+    case 'package.too_large':
+      return 'packageError.tooLarge';
+    case 'package.not_found':
+      return 'packageError.notFound';
+    case 'package.target_not_empty':
+      return 'packageError.targetNotEmpty';
+    case 'package.read_only':
+      return 'packageError.readOnly';
+    case 'package.extract_failed':
+      return 'packageError.extractFailed';
     default:
+      if (code.startsWith('package.')) {
+        return 'packageError.generic';
+      }
       if (code.startsWith('desktop.open_request_')) {
         return 'fileError.desktopOpenUnavailable';
       }

@@ -751,7 +751,7 @@ pub fn parse_open_request(args: &[OsString], cwd: &Path) -> Result<Option<OpenRe
         .skip(1)
         .map(OsString::as_os_str)
         .map(os_path)
-        .find(|path| !is_flag(path) && is_markdown_path(path))
+        .find(|path| !is_flag(path) && is_openable_path(path))
     else {
         return Ok(None);
     };
@@ -781,13 +781,13 @@ fn is_flag(path: &Path) -> bool {
         .is_some_and(|argument| argument.starts_with('-'))
 }
 
-fn is_markdown_path(path: &Path) -> bool {
+fn is_openable_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
             matches!(
                 extension.to_ascii_lowercase().as_str(),
-                "md" | "markdown" | "mdown"
+                "md" | "markdown" | "mdown" | "zip"
             )
         })
 }

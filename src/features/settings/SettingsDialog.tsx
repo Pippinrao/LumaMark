@@ -45,6 +45,7 @@ type SettingsDialogProps = {
   closeErrorCode: WindowControlErrorCode | null;
   copyImagesToAssets: boolean;
   defaultDisplayMode: SettingsDisplayMode;
+  downloadRemoteImagesOnExport: boolean;
   focusModeOnStartup: boolean;
   fontZoomPercent: number;
   language: AppLanguage;
@@ -58,6 +59,9 @@ type SettingsDialogProps = {
   onClearRecentFiles: () => void;
   onCopyImagesToAssetsChange: (copyImagesToAssets: boolean) => void;
   onDefaultDisplayModeChange: (mode: SettingsDisplayMode) => void;
+  onDownloadRemoteImagesOnExportChange: (
+    downloadRemoteImagesOnExport: boolean,
+  ) => void;
   onFocusModeOnStartupChange: (focusModeOnStartup: boolean) => void;
   onFontZoomPercentChange: (fontZoomPercent: number) => void;
   onLanguageChange: (language: AppLanguage) => void;
@@ -93,6 +97,7 @@ export function SettingsDialog({
   closeErrorCode,
   copyImagesToAssets,
   defaultDisplayMode,
+  downloadRemoteImagesOnExport,
   focusModeOnStartup,
   fontZoomPercent,
   language,
@@ -106,6 +111,7 @@ export function SettingsDialog({
   onClearRecentFiles,
   onCopyImagesToAssetsChange,
   onDefaultDisplayModeChange,
+  onDownloadRemoteImagesOnExportChange,
   onFocusModeOnStartupChange,
   onFontZoomPercentChange,
   onLanguageChange,
@@ -291,7 +297,11 @@ export function SettingsDialog({
               />
               <ImagesSettingsPage
                 copyImagesToAssets={copyImagesToAssets}
+                downloadRemoteImagesOnExport={downloadRemoteImagesOnExport}
                 onCopyImagesToAssetsChange={onCopyImagesToAssetsChange}
+                onDownloadRemoteImagesOnExportChange={
+                  onDownloadRemoteImagesOnExportChange
+                }
               />
               <TrashSettingsPage
                 emptyBusy={trash.emptyBusy}

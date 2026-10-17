@@ -99,6 +99,7 @@ function createShell(sidebarContentWidth: number) {
       }}
       statusLabels={{
         dirtyIndicator: 'Dirty',
+        packageReadOnly: 'Package · read-only',
         readOnly: 'Read-only',
         readOnlyFlash: 'Document is read-only',
         statistics: 'Statistics',

@@ -94,6 +94,7 @@ export function toAppShellModel({
     documentClose,
     documentStatistics: document.documentStatistics,
     documentTitle,
+    packageSession: document.packageSession,
     editor: {
       appearance: readingAppearance.appearance,
       closeContextMenu: editor.closeContextMenu,

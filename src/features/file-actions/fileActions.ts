@@ -1,4 +1,5 @@
 import type { EditorApi } from '../../editor/core/editorApi';
+import type { PackageSession } from '../packages/packageTypes';
 import {
   readTextFile,
   showOpenFileDialog,
@@ -19,6 +20,7 @@ export type FileActionState = {
   dirty: boolean;
   dirtyRevision: number;
   lastFileError: CommandError | null;
+  readOnlyDocument?: boolean;
 };
 
 export type FileActionStateAdapter = {
@@ -26,6 +28,11 @@ export type FileActionStateAdapter = {
   setCurrentFile: (currentFile: CurrentFile | null) => void;
   setDirty: (dirty: boolean) => void;
   setLastFileError: (error: CommandError | null) => void;
+  setPackageSession?: (session: PackageSession | null) => void;
+};
+
+export type ApplyOpenResultOptions = {
+  recentFile?: RecentFileInput;
 };
 
 type RecentFilesAdapter = {
@@ -35,6 +42,7 @@ type RecentFilesAdapter = {
 export type FileActions = {
   applyOpenResult: (
     result: CommandResult<ReadTextFileResult>,
+    options?: ApplyOpenResultOptions,
   ) => CommandResult<ReadTextFileResult>;
   createNewDocument: () => void;
   loadUnsavedSnapshot: (text: string) => void;
@@ -129,6 +137,7 @@ export function createFileActions({
 }: CreateFileActionsOptions): FileActions {
   const applyOpenResult = (
     result: CommandResult<ReadTextFileResult>,
+    options: ApplyOpenResultOptions = {},
   ): CommandResult<ReadTextFileResult> => {
     if (!shouldApplyOpenResult()) {
       return result;
@@ -145,7 +154,8 @@ export function createFileActions({
     state.setCurrentFile(currentFile);
     state.setDirty(false);
     state.setLastFileError(null);
-    recentFiles.addRecentFile(currentFile);
+    state.setPackageSession?.(null);
+    recentFiles.addRecentFile(options.recentFile ?? currentFile);
     editor.focus();
 
     return result;

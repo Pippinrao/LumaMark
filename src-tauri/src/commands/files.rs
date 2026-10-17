@@ -159,6 +159,7 @@ pub async fn files_show_open_file_dialog(app: AppHandle) -> Result<Option<String
         .dialog()
         .file()
         .add_filter("Markdown", &["md", "markdown", "mdown"])
+        .add_filter("LumaMark Package", &["zip"])
         .blocking_pick_file();
 
     selected.map(dialog_path_to_string).transpose()

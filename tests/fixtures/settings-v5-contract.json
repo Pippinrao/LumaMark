@@ -18,7 +18,8 @@
       "startupBehavior": "home"
     },
     "images": {
-      "copyImagesToAssets": false
+      "copyImagesToAssets": false,
+      "downloadRemoteImagesOnExport": false
     },
     "markdown": {
       "math": {

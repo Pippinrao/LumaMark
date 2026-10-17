@@ -100,6 +100,7 @@ export type EditorApi = {
   setAppearance: (appearance: EditorAppearance) => void;
   setDocumentContext: (context: EditorDocumentContextPatch) => void;
   setDisplayMode: (mode: EditorDisplayMode) => void;
+  setDocumentReadOnly: (readOnly: boolean) => void;
   setMathPreferences: (preferences: EditorMathPreferences) => void;
 };
 
@@ -108,6 +109,7 @@ export class CodeMirrorEditorApi implements EditorApi {
   private appearance: EditorAppearance;
   private documentContext: EditorDocumentContext;
   private displayMode: EditorDisplayMode;
+  private documentReadOnly = false;
   private language: AppLanguage;
   private mathPreferences: EditorMathPreferences =
     DEFAULT_EDITOR_MATH_PREFERENCES;
@@ -383,7 +385,11 @@ export class CodeMirrorEditorApi implements EditorApi {
                 ),
               ),
               editorReadOnlyCompartment.reconfigure(
-                editorReadOnlyExtension(this.displayMode, this.transitionLocked),
+                editorReadOnlyExtension(
+                  this.displayMode,
+                  this.transitionLocked,
+                  this.documentReadOnly,
+                ),
               ),
             ]
           : []),
@@ -399,7 +405,28 @@ export class CodeMirrorEditorApi implements EditorApi {
     this.transitionLocked = locked;
     this.editorView.dispatch({
       effects: editorReadOnlyCompartment.reconfigure(
-        editorReadOnlyExtension(this.displayMode, this.transitionLocked),
+        editorReadOnlyExtension(
+          this.displayMode,
+          this.transitionLocked,
+          this.documentReadOnly,
+        ),
+      ),
+    });
+  }
+
+  setDocumentReadOnly(readOnly: boolean): void {
+    if (readOnly === this.documentReadOnly) {
+      return;
+    }
+
+    this.documentReadOnly = readOnly;
+    this.editorView.dispatch({
+      effects: editorReadOnlyCompartment.reconfigure(
+        editorReadOnlyExtension(
+          this.displayMode,
+          this.transitionLocked,
+          this.documentReadOnly,
+        ),
       ),
     });
   }
@@ -421,7 +448,11 @@ export class CodeMirrorEditorApi implements EditorApi {
           ),
         ),
         editorReadOnlyCompartment.reconfigure(
-          editorReadOnlyExtension(mode, this.transitionLocked),
+          editorReadOnlyExtension(
+            mode,
+            this.transitionLocked,
+            this.documentReadOnly,
+          ),
         ),
       ],
     });

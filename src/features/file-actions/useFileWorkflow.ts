@@ -15,6 +15,7 @@ import {
 } from '../../services/files/fileCommands';
 import {
   createFileActions,
+  type ApplyOpenResultOptions,
   type FileActionStateAdapter,
 } from './fileActions';
 import {
@@ -54,11 +55,13 @@ import {
   type DocumentClaimClient,
 } from '../../services/window/documentClaimClient';
 import type { CommandError } from '../../services/tauri/invokeCommand';
+import { createPackageArchiveOpener } from '../packages/packageArchiveOpener';
+import { isPackageArchivePath } from '../packages/packagePaths';
 
 export type { ExternalFileConflict } from './useExternalFileWatch';
 
 export type OpenDocumentOutcome =
-  | { file: FileMetadata; status: 'opened' }
+  | { file: FileMetadata; sessionPath?: string; status: 'opened' }
   | { status: 'focused'; windowLabel: string | null }
   | { status: 'cancelled' | 'failed' | 'superseded' };
 
@@ -996,7 +999,11 @@ export function useFileWorkflow({
   );
 
   const openPath = useCallback(
-    async (path: string, allowDirty = false) => {
+    async (
+      path: string,
+      allowDirty = false,
+      options: ApplyOpenResultOptions = {},
+    ) => {
       const ownershipBlock = getDocumentClaimOwnershipBlock(
         claimWorkflowRuntime,
       );
@@ -1170,7 +1177,7 @@ export function useFileWorkflow({
         }
 
         if (!result.ok) {
-          actions.applyOpenResult(result);
+          actions.applyOpenResult(result, options);
           status.setStatusKey('status.openFailed');
           return { status: 'failed' } as const;
         }
@@ -1295,7 +1302,7 @@ export function useFileWorkflow({
         }
 
         try {
-          terminalActions.applyOpenResult(result);
+          terminalActions.applyOpenResult(result, options);
         } catch (cause) {
           const error = unexpectedDocumentClaimWorkflowError(
             'document_claim.open_apply_failed',
@@ -1438,9 +1445,34 @@ export function useFileWorkflow({
     ],
   );
 
+  const openPackageArchive = useCallback(
+    (path: string, allowDirty = false) =>
+      createPackageArchiveOpener({
+        editorRef,
+        openPath: (targetPath, targetAllowDirty, options) =>
+          openPath(targetPath, targetAllowDirty, options),
+        recentFiles,
+        setFileOpening: (open) => {
+          fileOpeningRef.current = open;
+          setFileOpening(open);
+        },
+        state,
+        status,
+      })(path, allowDirty),
+    [editorRef, openPath, recentFiles, state, status],
+  );
+
+  const openPathOrPackage = useCallback(
+    (path: string, allowDirty = false) =>
+      isPackageArchivePath(path)
+        ? openPackageArchive(path, allowDirty)
+        : openPath(path, allowDirty),
+    [openPackageArchive, openPath],
+  );
+
   const openPathAfterDiscard = useCallback(
-    (path: string) => openPath(path, true),
-    [openPath],
+    (path: string) => openPathOrPackage(path, true),
+    [openPathOrPackage],
   );
 
   const openFromDialog = useCallback(
@@ -1486,7 +1518,7 @@ export function useFileWorkflow({
         return { status: 'cancelled' } as const;
       }
 
-      return openPath(selection.data, allowDirty);
+      return openPathOrPackage(selection.data, allowDirty);
     } finally {
       if (ownsRequest()) {
         fileOpeningRef.current = false;
@@ -1497,7 +1529,7 @@ export function useFileWorkflow({
     claimWorkflowRuntime,
     createActions,
     nextOperationId,
-    openPath,
+    openPathOrPackage,
     state,
     status,
     waitForEditor,
@@ -2156,6 +2188,10 @@ export function useFileWorkflow({
 
   const saveAs = useCallback(() => {
     return enqueueSave(async () => {
+      if (state.getState().readOnlyDocument) {
+        status.setStatusKey('status.packageReadOnly');
+        return;
+      }
       const ownershipBlock = getDocumentClaimOwnershipBlock(
         claimWorkflowRuntime,
       );
@@ -2528,11 +2564,15 @@ export function useFileWorkflow({
   ]);
 
   const save = useCallback(() => {
+    if (state.getState().readOnlyDocument) {
+      status.setStatusKey('status.packageReadOnly');
+      return Promise.resolve();
+    }
     if (state.getState().currentFile) {
       return saveCurrentFile();
     }
     return saveAs();
-  }, [saveAs, saveCurrentFile, state]);
+  }, [saveAs, saveCurrentFile, state, status]);
 
   const performRetargetOpenDocument = useCallback(
     async (
@@ -3027,7 +3067,7 @@ export function useFileWorkflow({
     markOpenDocumentRemoved,
     openFromDialog,
     openFromDialogAfterDiscard,
-    openPath,
+    openPath: openPathOrPackage,
     openPathAfterDiscard,
     reloadFromDisk,
     retargetOpenDocument,

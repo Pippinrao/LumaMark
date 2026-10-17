@@ -4,6 +4,10 @@ import {
   type InvokeCommandFunction,
 } from '../tauri/invokeCommand';
 import type { ExportKind } from '../../features/export/exportTypes';
+import type {
+  PackageExportInput,
+  PackageExportResult,
+} from '../packages/packageTypes';
 
 export type ExportPdfMode = 'direct' | 'print-dialog';
 
@@ -38,6 +42,9 @@ export type E2EExportCommandClient = {
   embedImage?: (
     input: { documentPath: string | null; source: string },
   ) => Promise<CommandResult<EmbeddedExportImage>>;
+  exportPackage?: (
+    input: PackageExportInput,
+  ) => Promise<CommandResult<PackageExportResult>>;
   printPdf?: (path: string) => Promise<CommandResult<PrintedExportPdf>>;
   showSaveDialog?: (
     input: {
@@ -152,6 +159,22 @@ export async function printExportPdf(
   return invokeCommand<PrintedExportPdf>(
     'export_print_pdf',
     { path },
+    options.invokeFn,
+  );
+}
+
+export async function exportPackage(
+  input: PackageExportInput,
+  options: ExportCommandOptions = {},
+): Promise<CommandResult<PackageExportResult>> {
+  const client = options.invokeFn ? undefined : e2eClient();
+  if (client?.exportPackage) {
+    return client.exportPackage(input);
+  }
+
+  return invokeCommand<PackageExportResult>(
+    'package_export',
+    { input },
     options.invokeFn,
   );
 }

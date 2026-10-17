@@ -483,7 +483,9 @@ describe('createCommandPaletteModels', () => {
       'save',
       'save-as',
       'export-html',
+      'export-package',
       'export-pdf',
+      'unpack-package',
       'find',
       'undo',
       'redo',
@@ -536,6 +538,7 @@ describe('createCommandPaletteModels', () => {
     expect(
       commands.filter(({ disabled }) => disabled).map(({ id }) => id),
     ).toEqual([
+      'unpack-package',
       'undo',
       'redo',
       'cut',
@@ -1104,6 +1107,7 @@ describe('createTopMenuModels', () => {
         'save:save:Ctrl+S',
         'save-as:saveAs:Ctrl+Shift+S',
         'export-html:exportHtml:',
+        'export-package:exportPackage:',
         'export-pdf:exportPdf:',
         'settings:openSettings:',
       ],
@@ -1316,6 +1320,7 @@ describe('createTopMenuModels', () => {
       'save',
       'save-as',
       'export-html',
+      'export-package',
       'export-pdf',
       'undo',
       'redo',

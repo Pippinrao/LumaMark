@@ -213,6 +213,9 @@ export function useAppShellSlots(
                 closeErrorCode={model.windowControls.closeErrorCode}
                 copyImagesToAssets={model.copyImagesToAssets}
                 defaultDisplayMode={model.defaultDisplayMode}
+                downloadRemoteImagesOnExport={
+                  model.downloadRemoteImagesOnExport
+                }
                 focusModeOnStartup={model.focusModeOnStartup}
                 fontZoomPercent={model.fontZoomPercent}
                 language={model.language}
@@ -226,6 +229,9 @@ export function useAppShellSlots(
                 onClearRecentFiles={model.clearRecentFiles}
                 onCopyImagesToAssetsChange={model.setCopyImagesToAssets}
                 onDefaultDisplayModeChange={model.setDefaultDisplayMode}
+                onDownloadRemoteImagesOnExportChange={
+                  model.setDownloadRemoteImagesOnExport
+                }
                 onFocusModeOnStartupChange={model.setFocusModeOnStartup}
                 onFontZoomPercentChange={model.setFontZoomPercent}
                 onLanguageChange={model.setLanguage}

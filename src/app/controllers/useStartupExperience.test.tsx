@@ -7,6 +7,7 @@ import { useStartupExperience } from './useStartupExperience';
 function createOptions() {
   return {
     currentFilePath: null,
+    currentPackagePath: null,
     dirty: false,
     editorReady: true,
     fileWorkflow: {

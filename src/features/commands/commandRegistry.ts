@@ -27,6 +27,7 @@ import {
   MonitorCog,
   PanelLeft,
   Pencil,
+  Package,
   Pilcrow,
   Quote,
   Redo2,
@@ -69,11 +70,13 @@ type CommandLabelContext = {
 export type CommandAvailabilityPolicy =
   | {
       blockWhileFileOpening?: true;
+      requiresPackageView?: true;
       scope: 'always';
     }
   | {
       blockedDuringComposition?: true;
       blockWhileFileOpening?: true;
+      blockWhilePackageView?: true;
       capability?: 'format' | 'insert';
       clipboard?: 'read' | 'write';
       history?: 'redo' | 'undo';
@@ -209,6 +212,11 @@ export const commandRegistry = {
     icon: FileCode2,
     labelKey: 'command.exportHtml',
   },
+  exportPackage: {
+    ...editorWhileFileOpening,
+    icon: Package,
+    labelKey: 'command.exportPackage',
+  },
   exportPdf: {
     ...editorWhileFileOpening,
     icon: FileText,
@@ -255,8 +263,26 @@ export const commandRegistry = {
   },
   resetZoom: editorAction(RotateCcw, 'menu.resetZoom'),
   revealImage: { ...surface, icon: FolderOpen, labelKey: 'contextMenu.revealImage' },
-  save: { ...editorWhileFileOpening, icon: Save, labelKey: 'command.save', shortcutKey: 'save' },
-  saveAs: { ...editorWhileFileOpening, icon: SaveAll, labelKey: 'command.saveAs', shortcutKey: 'saveAs' },
+  save: {
+    availability: {
+      blockWhileFileOpening: true,
+      blockWhilePackageView: true,
+      scope: 'editor',
+    },
+    icon: Save,
+    labelKey: 'command.save',
+    shortcutKey: 'save',
+  },
+  saveAs: {
+    availability: {
+      blockWhileFileOpening: true,
+      blockWhilePackageView: true,
+      scope: 'editor',
+    },
+    icon: SaveAll,
+    labelKey: 'command.saveAs',
+    shortcutKey: 'saveAs',
+  },
   selectAll: editorAction(TextSelect, 'menu.selectAll', 'selectAll'),
   setChineseLanguage: { ...always, icon: Languages, labelKey: 'settings.languageChinese' },
   setDarkTheme: { ...always, icon: Moon, labelKey: 'settings.themeDark' },
@@ -285,6 +311,15 @@ export const commandRegistry = {
   toggleLanguage: { ...always, icon: Languages, labelKey: 'command.toggleLanguage' },
   toggleSidebar: { ...always, icon: PanelLeft, labelKey: 'command.toggleSidebar', shortcutKey: 'sidebar' },
   toggleTheme: { ...always, icon: Moon, labelKey: 'command.toggleTheme' },
+  unpackPackage: {
+    availability: {
+      blockWhileFileOpening: true,
+      requiresPackageView: true,
+      scope: 'always',
+    },
+    icon: FolderOpen,
+    labelKey: 'command.unpackPackage',
+  },
   undo: {
     availability: { history: 'undo', scope: 'editor', writable: true },
     ...focusAction,

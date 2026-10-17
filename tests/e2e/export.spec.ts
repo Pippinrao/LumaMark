@@ -5,6 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     const state = {
       capturedHtml: '',
+      exportedPackage: null as unknown,
       printedPath: '',
     };
     const target = window as unknown as {
@@ -25,12 +26,25 @@ test.beforeEach(async ({ page }) => {
         },
         ok: false,
       }),
+      exportPackage: async (input: unknown) => {
+        state.exportedPackage = input;
+        return {
+          data: {
+            entryName: 'untitled.md',
+            outputPath: 'E:/notes/note.zip',
+            resourceCount: 1,
+            totalBytes: 20,
+            warnings: [],
+          },
+          ok: true,
+        };
+      },
       printPdf: async (path: string) => {
         state.printedPath = path;
         return { data: { byteLength: 12, path }, ok: true };
       },
       showSaveDialog: async (input: { kind: string }) => ({
-        data: `E:/notes/note.${input.kind}`,
+        data: `E:/notes/note.${input.kind === 'package' ? 'zip' : input.kind}`,
         ok: true,
       }),
       writeHtml: async (input: { html: string; path: string }) => {
@@ -69,8 +83,7 @@ async function openExportMenu(page: Page): Promise<void> {
   await expect(exportTrigger).toHaveAttribute('data-state', 'open');
 }
 
-test('exports HTML and PDF through the file menu', async ({ page }) => {
-  await page.goto('/');
+test('exports HTML and PDF through the file menu', async ({ page }) => {  await page.goto('/');
   await openBlankDocument(page);
   await page.locator('.cm-content').first().fill('# Export note\n\nHello **world**.');
   await openExportMenu(page);
@@ -102,4 +115,36 @@ test('exports HTML and PDF through the file menu', async ({ page }) => {
     return target.__LUMAMARK_E2E_EXPORT_STATE__.printedPath;
   });
   expect(printed).toBe('E:/notes/note.pdf');
+});
+
+test('exports a portable package through the file menu', async ({ page }) => {
+  await page.goto('/');
+  await openBlankDocument(page);
+  await page
+    .locator('.cm-content')
+    .first()
+    .fill('# Package note\n\n![a](E:/notes/a.png)');
+
+  await openExportMenu(page);
+  await page.getByRole('menuitem', { name: /^导出为压缩包/ }).click();
+
+  await expect(
+    page.getByRole('dialog').getByText(/压缩包已导出/),
+  ).toBeVisible();
+
+  const input = await page.evaluate(() => {
+    const target = window as unknown as {
+      __LUMAMARK_E2E_EXPORT_STATE__: {
+        exportedPackage: {
+          entryText: string;
+          resources: { kind: string }[];
+        };
+      };
+    };
+    return target.__LUMAMARK_E2E_EXPORT_STATE__.exportedPackage;
+  });
+
+  expect(input.entryText).toContain('lumamark-assets/');
+  expect(input.resources).toHaveLength(1);
+  expect(input.resources[0]?.kind).toBe('local');
 });

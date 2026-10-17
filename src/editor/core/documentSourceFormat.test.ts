@@ -5,6 +5,7 @@ import {
   documentSourceFormatField,
   parseDocumentSource,
   serializeDocumentSource,
+  serializeDocumentSourceLines,
 } from './documentSourceFormat';
 
 function expectSerializableState(
@@ -84,6 +85,28 @@ describe('document source format', () => {
 
     expect(editedState.doc.toString()).toBe('a\n\nb');
     expectSerializableState(editedState);
+  });
+
+  it('serializes line replacements without shifting preserved endings', () => {
+    const state = createEditorState({ doc: '\uFEFFa\r\nb\nc' });
+    const format = state.field(documentSourceFormatField);
+
+    expect(
+      serializeDocumentSourceLines(
+        state.doc.toString(),
+        new Map([[1, 'b-with-a-much-longer-value']]),
+        format,
+      ),
+    ).toBe('\uFEFFa\r\nb-with-a-much-longer-value\nc');
+  });
+
+  it('rejects line replacements that contain line breaks', () => {
+    const state = createEditorState({ doc: 'a\nb' });
+    const format = state.field(documentSourceFormatField);
+
+    expect(() =>
+      serializeDocumentSourceLines('a\nb', new Map([[0, 'a\nb']]), format),
+    ).toThrow(/line break/u);
   });
 
   it.each([

@@ -36,6 +36,7 @@ export type LumaMarkSettings = {
   };
   images: {
     copyImagesToAssets: boolean;
+    downloadRemoteImagesOnExport: boolean;
   };
   markdown: {
     math: SettingsMarkdownMath;
@@ -79,6 +80,7 @@ export const DEFAULT_LUMA_MARK_SETTINGS: LumaMarkSettings = {
   },
   images: {
     copyImagesToAssets: false,
+    downloadRemoteImagesOnExport: false,
   },
   markdown: {
     math: {
@@ -250,6 +252,16 @@ export function normalizeLumaMarkSettings(
     images.copyImagesToAssets,
     defaults.images.copyImagesToAssets,
   );
+  const downloadRemoteImagesOnExport =
+    images.downloadRemoteImagesOnExport === undefined
+      ? {
+          invalid: false,
+          value: defaults.images.downloadRemoteImagesOnExport,
+        }
+      : normalizeBoolean(
+          images.downloadRemoteImagesOnExport,
+          defaults.images.downloadRemoteImagesOnExport,
+        );
   const autoCheckOnStartup =
     sourceVersion.value < 4 && value.updates === undefined
       ? { invalid: false, value: defaults.updates.autoCheckOnStartup }
@@ -296,6 +308,7 @@ export function normalizeLumaMarkSettings(
     sidebarOpenOnStartup.invalid ||
     focusModeOnStartup.invalid ||
     copyImagesToAssets.invalid ||
+    downloadRemoteImagesOnExport.invalid ||
     autosaveEnabled.invalid ||
     autoCheckOnStartup.invalid ||
     mathSyntaxMode.invalid ||
@@ -327,6 +340,7 @@ export function normalizeLumaMarkSettings(
       },
       images: {
         copyImagesToAssets: copyImagesToAssets.value,
+        downloadRemoteImagesOnExport: downloadRemoteImagesOnExport.value,
       },
       markdown: {
         math: {

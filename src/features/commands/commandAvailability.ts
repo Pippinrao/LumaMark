@@ -9,6 +9,7 @@ export type CommandAvailabilityContext = {
   editorAvailable?: boolean;
   editorState?: EditorEditState;
   fileOpening?: boolean;
+  packageView?: boolean;
   surfaceDisabled?: boolean;
 };
 
@@ -18,12 +19,25 @@ export function isCommandActionDisabled(
     editorAvailable = false,
     editorState,
     fileOpening = false,
+    packageView = false,
     surfaceDisabled = false,
   }: CommandAvailabilityContext,
 ): boolean {
   const policy = getCommandDescriptor(action).availability;
 
   if (fileOpening && policy.blockWhileFileOpening) {
+    return true;
+  }
+
+  if (policy.scope === 'always' && policy.requiresPackageView && !packageView) {
+    return true;
+  }
+
+  if (
+    policy.scope === 'editor' &&
+    policy.blockWhilePackageView &&
+    packageView
+  ) {
     return true;
   }
 

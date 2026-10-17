@@ -10,6 +10,7 @@ import { useRecoveryDraft } from '../../features/recovery-drafts/useRecoveryDraf
 import { useWindowAutosave } from '../../features/autosave/useWindowAutosave';
 import { useSettingsStore } from '../../features/settings/settingsStore';
 import { useExportModel } from '../../features/export/useExportModel';
+import { usePackageSessionModel } from './usePackageSessionModel';
 import { useAppStore, type StatusKey } from '../stores/appStore';
 import { finalizeAllDraftImages } from '../../services/assets/assetCommands';
 import type { FileWatchChangeEvent } from '../../services/file-watch/fileWatchClient';
@@ -38,11 +39,13 @@ export function useAppDocumentModel(
           dirty: state.dirty,
           dirtyRevision: state.dirtyRevision,
           lastFileError: state.lastFileError,
+          readOnlyDocument: state.packageSession !== null,
         };
       },
       setCurrentFile: useAppStore.getState().setCurrentFile,
       setDirty: useAppStore.getState().setDirty,
       setLastFileError: useAppStore.getState().setLastFileError,
+      setPackageSession: useAppStore.getState().setPackageSession,
     }),
     [],
   );
@@ -172,6 +175,14 @@ export function useAppDocumentModel(
     currentFile,
     focusEditor: () => documentPortRef.current?.focus(),
     getDocumentText: () => documentPortRef.current?.getText() ?? '',
+    getEditorState: () => documentPortRef.current?.getEditorState?.() ?? null,
+  });
+  const { packageSession, packageWorkflow } = usePackageSessionModel({
+    documentPortRef,
+    editorReady,
+    openPath: fileWorkflow.openPath,
+    setLastFileError,
+    setStatusKey,
   });
 
   return {
@@ -188,6 +199,8 @@ export function useAppDocumentModel(
     isOutlineCurrent,
     lastFileError,
     loadUnsavedSnapshot,
+    packageSession,
+    packageWorkflow,
     recentFiles: recentFileItems,
     recoveryDraft,
     scheduleOutlineRefresh,

@@ -101,7 +101,7 @@ export function useAppShellModel() {
     recoveryPending: Boolean(document.recoveryDraft.pendingRecoveryDraft),
   });
   const startup = useStartupExperience({
-    currentFilePath: document.currentFile?.path ?? null,
+    currentFilePath: document.currentFile?.path ?? null, currentPackagePath: document.packageSession?.zipPath ?? null,
     dirty: document.dirty,
     desktopOpenRequests,
     editorReady: editor.editorReady,
@@ -141,7 +141,7 @@ export function useAppShellModel() {
     openAbout,
     openCommandPalette,
     openFile: newDocumentConfirmation.requestOpenFile,
-    openSettings,
+    openSettings, packageView: document.packageSession !== null,
     readingAppearance,
     settings,
     startup,
@@ -174,6 +174,7 @@ export function useAppShellModel() {
     focusMode,
     handlers: commandHandlers,
     language: settings.language,
+    packageView: document.packageSession !== null,
     payloadHandlers,
     recentFiles: document.recentFiles,
     shortcuts,

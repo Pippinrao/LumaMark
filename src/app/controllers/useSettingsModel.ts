@@ -86,6 +86,12 @@ export function useSettingsModel() {
     }));
   }, []);
 
+  const setDownloadRemoteImagesOnExport = useCallback((next: boolean) => {
+    patchSettings((current) => ({
+      ...current,
+      images: { ...current.images, downloadRemoteImagesOnExport: next },
+    }));
+  }, []);
   const setStartupBehavior = useCallback((next: StartupBehavior) => {
     patchSettings((current) => ({
       ...current,
@@ -169,7 +175,7 @@ export function useSettingsModel() {
   return {
     clearRecentFiles,
     copyImagesToAssets,
-    defaultDisplayMode: settings.editor.defaultDisplayMode,
+    defaultDisplayMode: settings.editor.defaultDisplayMode, downloadRemoteImagesOnExport: settings.images.downloadRemoteImagesOnExport,
     autosaveEnabled: settings.editor.autosaveEnabled,
     focusModeOnStartup: settings.editor.focusModeOnStartup,
     fontZoomPercent,
@@ -184,8 +190,7 @@ export function useSettingsModel() {
     recentFilesPersistenceError,
     retrySettingsWrite,
     setAutosaveEnabled,
-    setCopyImagesToAssets,
-    setDefaultDisplayMode,
+    setCopyImagesToAssets, setDefaultDisplayMode, setDownloadRemoteImagesOnExport,
     setFocusModeOnStartup,
     setFontZoomPercent,
     setLanguage,

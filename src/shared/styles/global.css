@@ -1404,6 +1404,162 @@ button {
   font-size: 0.84rem;
 }
 
+.lm-export-dialog {
+  top: clamp(96px, 18vh, 176px);
+  display: grid;
+  width: min(480px, calc(100vw - 32px));
+  max-height: none;
+  gap: var(--lm-space-3);
+  padding: var(--lm-space-5);
+}
+
+.lm-export-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: var(--lm-space-2);
+  margin: 0;
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+}
+
+.lm-export-dialog-title svg {
+  color: var(--lm-color-accent-strong);
+}
+
+.lm-export-dialog .lm-dialog-description {
+  margin: 0;
+}
+
+.lm-export-dialog-body {
+  display: grid;
+  min-height: 72px;
+  gap: var(--lm-space-3);
+}
+
+.lm-export-progress,
+.lm-export-status-line {
+  display: flex;
+  align-items: center;
+  gap: var(--lm-space-2);
+}
+
+.lm-export-progress,
+.lm-export-success,
+.lm-export-error,
+.lm-export-warnings {
+  padding: var(--lm-space-3);
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-2);
+  background: var(--lm-color-bg);
+}
+
+.lm-export-progress {
+  color: var(--lm-color-text-soft);
+}
+
+.lm-export-success,
+.lm-export-error,
+.lm-export-warnings {
+  display: grid;
+  gap: var(--lm-space-2);
+}
+
+.lm-export-error {
+  border-color: color-mix(in srgb, var(--lm-color-danger) 34%, var(--lm-color-border));
+  background: color-mix(in srgb, var(--lm-color-danger) 7%, var(--lm-color-surface));
+}
+
+.lm-export-success .lm-export-status-line {
+  color: var(--lm-color-text);
+  font-weight: 600;
+}
+
+.lm-export-output-path {
+  display: block;
+  padding: var(--lm-space-2) var(--lm-space-3);
+  overflow: hidden;
+  border: 1px solid var(--lm-color-border);
+  border-radius: var(--lm-radius-1);
+  background: var(--lm-color-surface);
+  color: var(--lm-color-text-soft);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lm-export-hint {
+  margin: 0;
+  color: var(--lm-color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.lm-export-warnings ul {
+  display: grid;
+  max-height: 160px;
+  margin: 0;
+  padding-left: 1.1em;
+  overflow: auto;
+  gap: 6px;
+  color: var(--lm-color-text-soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.lm-export-warnings code {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--lm-color-text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lm-export-warning-line {
+  margin-left: 0.4em;
+  color: var(--lm-color-text-muted);
+}
+
+.lm-export-spinner {
+  flex: none;
+  color: var(--lm-color-accent-strong);
+  animation: lm-export-spin 0.9s linear infinite;
+}
+
+.lm-export-dialog .lm-dialog-actions {
+  margin-top: var(--lm-space-1);
+}
+
+.lm-export-dialog .lm-icon-button {
+  min-height: 32px;
+  padding: 0 var(--lm-space-4);
+  border-color: var(--lm-color-border);
+  background: var(--lm-color-surface);
+}
+
+.lm-export-dialog .lm-icon-button:hover {
+  background: var(--lm-color-surface-muted);
+}
+
+.lm-export-dialog .lm-button {
+  min-height: 32px;
+  padding: 0 var(--lm-space-4);
+}
+
+@keyframes lm-export-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lm-export-spinner {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lm-settings-confirm-dialog,
   .lm-settings-confirm-dialog * {

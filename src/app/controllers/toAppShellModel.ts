@@ -115,6 +115,7 @@ export function toAppShellModel({
       keepCurrentContent: document.fileWorkflow.keepCurrentContent,
       reloadFromDisk: document.fileWorkflow.reloadFromDisk,
     },
+    exportModel: document.exportModel,
     fileTree: {
       getContextMenuNodes: fileTreeContextMenu.getContextMenuNodes,
       mutationDialog: fileTreeContextMenu.mutationDialog,

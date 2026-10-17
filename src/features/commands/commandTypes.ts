@@ -11,6 +11,8 @@ export type CommandActionId =
   | 'deleteSelection'
   | 'deleteTable'
   | 'exitFocusMode'
+  | 'exportHtml'
+  | 'exportPdf'
   | 'toggleFocusMode'
   | 'focusEditor'
   | 'newDocument'

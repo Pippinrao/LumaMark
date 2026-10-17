@@ -7,6 +7,7 @@
 
 pub mod cli;
 pub mod commands;
+pub mod export_host;
 pub mod help;
 pub mod host;
 pub mod invocation;
@@ -19,6 +20,9 @@ use std::sync::Arc;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
+use crate::automation::export_host::{
+    ExportHost, EXPORT_PAGE, EXPORT_WINDOW_LABEL,
+};
 use crate::automation::host::{RenderHost, RENDERER_PAGE, RENDERER_WINDOW_LABEL};
 use crate::automation::invocation::{Invocation, Request};
 use crate::automation::messages::{Locale, Messages};
@@ -52,6 +56,7 @@ pub fn run(request: Request) -> ! {
             cli::write_stdout(&mcp_config_json());
             flush_and_exit(EXIT_OK);
         }
+        Invocation::Export { .. } => run_export_renderer(invocation, messages),
         rendering => run_renderer(rendering, messages),
     }
 }
@@ -201,6 +206,93 @@ fn run_renderer(invocation: Invocation, messages: Messages) -> ! {
     }
 }
 
+fn run_export_renderer(invocation: Invocation, messages: Messages) -> ! {
+    let host = ExportHost::new(messages).shared();
+    let worker_host = Arc::clone(&host);
+    let worker_invocation = invocation.clone();
+    let json = matches!(worker_invocation, Invocation::Export { json: true, .. });
+    let data_directory = host::automation_data_directory();
+
+    let watchdog_host = Arc::clone(&host);
+    std::thread::spawn(move || {
+        if let Err(error) = watchdog_host.wait_until_ready(RENDERER_READY_TIMEOUT_MS) {
+            cli::fail(&error, json);
+            flush_and_exit(EXIT_USAGE_ERROR);
+        }
+    });
+
+    let builder = tauri::Builder::default()
+        .manage(Arc::clone(&host))
+        .invoke_handler(tauri::generate_handler![
+            export_host::export_host_ready,
+            export_host::export_render_next,
+            export_host::export_render_progress,
+            export_host::export_render_result,
+            crate::commands::export::export_write_html,
+            crate::commands::export::export_embed_image,
+        ])
+        .setup(move |app| {
+            if let Err(error) = create_export_window(app.handle(), data_directory.clone()) {
+                cli::fail(
+                    &ToolError::new("renderer.unavailable", messages.unavailable(&error.to_string())),
+                    json,
+                );
+                host::remove_data_directory(&data_directory);
+                flush_and_exit(EXIT_USAGE_ERROR);
+            }
+
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let code = export_host::execute(&worker_invocation, &worker_host, &handle);
+                worker_host.shutdown();
+                close_window(&handle, EXPORT_WINDOW_LABEL);
+                host::remove_data_directory(&data_directory);
+                flush_and_exit(code);
+            });
+            Ok(())
+        });
+
+    let mut context = crate::app_context();
+    for window in context.config_mut().app.windows.iter_mut() {
+        window.create = false;
+    }
+
+    match builder.build(context) {
+        Ok(app) => {
+            app.run(|_, event| {
+                if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                    api.prevent_exit();
+                }
+            });
+            flush_and_exit(EXIT_USAGE_ERROR)
+        }
+        Err(error) => {
+            cli::fail(
+                &ToolError::new("renderer.unavailable", messages.unavailable(&error.to_string())),
+                json,
+            );
+            flush_and_exit(EXIT_USAGE_ERROR)
+        }
+    }
+}
+
+fn create_export_window(
+    app: &tauri::AppHandle,
+    data_directory: std::path::PathBuf,
+) -> tauri::Result<tauri::WebviewWindow> {
+    WebviewWindowBuilder::new(
+        app,
+        EXPORT_WINDOW_LABEL,
+        WebviewUrl::App(EXPORT_PAGE.into()),
+    )
+    .title("LumaMark export")
+    .visible(false)
+    .skip_taskbar(true)
+    .inner_size(1280.0, 720.0)
+    .data_directory(data_directory)
+    .build()
+}
+
 fn execute_worker(invocation: &Invocation, host: &Arc<RenderHost>) -> i32 {
     match invocation {
         Invocation::Mcp => {
@@ -243,16 +335,20 @@ fn create_renderer_window(
 /// Exiting the process while the browser is still alive makes Chromium log a
 /// window-class teardown error on stderr, which would pollute a CLI session.
 fn close_renderer_window(handle: &tauri::AppHandle) {
-    if handle.get_webview_window(RENDERER_WINDOW_LABEL).is_none() {
+    close_window(handle, RENDERER_WINDOW_LABEL);
+}
+
+fn close_window(handle: &tauri::AppHandle, label: &str) {
+    if handle.get_webview_window(label).is_none() {
         return;
     }
 
-    if let Some(window) = handle.get_webview_window(RENDERER_WINDOW_LABEL) {
+    if let Some(window) = handle.get_webview_window(label) {
         let _ = window.destroy();
     }
 
     for _ in 0..50 {
-        if handle.get_webview_window(RENDERER_WINDOW_LABEL).is_none() {
+        if handle.get_webview_window(label).is_none() {
             // Let the runtime finish releasing the browser host.
             std::thread::sleep(std::time::Duration::from_millis(60));
             return;

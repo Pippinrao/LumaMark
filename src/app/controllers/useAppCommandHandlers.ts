@@ -20,6 +20,8 @@ type UseAppCommandHandlersOptions = {
   deleteTable: (range?: EditorInteractionRange) => boolean;
   editorAvailable: boolean;
   exitFocusMode: () => void;
+  exportHtml: () => void;
+  exportPdf: () => void;
   fileOpening: boolean;
   focusEditor: () => void;
   getEditState: () => EditorEditState;
@@ -61,6 +63,8 @@ export function useAppCommandHandlers({
   deleteTable,
   editorAvailable,
   exitFocusMode,
+  exportHtml,
+  exportPdf,
   fileOpening,
   focusEditor,
   getEditState,
@@ -152,6 +156,8 @@ export function useAppCommandHandlers({
       deleteSelection: guardAction('deleteSelection', deleteSelection),
       deleteTable: guardAction('deleteTable', deleteTable),
       exitFocusMode: guardAction('exitFocusMode', exitFocusMode),
+      exportHtml: guardAction('exportHtml', exportHtml),
+      exportPdf: guardAction('exportPdf', exportPdf),
       focusEditor: guardAction('focusEditor', focusEditor),
       newDocument: guardAction('newDocument', newDocument),
       openAbout: guardAction('openAbout', () => {
@@ -214,6 +220,8 @@ export function useAppCommandHandlers({
     deleteTable,
     editorAvailable,
     exitFocusMode,
+    exportHtml,
+    exportPdf,
     fileOpening,
     focusEditor,
     getEditState,

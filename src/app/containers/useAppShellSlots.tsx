@@ -4,6 +4,7 @@ import { FileTreeMutationDialog } from '../../features/file-tree/FileTreeMutatio
 import { DiscardChangesDialog } from '../../features/file-actions/DiscardChangesDialog';
 import { FileErrorNotice } from '../../features/file-actions/FileErrorNotice';
 import { ExternalFileConflictDialog } from '../../features/file-actions/ExternalFileConflictDialog';
+import { ExportDialog } from '../../features/export/ExportDialog';
 import { RecoveryDraftDialog } from '../../features/recovery-drafts/RecoveryDraftDialog';
 import { OutlinePanel } from '../../features/outline/OutlinePanel';
 import type { useAppShellModel } from '../controllers/useAppShellModel';
@@ -146,6 +147,16 @@ export function useAppShellSlots(
                   void model.externalFileConflict.reloadFromDisk();
                 }}
                 open
+              />
+            ) : null
+          }
+          exportDialog={
+            model.exportModel.state.open ? (
+              <ExportDialog
+                onCancel={model.exportModel.cancel}
+                onClose={model.exportModel.close}
+                onRetry={model.exportModel.retry}
+                state={model.exportModel.state}
               />
             ) : null
           }

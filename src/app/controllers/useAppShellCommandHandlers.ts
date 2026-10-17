@@ -7,7 +7,10 @@ import type { useStartupExperience } from './useStartupExperience';
 import type { useUpdateModel } from './useUpdateModel';
 
 type UseAppShellCommandHandlersOptions = {
-  document: Pick<ReturnType<typeof useAppDocumentModel>, 'fileWorkflow'>;
+  document: Pick<
+    ReturnType<typeof useAppDocumentModel>,
+    'exportModel' | 'fileWorkflow'
+  >;
   editor: Pick<
     ReturnType<typeof useAppEditorCommands>,
     | 'copy'
@@ -83,6 +86,12 @@ export function useAppShellCommandHandlers({
     deleteTable: editor.deleteTable,
     editorAvailable,
     exitFocusMode,
+    exportHtml: () => {
+      document.exportModel.exportHtml();
+    },
+    exportPdf: () => {
+      document.exportModel.exportPdf();
+    },
     fileOpening,
     focusEditor: editor.focusEditor,
     getEditState: editor.getEditState,

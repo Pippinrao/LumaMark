@@ -9,6 +9,7 @@ import { useRecentFilesStore } from '../../features/recent-files/recentFilesStor
 import { useRecoveryDraft } from '../../features/recovery-drafts/useRecoveryDraft';
 import { useWindowAutosave } from '../../features/autosave/useWindowAutosave';
 import { useSettingsStore } from '../../features/settings/settingsStore';
+import { useExportModel } from '../../features/export/useExportModel';
 import { useAppStore, type StatusKey } from '../stores/appStore';
 import { finalizeAllDraftImages } from '../../services/assets/assetCommands';
 import type { FileWatchChangeEvent } from '../../services/file-watch/fileWatchClient';
@@ -167,6 +168,11 @@ export function useAppDocumentModel(
   } = useDebouncedOutline({
     getEditorState,
   });
+  const exportModel = useExportModel({
+    currentFile,
+    focusEditor: () => documentPortRef.current?.focus(),
+    getDocumentText: () => documentPortRef.current?.getText() ?? '',
+  });
 
   return {
     autosave,
@@ -175,6 +181,7 @@ export function useAppDocumentModel(
     documentStatistics,
     dismissFileError,
     dirty,
+    exportModel,
     fileWorkflow,
     headings,
     isCurrentOutlineHeading,

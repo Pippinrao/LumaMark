@@ -269,6 +269,6 @@ mod tests {
                 .expect("--output must stay documented"),
         );
 
-        assert_eq!(display, "--output, -o <file.svg>");
+        assert_eq!(display, "--output, -o <file>");
     }
 }

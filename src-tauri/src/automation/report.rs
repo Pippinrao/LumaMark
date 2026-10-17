@@ -32,6 +32,12 @@ pub const DIAGNOSTIC_CODES: &[&str] = &[
     "diagram.invalid",
     "renderer.timeout",
     "renderer.unavailable",
+    "output.exists",
+    "export.failed",
+    "export.pdf_failed",
+    "export.pdf_timeout",
+    "export.pdf_unavailable",
+    "export.image_unavailable",
     "automation.failed",
 ];
 
@@ -49,6 +55,9 @@ pub struct Diagnostic {
     /// One-based error line mapped back to the document.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<u32>,
+    /// Source identifier for export warnings (image path or URL).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 impl Diagnostic {
@@ -59,6 +68,7 @@ impl Diagnostic {
             format: None,
             block_line: None,
             line: None,
+            source: None,
         }
     }
 
@@ -74,6 +84,11 @@ impl Diagnostic {
 
     pub fn with_line(mut self, line: u32) -> Self {
         self.line = Some(line);
+        self
+    }
+
+    pub fn with_source(mut self, source: impl Into<String>) -> Self {
+        self.source = Some(source.into());
         self
     }
 }

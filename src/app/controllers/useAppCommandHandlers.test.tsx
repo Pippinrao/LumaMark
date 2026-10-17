@@ -27,6 +27,8 @@ describe('useAppCommandHandlers availability guard', () => {
       deleteTable,
       editorAvailable: true,
       exitFocusMode: vi.fn(),
+      exportHtml: vi.fn(),
+      exportPdf: vi.fn(),
       fileOpening: false,
       focusEditor: vi.fn(),
       getEditState: () => ({

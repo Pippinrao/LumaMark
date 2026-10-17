@@ -453,6 +453,12 @@ fn download_remote_image(source: &str) -> Result<Vec<u8>, AppError> {
     download_remote_image_with_agent(&agent, source)
 }
 
+/// Downloads a remote image for a non-preview consumer such as export without
+/// writing the shared `.lumamark/assets/remote-cache` directory.
+pub(crate) fn fetch_remote_image_bytes(source: &str) -> Result<Vec<u8>, AppError> {
+    download_remote_image(source)
+}
+
 fn download_remote_image_with_agent(
     agent: &ureq::Agent,
     source: &str,

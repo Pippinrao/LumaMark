@@ -160,7 +160,9 @@ Rust 保存：
 | 构建工具 | Vite | Webpack/Rspack | 选 Vite。与 React、Vitest、Tauri 组合成熟。 |
 | 包管理 | pnpm | npm/yarn | 选 pnpm。依赖安装快，lockfile 稳定，适合后续 monorepo。 |
 | 编辑器核心 | CodeMirror 6 | Milkdown/ProseMirror/Monaco | 选 CodeMirror 6。性能、源码保真和可视区渲染更符合目标。 |
-| Markdown 交互解析 | `@codemirror/lang-markdown` / Lezer | remark 作为热路径 parser | 编辑热路径选 CodeMirror/Lezer；remark 只用于导出或离线处理。 |
+| Markdown 交互解析 | `@codemirror/lang-markdown` / Lezer | remark 作为热路径 parser | 编辑热路径选 CodeMirror/Lezer；导出在冷路径使用 `markdown-it`。 |
+| Markdown 导出 | `markdown-it` + task lists + `highlight.js` | remark/unified；comrak；Pandoc sidecar | 自包含 HTML，复用 MathJax/Mermaid/PlantUML，不引入第二运行时；CLI 与 GUI 共用一份渲染器。详见 [ADR 0025](../decisions/0025-markdown-html-pdf-export.md)。 |
+| PDF 导出 | WebView2 `PrintToPdf`（Windows）/ 系统打印对话框 | 打包 Chromium、wkhtmltopdf、WeasyPrint、Typst | 在当前 WebView 中挂载 print-only 舞台；A4、可搜索文本、无额外运行时。详见 [ADR 0025](../decisions/0025-markdown-html-pdf-export.md)。 |
 | 保存转换 diff | `@codemirror/merge` | 自研 diff / 全文替换 | 只在稀疏、受控的 `prepareTextForSave` 转换后生成最小 CodeMirror changes，不进入普通输入热路径。目标文本精确，但极端输入下位置映射不能无条件视为精确；复审与 fallback 见 [ADR 0006](../decisions/0006-parity-reliability-editor-contracts.md)。 |
 | Markdown 表格交互 | `codemirror-markdown-tables` | 自研 TableWidget / Milkdown / Toast UI / ProseMirror tables | 选 `codemirror-markdown-tables`。在 CodeMirror 6 内提供成熟表格 widget、单元格编辑、行列操作、复制粘贴和 table autocompletion；LumaMark 只做薄集成、主题适配与源码保真边界。项目补丁让合法 GFM 表格在不做加载时 `table.format` 改写的情况下挂载 widget；仍会丢弃剩余 format 文档变更，源码保持逐字不变。详见 [ADR 0002](../decisions/0002-codemirror-markdown-tables.md)与[ADR 0003](../decisions/0003-live-preview-assets-code-and-table-inline.md)。 |
 | UI 基础组件 | Radix Primitives | Ariakit/Base UI/React Aria | 默认 Radix。若单个组件不满足，再按组件替换。 |

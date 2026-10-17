@@ -8,7 +8,7 @@
 
 Agent 使用：CLI 与 MCP 用法由 `LumaMark.exe --help` 拥有，帮助文本由解析器同一张表渲染；接口变化必须在同一次改动中更新帮助文本。不再单独维护手册。
 
-Agent 架构：[ADR 0024：内置自动化宿主](decisions/0024-bundled-automation-host.md) 负责宿主、渲染与分发边界；[ADR 0023：CLI 与 MCP](decisions/0023-agent-cli-and-mcp.md) 保留其确立的报告结构与能力边界。
+Agent 架构：[ADR 0024：内置自动化宿主](decisions/0024-bundled-automation-host.md) 负责宿主、渲染与分发边界；[ADR 0023：CLI 与 MCP](decisions/0023-agent-cli-and-mcp.md) 保留其确立的报告结构与能力边界；[ADR 0025](decisions/0025-markdown-html-pdf-export.md) 负责导出渲染器、CLI 契约与 PDF 平台边界。
 
 当前执行草稿：[内置自动化宿主实施计划](superpowers/plans/2026-09-11-bundled-automation-host.md)。
 
@@ -123,6 +123,7 @@ Foundation 与 MarkText+ 已形成 Alpha 技术基线。当前活跃里程碑是
 | [ADR 0021：自适应文档宽度与宽块越界](decisions/0021-adaptive-document-width-and-block-breakout.md) | 决策 | 自适应正文列、设置 v4 的 `standard`→`adaptive` 改写，以及表格/Mermaid/PlantUML/图片越界轨道。默认页面宽度后来被 ADR 0022 取代。 | 块级 widget 宽度、窗格缩放后的高度图刷新，或自适应预设 CSS |
 | [ADR 0022：默认页面宽度改为适应窗口（fluid）](decisions/0022-default-full-width-page.md) | 决策 | 默认 `pageWidth` 为 `fluid`；设置 v5 把旧的 `adaptive` 改写为 `fluid`；自适应预设仍可选 | 页面宽度默认值、设置 schema 版本，或 fluid/adaptive 迁移 |
 | [ADR 0024：自动化宿主并入桌面可执行文件](decisions/0024-bundled-automation-host.md) | 决策 | 应用内 CLI/MCP 宿主、隐藏 WebView 渲染、`--help` 即用法手册、去除 Node/Chromium 依赖、契约变化 | CLI/MCP 入口、渲染宿主、分发要求或 MCP 依赖变化 |
+| [ADR 0025：Markdown HTML/PDF 导出与 CLI/GUI 入口](decisions/0025-markdown-html-pdf-export.md) | 决策 | 共享 markdown-it/MathJax/图表渲染器、自包含 HTML、Windows PrintToPdf、CLI 导出与报告 | 导出渲染器、依赖、CLI 契约、PDF 平台矩阵或输出安全变化 |
 | [质量策略](quality/QUALITY_STRATEGY.md) | 质量 | 测试、性能、AI 开发质量策略 | 测试或质量门禁变化 |
 | [V1 性能基线](performance/V1_BASELINE.md) | 性能 | V1 alpha 性能预算、实测结果、已知限制与装机交互卡顿门禁 | 性能预算、基准命令、装机交互门禁或实测结果变化 |
 | [Windows V1 构建记录](release/WINDOWS_V1_BUILD.md) | 发布 | Windows 构建命令、安装产物和发布缺口 | Windows 构建配置、产物或发布门禁变化 |

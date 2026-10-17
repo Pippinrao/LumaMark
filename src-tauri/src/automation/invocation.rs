@@ -69,9 +69,34 @@ impl DiagramFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportFormat {
+    Html,
+    Pdf,
+}
+
+impl ExportFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Html => "html",
+            Self::Pdf => "pdf",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "html" => Some(Self::Html),
+            "pdf" => Some(Self::Pdf),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandId {
     Check,
     DiagramRender,
+    ExportHtml,
+    ExportPdf,
     Mcp,
     McpConfig,
     Help,
@@ -82,6 +107,8 @@ impl CommandId {
     pub const ALL: &'static [CommandId] = &[
         Self::Check,
         Self::DiagramRender,
+        Self::ExportHtml,
+        Self::ExportPdf,
         Self::Mcp,
         Self::McpConfig,
         Self::Help,
@@ -93,10 +120,12 @@ impl CommandId {
         match self {
             Self::Check => 0,
             Self::DiagramRender => 1,
-            Self::Mcp => 2,
-            Self::McpConfig => 3,
-            Self::Help => 4,
-            Self::Version => 5,
+            Self::ExportHtml => 2,
+            Self::ExportPdf => 3,
+            Self::Mcp => 4,
+            Self::McpConfig => 5,
+            Self::Help => 6,
+            Self::Version => 7,
         }
     }
 }
@@ -105,6 +134,8 @@ impl CommandId {
 pub enum OptionId {
     Format,
     Output,
+    Force,
+    Title,
     Json,
     Help,
     Version,
@@ -115,6 +146,8 @@ impl OptionId {
     pub const ALL: &'static [OptionId] = &[
         Self::Format,
         Self::Output,
+        Self::Force,
+        Self::Title,
         Self::Json,
         Self::Help,
         Self::Version,
@@ -126,10 +159,12 @@ impl OptionId {
         match self {
             Self::Format => 0,
             Self::Output => 1,
-            Self::Json => 2,
-            Self::Help => 3,
-            Self::Version => 4,
-            Self::EndOfOptions => 5,
+            Self::Force => 2,
+            Self::Title => 3,
+            Self::Json => 4,
+            Self::Help => 5,
+            Self::Version => 6,
+            Self::EndOfOptions => 7,
         }
     }
 }
@@ -153,6 +188,16 @@ pub const COMMANDS: &[CommandSpec] = &[
         id: CommandId::DiagramRender,
         name: "diagram render",
         usage: "diagram render <file|-> [--format mermaid|plantuml] [--output <file.svg>] [--json]",
+    },
+    CommandSpec {
+        id: CommandId::ExportHtml,
+        name: "export html",
+        usage: "export html <file|-> [--output <file.html>] [--title <text>] [--force] [--json]",
+    },
+    CommandSpec {
+        id: CommandId::ExportPdf,
+        name: "export pdf",
+        usage: "export pdf <file|-> [--output <file.pdf>] [--title <text>] [--force] [--json]",
     },
     CommandSpec {
         id: CommandId::Mcp,
@@ -195,7 +240,19 @@ pub const OPTIONS: &[OptionSpec] = &[
         id: OptionId::Output,
         long: "--output",
         short: Some("-o"),
-        value: Some("<file.svg>"),
+        value: Some("<file>"),
+    },
+    OptionSpec {
+        id: OptionId::Force,
+        long: "--force",
+        short: None,
+        value: None,
+    },
+    OptionSpec {
+        id: OptionId::Title,
+        long: "--title",
+        short: None,
+        value: Some("<text>"),
     },
     OptionSpec {
         id: OptionId::Json,
@@ -227,6 +284,7 @@ pub const OPTIONS: &[OptionSpec] = &[
 pub const ENTRY_TOKENS: &[&str] = &[
     "check",
     "diagram",
+    "export",
     "mcp",
     "mcp-config",
     "--help",
@@ -249,6 +307,14 @@ pub enum Invocation {
         output: Option<OsString>,
         json: bool,
     },
+    Export {
+        path: OsString,
+        format: ExportFormat,
+        output: Option<OsString>,
+        title: Option<String>,
+        force: bool,
+        json: bool,
+    },
     Mcp,
     McpConfig,
 }
@@ -258,7 +324,10 @@ impl Invocation {
     pub fn needs_renderer(&self) -> bool {
         matches!(
             self,
-            Self::Check { .. } | Self::DiagramRender { .. } | Self::Mcp
+            Self::Check { .. }
+                | Self::DiagramRender { .. }
+                | Self::Export { .. }
+                | Self::Mcp
         )
     }
 }
@@ -320,6 +389,7 @@ pub fn parse_tokens(tokens: &[&OsStr], messages: &Messages) -> Result<Invocation
     match first {
         "check" => parse_check(&tokens[1..], messages),
         "diagram" => parse_diagram_render(&tokens[1..], messages),
+        "export" => parse_export(&tokens[1..], messages),
         "mcp" => parse_verbatim(&tokens[1..], messages, Invocation::Mcp),
         "mcp-config" => parse_verbatim(&tokens[1..], messages, Invocation::McpConfig),
         _ => Err(arguments_error(messages)),
@@ -366,6 +436,99 @@ fn parse_diagram_render(tokens: &[&OsStr], messages: &Messages) -> Result<Invoca
         format,
         output: parsed.output,
         json: parsed.json,
+    })
+}
+
+fn parse_export(tokens: &[&OsStr], messages: &Messages) -> Result<Invocation, ToolError> {
+    let Some(subcommand) = tokens.first().and_then(|token| token.to_str()) else {
+        return Err(arguments_error(messages));
+    };
+    let Some(format) = ExportFormat::parse(subcommand) else {
+        return Err(arguments_error(messages));
+    };
+
+    let mut path: Option<OsString> = None;
+    let mut output: Option<OsString> = None;
+    let mut title: Option<String> = None;
+    let mut force = false;
+    let mut json = false;
+    let mut end_of_options = false;
+    let mut index = 1;
+
+    while index < tokens.len() {
+        let token = tokens[index];
+        index += 1;
+
+        if !end_of_options {
+            if let Some(text) = token.to_str() {
+                match text {
+                    "--" => {
+                        end_of_options = true;
+                        continue;
+                    }
+                    "--json" => {
+                        json = true;
+                        continue;
+                    }
+                    "--force" => {
+                        force = true;
+                        continue;
+                    }
+                    "--output" | "-o" => {
+                        output = Some(
+                            tokens
+                                .get(index)
+                                .ok_or_else(|| arguments_error(messages))?
+                                .to_os_string(),
+                        );
+                        index += 1;
+                        continue;
+                    }
+                    "--title" => {
+                        title = Some(next_utf8_value(tokens, &mut index, messages)?);
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                if let Some(value) = inline_value(text, "--output") {
+                    output = Some(OsString::from(non_empty(value, messages)?));
+                    continue;
+                }
+                if let Some(value) = inline_value(text, "-o") {
+                    output = Some(OsString::from(non_empty(value, messages)?));
+                    continue;
+                }
+                if let Some(value) = inline_value(text, "--title") {
+                    title = Some(non_empty(value, messages)?);
+                    continue;
+                }
+                if text.len() > 1 && text.starts_with('-') {
+                    return Err(arguments_error(messages));
+                }
+            }
+        }
+
+        if path.is_some() {
+            return Err(arguments_error(messages));
+        }
+        path = Some(token.to_os_string());
+    }
+
+    let Some(path) = path else {
+        return Err(arguments_error(messages));
+    };
+    if path == OsStr::new("-") && output.is_none() {
+        return Err(arguments_error(messages));
+    }
+
+    Ok(Invocation::Export {
+        path,
+        format,
+        output,
+        title,
+        force,
+        json,
     })
 }
 
@@ -721,6 +884,93 @@ mod tests {
     }
 
     #[test]
+    fn export_parses_format_output_title_and_force() {
+        assert_eq!(
+            parse_ok(&[
+                "LumaMark.exe",
+                "export",
+                "html",
+                "note.md",
+                "--output",
+                "note.html",
+                "--title",
+                "Custom",
+                "--force",
+                "--json",
+            ]),
+            Invocation::Export {
+                path: OsString::from("note.md"),
+                format: ExportFormat::Html,
+                output: Some(OsString::from("note.html")),
+                title: Some("Custom".to_owned()),
+                force: true,
+                json: true,
+            }
+        );
+        assert_eq!(
+            parse_ok(&[
+                "LumaMark.exe",
+                "export",
+                "pdf",
+                "-",
+                "--output=note.pdf",
+            ]),
+            Invocation::Export {
+                path: OsString::from("-"),
+                format: ExportFormat::Pdf,
+                output: Some(OsString::from("note.pdf")),
+                title: None,
+                force: false,
+                json: false,
+            }
+        );
+    }
+
+    #[test]
+    fn export_defaults_the_output_to_the_input_directory() {
+        assert_eq!(
+            parse_ok(&["LumaMark.exe", "export", "html", "note.md"]),
+            Invocation::Export {
+                path: OsString::from("note.md"),
+                format: ExportFormat::Html,
+                output: None,
+                title: None,
+                force: false,
+                json: false,
+            }
+        );
+        assert_eq!(
+            parse_err(&["LumaMark.exe", "export", "html", "-"]).code,
+            "input.arguments"
+        );
+    }
+
+    #[test]
+    fn export_requires_a_known_format() {
+        assert_eq!(
+            parse_err(&["LumaMark.exe", "export", "yaml", "note.md", "--output", "x"]).code,
+            "input.arguments"
+        );
+        assert_eq!(
+            parse_err(&["LumaMark.exe", "export"]).code,
+            "input.arguments"
+        );
+        assert_eq!(
+            parse_err(&[
+                "LumaMark.exe",
+                "export",
+                "html",
+                "note.md",
+                "--output",
+                "x.html",
+                "--nope",
+            ])
+            .code,
+            "input.arguments"
+        );
+    }
+
+    #[test]
     fn render_accepts_only_diagram_formats() {
         assert_eq!(
             parse_ok(&["LumaMark.exe", "diagram", "render", "-", "--format", "plantuml"]),
@@ -759,6 +1009,15 @@ mod tests {
         assert!(Invocation::Mcp.needs_renderer());
         assert!(parse_ok(&["LumaMark.exe", "check", "a.md"]).needs_renderer());
         assert!(parse_ok(&["LumaMark.exe", "diagram", "render", "a.mmd"]).needs_renderer());
+        assert!(parse_ok(&[
+            "LumaMark.exe",
+            "export",
+            "html",
+            "a.md",
+            "--output",
+            "a.html",
+        ])
+        .needs_renderer());
     }
 
     #[test]

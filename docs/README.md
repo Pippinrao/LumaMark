@@ -119,6 +119,7 @@ Landed capabilities (high level; follow the linked English docs for contracts an
 | [ADR 0021: Adaptive document width and wide-block breakout](decisions/0021-adaptive-document-width-and-block-breakout.md) | Decision | Adaptive prose column, settings v4 `standard`→`adaptive` rewrite, and table/Mermaid/PlantUML/image breakout track. Default page width later replaced by ADR 0022. | Block-widget width, height-map refresh after pane resize, or Adaptive preset CSS |
 | [ADR 0022: Default page width is fit-window (fluid)](decisions/0022-default-full-width-page.md) | Decision | Default `pageWidth` is `fluid`; settings v5 rewrites previous `adaptive` to `fluid`; Adaptive preset remains selectable | Page-width defaults, settings schema version, or fluid/adaptive migration |
 | [ADR 0024: Automation host bundled into the desktop executable](decisions/0024-bundled-automation-host.md) | Decision | In-app CLI/MCP host, hidden-WebView rendering, `--help` as the usage manual, removed Node/Chromium dependency, contract changes | CLI/MCP entry point, renderer host, distribution requirement, or MCP dependency changes |
+| [ADR 0025: Markdown HTML/PDF export with CLI and GUI entry points](decisions/0025-markdown-html-pdf-export.md) | Decision | Shared markdown-it/MathJax/diagram renderer, self-contained HTML, Windows PrintToPdf, CLI export and report | Export renderer, dependencies, CLI contract, PDF platform matrix, or output security changes |
 | [Quality strategy](quality/QUALITY_STRATEGY.md) | Quality | Testing, performance, and AI development quality strategy | Test or quality gate changes |
 | [V1 performance baseline](performance/V1_BASELINE.md) | Performance | V1 alpha performance budgets, measured results, known limits, installed UX stutter gates | Performance budgets, benchmark commands, installed UX gates, or measured results change |
 | [Windows V1 build record](release/WINDOWS_V1_BUILD.md) | Release | Windows build commands, install artifacts, release gaps | Windows build config, artifacts, or release gates change |
@@ -130,7 +131,7 @@ Landed capabilities (high level; follow the linked English docs for contracts an
 
 Agent usage: CLI and MCP usage is owned by `LumaMark.exe --help`, which is rendered from the same tables the parser uses; any interface change must update the help text in the same change. No separate manual is maintained.
 
-Agent architecture: [ADR 0024: Bundled automation host](decisions/0024-bundled-automation-host.md) owns the host, renderer and distribution boundary; [ADR 0023: CLI and MCP](decisions/0023-agent-cli-and-mcp.md) keeps the report schema and capability boundaries it established.
+Agent architecture: [ADR 0024: Bundled automation host](decisions/0024-bundled-automation-host.md) owns the host, renderer and distribution boundary; [ADR 0023: CLI and MCP](decisions/0023-agent-cli-and-mcp.md) keeps the report schema and capability boundaries it established; [ADR 0025](decisions/0025-markdown-html-pdf-export.md) owns the export renderer, CI CLI contract, and PDF platform boundary.
 
 - Working rules: [AGENTS.md](../AGENTS.md).
 - Development process: [DEVELOPMENT_PROCESS.md](../DEVELOPMENT_PROCESS.md).

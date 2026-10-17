@@ -2427,9 +2427,10 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lumamark"
-version = "0.3.68"
+version = "0.3.69"
 dependencies = [
  "atomic-write-file",
+ "base64 0.22.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "notify-debouncer-full",
  "reqwest",
  "rmcp",
@@ -2445,6 +2446,8 @@ dependencies = [
  "tauri-plugin-updater",
  "ureq",
  "uuid",
+ "webview2-com",
+ "windows-core 0.61.2",
  "windows-sys 0.59.0",
 ]
 

@@ -111,6 +111,7 @@ app/shell 菜单 / ContextMenuSurface 渲染
 - 分隔线
 - 保存
 - 另存为
+- 导出子菜单：导出为 HTML…、导出为 PDF…
 - 分隔线
 - 设置
 
@@ -294,6 +295,7 @@ ContextMenuSurface（Radix）→ exhaustive typed invocation dispatcher
 | Copy as Markdown / Paste as Plain Text | 未建立可靠剪贴板合同 | 不显示；作为剪贴板专题高优先级缺口 |
 | 数学 | 未实现 | 不显示 |
 | Mermaid | 已实现主要渲染路径，未接入专用右键 | 当前不显示；编辑走既有预览/源码交互，导出图属后续 |
+| 文档导出 | HTML/PDF 命令已接入，CLI 与 automation host 对齐 | 文件菜单导出子菜单与命令面板共用同一命令；输出契约见 [ADR 0025](../decisions/0025-markdown-html-pdf-export.md) |
 | YAML Front Matter | 未实现 | 不显示 |
 | 脚注 | 未实现 | 不显示 |
 | TOC | 未实现 | 不显示 |

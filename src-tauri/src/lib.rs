@@ -2,6 +2,7 @@ pub mod commands {
     pub mod assets;
     pub mod debug_log;
     pub mod document_claims;
+    pub mod export;
     pub mod file_watch;
     pub mod files;
     pub mod open_requests;
@@ -22,12 +23,14 @@ pub mod services {
     pub mod desktop_window_service;
     pub mod document_claim_service;
     pub(crate) mod document_path_identity;
+    pub mod export_service;
     pub mod file_service;
     pub mod file_watch_service;
     pub mod file_watch_session_hub;
     pub mod open_request_lifecycle;
     pub mod open_request_service;
     pub mod opener_service;
+    pub mod pdf_export_service;
     pub mod recent_files_service;
     pub mod settings_service;
     pub mod trash_service;
@@ -41,6 +44,10 @@ use commands::assets::{
     assets_finalize_draft_images, assets_import_document_image, assets_import_draft_image,
 };
 use commands::debug_log::debug_append_log;
+use commands::export::{
+    export_capabilities, export_embed_image, export_print_pdf, export_show_save_dialog,
+    export_write_html,
+};
 use commands::document_claims::{
     desktop_focus_window, document_claim_begin_session, document_claim_commit,
     document_claim_release, document_claim_release_owned, document_claim_release_session,
@@ -500,6 +507,11 @@ pub fn run() {
             trash_restore,
             trash_remove,
             trash_empty,
+            export_capabilities,
+            export_show_save_dialog,
+            export_write_html,
+            export_embed_image,
+            export_print_pdf,
             debug_append_log
         ])
         .run(app_context())

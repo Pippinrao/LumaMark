@@ -5,6 +5,7 @@ use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use crate::automation::export_host::ExportReport;
 use crate::automation::host::{RenderHost, RenderMode};
 use crate::automation::invocation::Invocation;
 use crate::automation::messages::Messages;
@@ -107,6 +108,47 @@ pub fn print_report(report: &Report, json: bool, output: Option<&str>, messages:
         .collect::<Vec<_>>()
         .join("\n");
     write_stderr(&format!("{lines}\n"));
+}
+
+pub fn print_export_report(report: &ExportReport, json: bool, messages: &Messages) {
+    if json {
+        write_stdout(&format!("{}\n", to_export_json(report)));
+        return;
+    }
+
+    if report.ok {
+        write_stdout(&format!(
+            "{}\n",
+            messages.exported(
+                &report.format,
+                report.output.as_deref().unwrap_or_default(),
+                report.bytes.unwrap_or_default(),
+            )
+        ));
+    } else {
+        let lines = report
+            .diagnostics
+            .iter()
+            .map(format_diagnostic)
+            .collect::<Vec<_>>()
+            .join("\n");
+        if !lines.is_empty() {
+            write_stderr(&format!("{lines}\n"));
+        }
+    }
+
+    for warning in &report.warnings {
+        write_stderr(&format!("{}\n", format_diagnostic(warning)));
+    }
+}
+
+fn to_export_json(report: &ExportReport) -> String {
+    serde_json::to_string(report).unwrap_or_else(|error| {
+        format!(
+            "{{\"schemaVersion\":1,\"ok\":false,\"format\":\"{}\",\"diagnostics\":[{{\"code\":\"export.failed\",\"message\":\"report serialization failed: {error}\"}}],\"warnings\":[]}}",
+            report.format
+        )
+    })
 }
 
 fn format_diagnostic(diagnostic: &Diagnostic) -> String {

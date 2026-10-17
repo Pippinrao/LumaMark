@@ -1,4 +1,4 @@
-import { Bold, FilePlus, FileText, History, List, Pilcrow, Quote } from 'lucide-react';
+import { Bold, FileDown, FilePlus, FileText, History, List, Pilcrow, Quote } from 'lucide-react';
 import type { EditorDisplayMode } from '../../editor/core/editorDisplayMode';
 import type { EditorEditState } from '../../editor/commands/editorCommandPort';
 import type {
@@ -91,6 +91,8 @@ export function createCommandPaletteModels({
     actionCommand('open-workspace', 'openWorkspace'),
     actionCommand('save', 'save'),
     actionCommand('save-as', 'saveAs'),
+    actionCommand('export-html', 'exportHtml'),
+    actionCommand('export-pdf', 'exportPdf'),
     actionCommand('find', 'openSearch'),
     actionCommand('undo', 'undo'),
     actionCommand('redo', 'redo'),
@@ -227,6 +229,10 @@ export function createTopMenuModels({
         separator('file-open-separator'),
         item('save', 'save'),
         item('save-as', 'saveAs'),
+        submenu('export', FileDown, t('menu.export'), [
+          item('export-html', 'exportHtml'),
+          item('export-pdf', 'exportPdf'),
+        ]),
         separator('file-settings-separator'),
         item('settings', 'openSettings'),
       ],

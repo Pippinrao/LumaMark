@@ -204,6 +204,16 @@ export const commandRegistry = {
   },
   deleteTable: exactRangeDeleteAction(Trash2, 'table.deleteTable', 'deleteTable'),
   exitFocusMode: editorAction(Focus, 'command.exitFocusMode'),
+  exportHtml: {
+    ...editorWhileFileOpening,
+    icon: FileCode2,
+    labelKey: 'command.exportHtml',
+  },
+  exportPdf: {
+    ...editorWhileFileOpening,
+    icon: FileText,
+    labelKey: 'command.exportPdf',
+  },
   fileTreeCopyPath: { ...surface, icon: FileText, labelKey: 'contextMenu.copyPath' },
   fileTreeCreateDirectory: { ...surface, icon: FolderPlus, labelKey: 'contextMenu.newFolder' },
   fileTreeCreateFile: { ...surface, icon: FilePlus, labelKey: 'contextMenu.newFile' },

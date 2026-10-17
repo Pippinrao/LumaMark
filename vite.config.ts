@@ -38,6 +38,10 @@ export default defineConfig({
           configDir,
           'automation-render.html',
         ),
+        'export-render': path.resolve(
+          configDir,
+          'export-render.html',
+        ),
       },
       // MathJax NewCM WOFF2 + lazy PlantUML TeaVM copy time trips Rolldown's
       // vite:asset PLUGIN_TIMINGS diagnostic. quality:web-build still fails

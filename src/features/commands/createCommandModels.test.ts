@@ -482,6 +482,8 @@ describe('createCommandPaletteModels', () => {
     ).toEqual([
       'save',
       'save-as',
+      'export-html',
+      'export-pdf',
       'find',
       'undo',
       'redo',
@@ -1101,6 +1103,8 @@ describe('createTopMenuModels', () => {
         'open-workspace:openWorkspace:',
         'save:save:Ctrl+S',
         'save-as:saveAs:Ctrl+Shift+S',
+        'export-html:exportHtml:',
+        'export-pdf:exportPdf:',
         'settings:openSettings:',
       ],
       format: [
@@ -1311,6 +1315,8 @@ describe('createTopMenuModels', () => {
     ).toEqual([
       'save',
       'save-as',
+      'export-html',
+      'export-pdf',
       'undo',
       'redo',
       'cut',

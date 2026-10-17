@@ -111,6 +111,7 @@ app/shell menu / ContextMenuSurface rendering
 - Separator
 - Save
 - Save as
+- Export submenu: Export as HTML…, Export as PDF…
 - Separator
 - Settings
 
@@ -294,6 +295,7 @@ Not implemented yet.
 | Copy as Markdown / Paste as Plain Text | Reliable clipboard contract not yet established | Do not show; high-priority clipboard-topic gap |
 | Math | Unimplemented | Do not show |
 | Mermaid | Main render path implemented; no dedicated context menu | Do not show for now; editing uses existing preview/source interaction; export images come later |
+| Document export | HTML/PDF commands wired; CLI parity in the automation host | File menu Export submenu and command palette share the same command; output contract is [ADR 0025](../decisions/0025-markdown-html-pdf-export.md) |
 | YAML Front Matter | Unimplemented | Do not show |
 | Footnotes | Unimplemented | Do not show |
 | TOC | Unimplemented | Do not show |

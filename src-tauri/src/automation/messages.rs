@@ -67,6 +67,13 @@ pub struct Text {
     pub write_failed: &'static str,
     pub stdin_failed: &'static str,
     pub output_exists: &'static str,
+    pub export_busy: &'static str,
+    pub export_diagram_failed: &'static str,
+    pub export_failed: &'static str,
+    pub export_image_unavailable: &'static str,
+    pub export_math_failed: &'static str,
+    pub export_timeout: &'static str,
+    pub exported: &'static str,
     pub arguments: &'static str,
     pub mcp_arguments: &'static str,
     pub mcp_instructions: &'static str,
@@ -145,6 +152,8 @@ const EN: Text = Text {
     command_summaries: [
         "Check a Markdown document's Mermaid/PlantUML fences, or one diagram, by rendering it locally.",
         "Render exactly one Mermaid or PlantUML diagram to sanitized SVG.",
+        "Export a Markdown document to a self-contained HTML file.",
+        "Export a Markdown document to an A4 PDF file (Windows prints silently).",
         "Serve check_diagrams and render_diagram over MCP stdio for an agent host.",
         "Print the MCP host configuration for this executable as JSON.",
         "Print this complete usage reference and exit.",
@@ -152,7 +161,9 @@ const EN: Text = Text {
     ],
     option_summaries: [
         "check: markdown (default), mermaid or plantuml. render: mermaid or plantuml.",
-        "render only: write the SVG to a new file. Existing files are never overwritten.",
+        "render: SVG output. export: optional output; defaults beside the input file. Existing files require --force.",
+        "export: overwrite an existing output file.",
+        "export: document title; defaults to the file name or first heading.",
         "Print one schemaVersion=1 JSON report on stdout instead of human-readable text.",
         "Print this complete usage reference and exit.",
         "Print the version and exit.",
@@ -173,7 +184,14 @@ const EN: Text = Text {
     write_failed: "The output file could not be written. {detail}",
     stdin_failed: "Standard input could not be read. {detail}",
     output_exists: "The output file already exists and is never overwritten: {path}",
-    arguments: "Use check <file|->, diagram render <file|->, mcp, or mcp-config. Run --help for the complete reference.",
+    export_busy: "Another export is already running.",
+    export_diagram_failed: "Diagram could not be rendered.",
+    export_failed: "The document could not be exported.",
+    export_image_unavailable: "Image could not be embedded.",
+    export_math_failed: "Formula could not be rendered.",
+    export_timeout: "Export rendering timed out.",
+    exported: "Exported {format} to {output} ({bytes} bytes).",
+    arguments: "Use check <file|->, diagram render <file|->, export html|pdf, mcp, or mcp-config. Run --help for the complete reference.",
     mcp_arguments: "mcp and mcp-config accept no other arguments.",
     mcp_instructions: "Check and render Mermaid/PlantUML locally with LumaMark. Run `LumaMark.exe --help` for the complete CLI and MCP reference.",
     format: "Specify --format markdown, mermaid, or plantuml.",
@@ -250,6 +268,8 @@ const ZH_CN: Text = Text {
     command_summaries: [
         "在本地实际渲染，检查 Markdown 中的 Mermaid/PlantUML 围栏，或检查单个图表。",
         "把恰好一个 Mermaid 或 PlantUML 图表渲染为已净化的 SVG。",
+        "把 Markdown 文档导出为单文件自包含 HTML。",
+        "把 Markdown 文档导出为 A4 PDF（Windows 静默打印）。",
         "通过 MCP stdio 向 agent 宿主提供 check_diagrams 与 render_diagram。",
         "输出当前可执行文件的 MCP 宿主配置（JSON）。",
         "输出这份完整用法说明并退出。",
@@ -257,7 +277,9 @@ const ZH_CN: Text = Text {
     ],
     option_summaries: [
         "check：markdown（默认）、mermaid 或 plantuml。render：mermaid 或 plantuml。",
-        "仅 render：把 SVG 写入新文件。永不覆盖已有文件。",
+        "render：SVG 输出。export：可选输出路径，默认写到输入文件同目录；已有文件需要 --force。",
+        "export：覆盖已存在的输出文件。",
+        "export：文档标题；默认使用文件名或第一个标题。",
         "在 stdout 输出一个 schemaVersion=1 的 JSON 报告，替代人类可读文本。",
         "输出这份完整用法说明并退出。",
         "输出版本号并退出。",
@@ -278,7 +300,14 @@ const ZH_CN: Text = Text {
     write_failed: "无法写入输出文件。{detail}",
     stdin_failed: "无法读取标准输入。{detail}",
     output_exists: "输出文件已存在，本工具永不覆盖：{path}",
-    arguments: "请使用 check <文件|->、diagram render <文件|->、mcp 或 mcp-config；完整说明见 --help。",
+    export_busy: "已有导出任务正在运行。",
+    export_diagram_failed: "图表无法渲染。",
+    export_failed: "文档导出失败。",
+    export_image_unavailable: "图片无法嵌入。",
+    export_math_failed: "公式无法渲染。",
+    export_timeout: "导出渲染超时。",
+    exported: "已导出 {format} 到 {output}（{bytes} 字节）。",
+    arguments: "请使用 check <文件|->、diagram render <文件|->、export html|pdf、mcp 或 mcp-config；完整说明见 --help。",
     mcp_arguments: "mcp 与 mcp-config 不接受其他参数。",
     mcp_instructions: "使用 LumaMark 在本地检查与渲染 Mermaid/PlantUML。完整说明请运行 `LumaMark.exe --help`。",
     format: "请指定 --format markdown、mermaid 或 plantuml。",
@@ -393,6 +422,14 @@ impl Messages {
 
     pub fn output_exists(&self, path: &str) -> String {
         self.text.output_exists.replace("{path}", path)
+    }
+
+    pub fn exported(&self, format: &str, output: &str, bytes: u64) -> String {
+        self.text
+            .exported
+            .replace("{format}", format)
+            .replace("{output}", output)
+            .replace("{bytes}", &bytes.to_string())
     }
 
     pub fn unknown_format_value(&self, value: &str) -> String {

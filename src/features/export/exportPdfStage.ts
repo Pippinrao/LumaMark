@@ -1,4 +1,5 @@
 import {
+  EXPORT_PRINTING_CLASS,
   EXPORT_PRINT_STAGE_CSS,
   EXPORT_STAGE_CLASS,
 } from './exportStyles';
@@ -16,7 +17,7 @@ export async function mountExportPdfStage(html: string): Promise<() => void> {
   host.className = EXPORT_STAGE_CLASS;
   host.setAttribute('aria-hidden', 'true');
   host.style.cssText =
-    'position:absolute;left:-10000px;top:0;width:174mm;pointer-events:none;';
+    'position:absolute;left:-10000px;top:0;width:174mm;pointer-events:none;background:#ffffff;color:#1f2328;color-scheme:light;';
   const shadow = host.attachShadow({ mode: 'open' });
   shadow.innerHTML = `<style>${css}</style>${body}`;
 
@@ -28,6 +29,43 @@ export async function mountExportPdfStage(html: string): Promise<() => void> {
   document.head.append(printStyle);
 
   let cleaned = false;
+  let promoted = false;
+  let previousRootStyle = '';
+  let previousBodyStyle = '';
+  const hiddenSiblings = new Map<HTMLElement, string>();
+
+  function promoteForPrint(): void {
+    const root = document.documentElement;
+    const bodyElement = document.body;
+    previousRootStyle = root.style.cssText;
+    previousBodyStyle = bodyElement.style.cssText;
+    promoted = true;
+
+    root.classList.add(EXPORT_PRINTING_CLASS);
+    root.style.setProperty('background', '#ffffff', 'important');
+    root.style.setProperty('color-scheme', 'light', 'important');
+    root.style.setProperty('height', 'auto', 'important');
+    root.style.setProperty('overflow', 'visible', 'important');
+
+    bodyElement.style.setProperty('background', '#ffffff', 'important');
+    bodyElement.style.setProperty('color', '#1f2328', 'important');
+    bodyElement.style.setProperty('color-scheme', 'light', 'important');
+    bodyElement.style.setProperty('height', 'auto', 'important');
+    bodyElement.style.setProperty('min-height', '0', 'important');
+    bodyElement.style.setProperty('overflow', 'visible', 'important');
+
+    for (const child of Array.from(bodyElement.children)) {
+      if (child === host || !(child instanceof HTMLElement)) {
+        continue;
+      }
+      hiddenSiblings.set(child, child.style.display);
+      child.style.setProperty('display', 'none', 'important');
+    }
+
+    host.style.cssText =
+      'position:static;left:auto;top:auto;display:block;width:auto;min-height:100vh;background:#ffffff;color:#1f2328;color-scheme:light;pointer-events:auto;';
+  }
+
   function cleanup(): void {
     if (cleaned) {
       return;
@@ -35,6 +73,19 @@ export async function mountExportPdfStage(html: string): Promise<() => void> {
     cleaned = true;
     host.remove();
     printStyle.remove();
+    document.documentElement.classList.remove(EXPORT_PRINTING_CLASS);
+
+    if (promoted) {
+      document.documentElement.style.cssText = previousRootStyle;
+      document.body.style.cssText = previousBodyStyle;
+      for (const [child, display] of hiddenSiblings) {
+        if (display) {
+          child.style.display = display;
+        } else {
+          child.style.removeProperty('display');
+        }
+      }
+    }
   }
 
   try {
@@ -43,6 +94,12 @@ export async function mountExportPdfStage(html: string): Promise<() => void> {
     cleanup();
     throw new Error('Export preview could not be prepared.');
   }
+
+  promoteForPrint();
+  // WebView2 PrintToPdf can capture the last painted frame. Let the promoted
+  // stage and white page paint before the shell hands control to the printer.
+  await nextAnimationFrame();
+  await nextAnimationFrame();
 
   return cleanup;
 }

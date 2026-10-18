@@ -1,4 +1,5 @@
 export const EXPORT_STAGE_CLASS = 'lm-export-stage';
+export const EXPORT_PRINTING_CLASS = 'lm-export-printing';
 
 const FONT_SANS =
   '"Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", ui-sans-serif, system-ui, sans-serif';
@@ -19,6 +20,26 @@ export const EXPORT_DOCUMENT_CSS = `
   --lm-export-accent: #0969da;
   --lm-export-mono: ${FONT_MONO};
 }
+/* The print stage lives in a shadow root, where :root and body do not match.
+   Repeat the light document contract on the host so inherited app-theme colors
+   can never leak into an exported PDF. */
+:host {
+  --lm-export-text: #1f2328;
+  --lm-export-muted: #59636e;
+  --lm-export-border: #d0d7de;
+  --lm-export-surface: #f6f8fa;
+  --lm-export-accent: #0969da;
+  --lm-export-mono: ${FONT_MONO};
+  background: #ffffff;
+  color: var(--lm-export-text);
+  color-scheme: light;
+  display: block;
+  font-family: ${FONT_SANS};
+  font-size: 16px;
+  line-height: 1.72;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #ffffff; }
 body {
@@ -35,6 +56,13 @@ body {
   margin: 0 auto;
   padding: 0;
   overflow-wrap: break-word;
+  background: #ffffff;
+  color: var(--lm-export-text);
+  font-family: ${FONT_SANS};
+  font-size: 16px;
+  line-height: 1.72;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 .lm-export-document > :first-child { margin-top: 0; }
 .lm-export-document > :last-child { margin-bottom: 0; }
@@ -179,17 +207,55 @@ mjx-container[display="true"] { margin: 0.9em 0; }
  */
 export const EXPORT_PRINT_STAGE_CSS = `
 @page { size: A4; margin: 18mm 18mm 20mm; }
+/* WebView2 PrintToPdf prints the live page rather than a print-media-only
+   layout. Promote the export stage on screen while the class is present so the
+   PDF contains the document, not the dark app shell behind it. */
+html.${EXPORT_PRINTING_CLASS},
+html.${EXPORT_PRINTING_CLASS} body {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  background: #ffffff !important;
+  color: #1f2328 !important;
+  color-scheme: light !important;
+}
+html.${EXPORT_PRINTING_CLASS} body > *:not(.${EXPORT_STAGE_CLASS}) {
+  display: none !important;
+}
+html.${EXPORT_PRINTING_CLASS} body > .${EXPORT_STAGE_CLASS} {
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  display: block !important;
+  width: auto !important;
+  min-height: 100vh;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  background: #ffffff !important;
+  color: #1f2328 !important;
+  color-scheme: light !important;
+}
 @media print {
-  html, body { background: #ffffff !important; }
+  html, body {
+    background: #ffffff !important;
+    color: #1f2328 !important;
+    color-scheme: light !important;
+  }
   body > *:not(.${EXPORT_STAGE_CLASS}) { display: none !important; }
   body > .${EXPORT_STAGE_CLASS} {
     position: static !important;
     left: auto !important;
     top: auto !important;
+    display: block !important;
     width: auto !important;
+    min-height: 100vh;
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
+    background: #ffffff !important;
+    color: #1f2328 !important;
+    color-scheme: light !important;
   }
 }
 `;

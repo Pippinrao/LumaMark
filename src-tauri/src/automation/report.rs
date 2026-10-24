@@ -1,4 +1,29 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
+
+/// Reads `LUMAMARK_MCP_IDLE_SECONDS`.
+///
+/// `None` means the hidden renderer stays up for the whole MCP session. Invalid
+/// values use [`MCP_RENDERER_IDLE_MS`] so a bad override cannot refuse to start.
+pub fn parse_mcp_idle(value: Option<&str>) -> Option<Duration> {
+    let Some(value) = value else {
+        return Some(Duration::from_millis(MCP_RENDERER_IDLE_MS));
+    };
+    match value.trim().parse::<u64>() {
+        Ok(0) => None,
+        Ok(seconds) => Some(Duration::from_secs(seconds.min(86_400 * 30))),
+        Err(_) => Some(Duration::from_millis(MCP_RENDERER_IDLE_MS)),
+    }
+}
+
+pub fn mcp_renderer_idle() -> Option<Duration> {
+    parse_mcp_idle(
+        std::env::var(crate::automation::messages::MCP_IDLE_ENV)
+            .ok()
+            .as_deref(),
+    )
+}
 
 /// Report schema shared by the CLI, the MCP tools and the renderer page.
 pub const SCHEMA_VERSION: u8 = 1;
@@ -17,6 +42,12 @@ pub const RENDERER_STALL_TIMEOUT_MS: u64 = DIAGRAM_TIMEOUT_MS;
 
 /// Deadline for the hidden renderer page to report readiness.
 pub const RENDERER_READY_TIMEOUT_MS: u64 = 60_000;
+
+/// How long an MCP session keeps the hidden renderer after the last tool call.
+///
+/// `LUMAMARK_MCP_IDLE_SECONDS` overrides this. `0` keeps the renderer until the
+/// MCP client closes the session.
+pub const MCP_RENDERER_IDLE_MS: u64 = 120_000;
 
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_DIAGRAM_ERROR: i32 = 1;
@@ -165,6 +196,8 @@ pub fn exit_code(report: &Report) -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     #[test]
@@ -172,7 +205,10 @@ mod tests {
         let report = Report::new(true, 2, Vec::new());
         let json = serde_json::to_string(&report).expect("report should serialize");
 
-        assert_eq!(json, r#"{"schemaVersion":1,"ok":true,"checked":2,"diagnostics":[]}"#);
+        assert_eq!(
+            json,
+            r#"{"schemaVersion":1,"ok":true,"checked":2,"diagnostics":[]}"#
+        );
     }
 
     #[test]
@@ -180,7 +216,10 @@ mod tests {
         let report = Report::new(
             false,
             1,
-            vec![Diagnostic::new("diagram.invalid", "bad").with_format("mermaid").with_block_line(3).with_line(4)],
+            vec![Diagnostic::new("diagram.invalid", "bad")
+                .with_format("mermaid")
+                .with_block_line(3)
+                .with_line(4)],
         );
         let json = serde_json::to_string(&report).expect("report should serialize");
 
@@ -202,10 +241,9 @@ mod tests {
 
     #[test]
     fn an_incompatible_schema_version_is_not_trustworthy() {
-        let decoded: Report = serde_json::from_str(
-            r#"{"schemaVersion":2,"ok":true,"checked":1,"diagnostics":[]}"#,
-        )
-        .expect("report should deserialize");
+        let decoded: Report =
+            serde_json::from_str(r#"{"schemaVersion":2,"ok":true,"checked":1,"diagnostics":[]}"#)
+                .expect("report should deserialize");
 
         assert!(!decoded.is_trustworthy());
     }
@@ -224,5 +262,24 @@ mod tests {
         assert_eq!(DIAGRAM_TIMEOUT_MS / 1000, 30);
         assert_eq!(RENDERER_STALL_TIMEOUT_MS, DIAGRAM_TIMEOUT_MS);
         assert_eq!(RENDERER_READY_TIMEOUT_MS / 1000, 60);
+        assert_eq!(MCP_RENDERER_IDLE_MS / 1000, 120);
+    }
+
+    #[test]
+    fn mcp_idle_parses_the_override_and_falls_back() {
+        assert_eq!(
+            parse_mcp_idle(None),
+            Some(Duration::from_millis(MCP_RENDERER_IDLE_MS))
+        );
+        assert_eq!(parse_mcp_idle(Some("5")), Some(Duration::from_secs(5)));
+        assert_eq!(parse_mcp_idle(Some(" 0 ")), None);
+        assert_eq!(
+            parse_mcp_idle(Some("nope")),
+            Some(Duration::from_millis(MCP_RENDERER_IDLE_MS))
+        );
+        assert_eq!(
+            parse_mcp_idle(Some("999999999")),
+            Some(Duration::from_secs(86_400 * 30))
+        );
     }
 }

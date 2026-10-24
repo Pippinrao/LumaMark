@@ -17,6 +17,7 @@ use serde_json::{json, Map, Value};
 
 use crate::automation::host::{RenderHost, RenderMode};
 use crate::automation::messages::Messages;
+use crate::automation::renderer_lifecycle::RendererLifecycle;
 use crate::automation::report::{error_report, Report, MAX_SOURCE_BYTES};
 
 pub const CHECK_TOOL: &str = "check_diagrams";
@@ -36,19 +37,43 @@ struct ToolArguments {
 pub struct AutomationMcp {
     host: Arc<RenderHost>,
     messages: Messages,
+    lifecycle: Option<Arc<RendererLifecycle>>,
 }
 
 impl AutomationMcp {
     pub fn new(host: Arc<RenderHost>) -> Self {
         let messages = host.messages();
-        Self { host, messages }
+        Self {
+            host,
+            messages,
+            lifecycle: None,
+        }
+    }
+
+    pub fn with_lifecycle(host: Arc<RenderHost>, lifecycle: Arc<RendererLifecycle>) -> Self {
+        let messages = host.messages();
+        Self {
+            host,
+            messages,
+            lifecycle: Some(lifecycle),
+        }
     }
 
     /// Tool declarations, localized for the configured language.
     pub fn tools(&self) -> Vec<Tool> {
         vec![
-            self.tool(CHECK_TOOL, self.messages.text().check_description, CHECK_FORMATS, false),
-            self.tool(RENDER_TOOL, self.messages.text().render_description, RENDER_FORMATS, true),
+            self.tool(
+                CHECK_TOOL,
+                self.messages.text().check_description,
+                CHECK_FORMATS,
+                false,
+            ),
+            self.tool(
+                RENDER_TOOL,
+                self.messages.text().render_description,
+                RENDER_FORMATS,
+                true,
+            ),
         ]
     }
 
@@ -110,7 +135,11 @@ impl AutomationMcp {
 
     /// Runs one tool call and returns a report, or an invalid-params protocol
     /// error when the request itself is unusable.
-    pub fn call(&self, name: &str, arguments: Map<String, Value>) -> Result<CallToolResult, McpError> {
+    pub fn call(
+        &self,
+        name: &str,
+        arguments: Map<String, Value>,
+    ) -> Result<CallToolResult, McpError> {
         let formats: &[&str] = match name {
             CHECK_TOOL => CHECK_FORMATS,
             RENDER_TOOL => RENDER_FORMATS,
@@ -131,7 +160,10 @@ impl AutomationMcp {
             Some(format) if formats.contains(&format) => format.to_owned(),
             Some(other) => {
                 return Err(McpError::invalid_params(
-                    format!("Unsupported format `{other}`; expected one of {}.", formats.join(", ")),
+                    format!(
+                        "Unsupported format `{other}`; expected one of {}.",
+                        formats.join(", ")
+                    ),
                     None,
                 ))
             }
@@ -149,6 +181,11 @@ impl AutomationMcp {
         } else {
             RenderMode::Render
         };
+        if let Some(lifecycle) = &self.lifecycle {
+            if let Err(error) = lifecycle.ensure_started() {
+                return Ok(to_result(&error_report(&error)));
+            }
+        }
         let report = match self.host.render(&arguments.source, &format, mode) {
             Ok(report) => report,
             Err(error) => error_report(&error),
@@ -204,8 +241,8 @@ impl ServerHandler for AutomationMcp {
 }
 
 /// Serves this automation host over stdio until the client closes it.
-pub async fn serve(host: Arc<RenderHost>) -> Result<(), String> {
-    let service = AutomationMcp::new(host)
+pub async fn serve(host: Arc<RenderHost>, lifecycle: Arc<RendererLifecycle>) -> Result<(), String> {
+    let service = AutomationMcp::with_lifecycle(host, lifecycle)
         .serve(rmcp::transport::io::stdio())
         .await
         .map_err(|error| error.to_string())?;
@@ -234,7 +271,11 @@ mod tests {
         assert_eq!(names, vec![CHECK_TOOL, RENDER_TOOL]);
 
         let check = &tools[0];
-        assert!(check.description.as_deref().unwrap_or_default().contains("Markdown"));
+        assert!(check
+            .description
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Markdown"));
         let annotations = check.annotations.as_ref().expect("annotations");
         assert_eq!(annotations.read_only_hint, Some(true));
         assert_eq!(annotations.open_world_hint, Some(false));
@@ -275,7 +316,9 @@ mod tests {
     fn unknown_tools_and_formats_are_rejected_before_rendering() {
         let server = server(Locale::En);
 
-        let unknown = server.call("not_a_tool", Map::new()).expect_err("must fail");
+        let unknown = server
+            .call("not_a_tool", Map::new())
+            .expect_err("must fail");
         assert_eq!(unknown.code, rmcp::model::ErrorCode::INVALID_PARAMS);
 
         let bad_format = server
@@ -313,6 +356,9 @@ mod tests {
 
         assert_eq!(result.is_error, Some(true));
         let structured = result.structured_content.expect("structured content");
-        assert_eq!(structured["diagnostics"][0]["code"], json!("diagram.invalid"));
+        assert_eq!(
+            structured["diagnostics"][0]["code"],
+            json!("diagram.invalid")
+        );
     }
 }

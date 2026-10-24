@@ -1,6 +1,6 @@
 [package]
 name = "lumamark"
-version = "0.3.71"
+version = "0.3.72"
 description = "LumaMark desktop application"
 authors = ["LumaMark Contributors"]
 edition = "2021"
@@ -43,4 +43,5 @@ windows-sys = { version = "0.59", features = [
   "Win32_Security",
   "Win32_Storage_FileSystem",
   "Win32_System_Console",
+  "Win32_System_Threading",
 ] }

@@ -13,6 +13,7 @@ pub mod host;
 pub mod invocation;
 pub mod mcp;
 pub mod messages;
+pub mod renderer_lifecycle;
 pub mod report;
 
 use std::io::Write;
@@ -20,12 +21,11 @@ use std::sync::Arc;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
-use crate::automation::export_host::{
-    ExportHost, EXPORT_PAGE, EXPORT_WINDOW_LABEL,
-};
+use crate::automation::export_host::{ExportHost, EXPORT_PAGE, EXPORT_WINDOW_LABEL};
 use crate::automation::host::{RenderHost, RENDERER_PAGE, RENDERER_WINDOW_LABEL};
 use crate::automation::invocation::{Invocation, Request};
 use crate::automation::messages::{Locale, Messages};
+use crate::automation::renderer_lifecycle::{RendererLauncher, RendererLifecycle};
 use crate::automation::report::{ToolError, EXIT_OK, EXIT_USAGE_ERROR, RENDERER_READY_TIMEOUT_MS};
 
 pub use invocation::{detect, Detection};
@@ -33,6 +33,9 @@ pub use invocation::{detect, Detection};
 /// Entry point used by `main` before the editor starts. Never returns.
 pub fn run(request: Request) -> ! {
     ensure_console_output();
+    // A client that kills an MCP process skips the normal data-directory
+    // cleanup. Sweep only directories whose process is already gone.
+    host::sweep_stale_automation_data_directories();
     let messages = Messages::new(Locale::from_environment());
     let invocation = match request.invocation {
         Ok(invocation) => invocation,
@@ -81,7 +84,9 @@ fn ensure_console_output() {
     fn usable(handle: windows_sys::Win32::Foundation::HANDLE) -> bool {
         // SAFETY: reading the file type of an inherited handle is side-effect free.
         unsafe {
-            !handle.is_null() && handle != INVALID_HANDLE_VALUE && GetFileType(handle) != FILE_TYPE_UNKNOWN
+            !handle.is_null()
+                && handle != INVALID_HANDLE_VALUE
+                && GetFileType(handle) != FILE_TYPE_UNKNOWN
         }
     }
 
@@ -136,18 +141,27 @@ fn run_renderer(invocation: Invocation, messages: Messages) -> ! {
         worker_invocation,
         Invocation::Check { json: true, .. } | Invocation::DiagramRender { json: true, .. }
     );
+    // MCP waits for the first tool call. One-shot commands still start now.
+    let lazy_renderer = matches!(invocation, Invocation::Mcp);
     // Each automation process owns its WebView data directory; concurrent
     // processes sharing one folder block instead of rendering.
-    let data_directory = host::automation_data_directory();
+    let data_directory = if lazy_renderer {
+        None
+    } else {
+        Some(host::automation_data_directory())
+    };
 
-    // Backstop for a renderer that never comes up: fail, never hang.
-    let watchdog_host = Arc::clone(&host);
-    std::thread::spawn(move || {
-        if let Err(error) = watchdog_host.wait_until_ready(RENDERER_READY_TIMEOUT_MS) {
-            cli::fail(&error, json);
-            flush_and_exit(EXIT_USAGE_ERROR);
-        }
-    });
+    if !lazy_renderer {
+        // Backstop for a renderer that never comes up: fail, never hang.
+        // MCP reports the same timeout on the tool call instead of exiting.
+        let watchdog_host = Arc::clone(&host);
+        std::thread::spawn(move || {
+            if let Err(error) = watchdog_host.wait_until_ready(RENDERER_READY_TIMEOUT_MS) {
+                cli::fail(&error, json);
+                flush_and_exit(EXIT_USAGE_ERROR);
+            }
+        });
+    }
 
     let builder = tauri::Builder::default()
         .manage(Arc::clone(&host))
@@ -158,21 +172,43 @@ fn run_renderer(invocation: Invocation, messages: Messages) -> ! {
             commands::automation_render_result,
         ])
         .setup(move |app| {
-            if let Err(error) = create_renderer_window(app.handle(), data_directory.clone()) {
-                cli::fail(
-                    &ToolError::new("renderer.unavailable", messages.unavailable(&error.to_string())),
-                    json,
-                );
-                host::remove_data_directory(&data_directory);
-                flush_and_exit(EXIT_USAGE_ERROR);
-            }
+            let lifecycle = if lazy_renderer {
+                // The event loop is already running when a tool call arrives, so
+                // this launcher creates the window from the MCP worker thread.
+                Some(RendererLifecycle::spawn(
+                    &host,
+                    Arc::new(TauriRendererLauncher {
+                        app: app.handle().clone(),
+                    }),
+                    crate::automation::report::mcp_renderer_idle(),
+                ))
+            } else if let Some(data_directory) = data_directory.clone() {
+                if let Err(error) = create_renderer_window(app.handle(), data_directory.clone()) {
+                    cli::fail(
+                        &ToolError::new(
+                            "renderer.unavailable",
+                            messages.unavailable(&error.to_string()),
+                        ),
+                        json,
+                    );
+                    host::remove_data_directory(&data_directory);
+                    flush_and_exit(EXIT_USAGE_ERROR);
+                }
+                None
+            } else {
+                None
+            };
 
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                let code = execute_worker(&worker_invocation, &worker_host);
+                let code = execute_worker(&worker_invocation, &worker_host, lifecycle.clone());
                 worker_host.shutdown();
-                close_renderer_window(&handle);
-                host::remove_data_directory(&data_directory);
+                if let Some(lifecycle) = lifecycle {
+                    lifecycle.shutdown();
+                } else if let Some(data_directory) = data_directory {
+                    close_renderer_window(&handle);
+                    host::remove_data_directory(&data_directory);
+                }
                 flush_and_exit(code);
             });
             Ok(())
@@ -198,7 +234,10 @@ fn run_renderer(invocation: Invocation, messages: Messages) -> ! {
         }
         Err(error) => {
             cli::fail(
-                &ToolError::new("renderer.unavailable", messages.unavailable(&error.to_string())),
+                &ToolError::new(
+                    "renderer.unavailable",
+                    messages.unavailable(&error.to_string()),
+                ),
                 json,
             );
             flush_and_exit(EXIT_USAGE_ERROR);
@@ -234,7 +273,10 @@ fn run_export_renderer(invocation: Invocation, messages: Messages) -> ! {
         .setup(move |app| {
             if let Err(error) = create_export_window(app.handle(), data_directory.clone()) {
                 cli::fail(
-                    &ToolError::new("renderer.unavailable", messages.unavailable(&error.to_string())),
+                    &ToolError::new(
+                        "renderer.unavailable",
+                        messages.unavailable(&error.to_string()),
+                    ),
                     json,
                 );
                 host::remove_data_directory(&data_directory);
@@ -268,7 +310,10 @@ fn run_export_renderer(invocation: Invocation, messages: Messages) -> ! {
         }
         Err(error) => {
             cli::fail(
-                &ToolError::new("renderer.unavailable", messages.unavailable(&error.to_string())),
+                &ToolError::new(
+                    "renderer.unavailable",
+                    messages.unavailable(&error.to_string()),
+                ),
                 json,
             );
             flush_and_exit(EXIT_USAGE_ERROR)
@@ -293,10 +338,18 @@ fn create_export_window(
     .build()
 }
 
-fn execute_worker(invocation: &Invocation, host: &Arc<RenderHost>) -> i32 {
+fn execute_worker(
+    invocation: &Invocation,
+    host: &Arc<RenderHost>,
+    lifecycle: Option<Arc<RendererLifecycle>>,
+) -> i32 {
     match invocation {
         Invocation::Mcp => {
-            match tauri::async_runtime::block_on(mcp::serve(Arc::clone(host))) {
+            let Some(lifecycle) = lifecycle else {
+                cli::write_stderr("The MCP renderer lifecycle is missing.\n");
+                return EXIT_USAGE_ERROR;
+            };
+            match tauri::async_runtime::block_on(mcp::serve(Arc::clone(host), lifecycle)) {
                 Ok(()) => EXIT_OK,
                 Err(error) => {
                     cli::write_stderr(&format!("{error}\n"));
@@ -305,6 +358,27 @@ fn execute_worker(invocation: &Invocation, host: &Arc<RenderHost>) -> i32 {
             }
         }
         other => cli::execute(other, host),
+    }
+}
+
+/// Creates the hidden window from the MCP worker thread.
+///
+/// Tauri delivers `create_window` to the event loop and deadlocks when that
+/// call is made on the event-loop thread, so this launcher must stay on the
+/// worker that is blocked in `render`.
+struct TauriRendererLauncher {
+    app: tauri::AppHandle,
+}
+
+impl RendererLauncher for TauriRendererLauncher {
+    fn start(&self, _generation: u64, data_directory: &std::path::Path) -> Result<(), String> {
+        create_renderer_window(&self.app, data_directory.to_path_buf())
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    fn stop(&self, _generation: u64) {
+        close_renderer_window(&self.app);
     }
 }
 
@@ -317,7 +391,7 @@ fn create_renderer_window(
     app: &tauri::AppHandle,
     data_directory: std::path::PathBuf,
 ) -> tauri::Result<tauri::WebviewWindow> {
-    WebviewWindowBuilder::new(
+    let mut builder = WebviewWindowBuilder::new(
         app,
         RENDERER_WINDOW_LABEL,
         WebviewUrl::App(RENDERER_PAGE.into()),
@@ -326,9 +400,24 @@ fn create_renderer_window(
     .visible(false)
     .skip_taskbar(true)
     .inner_size(1280.0, 720.0)
-    .data_directory(data_directory)
-    .build()
+    .data_directory(data_directory);
+    #[cfg(windows)]
+    {
+        // Setting this replaces wry's defaults, so the string repeats them.
+        // Measured on one MCP session: private bytes fell by about 51 MB,
+        // almost all of it in the GPU process, and the Mermaid and PlantUML
+        // SVG byte lengths were unchanged. See ADR 0024.
+        builder = builder.additional_browser_args(RENDERER_BROWSER_ARGS);
+    }
+    builder.build()
 }
+
+/// WebView2 arguments for the hidden automation renderer.
+///
+/// The first flag is wry's default. The rest keep that hidden window from
+/// starting a full GPU and background-update stack.
+#[cfg(windows)]
+const RENDERER_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu --disable-background-networking --disable-component-update --disable-sync";
 
 /// Destroys the hidden window and waits for the WebView to be released.
 ///
@@ -391,7 +480,9 @@ mod tests {
             serde_json::from_str(&mcp_config_json()).expect("configuration is JSON");
 
         let server = &config["mcpServers"]["lumamark"];
-        assert!(server["command"].as_str().is_some_and(|value| !value.is_empty()));
+        assert!(server["command"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()));
         assert_eq!(server["args"], serde_json::json!(["mcp"]));
         assert!(server.get("env").is_none(), "no environment is required");
     }

@@ -13,7 +13,7 @@
  * `cargo build --release` binary is a development build that serves the Vite
  * dev URL, has no embedded assets, and cannot pass this gate.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,6 +49,7 @@ const HELP_TOKENS = [
   'mcpServers',
   'schemaVersion',
   'LUMAMARK_TOOLS_LANGUAGE',
+  'LUMAMARK_MCP_IDLE_SECONDS',
   'zh-CN',
   'input.too_large',
   'input.too_many_diagrams',
@@ -76,6 +77,7 @@ const evidence = {};
 let tempDirectory;
 let mcpClient;
 let mcpTransport;
+let stopWindowSampling = async () => {};
 
 try {
   await stat(executablePath).catch(() => {
@@ -248,14 +250,19 @@ try {
   mcpTransport = new StdioClientTransport({
     command: executablePath,
     args: ['mcp'],
+    env: {
+      ...process.env,
+      LUMAMARK_MCP_IDLE_SECONDS: '5',
+    },
     stderr: 'pipe',
   });
   mcpClient = new Client(
     { name: 'lumamark-automation-acceptance', version: '1.0.0' },
     { capabilities: {} },
   );
-  const windowProbe = observeVisibleWindow();
+  const windowSamples = [];
   await mcpClient.connect(mcpTransport);
+  stopWindowSampling = sampleWindows(windowSamples);
 
   const tools = await mcpClient.listTools();
   assertEqual(
@@ -267,6 +274,13 @@ try {
   if (!checkTool.description?.includes('Markdown')) {
     throw new Error('check_diagrams description is missing');
   }
+
+  const webViewsBeforeCall = await waitForWebViewCount(mcpProcessId(), 0, 1_000);
+  assertEqual(
+    webViewsBeforeCall,
+    0,
+    'an idle MCP session must not keep a WebView before the first tool call',
+  );
 
   const mcpCheck = await mcpClient.callTool({
     name: 'check_diagrams',
@@ -304,9 +318,38 @@ try {
     'MCP invalid diagnostic',
   );
 
+  const webViewsDuringCall = await waitForWebViewCount(mcpProcessId(), 1, 5_000);
+  if (webViewsDuringCall < 1) {
+    throw new Error('the MCP tool call did not start a WebView process');
+  }
+
+  const webViewsAfterIdle = await waitForWebViewCount(mcpProcessId(), 0, 20_000);
+  assertEqual(
+    webViewsAfterIdle,
+    0,
+    'the MCP WebView must exit after the idle timeout',
+  );
+
+  const mcpRestart = await mcpClient.callTool({
+    name: 'render_diagram',
+    arguments: {
+      source: '@startuml\nAlice -> Bob: Restarted\n@enduml\n',
+      format: 'plantuml',
+    },
+  });
+  assertEqual(mcpRestart.isError ?? false, false, 'MCP restart render isError');
+  if (!String(mcpRestart.structuredContent?.svg ?? '').includes('Restarted')) {
+    throw new Error('MCP restart did not render the PlantUML diagram');
+  }
+  const webViewsAfterRestart = await waitForWebViewCount(mcpProcessId(), 1, 15_000);
+  if (webViewsAfterRestart < 1) {
+    throw new Error('the MCP session did not start a WebView again after idle release');
+  }
+
   await mcpClient.close();
   mcpClient = undefined;
-  const windowObservations = await windowProbe;
+  await stopWindowSampling();
+  const windowObservations = windowSamples;
 
   const rendererWindows = windowObservations.filter(
     (observation) => observation.title === RENDERER_WINDOW_TITLE,
@@ -344,6 +387,7 @@ try {
   process.stderr.write('\n');
   process.exitCode = 1;
 } finally {
+  await stopWindowSampling().catch(() => undefined);
   if (mcpClient) {
     await mcpClient.close().catch(() => undefined);
   }
@@ -411,19 +455,79 @@ function run(args, stdin) {
 }
 
 /**
- * Samples the process' top-level windows while the MCP session is alive.
+ * Samples the process' top-level windows until the caller stops it.
  *
  * The renderer must exist and stay invisible, and nothing else may appear as a
  * visible titled window. tao publishes an internal event-target window, so the
  * probe enumerates windows instead of trusting `Get-Process.MainWindowHandle`.
+ * Sampling covers the whole session because the MCP renderer is created on the
+ * first tool call and destroyed again after it goes idle.
  */
-async function observeVisibleWindow() {
-  const samples = [];
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    await delay(150);
-    samples.push(...(await probeWindows()));
+function sampleWindows(samples) {
+  let stopped = false;
+  const done = (async () => {
+    while (!stopped) {
+      samples.push(...(await probeWindows()));
+      await delay(200);
+    }
+  })();
+  return async () => {
+    stopped = true;
+    await done;
+  };
+}
+
+/** Counts msedgewebview2 processes in the MCP process tree. */
+function webViewProcessCount(rootPid) {
+  if (!rootPid) {
+    return 0;
   }
-  return samples;
+  const script = `
+$root = ${Number(rootPid)}
+$all = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name)
+$byParent = @{}
+foreach ($proc in $all) {
+  $parentId = [int]$proc.ParentProcessId
+  if (-not $byParent.ContainsKey($parentId)) { $byParent[$parentId] = New-Object System.Collections.Generic.List[object] }
+  [void]$byParent[$parentId].Add($proc)
+}
+$count = 0
+$queue = New-Object System.Collections.Generic.Queue[int]
+$queue.Enqueue($root)
+while ($queue.Count -gt 0) {
+  $parent = $queue.Dequeue()
+  if ($byParent.ContainsKey($parent)) {
+    foreach ($child in $byParent[$parent]) {
+      $queue.Enqueue([int]$child.ProcessId)
+      if ($child.Name -eq 'msedgewebview2.exe') { $count += 1 }
+    }
+  }
+}
+$count
+`;
+  const result = spawnSync(
+    'powershell.exe',
+    ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
+    { encoding: 'utf8', timeout: 20_000, windowsHide: true },
+  );
+  if (result.status !== 0) {
+    return -1;
+  }
+  const parsed = Number(String(result.stdout).trim());
+  return Number.isFinite(parsed) ? parsed : -1;
+}
+
+/** Polls until the WebView count matches, or the timeout elapses. */
+async function waitForWebViewCount(rootPid, expected, timeoutMs) {
+  const started = Date.now();
+  let last = webViewProcessCount(rootPid);
+  const matches = (count) =>
+    expected === 0 ? count === 0 : count >= expected;
+  while (!matches(last) && Date.now() - started < timeoutMs) {
+    await delay(400);
+    last = webViewProcessCount(rootPid);
+  }
+  return last;
 }
 
 function probeWindows() {

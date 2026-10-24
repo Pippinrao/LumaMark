@@ -19,6 +19,7 @@ This document records LumaMark V1 alpha performance gates and current measured r
 - Installed 0.3.42 UX stutter pass: 2026-08-21
 - Adaptive document width resize supplement date: 2026-08-21
 - 1MB document-statistics real-document warmup: 2026-08-25
+- Installed idle-memory baseline: 2026-10-24
 - Platform: Windows, local development worktree
 - Command: `pnpm perf:bench` (jsdom, serial) and `pnpm release:installed-ux-stutter` (live installed/WebView2 window)
 - Coverage: Markdown fixture reads, application file-action open, post-open debounced outline refresh, virtualized outline panel initial render, CodeMirror large-document initialization, tail input dispatch, selection-only dispatch, display-mode round-trip, reading-appearance compartment dispatch round-trip, dense code-block document input/activation/real Enter fence completion, simple/complex Mermaid pending render plus active-edit input dispatch, 1/5/10MB document-statistics scheduling, a ~2–4KB mixed document (math + PlantUML + Mermaid + everyday GFM table widget) tail-input/selection/scroll/processing probe, 32 everyday GFM table file open at Adaptive and Standard page width, and installed same-window small-file click, titlebar drag engage, mixed-document widget-visible file switch, gesture-time longtask, and drag-selection sampling
@@ -127,6 +128,29 @@ On 2026-07-22, real Rust file reads and keyboard events were exercised via WebVi
 | Small-document page-width switch to two-frame layout commit | 19.60 ms | Passes packaged WebView2 `< 500 ms` smoke budget |
 
 On the same development real WebView2 before the fix, 10MB tail keyboard input was P50 226 ms / P95 242 ms; after fixing the changed-range/viewport hot path, the development rebuild remeasured P50 86.9 ms, and the release build finished at P50 48.2 ms / P95 90.4 ms. That comparison used the same on-disk sample and in-page two-frame policy, but development and release build modes differ, so it is only for locating improvement direction—not a strict isomorphic benchmark.
+
+## Memory
+
+Recorded 2026-10-24 by running `scripts/release/verify-installed-idle-memory.mjs` alone (`--duration-ms 45000 --interval-ms 15000 --rounds 10`) against the installed `%LOCALAPPDATA%\LumaMark\lumamark.exe` (FileVersion 0.3.70, file modified 2026-10-18). Each scenario is a fresh acceptance-mode process, not a long-lived editing session. Every sample forces `HeapProfiler.collectGarbage`, then records `JSHeapUsedSize` and per-process private bytes and working set. Numbers below are the last idle sample, in MB (bytes / 1024²). Role columns are private bytes unless noted.
+
+| Scenario | Tree private | Tree working set | JS heap | Main private / working set | Browser working set | GPU private | Renderer private |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Empty start screen | 251 | 449 | 8.8 | 9.3 / 45 | 160 | 89 | 57 |
+| Small document | 278 | 455 | 10.1 | 8.8 / 45 | 157 | 112 | 62 |
+| Mixed document | 455 | 522 | 14.8 | 9.9 / 47 | 164 | 233 | 110 |
+| 1 MB document | 322 | 494 | 26.2 | 8.8 / 45 | 156 | 118 | 100 |
+| 10 MB document, settled | 488 | 665 | 170 | 9.6 / 45 | 157 | 112 | 272 |
+
+The 10 MB file’s first sample, about 5 seconds after open, was still settling: renderer private 436 MB, tree working set 807 MB, JS heap 42 MB. The next forced collection brought the heap to 170 MB and renderer private to 275 MB, and the sample after that stayed there. The summary’s +128 MB heap growth is that settle, not growth during idle.
+
+File switch opened five short documents in one window for 10 rounds, then returned to the first. After round 1 versus after round 10: JS heap 11.3 → 13.2 MB, tree private 285 → 314 MB, renderer private 72 → 98 MB. Returning to the first file left renderer private at 99 MB. These files mounted no Mermaid or table widgets.
+
+A fresh launch does not show a large main process. Private bytes there stay near 9 MB. This command does not sample an editor that has already been open for days.
+
+No pass/fail budget is attached. The two largest contributors are:
+
+1. The empty window already uses about 449 MB of working set. The browser process (~160 MB working set) and the renderer (~100 MB) are the largest pieces, and the GPU process is already ~89 MB private with no document open. Editor logic does not create that floor.
+2. Document content moves the renderer, and the mixed sample moves the GPU process. A 10 MB file settles near 170 MB of JS heap and 272 MB of renderer private. The mixed sample (inline and display math, one table, and Mermaid and PlantUML fences; only the table widget was mounted when sampled) raises GPU private from ~89 MB to ~233 MB. Ten rounds of file switching retained about 26 MB of renderer private after garbage collection. The Mermaid and PlantUML render caches were not on that path: those files contain no diagrams.
 
 ## Known Limitations
 

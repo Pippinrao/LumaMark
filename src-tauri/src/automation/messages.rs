@@ -11,6 +11,9 @@ use crate::automation::invocation::{CommandId, OptionId};
 pub const LANGUAGE_ENV: &str = "LUMAMARK_TOOLS_LANGUAGE";
 pub const LANGUAGE_ZH_CN: &str = "zh-CN";
 
+/// Seconds an MCP session keeps the hidden renderer after the last tool call.
+pub const MCP_IDLE_ENV: &str = "LUMAMARK_MCP_IDLE_SECONDS";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Locale {
     En,
@@ -55,6 +58,7 @@ pub struct Text {
     pub report_codes: &'static str,
     pub exit_codes: &'static str,
     pub limits: &'static str,
+    pub mcp_idle: &'static str,
     pub too_large: &'static str,
     pub too_many: &'static str,
     pub checked: &'static str,
@@ -144,8 +148,9 @@ const EN: Text = Text {
         "  renderer.timeout      One diagram exceeded the 30 second deadline; simplify or split it.",
         "  input.format          Add --format for unknown extensions or raw stdin.",
         "  Output already exists: choose a new path; existing files are never overwritten.",
-        "  Startup cost: every invocation starts the renderer (a few hundred milliseconds). Prefer one",
-        "  long-lived MCP server over repeated short-lived CLI calls.",
+        "  Startup cost: check and render start the renderer (a few hundred milliseconds). An MCP",
+        "  session starts it on the first tool call and releases it after it has been idle. Prefer one",
+        "  MCP session over repeated short-lived CLI calls.",
         "  The engines ship with the app: updating LumaMark updates them, and no PATH entry, Node",
         "  install or browser download is ever required.",
     ],
@@ -172,6 +177,7 @@ const EN: Text = Text {
     report_codes: "  Diagnostic codes: {codes}.",
     exit_codes: "  Exit code {ok} = success, {diagram} = diagram errors, {error} = argument, file, runtime, asset or timeout errors.",
     limits: "  {mib} MiB of UTF-8 source per request; {diagrams} diagrams per Markdown request; {seconds} seconds per diagram.",
+    mcp_idle: "  {env}={seconds}   Seconds an MCP session keeps the hidden renderer after the last tool call. 0 keeps it until the session ends.",
     too_large: "Source exceeds {bytes} UTF-8 bytes.",
     too_many: "At most {count} diagrams are accepted per request.",
     checked: "Checked {count} diagram(s).",
@@ -260,8 +266,8 @@ const ZH_CN: Text = Text {
         "  renderer.timeout      单个图表超过 30 秒上限；请简化或拆分。",
         "  input.format          未知扩展名或原始 stdin 需要补充 --format。",
         "  输出文件已存在：换一个新路径；已有文件永远不会被覆盖。",
-        "  启动开销：每次调用都会启动渲染器（数百毫秒）。建议保持一个长驻 MCP 服务，而不是反复",
-        "  启动短命的 CLI 进程。",
+        "  启动开销：check 与 render 会启动渲染器（数百毫秒）。MCP 会话在第一次工具调用时才启动，",
+        "  空闲后释放。建议保持一个 MCP 会话，而不是反复启动短命的 CLI 进程。",
         "  引擎随应用一起分发：升级 LumaMark 即升级引擎，无需 PATH 配置、无需安装 Node、也无需",
         "  下载浏览器。",
     ],
@@ -288,6 +294,7 @@ const ZH_CN: Text = Text {
     report_codes: "  诊断码：{codes}。",
     exit_codes: "  退出码 {ok} = 成功，{diagram} = 图表错误，{error} = 参数、文件、运行环境、资源或超时错误。",
     limits: "  每次请求最多 {mib} MiB UTF-8 源码；每个 Markdown 请求最多 {diagrams} 个图表；每个图表 {seconds} 秒。",
+    mcp_idle: "  {env}={seconds}   MCP 会话在最后一次工具调用后保留隐藏渲染器的秒数。0 表示保持到会话结束。",
     too_large: "源码超过 {bytes} 个 UTF-8 字节。",
     too_many: "每次请求最多接受 {count} 个图表。",
     checked: "已检查 {count} 个图表。",
@@ -394,6 +401,13 @@ impl Messages {
         }
     }
 
+    pub fn mcp_idle_note(&self, seconds: u64) -> String {
+        self.text
+            .mcp_idle
+            .replace("{env}", MCP_IDLE_ENV)
+            .replace("{seconds}", &seconds.to_string())
+    }
+
     pub fn timeout(&self, milliseconds: u64) -> String {
         self.text
             .timeout
@@ -433,9 +447,7 @@ impl Messages {
     }
 
     pub fn unknown_format_value(&self, value: &str) -> String {
-        self.text
-            .unknown_format_value
-            .replace("{value}", value)
+        self.text.unknown_format_value.replace("{value}", value)
     }
 
     pub fn source_description(&self, mib: usize) -> String {
@@ -478,7 +490,10 @@ mod tests {
         let zh = Messages::new(Locale::ZhCn);
 
         assert_eq!(en.checked(3, None), "Checked 3 diagram(s).");
-        assert_eq!(en.checked(3, Some("a.svg")), "Checked 3 diagram(s). SVG: a.svg");
+        assert_eq!(
+            en.checked(3, Some("a.svg")),
+            "Checked 3 diagram(s). SVG: a.svg"
+        );
         assert_eq!(zh.checked(3, Some("a.svg")), "已检查 3 个图表。SVG：a.svg");
         assert!(en.limits_note(2, 100, 30).contains('2'));
         assert!(en.limits_note(2, 100, 30).contains("100"));
@@ -498,7 +513,10 @@ mod tests {
             en.source_description(2),
             en.exit_codes_note(0, 1, 2),
         ] {
-            assert!(!sentence.contains('{'), "unfilled placeholder in {sentence}");
+            assert!(
+                !sentence.contains('{'),
+                "unfilled placeholder in {sentence}"
+            );
         }
     }
 }

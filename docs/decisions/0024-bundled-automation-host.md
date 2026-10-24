@@ -70,7 +70,9 @@ of being installed separately, without making it a heavyweight feature.
 
 - **Concurrent processes need separate WebView data.** Four simultaneous `LumaMark.exe check` runs against one shared WebView2 user data folder blocked indefinitely; three of them never returned. Each automation process therefore creates its own data directory under the temporary directory and removes it on exit. Verified: four parallel runs complete in about two seconds.
 - **A GUI-subsystem binary is not attached to the shell's console.** Automation mode attaches to the parent console only when no usable standard handle was inherited, so interactive `--help` and report output are readable. Pipes and redirected handles are used unchanged, which is how MCP hosts, scripts, `cmd` pipelines and `Start-Process -RedirectStandardOutput` consume the tool. PowerShell's own `&`/`>` handling of GUI-subsystem processes still captures nothing; use `cmd /c`, a pipe, or an MCP host.
-- **The CLI never hangs.** A startup watchdog reports `renderer.unavailable` when the hidden page does not become ready, and a stalled renderer is reported as `renderer.timeout`.
+- **The CLI never hangs.** A startup watchdog reports `renderer.unavailable` when the hidden page does not become ready, and a stalled renderer is reported as `renderer.timeout`. MCP does not use that process-exiting watchdog: a renderer that fails to start returns `renderer.unavailable` for that call, and the next call tries again.
+- **An MCP session does not hold a WebView until a tool is called.** `LumaMark.exe mcp` starts with no renderer window. The first `check_diagrams` or `render_diagram` call creates it. After `LUMAMARK_MCP_IDLE_SECONDS` with no job in flight (default 120; `0` keeps the renderer until the client disconnects) the window and its WebView2 processes are destroyed, and the next call starts a new one. One-shot `check` and `diagram render` still start the renderer immediately.
+- **Killed MCP processes leave data directories.** The directory is removed on a normal exit. A client that kills the process skips that cleanup. The next automation process deletes `lumamark-automation-webview-<pid>-*` directories under the temporary directory whose process is no longer running, and leaves directories owned by a live process alone.
 - **Rendering stays invisible.** The renderer window exists with the title `LumaMark automation` and is never visible; the packaged acceptance enumerates the process' top-level windows instead of trusting `Get-Process.MainWindowHandle`, which also reports tao's internal event-target window.
 
 ## Rejected alternatives
@@ -97,9 +99,17 @@ of being installed separately, without making it a heavyweight feature.
 - `AppHandle::exit` cannot carry a process exit code (the wry runtime maps it to
   `ControlFlow::Exit`), so automation mode destroys the hidden window and then
   sets the process status itself.
-- Performance: each CLI invocation starts a WebView (a few hundred
-  milliseconds). MCP is long-lived, so this only affects one-shot shell usage.
-  Rendering stays outside the editor's typing path.
+- Performance: each one-shot CLI invocation starts a WebView (a few hundred
+  milliseconds). An MCP session starts that WebView on the first tool call and
+  releases it after the idle timeout, so a connected session that is not
+  rendering does not keep a browser process tree. On Windows the hidden
+  renderer repeats wry's default feature flags and adds `--disable-gpu`,
+  `--disable-background-networking`, `--disable-component-update`, and
+  `--disable-sync`. One MCP-session comparison on 2026-10-24 dropped private
+  bytes by about 51 MB (GPU process private 67 MB to 21 MB; working set only
+  about 13 MB) while the Mermaid and PlantUML SVG byte lengths stayed the same.
+  That is one sample, not a repeated benchmark. Rendering stays outside the
+  editor's typing path. The editor window does not use these arguments.
 
 ## Verification and review conditions
 
@@ -109,8 +119,10 @@ of being installed separately, without making it a heavyweight feature.
   page's job loop.
 - `pnpm release:packaged-automation` drives the packaged executable: help/version
   contracts, valid and invalid Mermaid and PlantUML, stdin, unknown extensions,
-  the 2 MiB limit, `--output` protection, an official MCP client session, and a
-  Win32 check that no window is ever visible. It requires a production build
+  the 2 MiB limit, `--output` protection, an official MCP client session that
+  starts with no WebView, creates one on the first tool call, releases it after
+  the idle timeout, and starts it again, and a Win32 check that no window is
+  ever visible. It requires a production build
   (`pnpm build` / `tauri build --no-bundle`): a plain `cargo build --release`
   binary is a development build that serves the Vite dev URL and has no embedded
   assets, so the gate reports `renderer.unavailable` with that hint.

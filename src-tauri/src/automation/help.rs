@@ -8,7 +8,7 @@ use crate::automation::invocation::{OptionSpec, COMMANDS, OPTIONS};
 use crate::automation::messages::{Locale, Messages};
 use crate::automation::report::{
     DIAGNOSTIC_CODES, DIAGRAM_TIMEOUT_MS, EXIT_DIAGRAM_ERROR, EXIT_OK, EXIT_USAGE_ERROR,
-    MAX_DIAGRAMS, MAX_SOURCE_BYTES,
+    MAX_DIAGRAMS, MAX_SOURCE_BYTES, MCP_RENDERER_IDLE_MS,
 };
 
 /// Product version, taken from the crate so it always matches the binary.
@@ -70,11 +70,7 @@ pub fn help_text(locale: Locale) -> String {
     section(&mut out, text.input_title, text.input_notes);
 
     let mut output_lines: Vec<String> = text.output_notes.iter().map(|l| (*l).to_owned()).collect();
-    output_lines.push(messages.exit_codes_note(
-        EXIT_OK,
-        EXIT_DIAGRAM_ERROR,
-        EXIT_USAGE_ERROR,
-    ));
+    output_lines.push(messages.exit_codes_note(EXIT_OK, EXIT_DIAGRAM_ERROR, EXIT_USAGE_ERROR));
     section(&mut out, text.output_title, &output_lines);
 
     let mut report_lines: Vec<String> = text.report_notes.iter().map(|l| (*l).to_owned()).collect();
@@ -93,7 +89,13 @@ pub fn help_text(locale: Locale) -> String {
         )],
     );
 
-    section(&mut out, text.environment_title, text.environment_notes);
+    let mut environment: Vec<String> = text
+        .environment_notes
+        .iter()
+        .map(|line| (*line).to_owned())
+        .collect();
+    environment.push(messages.mcp_idle_note(MCP_RENDERER_IDLE_MS / 1000));
+    section(&mut out, text.environment_title, &environment);
     section(
         &mut out,
         text.troubleshooting_title,
@@ -117,7 +119,11 @@ fn option_display(option: &OptionSpec) -> String {
 }
 
 fn longest(values: Vec<String>) -> usize {
-    values.iter().map(|value| value.chars().count()).max().unwrap_or(0)
+    values
+        .iter()
+        .map(|value| value.chars().count())
+        .max()
+        .unwrap_or(0)
 }
 
 fn padded(label: &str, width: usize, summary: &str) -> String {
@@ -138,7 +144,8 @@ fn section(out: &mut String, title: &str, lines: &[impl AsRef<str>]) {
 mod tests {
     use super::*;
     use crate::automation::invocation::{CommandId, OptionId};
-    use crate::automation::messages::LANGUAGE_ENV;
+    use crate::automation::messages::{LANGUAGE_ENV, MCP_IDLE_ENV};
+    use crate::automation::report::MCP_RENDERER_IDLE_MS;
 
     fn both() -> [(Locale, String); 2] {
         [
@@ -182,22 +189,36 @@ mod tests {
     fn help_documents_the_machine_contracts_in_both_languages() {
         for (locale, text) in both() {
             assert!(text.contains(&format!("LumaMark {}", version())));
-            assert!(text.contains("schemaVersion"), "{locale:?} help must document the report schema");
+            assert!(
+                text.contains("schemaVersion"),
+                "{locale:?} help must document the report schema"
+            );
             for code in DIAGNOSTIC_CODES {
-                assert!(text.contains(code), "{locale:?} help is missing diagnostic `{code}`");
+                assert!(
+                    text.contains(code),
+                    "{locale:?} help is missing diagnostic `{code}`"
+                );
             }
             for tool in ["check_diagrams", "render_diagram"] {
-                assert!(text.contains(tool), "{locale:?} help is missing tool `{tool}`");
+                assert!(
+                    text.contains(tool),
+                    "{locale:?} help is missing tool `{tool}`"
+                );
             }
             assert!(text.contains("mcpServers"));
             assert!(text.contains(LANGUAGE_ENV));
+            assert!(text.contains(MCP_IDLE_ENV));
+            assert!(text.contains(&(MCP_RENDERER_IDLE_MS / 1000).to_string()));
             assert!(text.contains("zh-CN"));
             for limit in [
                 (MAX_SOURCE_BYTES / (1024 * 1024)).to_string(),
                 MAX_DIAGRAMS.to_string(),
                 (DIAGRAM_TIMEOUT_MS / 1000).to_string(),
             ] {
-                assert!(text.contains(&limit), "{locale:?} help is missing limit `{limit}`");
+                assert!(
+                    text.contains(&limit),
+                    "{locale:?} help is missing limit `{limit}`"
+                );
             }
             for exit_code in [EXIT_OK, EXIT_DIAGRAM_ERROR, EXIT_USAGE_ERROR] {
                 assert!(
@@ -230,15 +251,29 @@ mod tests {
                 messages.text().environment_title,
                 messages.text().troubleshooting_title,
             ] {
-                assert!(text.contains(title), "{locale:?} help is missing section `{title}`");
+                assert!(
+                    text.contains(title),
+                    "{locale:?} help is missing section `{title}`"
+                );
             }
-            for placeholder in ["{codes}", "{ok}", "{diagram}", "{error}", "{mib}", "{seconds}", "{detail}"] {
+            for placeholder in [
+                "{codes}",
+                "{ok}",
+                "{diagram}",
+                "{error}",
+                "{mib}",
+                "{seconds}",
+                "{detail}",
+            ] {
                 assert!(
                     !text.contains(placeholder),
                     "{locale:?} help still contains the placeholder {placeholder}"
                 );
             }
-            assert!(!text.contains("\n\n\n"), "{locale:?} help has an empty section gap");
+            assert!(
+                !text.contains("\n\n\n"),
+                "{locale:?} help has an empty section gap"
+            );
         }
     }
 

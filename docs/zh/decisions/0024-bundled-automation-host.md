@@ -33,7 +33,9 @@
 
 - **并发进程必须使用独立的 WebView 数据目录。** 实测四个 `LumaMark.exe check` 同时运行并共用同一个 WebView2 用户数据目录时会无限期阻塞，其中三个始终不返回。因此每个自动化进程在临时目录下创建自己的数据目录，并在退出时删除。已验证：四个并行调用约两秒内全部完成。
 - **GUI 子系统二进制不会附着到 shell 控制台。** 自动化模式仅在未继承到可用标准句柄时附着父控制台，从而让交互式 `--help` 与报告输出可读；管道与重定向句柄原样使用，这也是 MCP 宿主、脚本、`cmd` 管道与 `Start-Process -RedirectStandardOutput` 的调用方式。PowerShell 自身对 GUI 子系统进程的 `&`/`>` 处理仍然捕获不到内容；请改用 `cmd /c`、管道或 MCP 宿主。
-- **CLI 永不挂死。** 启动看门狗在隐藏页面未按时就绪时报 `renderer.unavailable`；渲染停滞报 `renderer.timeout`。
+- **CLI 永不挂死。** 启动看门狗在隐藏页面未按时就绪时报 `renderer.unavailable`；渲染停滞报 `renderer.timeout`。MCP 不使用这个会退出进程的看门狗：渲染器没起来时，该次调用返回 `renderer.unavailable`，下一次调用会再试。
+- **MCP 会话在调用工具之前不持有 WebView。** `LumaMark.exe mcp` 启动时没有渲染窗口。第一次 `check_diagrams` 或 `render_diagram` 才创建它。空闲达到 `LUMAMARK_MCP_IDLE_SECONDS` 且没有进行中的任务后（默认 120；`0` 表示保持到客户端断开），窗口及其 WebView2 进程被销毁，下一次调用再重新启动。一次性的 `check` 与 `diagram render` 仍然立即启动渲染器。
+- **被强杀的 MCP 进程会留下数据目录。** 正常退出时会删除该目录。客户端直接杀掉进程会跳过清理。下一个自动化进程会删除临时目录中 `lumamark-automation-webview-<pid>-*` 里进程已不存在的目录，并保留仍有进程占用的目录。
 - **渲染始终不可见。** 渲染窗口标题为 `LumaMark automation`，永不显示；打包验收枚举该进程的顶层窗口，而不是依赖 `Get-Process.MainWindowHandle`（它还会报出 tao 内部的事件窗口）。
 
 ## 被否决方案
@@ -48,13 +50,13 @@
 
 - 编辑器启动路径不变：`run()` 形状保持原样，内嵌上下文经 `app_context()` 只创建一次，自动化模式通过 `Context::config_mut()` 关闭配置窗口。
 - `AppHandle::exit` 无法携带进程退出码（wry 运行时把它映射为 `ControlFlow::Exit`），因此自动化模式自行销毁隐藏窗口后再设置进程状态。
-- 性能：每次 CLI 调用需启动一次 WebView（数百毫秒）。MCP 长驻，因此只影响一次性 shell 用法；渲染仍不进入编辑器输入路径。
+- 性能：一次性 CLI 调用仍会启动 WebView（数百毫秒）。MCP 会话在第一次工具调用时才启动 WebView，空闲超时后释放，因此已连接但没有在渲染的会话不再常驻一整棵浏览器进程。Windows 上的隐藏渲染器会重复 wry 的默认特性开关，并加上 `--disable-gpu`、`--disable-background-networking`、`--disable-component-update` 和 `--disable-sync`。2026-10-24 的一次 MCP 会话对比里，私有字节下降约 51 MB（GPU 进程私有从 67 MB 降到 21 MB；工作集只少约 13 MB），Mermaid 与 PlantUML 的 SVG 字节数不变。这是单次样本，不是重复基准。渲染仍不进入编辑器输入路径。编辑器窗口不使用这些参数。
 
 ## 验证与复审条件
 
 - `cargo test` 覆盖参数解析、帮助完整性、报告外壳、退出码、文件读取与输出保护，以及 MCP 工具声明。
 - `pnpm test` 覆盖围栏提取、报告组装、净化与页面任务循环。
-- `pnpm release:packaged-automation` 驱动打包后的可执行文件：帮助/版本契约、有效与无效的 Mermaid 与 PlantUML、stdin、未知扩展名、2 MiB 上限、`--output` 保护、官方 MCP 客户端会话，以及「任何时刻都不出现可见窗口」的 Win32 断言。该门禁要求生产构建（`pnpm build` / `tauri build --no-bundle`）：直接 `cargo build --release` 得到的是开发构建，走 Vite devUrl 且不含内嵌资源，门禁会以 `renderer.unavailable` 并给出该提示。
+- `pnpm release:packaged-automation` 驱动打包后的可执行文件：帮助/版本契约、有效与无效的 Mermaid 与 PlantUML、stdin、未知扩展名、2 MiB 上限、`--output` 保护、官方 MCP 客户端会话（连接后没有 WebView，第一次工具调用才创建，空闲后释放，并能够再次启动），以及「任何时刻都不出现可见窗口」的 Win32 断言。该门禁要求生产构建（`pnpm build` / `tauri build --no-bundle`）：直接 `cargo build --release` 得到的是开发构建，走 Vite devUrl 且不含内嵌资源，门禁会以 `renderer.unavailable` 并给出该提示。
 - 若 WebView 依赖成为分发障碍、若必须在无桌面会话下渲染，或若 `rmcp` 失去维护，则重新评估。
 
 参考：[rmcp](https://github.com/modelcontextprotocol/rust-sdk)、[ADR 0023](0023-agent-cli-and-mcp.md)、[ADR 0018](0018-plantuml-local-rendering.md)。
